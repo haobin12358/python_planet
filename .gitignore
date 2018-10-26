@@ -102,3 +102,15 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+#dbconfig
+/planet/config/dbconfig.py
+
+#inforcode
+/planet/config/Inforcode.py
+
+#divide_config
+/planet/config/divide_config.cfg
+
+#setting
+/planet/config/setting.py
