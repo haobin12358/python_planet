@@ -4,11 +4,11 @@ from datetime import timedelta
 from celery.schedules import crontab, crontab_parser
 env = os.environ
 # db
-database = env.get('DXX_DB_NAME', "")
-host = env.get('DXX_DB_HOST', "")
+database = env.get('DXX_DB_NAME', "dxx")
+host = env.get('DXX_DB_HOST', "127.0.0.1")
 port = "3306"
-username = env.get('DXX_DB_USER', 'root')
-password = env.get('DXX_DB_PWD', 'root')
+username = env.get('DXX_DB_USER', 'username')
+password = env.get('DXX_DB_PWD', 'password')
 charset = "utf8"
 sqlenginename = 'mysql+pymysql'
 # 微信

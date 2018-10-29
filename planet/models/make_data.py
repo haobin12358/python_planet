@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-import uuid
-
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from planet.common.base_model import mysql_engine
-from planet.models.model import Base
+from planet.common.base_model import mysql_engine, Base
+
+from planet.models.model import *
 
 
 def create_table():
@@ -17,5 +16,4 @@ def drop_table():
 
 
 if __name__ == '__main__':
-    pass
-
+    create_table()

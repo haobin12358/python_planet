@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 import json
 from datetime import datetime
 
-from flask import current_app, Flask as _Flask, Request as _Request
+from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
 from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
-from planet.api.v1 import register_v1
+from planet.api.v1.AProduct import AProduct
 from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
@@ -77,6 +76,13 @@ class Request(_Request):
 class Flask(_Flask):
     json_encoder = JSONEncoder
     request_class = Request
+
+
+def register_v1(app):
+    v1 = Blueprint(__name__, 'v1', url_prefix='/api/v1')
+    v1.add_url_rule('/product/<string:product>', view_func=AProduct.as_view('product'))
+    # v1.add_url_rule.....
+    app.register_blueprint(v1)
 
 
 def create_app():

@@ -9,38 +9,27 @@ from sqlalchemy.sql.sqltypes import NullType
 from .error_response import ParamsError
 
 
-def _generative(*assertions):
-    """Mark a method as generative, e.g. method-chained."""
-
-    @util.decorator
-    def generate(fn, *args, **kw):
-        self = args[0]._clone()
-        for assertion in assertions:
-            assertion(self, fn.__name__)
-        fn(self, *args[1:], **kw)
-        return self
-    return generate
-
-
 @inspection._self_inspects
 @log.class_logger
 class Query(_Query):
     """定义查询方法"""
-    def _no_limit_offset(self, meth):
-        super(Query, self)._no_limit_offset(meth)
-
-    def _no_statement_condition(self, meth):
-        super(Query, self)._no_statement_condition(meth)
-
     def filter_without_none(self, *criterion):
         """等同于filter查询, 但是会无视双等号后为None的值
         例子: session.query(Admin).filter_without_none(Admin.ADisfreeze == freeze)
                 如果freeze是None则不执行过滤
         """
-        criterion = filter(lambda x: not isinstance(x.right.type, NullType), list(criterion))
+        criterion = list(filter(lambda x: not isinstance(x.right.type, NullType), list(criterion)))
         if not criterion:
             return self
         return super(Query, self).filter(*criterion)
+
+    def filter_by_(self, **kwargs):
+        """
+        不提取isdelete为True的记录
+        """
+        if 'isdelete' not in kwargs.keys():
+            kwargs['isdelete'] = False
+        return super(Query, self).filter_by(**kwargs)
 
     def all_with_page(self):
         """
