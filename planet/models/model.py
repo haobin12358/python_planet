@@ -18,10 +18,13 @@ DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
 mysql_engine = create_engine(DB_PARAMS, echo=False)
 
 
-class Product(BaseModel):
+class Products(BaseModel):
     """
     商品
     """
+    __tablename__ = "Products"
+    PRid = Column(String(64), primary_key=True)
+    
 
 class ProductSku(BaseModel):
     """
