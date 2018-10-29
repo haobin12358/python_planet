@@ -21,9 +21,9 @@ def parameter_required(required=None, others='allow', filter_none=True, forbidde
             k: v for k, v in data.items() if v or v == 0
         }
     if required:
-        missed = filter(lambda x: x not in data, required)
+        missed = list(filter(lambda x: x not in data, required))
         if missed:
-            raise ParamsError(u'必要参数缺失或为空: ' + ', '.join(missed))
+            raise ParamsError('必要参数缺失或为空: ' + ', '.join(missed))
     if others != 'allow':
         data = {
             k: v for k, v in data.items() if k in required
