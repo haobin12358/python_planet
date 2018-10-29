@@ -22,3 +22,26 @@ pip install -r requirments.txt
 405010 
 405011 状态错误
 ```
+
+- 环境变量
+
+
+```bash
+vim ~/.bashrc
+```
+```bash
+export DXX_DB_HOST='ip地址'
+export DXX_DB_NAME='数据库名字'
+export DXX_DB_USER='数据库用户名'                                                                                                                                                                 
+export DXX_DB_PWD='数据库密码'
+
+export DXXAPPID='appid'
+export DXXAPPSECRET='appsecret'
+
+```
+
+```bash
+source ~/.bashrc
+```
+
+
