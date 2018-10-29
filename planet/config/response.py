@@ -1,5 +1,5 @@
 # *- coding:utf8 *-
-from WeiDian.common.base_error import BaseError
+from common.base_error import BaseError
 
 
 class PARAMS_MISS(BaseError):
