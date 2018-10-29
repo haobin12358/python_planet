@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import orm
+from datetime import datetime
+
+from sqlalchemy import orm, Column, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base, AbstractConcreteBase
 from sqlalchemy import create_engine
 
@@ -18,6 +20,10 @@ _Base = declarative_base()
 
 
 class Base(AbstractConcreteBase, _Base):
+    isdelete = Column(Boolean, default=False, comment='是否删除')
+    createtime = Column(DateTime, default=datetime.now, comment='创建时间')
+    updatetime = Column(DateTime, default=datetime.now, comment='更新时间')
+
     @orm.reconstructor
     def __init__(self):
         self.fields = '__all__'

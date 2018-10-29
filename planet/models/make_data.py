@@ -4,7 +4,8 @@ import uuid
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from planet.common.base_model import Base, mysql_engine
+from planet.common.base_model import mysql_engine
+from planet.models.model import Base
 
 
 def create_table():

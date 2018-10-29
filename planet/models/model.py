@@ -24,11 +24,28 @@ class Products(Base):
     """
     __tablename__ = "Products"
     PRid = Column(String(64), primary_key=True)
-    
+
+
+
+class ProductScene(Base):
+    """
+    场景
+    """
+
+
+class ProductCategory(Base):
+    """
+    商品分类(3级)
+    """
 
 class ProductSku(Base):
     """
     商品SKU
+    """
+
+class ProductImage(Base):
+    """
+    商品图片
     """
 
 class Carts(Base):
@@ -64,11 +81,6 @@ class ProductItems(Base):
 class Reviews(Base):
     """
     评论
-    """
-
-class ProductCategory(Base):
-    """
-    商品类目
     """
 
 class ProductBrand(Base):
