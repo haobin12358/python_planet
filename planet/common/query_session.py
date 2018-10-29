@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 import math
 
 from flask import request
@@ -7,7 +6,7 @@ from sqlalchemy import inspection, log, util
 from sqlalchemy.orm import Query as _Query, Session as _Session
 from sqlalchemy.sql.sqltypes import NullType
 
-from WeiDian.config.response import PARAMS_ERROR
+from .error_response import ParamsError
 
 
 def _generative(*assertions):
@@ -35,7 +34,7 @@ class Query(_Query):
 
     def filter_without_none(self, *criterion):
         """等同于filter查询, 但是会无视双等号后为None的值
-        例子: session.query(Admin).filter_ignore_none_args(Admin.ADisfreeze == freeze)
+        例子: session.query(Admin).filter_without_none(Admin.ADisfreeze == freeze)
                 如果freeze是None则不执行过滤
         """
         criterion = filter(lambda x: not isinstance(x.right.type, NullType), list(criterion))
@@ -43,24 +42,25 @@ class Query(_Query):
             return self
         return super(Query, self).filter(*criterion)
 
-    def all_with_page(self, page=None, count=None):
+    def all_with_page(self):
         """
         计算总页数和总数
-        :param page: 当前页码
-        :param count: 页面大小
         :return: sqlalchemy对象列表
         """
+        args = request.args.to_dict()
+        page = args.get('page') or 1
+        count = args.get('count') or 15
         if not page and not count:
             return self.all()
         try:
             page = int(page)
             count = int(count)
         except TypeError as e:
-            raise PARAMS_ERROR(u'分页参数错误')
+            raise ParamsError(u'分页参数错误')
         mount = self.count()
-        page_count = math.ceil(float(mount) / count)
-        request.page_count = page_count
-        request.all_count = mount
+        page_all = math.ceil(float(mount) / count)
+        request.page_all = page_all
+        request.mount = mount
         return self.offset((page - 1) * count).limit(count).all()
 
     def contain(self, cen):
@@ -93,19 +93,11 @@ class Query(_Query):
             return self
         return self.filter(cen.left < cen.right)
 
-    def filter_strip_(self, cen):
-        """
-        eg: self.session.query(User).filter_strip_(Trade.id == '1cee8db5f460451089181d6a2efae09')
-        """
-        right_value = cen.right.value
-        uuid_str = right_value[:8] + '-' + right_value[8: 12] + '-' + right_value[12: 16] + '-' + right_value[16: 20] + '-' + right_value[20: ]
-        cen.right.value = uuid_str
-        return self.filter(cen)
-
     def test(self, cen):
         """测试"""
         import ipdb
         ipdb.set_trace()
+
 
 class Session(_Session):
     # 此处制定session
