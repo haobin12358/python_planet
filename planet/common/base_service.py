@@ -53,7 +53,6 @@ class SBase(object):
             # raise e
             print(e.message)
 
-
     @close_session
     def add_models(self, mod):
         """
@@ -108,7 +107,6 @@ class SBase(object):
                 index = lower_table_key.index(item_key.lower())
                 if data_dict.get(item_key) is not None:  # 如果传入的字段有值
                     setattr(model_bean, model_bean_key_without_line[index], data_dict.get(item_key))
-
         for key in model_bean.__table__.columns.keys():
             if key in data_dict:
                 setattr(model_bean, key, data_dict.get(key))
@@ -126,5 +124,6 @@ class SBase(object):
             if func is not None:
                 func(*args)
             self.session.rollback()
-            self.session.close()
             raise e
+        finally:
+            self.session.close()
