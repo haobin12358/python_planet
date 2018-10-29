@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
-from planet.models.model import Products
+from planet.models import Products
 
 
 class SProducts(SBase):
