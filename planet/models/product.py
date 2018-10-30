@@ -7,7 +7,7 @@ from planet.common.base_model import Base
 
 
 # 疑问, 资讯的分类和商品的一级类目有关系吗
-# ui购物车中的北面南面是什么意思
+# ui购物车中的北面南面是什么意思, 品牌
 class Products(Base):
     """
     商品
@@ -109,6 +109,7 @@ class ProductCategory(Base):
     __tablename__ = 'ProductCategory'
     PCid = Column(String(64), primary_key=True)
     PCtype = Column(Integer, nullable=False, comment='类目级别, 1: 一级, 2: 二级, 3: 三级')
+    PCname = Column(String(16), nullable=False, comment='类别名')
     PCdesc = Column(String(125), comment='类别描述')
     ParentPCid = Column(String(64), comment='父类别id, 为空则为一级主类别')
     PCsort = Column(String(64), comment='显示顺序')

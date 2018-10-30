@@ -7,7 +7,9 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct
+from planet.api.v1.Acatogory import ACategory
 from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
@@ -81,6 +83,8 @@ class Flask(_Flask):
 def register_v1(app):
     v1 = Blueprint(__name__, 'v1', url_prefix='/api/v1')
     v1.add_url_rule('/product/<string:product>', view_func=AProduct.as_view('product'))
+    v1.add_url_rule('/file/<string:file>', view_func=AFile.as_view('file'))
+    v1.add_url_rule('/category/<string:category>', view_func=ACategory.as_view('category'))
     # v1.add_url_rule.....
     app.register_blueprint(v1)
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_resource import Resource
-from planet.control.CProduct import CProducts
+from planet.control.CProducts import CProducts
 
 
 class AProduct(Resource):
