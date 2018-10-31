@@ -19,6 +19,7 @@ class Products(Base):
     PRlinePrice = Column(Float, comment='划线价格')
     PRfreight = Column(Float, default=0, comment='运费')
     PRstocks = Column(Integer, comment='库存')
+    PRsalesValue = Column(Integer, default=0, comment='销量')
     PRstatus = Column(Integer, default=0, comment='状态  0 正常 10下架')
     PRmainpic = Column(String(255), comment='主图')
     PCid = Column(String(64), comment='分类id')

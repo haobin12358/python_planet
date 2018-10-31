@@ -3,7 +3,9 @@ import math
 
 from flask import request
 from sqlalchemy import inspection, log, util
+from sqlalchemy.ext.hybrid import Comparator
 from sqlalchemy.orm import Query as _Query, Session as _Session
+from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.sql.sqltypes import NullType
 
 from .error_response import ParamsError
@@ -18,10 +20,15 @@ class Query(_Query):
         例子: session.query(Admin).filter_without_none(Admin.ADisfreeze == freeze)
                 如果freeze是None则不执行过滤
         """
-        criterion = list(filter(lambda x: not isinstance(x.right.type, NullType), list(criterion)))
+        criterion = list(filter(self._right_not_none, list(criterion)))
         if not criterion:
             return self
         return super(Query, self).filter(*criterion)
+
+    def _right_not_none(self, x):
+        if hasattr(x, 'right'):
+            return not isinstance(x.right.type, NullType)
+        return True
 
     def filter_by_(self, **kwargs):
         """
@@ -40,8 +47,8 @@ class Query(_Query):
         :return: sqlalchemy对象列表
         """
         args = request.args.to_dict()
-        page = args.get('page') or 1
-        count = args.get('count') or 15
+        page = args.get('page_num') or 1
+        count = args.get('page_size') or 15
         if not page and not count:
             return self.all()
         try:

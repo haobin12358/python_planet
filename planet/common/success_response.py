@@ -28,9 +28,9 @@ class Success(BaseError):
         if self.data is not None:
             body['data'] =self.data
         if hasattr(request, 'page_all'):
-            body['page_all'] = request.page_all
+            body['total_page'] = request.page_all
         if hasattr(request, 'mount'):
-            body['mount'] = request.mount
+            body['total_count'] = request.mount
         text = json.dumps(body)
         return text
 

@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import json
 
+from sqlalchemy import or_
+
 from planet.common.error_response import NotFound, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.config.enums import PRODUCT_STATUS
-from planet.models import Products
+from planet.models import Products, ProductBrand, ProductItems
 from planet.service.SProduct import SProducts
 
 
@@ -39,19 +41,27 @@ class CProducts:
 
     def get_produt_list(self):
         data = parameter_required()
-        order = data.get('order', 'desc')
+        order = data.get('order', 'desc')  # 时间排序
         kw = data.get('kw', '')  # 关键词
         pbid = data.get('pbid')  # 品牌
+        pcid = data.get('pcid')  # 分类id
+        itid = data.get('itid')  # 场景下的标签id
+
         if order == 'desc':
             order = Products.createtime.desc()
         else:
             order = Products.createtime
+        # 筛选
         products = self.sproduct.get_product_list([
             Products.PBid == pbid,
-            Products.PRtitle.contains(kw)
+            or_(Products.PRtitle.contains(kw), ProductBrand.PBname.contains(kw)),
+            Products.PCid == pcid,
+            ProductItems.ITid == itid
         ], [order, ])
+        # 填充
         for product in products:
             product.fill('prstatus_zh', PRODUCT_STATUS.get(product.PRstatus, ''))
+            # 品牌
             brand = self.sproduct.get_product_brand({'PBid': product.PBid})
             product.fill('brand', brand)
         return Success(products)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
-from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku
+from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
+    ProductItems
 
 
 class SProducts(SBase):
@@ -15,11 +16,10 @@ class SProducts(SBase):
     def get_product_list(self, args, order=[]):
         """获取商品列表"""
         args.append(Products.isdelete == False)
-        return self.session.query(Products).join(
-            ProductBrand, Products.PBid == ProductBrand.PBid
-        ).filter_(
-            *args
-        ).order_by(*order).all()
+        return self.session.query(Products).\
+            outerjoin(
+                ProductItems, ProductItems.PRid == Products.PRid
+            ).filter_(*args).order_by(*order).all_with_page()
 
     @close_session
     def get_product_images(self, args):
