@@ -64,7 +64,7 @@ class CProducts:
             # 品牌
             brand = self.sproduct.get_product_brand({'PBid': product.PBid})
             product.fill('brand', brand)
-        return Success(products)
+        return Success(data=products)
 
     def add_product(self):
         pass
@@ -82,7 +82,7 @@ class CCategory(object):
         categorys = self.sproduct.get_categorys({'ParentPCid': up})
         for category in categorys:
             self._sub_category(category, deep)
-        return Success(categorys)
+        return Success(data=categorys)
 
     def _sub_category(self, category, deep):
         try:
