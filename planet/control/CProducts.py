@@ -5,6 +5,7 @@ from planet.common.error_response import NotFound, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.config.enums import PRODUCT_STATUS
+from planet.models import Products
 from planet.service.SProduct import SProducts
 
 
@@ -37,7 +38,23 @@ class CProducts:
         return Success(data=product)
 
     def get_produt_list(self):
-        pass
+        data = parameter_required()
+        order = data.get('order', 'desc')
+        kw = data.get('kw', '')  # 关键词
+        pbid = data.get('pbid')  # 品牌
+        if order == 'desc':
+            order = Products.createtime.desc()
+        else:
+            order = Products.createtime
+        products = self.sproduct.get_product_list([
+            Products.PBid == pbid,
+            Products.PRtitle.contains(kw)
+        ], [order, ])
+        for product in products:
+            product.fill('prstatus_zh', PRODUCT_STATUS.get(product.PRstatus, ''))
+            brand = self.sproduct.get_product_brand({'PBid': product.PBid})
+            product.fill('brand', brand)
+        return Success(products)
 
     def add_product(self):
         pass

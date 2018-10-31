@@ -6,10 +6,20 @@ from planet.models import Products, ProductCategory, ProductImage, ProductBrand,
 class SProducts(SBase):
     @close_session
     def get_product_by_prid(self, prid):
-        """获取id获取商品"""
+        """获取id获取单个商品"""
         return self.session.query(Products).filter_by_(
             PRid=prid
         ).first()
+
+    @close_session
+    def get_product_list(self, args, order=[]):
+        """获取商品列表"""
+        args.append(Products.isdelete == False)
+        return self.session.query(Products).join(
+            ProductBrand, Products.PBid == ProductBrand.PBid
+        ).filter_(
+            *args
+        ).order_by(*order).all()
 
     @close_session
     def get_product_images(self, args):

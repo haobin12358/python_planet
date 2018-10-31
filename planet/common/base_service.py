@@ -18,7 +18,6 @@ def get_session():
         session = db_session()
         status = True
     except Exception as e:
-        print(e.message)
         session = None
         status = False
     finally:
@@ -37,8 +36,7 @@ def close_session(fn):
             print(u"DBERROR" + traceback.format_exc())
             # current_app.logger.error(traceback.format_exc().decode('unicode-escape'))
             self.session.rollback()
-            # raise e
-            raise DbError(message=e.msg)
+            raise e
         finally:
             self.session.close()
     return inner

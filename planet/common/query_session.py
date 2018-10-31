@@ -31,6 +31,9 @@ class Query(_Query):
             kwargs['isdelete'] = False
         return super(Query, self).filter_by(**kwargs)
 
+    def filter_(self, *args, **kwargs):
+        return self.filter_without_none(*args)
+
     def all_with_page(self):
         """
         计算总页数和总数
