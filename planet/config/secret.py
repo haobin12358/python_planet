@@ -23,7 +23,7 @@ wxpay_notify_url = env.get('DXX_PAY_REDIRECT', '')
 
 class DefaltSettig(object):
     SECRET_KEY = env.get('SECRET', 'guess')
-    TOKEN_EXPIRATION = 3600 * 2  # token过期时间(秒)
+    TOKEN_EXPIRATION = 3600 * 7 * 24  # token过期时间(秒)
     DEBUG = True
     BASEDIR = os.path.abspath(os.path.join(__file__, '../../../'))
     CELERY_TASK_SERIALIZER = 'json'

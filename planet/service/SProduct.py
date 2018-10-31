@@ -38,6 +38,11 @@ class SProducts(SBase):
         return self.session.query(ProductSku).filter_by_(**args).all()
 
     @close_session
+    def get_sku_one(self, args):
+        """获取单个sku"""
+        return self.session.query(ProductSku).filter_by_(**args).first()
+
+    @close_session
     def get_sku_value(self, args):
         """获取sku属性值"""
         return self.session.query(ProductSkuValue).filter_by_(**args).first()

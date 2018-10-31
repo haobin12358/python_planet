@@ -16,20 +16,6 @@ DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
     cfg.charset)
 mysql_engine = create_engine(DB_PARAMS, echo=False)
 
-class Carts(Base):
-    """
-    购物车
-    """
-
-class OrderMain(Base):
-    """
-    订单主单
-    """
-
-class OrderPart(Base):
-    """
-    订单副单
-    """
 
 class Users(Base):
     """

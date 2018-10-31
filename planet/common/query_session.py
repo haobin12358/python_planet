@@ -3,12 +3,10 @@ import math
 
 from flask import request
 from sqlalchemy import inspection, log, util
-from sqlalchemy.ext.hybrid import Comparator
 from sqlalchemy.orm import Query as _Query, Session as _Session
-from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.sql.sqltypes import NullType
 
-from .error_response import ParamsError
+from .error_response import ParamsError, NotFound
 
 
 @inspection._self_inspects
@@ -30,13 +28,25 @@ class Query(_Query):
             return not isinstance(x.right.type, NullType)
         return True
 
-    def filter_by_(self, **kwargs):
+    def filter_by_(self, *args, **kwargs):
         """
         不提取isdelete为True的记录
         """
+        if args:
+            args = list(args)
+            arg = args.pop()
+            kwargs.update(arg)
+            return self.filter_by_(*args, **kwargs)
         if 'isdelete' not in kwargs.keys():
             kwargs['isdelete'] = False
         return super(Query, self).filter_by(**kwargs)
+
+    def first_(self):
+        """不存在就报错"""
+        res = super(Query, self).first()
+        if res:
+            return res
+        raise NotFound()
 
     def filter_(self, *args, **kwargs):
         return self.filter_without_none(*args)

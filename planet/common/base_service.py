@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import sessionmaker
 
-from .error_response import DbError
+from .error_response import DbError, SystemError
 from .base_model import Base
 from .. import models
 from .base_model import mysql_engine
@@ -20,6 +20,7 @@ def get_session():
     except Exception as e:
         session = None
         status = False
+        raise SystemError(e.args)
     finally:
         return session, status
 
@@ -36,7 +37,7 @@ def close_session(fn):
             print(u"DBERROR" + traceback.format_exc())
             # current_app.logger.error(traceback.format_exc().decode('unicode-escape'))
             self.session.rollback()
-            raise e
+            raise SystemError(e.args)
         finally:
             self.session.close()
     return inner
@@ -49,7 +50,7 @@ class SBase(object):
             self.session = db_session()
         except Exception as e:
             # raise e
-            print(e.message)
+            print(e.args)
 
     @close_session
     def add_model(self, model_name, data_dict, return_fields=None):
@@ -79,11 +80,10 @@ class SBase(object):
         try:
             yield self.session
             self.session.commit()
-            self.session.close()
         except Exception as e:
             if func is not None:
                 func(*args)
             self.session.rollback()
-            raise e
+            raise SystemError(e.args)
         finally:
             self.session.close()

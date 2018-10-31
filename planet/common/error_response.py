@@ -30,6 +30,10 @@ class BaseError(HTTPException):
     def get_headers(self, environ=None):
         return [('Content-Type', 'application/json')]
 
+    @property
+    def args(self):
+        return self.message
+
 
 class DbError(BaseError):
     message = '系统错误'
