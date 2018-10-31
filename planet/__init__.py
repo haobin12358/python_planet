@@ -20,12 +20,8 @@ class JSONEncoder(_JSONEncoder):
     def default(self, o):
         if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
             res = dict(o)
-            for k in res.keys():
-                if k[0].isupper():
-                    # 字段转小写
-                    res[k.lower()] = res[k]
-                    res.pop(k)
-            return res
+            new_res = {k.lower(): v for k, v in res.items()}
+            return new_res
         if isinstance(o, datetime):
             # 也可以序列化时间类型的对象
             return o.strftime('%Y.%m.%d %H:%M:%S')

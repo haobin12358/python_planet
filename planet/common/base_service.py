@@ -38,7 +38,7 @@ def close_session(fn):
             # current_app.logger.error(traceback.format_exc().decode('unicode-escape'))
             self.session.rollback()
             # raise e
-            raise DbError(message=e.message)
+            raise DbError(message=e.msg)
         finally:
             self.session.close()
     return inner

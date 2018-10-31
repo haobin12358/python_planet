@@ -72,7 +72,7 @@ class Base(AbstractConcreteBase, _Base):
         self.fields = '__all__'
         return self
 
-    def fill(self, obj, name, hide=None, fields=None, allow_none=True):
+    def fill(self, name, obj, hide=None, fields=None, allow_none=True):
         """简化control层代码:
             room.fill(self.sroom.get_house_by_hoid(room.HOid), 'house')
             等同于:

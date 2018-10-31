@@ -2,7 +2,7 @@
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 
-from .error_response import AuthorityError
+from .error_response import AuthorityError, TokenError
 from .success_response import Success
 from ..config.http_config import API_HOST
 from ..config.secret import wxscope, appid, appsecret
@@ -57,15 +57,16 @@ def token_required(func):
     def inner(self, *args, **kwargs):
         if not is_tourist():
             return func(self, *args, **kwargs)
-        state_url = request.environ.get('HTTP_X_URL', request.url)
-        if '#' in state_url:
-            state_url = state_url.replace('#', '$')
-        state = str(state_url)
-        self.login = WeixinLogin(appid, appsecret)
-        redirect_url = self.login.authorize(API_HOST + "/api/v1/user/weixin_callback", wxscope, state=state)
-        return Success(u'执行跳转', status=302, data={
-            'redirect_url': redirect_url
-        })
+        raise TokenError()
+        # state_url = request.environ.get('HTTP_X_URL', request.url)
+        # if '#' in state_url:
+        #     state_url = state_url.replace('#', '$')
+        # state = str(state_url)
+        # self.login = WeixinLogin(appid, appsecret)
+        # redirect_url = self.login.authorize(API_HOST + "/api/v1/user/weixin_callback", wxscope, state=state)
+        # return Success(u'执行跳转', status=302, data={
+        #     'redirect_url': redirect_url
+        # })
     return inner
 
 

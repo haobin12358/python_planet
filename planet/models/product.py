@@ -58,6 +58,7 @@ class ProductImage(Base):
     PIid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='商品id')
     PIpic = Column(String(255), nullable=False, comment='商品图片')
+    PIsort = Column(Integer, comment='顺序')
 
 
 class ProductBrand(Base):
