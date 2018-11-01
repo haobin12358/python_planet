@@ -17,6 +17,9 @@ appsecret = env.get('DXXAPPSECRET', '')
 wxtoken = env.get('DXXWXTOKEN', '')
 wxscope = 'snsapi_userinfo'
 wxpay_notify_url = env.get('DXX_PAY_REDIRECT', '')
+# 支付宝
+app_private_path = ''
+alipay_public_key_path = ''
 # assert database and host and port and username and password
 # assert appid and appsecret and wxscope and wxpay_notify_url
 

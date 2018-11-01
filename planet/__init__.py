@@ -7,7 +7,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
-from planet.api.v1.AAuth import AAuthTest
+from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct, ACategory
 from planet.api.v1.ATrade import ACart
@@ -84,6 +84,7 @@ def register_v1(app):
     v1.add_url_rule('/category/<string:category>', view_func=ACategory.as_view('category'))
     v1.add_url_rule('/cart/<string:cart>', view_func=ACart.as_view('cart'))
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
+    v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v1.add_url_rule.....
     app.register_blueprint(v1)
 
