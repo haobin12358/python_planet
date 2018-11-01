@@ -48,6 +48,9 @@ class Query(_Query):
             return res
         raise NotFound()
 
+    def delete_(self):
+        return self.update({'isdelete': True})
+
     def filter_(self, *args, **kwargs):
         return self.filter_without_none(*args)
 
