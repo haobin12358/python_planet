@@ -41,7 +41,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
-.idea
+*/.idea
 nosetests.xml
 coverage.xml
 *.cover
@@ -118,3 +118,4 @@ venv.bak/
 
 # img
 img/*
+.idea
