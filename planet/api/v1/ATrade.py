@@ -9,7 +9,7 @@ class ACart(Resource):
 
     def post(self, cart):
         apis = {
-            'add': self.ccart.add,
+            'create': self.ccart.add,
             'update': self.ccart.update,
             'destroy': self.ccart.destroy
         }

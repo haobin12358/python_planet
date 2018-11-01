@@ -41,12 +41,12 @@ class Query(_Query):
             kwargs['isdelete'] = False
         return super(Query, self).filter_by(**kwargs)
 
-    def first_(self):
+    def first_(self, error=None):
         """不存在就报错"""
         res = super(Query, self).first()
-        if res:
+        if res or error is None:
             return res
-        raise NotFound()
+        raise NotFound(error)
 
     def delete_(self):
         return self.update({'isdelete': True})

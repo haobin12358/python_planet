@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-import json
 import uuid
 
-from flask import request
+from flask import request, json
 
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
@@ -75,7 +74,7 @@ class CCart(object):
         data = parameter_required(('caid', ))
         caid = data.get('caid')
         usid = request.user.id
-        card = self.scart.get_card_one({'CAid': caid, 'USid': usid})  # card就是cart.
+        card = self.scart.get_card_one({'CAid': caid, 'USid': usid}, error='购物车不存在')  # card就是cart.
         # 默认的sku和数量
         skuid = data.get('skuid') or card.SKUid
         try:
@@ -93,7 +92,7 @@ class CCart(object):
                 session.query(Carts).filter_by_({'CAid': caid}).delete_()
                 msg = '删除成功'
             else:
-                sku = session.query(ProductSku).filter_by_({'SKUid': skuid}).first_()
+                session.query(ProductSku).filter_by_({'SKUid': skuid}).first_()
                 session.query(Carts).filter_by_({'CAid': caid}).update({
                     'SKUid': skuid,
                     'CAnums': num
@@ -105,9 +104,12 @@ class CCart(object):
         """个人购物车列表"""
         usid = request.user.id
         my_carts = self.scart.get_card_list({'USid': usid})
+        pb_list = []
+        new_cart_list = []
         for cart in my_carts:
+            pbid = cart.PBid
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
-            pb = self.sproduct.get_product_brand_one({'PBid': cart.PBid})
+            pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
             skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
             product_skus = self.sproduct.get_sku({'PRid': cart.PRid})  # 商品的sku
@@ -124,11 +126,17 @@ class CCart(object):
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)
-            cart.fill('pb', pb)
+            # cart.fill('pb', pb)
             # 小计
             # cart.subtotal =
-            # todo 店铺分组
-        return Success(data=my_carts)
+            # 店铺分组
+            if pbid not in pb_list:
+                new_cart_list.append({'cart': [cart], 'pb': pb})
+                pb_list.append(pbid)
+            else:
+                index = pb_list.index(pbid)
+                new_cart_list[index]['cart'].append(cart)
+        return Success(data=new_cart_list)
 
     @token_required
     def destroy(self):
