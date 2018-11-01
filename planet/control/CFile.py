@@ -14,7 +14,7 @@ class CFile(object):
     def upload_img(self):
         file = request.files.get('file')
         data = parameter_required()
-        folder = data.get('type') or 'temp'
+        folder = self.allowed_folder(data.get('type'))
         if not file:
             raise ParamsError(u'上传有误')
         filename = file.filename
@@ -56,6 +56,10 @@ class CFile(object):
     @staticmethod
     def allowed_file(shuffix):
         return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', ]
+
+    @staticmethod
+    def allowed_folder(folder):
+        return folder if folder in ['index', 'product', 'temp', 'item', 'category'] else 'temp'
 
     @staticmethod
     def new_name(shuffix):

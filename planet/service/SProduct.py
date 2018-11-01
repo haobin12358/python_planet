@@ -27,7 +27,7 @@ class SProducts(SBase):
             order_by(ProductImage.PIsort).all()
 
     @close_session
-    def get_product_brand(self, args):
+    def get_product_brand_one(self, args):
         """获取品牌"""
         return self.session.query(ProductBrand).filter_by_(**args).first()
 

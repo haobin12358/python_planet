@@ -50,6 +50,8 @@ def error_handler(app):
         if isinstance(e, BaseError):
             return e
         else:
+            if app.config['DEBUG']:
+                return SystemError(e.args)
             return SystemError()
 
 

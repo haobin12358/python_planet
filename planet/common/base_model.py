@@ -27,7 +27,7 @@ class Base(AbstractConcreteBase, _Base):
     @orm.reconstructor
     def __init__(self):
         self.fields = '__all__'
-        self.hide('isdelete')
+        self.hide('isdelete', 'createtime', 'updatetime')
 
     def keys(self):
         return self.fields

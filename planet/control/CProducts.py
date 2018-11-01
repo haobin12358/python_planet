@@ -26,7 +26,7 @@ class CProducts:
         images = self.sproduct.get_product_images({'PRid': prid})
         product.fill('images', images)
         # 品牌
-        brand = self.sproduct.get_product_brand({'PBid': product.PBid}) or {}
+        brand = self.sproduct.get_product_brand_one({'PBid': product.PBid}) or {}
         product.fill('brand', brand)
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
@@ -62,7 +62,7 @@ class CProducts:
         for product in products:
             product.fill('prstatus_zh', PRODUCT_STATUS.get(product.PRstatus, ''))
             # 品牌
-            brand = self.sproduct.get_product_brand({'PBid': product.PBid})
+            brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)
         return Success(data=products)
 

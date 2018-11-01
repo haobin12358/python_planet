@@ -11,5 +11,12 @@ class ACart(Resource):
         apis = {
             'add': self.ccart.add,
             'update': self.ccart.update,
+            'destroy': self.ccart.destroy
+        }
+        return apis
+
+    def get(self, cart):
+        apis = {
+            'list': self.ccart.list,
         }
         return apis
