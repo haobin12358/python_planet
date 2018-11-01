@@ -54,7 +54,7 @@ def error_handler(app):
 
 
 def generic_error_log(data, path='flask', info='bug'):
-    logger_file_name = datetime.now().strftime("%Y-%m-%d") + u'.log'
+    logger_file_name = datetime.now().strftime("%Y-%m-%d") + '.log'
     logger_dir = os.path.join(current_app.config['BASEDIR'], 'logs', path)
     if not os.path.isdir(logger_dir):
         os.makedirs(logger_dir)

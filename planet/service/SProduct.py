@@ -15,8 +15,7 @@ class SProducts(SBase):
     @close_session
     def get_product_list(self, args, order=[]):
         """获取商品列表"""
-        args.append(Products.isdelete == False)
-        return self.session.query(Products).\
+        return self.session.query(Products).filter_by_().\
             outerjoin(
                 ProductItems, ProductItems.PRid == Products.PRid
             ).filter_(*args).order_by(*order).all_with_page()

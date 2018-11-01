@@ -4,7 +4,7 @@ from datetime import datetime
 
 from flask import request, current_app
 
-from planet.common.error_response import TokenError, NotFound
+from planet.common.error_response import NotFound, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.config.http_config import API_HOST
@@ -13,10 +13,10 @@ from planet.config.http_config import API_HOST
 class CFile(object):
     def upload_img(self):
         file = request.files.get('file')
-        args = request.args.to_dict()
-        folder = args.get('type', 'temp') or 'temp'
+        data = parameter_required()
+        folder = data.get('type') or 'temp'
         if not file:
-            raise SystemError(u'上传有误')
+            raise ParamsError(u'上传有误')
         filename = file.filename
         shuffix = os.path.splitext(filename)[-1]
         if self.allowed_file(shuffix):

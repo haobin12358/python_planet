@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
-HTTP_HOST = 'http://planet.daaiti.cn'
-API_HOST = 'http://planet.daaiti.cn'
+HTTP_HOST = 'https://planet.daaiti.cn'
+API_HOST = 'https://planet.daaiti.cn'

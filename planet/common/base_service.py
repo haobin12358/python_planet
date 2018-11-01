@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import sessionmaker
 
-from .error_response import DbError, SystemError
+from .error_response import SystemError
 from .base_model import Base
 from .. import models
 from .base_model import mysql_engine
