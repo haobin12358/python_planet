@@ -50,9 +50,9 @@ class CCart(object):
         else:
             # 不存在
             with self.scart.auto_commit() as session:
-                sku = session.query(ProductSku).filter_by_({'SKUid': skuid}).first_()
+                sku = session.query(ProductSku).filter_by_({'SKUid': skuid}).first_('sku不存在')
                 prid = sku.PRid
-                product = session.query(Products).filter_by_({'PRid': prid}).first_()
+                product = session.query(Products).filter_by_({'PRid': prid}).first_('商品不存在')
                 pbid = product.PBid
                 if num <= 0:
                     raise ParamsError('num参数错误')
@@ -92,7 +92,7 @@ class CCart(object):
                 session.query(Carts).filter_by_({'CAid': caid}).delete_()
                 msg = '删除成功'
             else:
-                session.query(ProductSku).filter_by_({'SKUid': skuid}).first_()
+                session.query(ProductSku).filter_by_({'SKUid': skuid}).first_('商品sku不存在')
                 session.query(Carts).filter_by_({'CAid': caid}).update({
                     'SKUid': skuid,
                     'CAnums': num

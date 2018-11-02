@@ -41,7 +41,7 @@ class COrder:
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-            order_main.add('OMstatus_en')
+            order_main.add('OMstatus_en').hide('OPayno', 'USid', )
         return Success(data=order_mains)
 
     @token_required
@@ -149,6 +149,27 @@ class COrder:
             'args': pay_args
         }
         return Success('创建成功', data=response)
+
+    @token_required
+    def pay(self):
+        """订单发起支付"""
+        data = parameter_required('omid')
+        omid = data.get('omid', 'omclient', 'opaytype')
+        try:
+            omclient = int(data.get('omclient'))  # 客户端(app或者微信)
+            opaytype = int(data.get('opaytype'))  # 付款方式
+            PayType(opaytype)
+            Client(omclient)
+        except Exception as e:
+            raise ParamsError('客户端或支付类型错误')
+        order_main = self.strade.get_ordermain_one({'OMid': omid}, '不存在的订单')
+        with self.strade.auto_commit() as s:
+            opayno = self.wx_pay.nonce_str
+            # 原支付流水删除
+            # 更改订单支付编号
+            # 新建支付流水
+
+
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         if opaytype == PayType.wechat_pay.value:
