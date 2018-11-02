@@ -43,6 +43,21 @@ alembic revision --autogenerate -m 'add order
 ```bash
 alembic upgrade head
 ```
+## 启动和关闭
+-启动
+```bash
+./start.sh start
+```
+
+- 重启
+```bash
+./start.sh restart
+```
+- 关闭
+```bash
+./start.sh stop
+```
+
 
 ## 错误码
 ```
