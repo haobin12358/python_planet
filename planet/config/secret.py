@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 
-from flask import current_app
-
 from planet.config.http_config import API_HOST
 
 env = os.environ
@@ -28,9 +26,6 @@ alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
 alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'public.pem')
 alipay_notify = API_HOST + 'api/v1/notify'
-
-
-
 # assert database and host and port and username and password
 # assert appid and appsecret and wxscope and wxpay_notify_url
 

@@ -36,7 +36,7 @@ class OrderMain(Base):
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
-    OMstatus = Column(Integer, default=0, comment='订单状态 0未付款,10已付款,20已发货,30已签收,-40取消交易')
+    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成,-40取消交易')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
@@ -76,6 +76,7 @@ class OrderPart(Base):
     OPid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
+    PRid = Column(String(64),  nullable=False, comment='商品id')
     SKUdetail = Column(Text, nullable=False, comment='sku详情')
     SKUprice = Column(Float, nullable=False, comment='单价')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')

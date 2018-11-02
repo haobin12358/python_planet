@@ -39,6 +39,7 @@ class Query(_Query):
             return self.filter_by_(*args, **kwargs)
         if 'isdelete' not in kwargs.keys():
             kwargs['isdelete'] = False
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return super(Query, self).filter_by(**kwargs)
 
     def first_(self, error=None):

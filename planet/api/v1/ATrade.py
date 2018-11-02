@@ -32,3 +32,9 @@ class AOrder(Resource):
             'create': self.corder.create
         }
         return apis
+
+    def get(self, order):
+        apis = {
+            'list': self.corder.list
+        }
+        return apis

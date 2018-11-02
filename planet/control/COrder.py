@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import random
 import time
 import uuid
@@ -11,7 +12,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import PayType, Client, OrderFrom
+from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderPartStatus
 from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
     alipay_public_key_path, alipay_notify
 from planet.extensions.weixin import WeixinPay
@@ -25,7 +26,27 @@ class COrder:
         self.strade = STrade()
 
     @token_required
+    def list(self):
+        usid = request.user.id
+        data = parameter_required()
+        status = data.get('omstatus')
+        order_mains = self.strade.get_ordermain_list({'USid': usid, 'OMstatus': status})
+        for order_main in order_mains:
+            order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
+            for order_part in order_parts:
+                order_part.SKUdetail = json.loads(order_part.SKUdetail)
+                # 状态
+                order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
+                order_part.add('OPstatus_en')
+            order_main.fill('order_part', order_parts)
+            # 状态
+            order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
+            order_main.add('OMstatus_en')
+        return Success(data=order_mains)
+
+    @token_required
     def create(self):
+        """创建并发起支付"""
         data = parameter_required(('info', 'omclient', 'omfrom', 'udid', 'opaytype'))
         usid = request.user.id
         udid = data.get('udid')  # todo udid 表示用户的地址信息
@@ -75,11 +96,13 @@ class COrder:
                         'SKUprice': sku_instance.SKUprice,
                         'PRmainpic': product_instance.PRmainpic,
                         'OPnum': opnum,
-                        'OPsubTotal': float(small_total),
+                        'PRid': product_instance.PRid,
+                        'OPsubTotal': small_total,
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
                     model_bean.append(order_part_instance)
                     # 订单价格计算
+                    order_price += small_total
                     # 删除购物车
                     s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
@@ -151,6 +174,8 @@ class COrder:
                     total_amount=mount_price,
                     subject=body[:200] + '...',
                 )
+        else:
+            raise SystemError('请选用其他支付方式')
         return raw
 
     @staticmethod
@@ -170,6 +195,5 @@ class COrder:
             app_notify_url=alipay_notify,  # 默认回调url
             app_private_key_string=open(app_private_path).read(),
             alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA2",  # RSA 或者 RSA2
-            # debug=False  # 默认False
+            sign_type="RSA",  # RSA 或者 RSA2
         )

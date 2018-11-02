@@ -25,6 +25,26 @@ class OrderFrom(Enum):
     carts = 0
     product_info = 10
 
+
+class OrderMainStatus(Enum):
+    """主订单状态
+    0待付款,10待发货,20待收货,30完成
+    """
+    wait_pay = 0
+    wait_send = 10
+    wait_recv = 20
+    ready = 30
+    cancle = -40
+
+
+class OrderPartStatus(Enum):
+    """订单副表状态 0正常状态, -10退货申请,-20退货中,-30已退货"""
+    usual = 0
+    apply_refund = -10
+    refunding = -20
+    already = 30
+
+
 if __name__ == '__main__':
     import ipdb
     ipdb.set_trace()
