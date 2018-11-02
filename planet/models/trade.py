@@ -32,7 +32,7 @@ class OrderMain(Base):
     OMfrom = Column(Integer, default=0, comment='来源: 0: 购物车, 10: 商品详情')
     PBname = Column(String(32), nullable=False, comment='品牌名')
     PBid = Column(String(64), nullable=False, comment='品牌id')
-    OMclient = Column(Integer, default=0, comment='下单设备: 0: 微信, 10: 安卓, 20: iphone')
+    OMclient = Column(Integer, default=0, comment='下单设备: 0: 微信, 10: app')
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
@@ -56,7 +56,7 @@ class OrderPay(Base):
     OPayMount = Column(Integer, comment='付款金额')
     OPaysn = Column(String(64), comment='第三方支付流水')
     OPayJson = Column(Text, comment='回调原文')
-    OPmarks = Column(String(255), comment='备注')
+    OPaymarks = Column(String(255), comment='备注')
 
 
 class OrderCoupon(Base):
