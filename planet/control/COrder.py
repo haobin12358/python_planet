@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import random
 import time
 import uuid
 from decimal import Decimal
@@ -11,7 +12,8 @@ from planet.common.error_response import ParamsError, SystemError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderFrom
-from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid
+from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
+    alipay_public_key_path, alipay_notify
 from planet.extensions.weixin import WeixinPay
 from planet.models import ProductSku, Products, ProductBrand
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts
@@ -114,11 +116,16 @@ class COrder:
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             model_bean.append(order_pay_instance)
-            # s.add_all(model_bean)
+            s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))
-        res = self._pay_detail(omclient, opaytype, opayno, mount_price, body)
-        return Success('创建成功', data=res)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建成功', data=response)
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         if opaytype == PayType.wechat_pay.value:
@@ -150,7 +157,7 @@ class COrder:
     def _generic_omno():
         """生成订单号"""
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) +\
-                 str(time.time()).replace('.', '')[-7:]
+                 str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
 
     @property
     def wx_pay(self):
@@ -160,9 +167,9 @@ class COrder:
     def alipay(self):
         return AliPay(
             appid=alipay_appid,
-            app_notify_url='https://www.qup.com',  # 默认回调url
-            app_private_key_string=open('/home/wukt/app_private_key.pem').read(),
-            alipay_public_key_string=open('/home/wukt/public.pem').read(),
+            app_notify_url=alipay_notify,  # 默认回调url
+            app_private_key_string=open(app_private_path).read(),
+            alipay_public_key_string=open(alipay_public_key_path).read(),
             sign_type="RSA2",  # RSA 或者 RSA2
             # debug=False  # 默认False
         )

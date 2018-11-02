@@ -121,3 +121,5 @@ img/*
 .idea/*
 *.xml
 test/
+# pay pem
+*.pem
