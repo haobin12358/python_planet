@@ -7,7 +7,7 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import PRODUCT_STATUS
+from planet.config.enums import ProductStatus
 from planet.models import ProductSku, Products
 from planet.models.trade import Carts
 from planet.service.SProduct import SProducts
@@ -122,7 +122,7 @@ class CCart(object):
             product.fill('skus', product_skus)
             product.fill('pskuvalue', skuvalue)
             product.hide('PRdesc')
-            product.fill('PRstatus_zh', PRODUCT_STATUS.get(product.PRstatus))
+            product.fill('PRstatus_en', ProductStatus(product.PRstatus).name)
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)

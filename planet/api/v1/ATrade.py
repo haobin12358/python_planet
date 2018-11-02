@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_resource import Resource
 from planet.control.CCart import CCart
+from planet.control.COrder import COrder
 
 
 class ACart(Resource):
@@ -18,5 +19,16 @@ class ACart(Resource):
     def get(self, cart):
         apis = {
             'list': self.ccart.list,
+        }
+        return apis
+
+
+class AOrder(Resource):
+    def __init__(self):
+        self.corder = COrder()
+
+    def post(self, order):
+        apis = {
+            'create': self.corder.create
         }
         return apis

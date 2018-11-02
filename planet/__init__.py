@@ -10,7 +10,7 @@ from flask_cors import CORS
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct, ACategory
-from planet.api.v1.ATrade import ACart
+from planet.api.v1.ATrade import ACart, AOrder
 from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
@@ -83,6 +83,8 @@ def register_v1(app):
     v1.add_url_rule('/file/<string:file>', view_func=AFile.as_view('file'))
     v1.add_url_rule('/category/<string:category>', view_func=ACategory.as_view('category'))
     v1.add_url_rule('/cart/<string:cart>', view_func=ACart.as_view('cart'))
+    v1.add_url_rule('/order/<string:order>', view_func=AOrder.as_view('order'))
+
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v1.add_url_rule.....

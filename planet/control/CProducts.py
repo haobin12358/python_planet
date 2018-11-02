@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from planet.common.error_response import NotFound, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.config.enums import PRODUCT_STATUS
+from planet.config.enums import ProductStatus
 from planet.models import Products, ProductBrand, ProductItems
 from planet.service.SProduct import SProducts
 
@@ -21,7 +21,7 @@ class CProducts:
         product = self.sproduct.get_product_by_prid(prid)
         if not product:
             return NotFound()
-        product.fill('prstatus_zh', PRODUCT_STATUS.get(product.PRstatus, ''))
+        product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
         # 顶部图
         images = self.sproduct.get_product_images({'PRid': prid})
         product.fill('images', images)
@@ -60,7 +60,7 @@ class CProducts:
         ], [order, ])
         # 填充
         for product in products:
-            product.fill('prstatus_zh', PRODUCT_STATUS.get(product.PRstatus, ''))
+            product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
             # 品牌
             brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)

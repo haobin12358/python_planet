@@ -26,7 +26,7 @@ class OrderMain(Base):
     __tablename__ = 'OrderMain'
     OMid = Column(String(64), primary_key=True)
     OMno = Column(String(64), nullable=False, comment='订单编号')
-    OPayid = Column(String(64), comment='付款流水')
+    OPayno = Column(String(64), comment='付款流水号,与orderpay对应')
     USid = Column(String(64), nullable=False, comment='用户id')
     UseCoupon = Column(Boolean, default=False, comment='是否优惠券')
     OMfrom = Column(Integer, default=0, comment='来源: 0: 购物车, 10: 商品详情')
@@ -37,7 +37,7 @@ class OrderMain(Base):
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
     OMstatus = Column(Integer, default=0, comment='订单状态 0未付款,10已付款,20已发货,30已签收,-40取消交易')
-    OMmessage = Column(String(255), comment='留言1')
+    OMmessage = Column(String(255), comment='留言')
     # 收货信息
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
@@ -50,7 +50,7 @@ class OrderPay(Base):
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
-    OPsn = Column(String(64), comment='交易号')
+    OPayno = Column(String(64), comment='交易号, 自己生成')
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')
