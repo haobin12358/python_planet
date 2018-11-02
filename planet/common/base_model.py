@@ -15,7 +15,7 @@ DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
     cfg.host,
     cfg.database,
     cfg.charset)
-mysql_engine = create_engine(DB_PARAMS, encoding='utf-8', echo=True, pool_pre_ping=True,)
+mysql_engine = create_engine(DB_PARAMS, encoding='utf-8', echo=False, pool_pre_ping=True,)
 _Base = declarative_base()
 
 
@@ -36,6 +36,8 @@ class Base(AbstractConcreteBase, _Base):
     def create(cls, data):
         instance = cls()
         for k, v in data.items():
+            if v is None:
+                continue
             setattr(instance, k, v)
         return instance
 

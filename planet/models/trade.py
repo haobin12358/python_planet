@@ -33,11 +33,11 @@ class OrderMain(Base):
     PBname = Column(String(32), nullable=False, comment='品牌名')
     PBid = Column(String(64), nullable=False, comment='品牌id')
     OMclient = Column(Integer, default=0, comment='下单设备: 0: 微信, 10: 安卓, 20: iphone')
-    OMfreight = Column(String, default=0, comment='运费')
+    OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
     OMstatus = Column(Integer, default=0, comment='订单状态 0未付款,10已付款,20已发货,30已签收,-40取消交易')
-    OMmessage = Column(String(255), comment='留言')
+    OMmessage = Column(String(255), comment='留言1')
     # 收货信息
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')

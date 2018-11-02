@@ -1,5 +1,5 @@
 
-##  
+##  环境
 
 - python3.6
 
@@ -29,9 +29,22 @@ export DXXAPPSECRET='appsecret'
 ```bash
 source ~/.bashrc
 ```
+## 数据库迁移
 
+更改model后使用
 
-- 错误码
+- 生成迁移文件
+
+```bash
+alembic revision --autogenerate -m 'add order
+```
+
+- 执行
+```bash
+alembic upgrade head
+```
+
+## 错误码
 ```
 405001 参数错误
 405002 方法不支持

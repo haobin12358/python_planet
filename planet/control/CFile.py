@@ -43,8 +43,6 @@ class CFile(object):
             dirs = img_url.split('/')[-6:]
             name_shuffer = dirs[-1]
             name = name_shuffer.split('.')[0]
-            import ipdb
-            ipdb.set_trace()
             if not name.endswith('anonymous') and not name.endswith(request.user.id):
                 raise NotFound()
             path = os.path.join(current_app.config['BASEDIR'], '/'.join(dirs))
