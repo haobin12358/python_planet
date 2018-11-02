@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime
+from sqlalchemy import Column, Integer, String, Text, Float, DateTime, Boolean
 
 from planet.common.base_model import Base
 
@@ -26,8 +26,9 @@ class OrderMain(Base):
     __tablename__ = 'OrderMain'
     OMid = Column(String(64), primary_key=True)
     OMno = Column(String(64), nullable=False, comment='订单编号')
-    OMsn = Column(String(64), comment='交易号')  # 调起支付时使用, 多订单同时支付使用相同值
+    OPayid = Column(String(64), comment='付款流水')
     USid = Column(String(64), nullable=False, comment='用户id')
+    UseCoupon = Column(Boolean, default=False, comment='是否优惠券')
     OMfrom = Column(Integer, default=0, comment='来源: 0: 购物车, 10: 商品详情')
     PBname = Column(String(32), nullable=False, comment='品牌名')
     PBid = Column(String(64), nullable=False, comment='品牌id')
@@ -45,25 +46,26 @@ class OrderMain(Base):
 
 class OrderPay(Base):
     """
-    订单付款
+    付款流水
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
+    OPsn = Column(String(64), comment='交易号')
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
-    OPaytime = Column(DateTime, default=datetime.now, comment='付款时间')
+    OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')
     OPaysn = Column(String(64), comment='第三方支付流水')
     OPayJson = Column(Text, comment='回调原文')
     OPmarks = Column(String(255), comment='备注')
 
 
-class OrderReward(Base):
-    """
-    优惠券使用详情
-    """
-    __tablename__ = 'OrderReward'
-    ORid = Column(String(64), primary_key=True)
-
+class OrderCoupon(Base):
+    __tablename__ = 'OrderRaward'
+    OCid = Column(String(64), primary_key=True)
+    CPid = Column(String(64), nullable=False, comment='优惠券')
+    OCnum = Column(Integer, default=1, comment='使用数量')
+    OCreduce = Column(Float, nullable=False, comment='减额')
+    # 其他
 
 
 class OrderPart(Base):
