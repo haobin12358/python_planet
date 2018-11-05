@@ -8,7 +8,7 @@ from planet.common.error_response import NotFound, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.config.enums import ProductStatus
-from planet.models import Products, ProductBrand, ProductItems
+from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items
 from planet.service.SProduct import SProducts
 
 
@@ -23,6 +23,7 @@ class CProducts:
         if not product:
             return NotFound()
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
+        product.PRattribute = json.loads(product.PRattribute)
         # 顶部图
         images = self.sproduct.get_product_images({'PRid': prid})
         product.fill('images', images)
@@ -34,12 +35,11 @@ class CProducts:
         for sku in skus:
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
         product.fill('skus', skus)
-
-        # sku value
-        # sku_value = self.sproduct.get_sku_value({'PRid': prid})
-        # sku_value.PSKUvalue = json.loads(sku_value.PSKUvalue)
-        # product.fill('sku_value', sku_value)
-        product.PRattribute = json.loads(product.PRattribute)
+        # 场景
+        items = self.sproduct.get_item_list([
+            ProductItems.PRid == prid
+        ])
+        product.fill('items', items)
         return Success(data=product)
 
     def get_produt_list(self):
@@ -72,9 +72,8 @@ class CProducts:
 
     def add_product(self):
         data = parameter_required((
-            'pcid', 'pbid', 'prtitle', 'prprice',
-            'prlinePrice', 'prfreight', 'prstocks',
-            'prmainpic', 'prdesc', 'images'
+            'pcid', 'pbid', 'prtitle', 'prprice', 'prattribute',
+            'prstocks', 'prmainpic', 'prdesc', 'images', 'skus'
         ))
         pbid = data.get('pbid')  # 品牌id
         pcid = data.get('pcid')  # 3级分类id
@@ -82,13 +81,15 @@ class CProducts:
         ProductStatus(prstatus)
         images = data.get('images')
         skus = data.get('skus')
-        product_brand = self.sproduct.get_product_brand_one(pbid, '指定品牌不存在')
+        product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
+            prattribute = data.get('prattribute')
+            prid = str(uuid.uuid4())
             product_dict = {
-                'PRid': str(uuid.uuid4()),
+                'PRid': prid,
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
                 'PRlinePrice': data.get('prlinePrice'),
@@ -98,27 +99,52 @@ class CProducts:
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
-                'PRdesc': data.get('prdesc')
+                'PRdesc': data.get('prdesc'),
+                'PRattribute': json.dumps(prattribute)
             }
             product_dict = {k: v for k, v in product_dict.items()}
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
-            # sku_list
+            # sku
             for sku in skus:
+                skuattritedetail = sku.get('skuattritedetail')
+                if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
+                    raise ParamsError('skuattritedetail与prattribute不符')
                 sku_dict = {
                     'SKUid': str(uuid.uuid4()),
-                    'PRid': product_dict.get('PRid'),
+                    'PRid': prid,
                     'SKUpic': sku.get('skupic'),
                     'SKUprice': sku.get('skuprice'),
-                    'SKUstock': sku.get('skustock')
+                    'SKUstock': sku.get('skustock'),
+                    'SKUattriteDetail': json.dumps(skuattritedetail)
                 }
-                skudetail = data.get('skudetail')  # {kid: kid1, vid: vid2}
-
+                sku_instance = ProductSku.create(sku_dict)
+                session_list.append(sku_instance)
             # images
-            pass
-
-
-
+            for image in images:
+                image_dict = {
+                    'PIid': str(uuid.uuid4()),
+                    'PRid': prid,
+                    'PIpic': image.get('pipic'),
+                    'PIsort': image.get('pisort'),
+                }
+                image_instance = ProductImage.create(image_dict)
+                session_list.append(image_instance)
+            # 场景下的小标签 [{'itid': itid1}, ...]
+            items = data.get('items')
+            if items:
+                for item in items:
+                    itid = item.get('itid')
+                    item = s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在')
+                    item_product_dict = {
+                        'PIid': str(uuid.uuid4()),
+                        'PRid': prid,
+                        'ITid': itid
+                    }
+                    item_product_instance = ProductItems.create(item_product_dict)
+                    session_list.append(item_product_instance)
+            s.add_all(session_list)
+        return Success('添加成功', {'prid': prid})
 
 class CCategory(object):
     def __init__(self):
