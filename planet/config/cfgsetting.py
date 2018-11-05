@@ -9,7 +9,7 @@ def singleton(cls, *args, **kw):
     """ singleton decorator """
     instances = {}
 
-    def _singleton():
+    def _singleton(*args):
         if cls not in instances:
             instances[cls] = cls(*args, **kw)
         return instances[cls]
