@@ -78,9 +78,7 @@ class CCart(object):
         # 默认的sku和数量
         skuid = data.get('skuid') or card.SKUid
         try:
-            num = int(data.get('canums'))
-            if num is None:
-                num = card.CAnums
+            num = int(data.get('canums', card.CAnums))
             if num < 0:
                 raise TypeError()
         except TypeError as e:
