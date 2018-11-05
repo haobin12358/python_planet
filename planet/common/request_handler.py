@@ -76,14 +76,18 @@ class LogHandler(object):
         handler.setLevel(logging.INFO)
         return handler
 
+    @property
+    def logger(self):
+        current_app.logger.addHandler(self.handler)
+        return current_app.logger
+
 
 def generic_error_log(data, path='flask', info='bug'):
     if isinstance(data, Exception):
         data = traceback.format_exc()
-    handler = LogHandler(path).handler
-    current_app.logger.addHandler(handler)
-    current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
-    current_app.logger.error(data)
+    logger = LogHandler(path).logger
+    logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
+    logger.error(data)
     try:
         current_app.logger.info(request.detail)
     except Exception as e:
