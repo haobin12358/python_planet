@@ -31,7 +31,7 @@ class CFile(object):
                 os.makedirs(newPath)
             newFile = os.path.join(newPath, newName)
             file.save(newFile)  # 保存图片
-            data = '{}/img/{}/{}/{}/{}/{}'.format(API_HOST, folder ,year, month, day, img_name)
+            data = '/img/{}/{}/{}/{}/{}'.format(folder,year, month, day, img_name)
             return Success(u'上传成功', data)
         else:
             return SystemError(u'上传有误')
