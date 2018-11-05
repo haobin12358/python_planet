@@ -9,14 +9,14 @@ class AProduct(Resource):
 
     def get(self, product):
         apis = {
-            'get_product': self.cproduct.get_product,
-            'get_product_list': self.cproduct.get_produt_list,
+            'get': self.cproduct.get_product,
+            'list': self.cproduct.get_produt_list,
         }
         return apis
 
     def post(self, product):
         apis = {
-            'add_product': self.cproduct.add_product,
+            'create': self.cproduct.add_product,
         }
         return apis
 
@@ -27,6 +27,6 @@ class ACategory(Resource):
 
     def get(self, category):
         apis = {
-            'get_category': self.ccategory.get_category
+            'list': self.ccategory.get_category
         }
         return apis

@@ -10,7 +10,7 @@ from .. import models
 from .base_model import mysql_engine
 from .query_session import Session
 
-db_session = sessionmaker(bind=mysql_engine, class_=Session)
+db_session = sessionmaker(bind=mysql_engine, class_=Session, expire_on_commit=False)
 
 
 def get_session():
@@ -29,8 +29,8 @@ def close_session(fn):
     def inner(self, *args, **kwargs):
         try:
             result = fn(self, *args, **kwargs)
-            if isinstance(result, list) or isinstance(result, Base):
-                self.session.expunge_all()
+            # if isinstance(result, list) or isinstance(result, Base):
+            #     self.session.expunge_all()
             self.session.commit()
             return result
         except Exception as e:
