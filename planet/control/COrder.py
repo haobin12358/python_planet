@@ -13,17 +13,12 @@ from planet.common.error_response import ParamsError, SystemError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderPartStatus
-from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
-    alipay_public_key_path, alipay_notify
-from planet.extensions.weixin import WeixinPay
+from planet.control.CPay import CPay
 from planet.models import ProductSku, Products, ProductBrand
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts
-from planet.service.STrade import STrade
 
 
-class COrder:
-    def __init__(self):
-        self.strade = STrade()
+class COrder(CPay):
 
     @token_required
     def list(self):
@@ -52,8 +47,8 @@ class COrder:
         udid = data.get('udid')  # todo udid 表示用户的地址信息
         opaytype = data.get('opaytype')
         try:
-            omclient = int(data.get('omclient', 0))  # 下单设备
-            omfrom = int(data.get('omfrom', 0))  # 商品来源
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            omfrom = int(data.get('omfrom', OrderFrom.carts.value))  # 商品来源
             Client(omclient)
             OrderFrom(omfrom)
         except Exception as e:
@@ -150,91 +145,8 @@ class COrder:
         }
         return Success('创建成功', data=response)
 
-    @token_required
-    def pay(self):
-        """订单发起支付"""
-        data = parameter_required(('omid', ))
-        omid = data.get('omid')
-        try:
-            omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
-            opaytype = int(data.get('opaytype', PayType.wechat_pay.value))  # 付款方式
-            PayType(opaytype)
-            Client(omclient)
-        except ValueError as e:
-            raise e
-        except Exception as e:
-            raise ParamsError('客户端或支付方式类型错误')
-
-        with self.strade.auto_commit() as s:
-            opayno = self.wx_pay.nonce_str
-            order_main = s.query(OrderMain).filter_by_({'OMid': omid}).first_('不存在的订单')
-            # 原支付流水删除
-            s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
-            # 更改订单支付编号
-            order_main.OPayno = opayno
-            # 新建支付流水
-            order_pay_instance = OrderPay.create({
-                'OPayid': str(uuid.uuid4()),
-                'OPayno': opayno,
-                'OPayType': opaytype,
-                'OPayMount': order_main.OMtrueMount
-            })
-            # 付款时候的body信息
-            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
-            body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
-            s.add(order_pay_instance)
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
-        response = {
-            'pay_type': PayType(opaytype).name,
-            'opaytype': opaytype,
-            'args': pay_args
-        }
-        return Success('生成付款参数成功', response)
-
-    def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
-        if opaytype == PayType.wechat_pay.value:
-            body = body[:110] + '...'
-            wechat_pay_dict = dict(
-                body=body,
-                out_trade_no=opayno,
-                total_fee=int(mount_price * 100), attach='attach',
-                spbill_create_ip=request.remote_addr
-            )
-            if omclient == Client.wechat.value:  # 微信客户端
-                wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
-                raw = self.wx_pay.jsapi(**wechat_pay_dict)
-            else:
-                wechat_pay_dict.update(dict(trade_type="APP"))
-                raw = self.wx_pay.unified_order(**wechat_pay_dict)
-        elif opaytype == PayType.alipay.value:
-            if omclient == Client.wechat.value:
-                raise SystemError('请选用其他支付方式')
-            else:
-                raw = self.alipay.api_alipay_trade_app_pay(
-                    out_trade_no=opayno,
-                    total_amount=mount_price,
-                    subject=body[:200] + '...',
-                )
-        else:
-            raise SystemError('请选用其他支付方式')
-        return raw
-
     @staticmethod
     def _generic_omno():
         """生成订单号"""
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) +\
                  str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
-
-    @property
-    def wx_pay(self):
-        return WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)  # 后两个参数可选
-
-    @property
-    def alipay(self):
-        return AliPay(
-            appid=alipay_appid,
-            app_notify_url=alipay_notify,  # 默认回调url
-            app_private_key_string=open(app_private_path).read(),
-            alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA",  # RSA 或者 RSA2
-        )
