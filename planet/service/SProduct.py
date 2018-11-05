@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
 from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
-    ProductItems
+    ProductItems, Items
 
 
 class SProducts(SBase):
@@ -56,3 +56,10 @@ class SProducts(SBase):
     def get_category_one(self, args, error=None):
         """获取单个分类"""
         return self.session.query(ProductCategory).filter_by_(**args).first_(error)
+
+    @close_session
+    def get_item_list(self, args, order=[]):
+        """获取场景"""
+        return self.session.query(Items).outerjoin(ProductItems, Items.ITid == ProductItems.ITid).filter_(
+            *args
+        ).order_by(*order).all()

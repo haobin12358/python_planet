@@ -88,7 +88,7 @@ class Items(Base):
     """
     标签, 标签是场景下的小标签
     """
-    __tablename__ = 'ProductSceneItems'
+    __tablename__ = 'Items'
     ITid = Column(String(64), primary_key=True)
     PSid = Column(String(64), nullable=False, comment='场景id')
     ITname = Column(String(16), nullable=False, comment='标签名字')
