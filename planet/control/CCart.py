@@ -107,24 +107,22 @@ class CCart(object):
         for cart in my_carts:
             pbid = cart.PBid
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
+            product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
-            skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
+            # skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
             product_skus = self.sproduct.get_sku({'PRid': cart.PRid})  # 商品的sku
             # 转json
-            cart_sku.SKUdetail = json.loads(cart_sku.SKUdetail)
+            cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
             for product_sku in product_skus:
-                product_sku.SKUdetail = json.loads(product_sku.SKUdetail)
-            skuvalue.PSKUvalue = json.loads(skuvalue.PSKUvalue)
+                product_sku.SKUattriteDetail = json.loads(product_sku.SKUattriteDetail)
             # 填充商品
             product.fill('skus', product_skus)
-            product.fill('pskuvalue', skuvalue)
             product.hide('PRdesc')
             product.fill('PRstatus_en', ProductStatus(product.PRstatus).name)
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)
-            # cart.fill('pb', pb)
             # 小计
             # cart.subtotal =
             # 店铺分组

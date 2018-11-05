@@ -5,7 +5,6 @@ import time
 import uuid
 from decimal import Decimal
 
-from alipay import AliPay
 from flask import request
 
 from planet.common.params_validates import parameter_required
@@ -29,7 +28,8 @@ class COrder(CPay):
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
-                order_part.SKUdetail = json.loads(order_part.SKUdetail)
+                order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
+                order_part.PRattribute = json.loads(order_part.PRattribute)
                 # 状态
                 order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
                 order_part.add('OPstatus_en')
@@ -86,7 +86,8 @@ class COrder(CPay):
                         'OMid': omid,
                         'OPid': opid,
                         'SKUid': skuid,
-                        'SKUdetail': sku_instance.SKUdetail,
+                        'PRattribute': product_instance.PRattribute,
+                        'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
                         'SKUprice': sku_instance.SKUprice,
                         'PRmainpic': product_instance.PRmainpic,
