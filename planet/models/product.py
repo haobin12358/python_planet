@@ -47,7 +47,7 @@ class ProductSkuValue(Base):
     """
     __tablename__ = 'ProductSkuValue'
     PSKUid = Column(String(64), primary_key=True)
-    PRid = Column(String(64), nullable=False, comment='产品id')  # todo 修改不一定绑定商品id, 可能绑定的是类目的id
+    PCid = Column(String(64), nullable=False, comment='产品id')  # todo 修改不一定绑定商品id, 可能绑定的是类目的id
     PSKUvalue = Column(Text, comment='商品属性值')
 
 

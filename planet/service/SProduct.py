@@ -27,9 +27,9 @@ class SProducts(SBase):
             order_by(ProductImage.PIsort).all()
 
     @close_session
-    def get_product_brand_one(self, args):
+    def get_product_brand_one(self, args, error=None):
         """获取品牌"""
-        return self.session.query(ProductBrand).filter_by_(**args).first()
+        return self.session.query(ProductBrand).filter_by_(**args).first_(error)
 
     @close_session
     def get_sku(self, args):
@@ -51,3 +51,8 @@ class SProducts(SBase):
         """获取分类"""
         return self.session.query(ProductCategory).filter_by_(**args).\
             order_by(ProductCategory.PCsort).all()
+
+    @close_session
+    def get_category_one(self, args, error=None):
+        """获取单个分类"""
+        return self.session.query(ProductCategory).filter_by_(**args).first_(error)
