@@ -32,12 +32,14 @@ class CProducts:
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
         for sku in skus:
-            sku.SKUdetail = json.loads(sku.SKUdetail)
+            sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
         product.fill('skus', skus)
+
         # sku value
         # sku_value = self.sproduct.get_sku_value({'PRid': prid})
         # sku_value.PSKUvalue = json.loads(sku_value.PSKUvalue)
         # product.fill('sku_value', sku_value)
+        product.PRattribute = json.loads(product.PRattribute)
         return Success(data=product)
 
     def get_produt_list(self):
@@ -65,6 +67,7 @@ class CProducts:
             # 品牌
             brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)
+            product.PRattribute = json.loads(product.PRattribute)
         return Success(data=products)
 
     def add_product(self):
