@@ -30,7 +30,9 @@ class AOrder(Resource):
     def post(self, order):
         apis = {
             'create': self.corder.create,
-            'pay': self.corder.pay
+            'pay': self.corder.pay,
+            'alipay_notify': self.corder.alipay_notify,
+            'wechat_notify': self.corder.wechat_notify,
         }
         return apis
 

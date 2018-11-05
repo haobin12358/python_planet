@@ -42,7 +42,7 @@ class OrderPartStatus(Enum):
     usual = 0
     apply_refund = -10
     refunding = -20
-    already = 30
+    already = -30
 
 
 if __name__ == '__main__':

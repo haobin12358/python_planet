@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import uuid
 
 from sqlalchemy import or_
 
@@ -16,7 +17,7 @@ class CProducts:
         self.sproduct = SProducts()
 
     def get_product(self):
-        data = parameter_required(('prid', ))
+        data = parameter_required(('prid',))
         prid = data.get('prid')
         product = self.sproduct.get_product_by_prid(prid)
         if not product:
@@ -31,12 +32,14 @@ class CProducts:
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
         for sku in skus:
-            sku.SKUdetail = json.loads(sku.SKUdetail)
+            sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
         product.fill('skus', skus)
+
         # sku value
-        sku_value = self.sproduct.get_sku_value({'PRid': prid})
-        sku_value.PSKUvalue = json.loads(sku_value.PSKUvalue)
-        product.fill('sku_value', sku_value)
+        # sku_value = self.sproduct.get_sku_value({'PRid': prid})
+        # sku_value.PSKUvalue = json.loads(sku_value.PSKUvalue)
+        # product.fill('sku_value', sku_value)
+        product.PRattribute = json.loads(product.PRattribute)
         return Success(data=product)
 
     def get_produt_list(self):
@@ -64,10 +67,57 @@ class CProducts:
             # 品牌
             brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)
+            product.PRattribute = json.loads(product.PRattribute)
         return Success(data=products)
 
     def add_product(self):
-        pass
+        data = parameter_required((
+            'pcid', 'pbid', 'prtitle', 'prprice',
+            'prlinePrice', 'prfreight', 'prstocks',
+            'prmainpic', 'prdesc', 'images'
+        ))
+        pbid = data.get('pbid')  # 品牌id
+        pcid = data.get('pcid')  # 3级分类id
+        prstatus = int(data.get('prstatus', ProductStatus.usual.value))  # 状态
+        ProductStatus(prstatus)
+        images = data.get('images')
+        skus = data.get('skus')
+        product_brand = self.sproduct.get_product_brand_one(pbid, '指定品牌不存在')
+        product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
+        with self.sproduct.auto_commit() as s:
+            session_list = []
+            # 商品
+            product_dict = {
+                'PRid': str(uuid.uuid4()),
+                'PRtitle': data.get('prtitle'),
+                'PRprice': data.get('prprice'),
+                'PRlinePrice': data.get('prlinePrice'),
+                'PRfreight': data.get('prfreight'),
+                'PRstocks': data.get('prstocks'),
+                'PRstatus': prstatus,
+                'PRmainpic': data.get('prmainpic'),
+                'PCid': pcid,
+                'PBid': pbid,
+                'PRdesc': data.get('prdesc')
+            }
+            product_dict = {k: v for k, v in product_dict.items()}
+            product_instance = Products.create(product_dict)
+            session_list.append(product_instance)
+            # sku_list
+            for sku in skus:
+                sku_dict = {
+                    'SKUid': str(uuid.uuid4()),
+                    'PRid': product_dict.get('PRid'),
+                    'SKUpic': sku.get('skupic'),
+                    'SKUprice': sku.get('skuprice'),
+                    'SKUstock': sku.get('skustock')
+                }
+                skudetail = data.get('skudetail')  # {kid: kid1, vid: vid2}
+
+            # images
+            pass
+
+
 
 
 class CCategory(object):
@@ -85,6 +135,7 @@ class CCategory(object):
         return Success(data=categorys)
 
     def _sub_category(self, category, deep):
+        """遍历子分类"""
         try:
             deep = int(deep)
         except TypeError as e:
@@ -98,4 +149,3 @@ class CCategory(object):
             category.fill('subs', subs)
             for sub in subs:
                 self._sub_category(sub, deep)
-
