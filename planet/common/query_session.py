@@ -53,7 +53,7 @@ class Query(_Query):
         return self.update({'isdelete': True})
 
     def filter_(self, *args, **kwargs):
-        return self.filter_without_none(*args)
+        return self.filter_without_none(*args).filter_by_()
 
     def all_with_page(self):
         """

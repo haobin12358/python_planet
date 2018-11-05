@@ -56,7 +56,7 @@ def error_handler(app):
             return SystemError()
 
 
-@singleton
+# @singleton
 class LogHandler(object):
     def __init__(self, path):
         self.path = path
@@ -85,12 +85,13 @@ class LogHandler(object):
 def generic_error_log(data, path='flask', info='bug'):
     if isinstance(data, Exception):
         data = traceback.format_exc()
-    logger = LogHandler(path).logger
-    logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
-    logger.error(data)
+    handler = LogHandler(path).handler
+    current_app.logger.addHandler(handler)
+    current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
+    current_app.logger.error(data)
     try:
         current_app.logger.info(request.detail)
     except Exception as e:
         pass
-    # finally:
-    #     current_app.logger.removeHandler(handler)
+    finally:
+        current_app.logger.removeHandler(handler)

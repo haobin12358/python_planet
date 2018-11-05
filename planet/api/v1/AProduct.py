@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from planet.control.CProducts import CProducts, CCategory
+from planet.control.CCategory import CCategory
+from planet.control.CProducts import CProducts
 from planet.common.base_resource import Resource
 
 
