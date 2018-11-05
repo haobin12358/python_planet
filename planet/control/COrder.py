@@ -135,7 +135,7 @@ class COrder:
                 'OPayid': str(uuid.uuid4()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
-                'OPayMount': mount_price
+                'OPayMount': mount_price,
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             model_bean.append(order_pay_instance)
@@ -153,23 +153,43 @@ class COrder:
     @token_required
     def pay(self):
         """订单发起支付"""
-        data = parameter_required('omid')
-        omid = data.get('omid', 'omclient', 'opaytype')
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
         try:
-            omclient = int(data.get('omclient'))  # 客户端(app或者微信)
-            opaytype = int(data.get('opaytype'))  # 付款方式
+            omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
+            opaytype = int(data.get('opaytype', PayType.wechat_pay.value))  # 付款方式
             PayType(opaytype)
             Client(omclient)
+        except ValueError as e:
+            raise e
         except Exception as e:
-            raise ParamsError('客户端或支付类型错误')
-        order_main = self.strade.get_ordermain_one({'OMid': omid}, '不存在的订单')
+            raise ParamsError('客户端或支付方式类型错误')
+
         with self.strade.auto_commit() as s:
             opayno = self.wx_pay.nonce_str
+            order_main = s.query(OrderMain).filter_by_({'OMid': omid}).first_('不存在的订单')
             # 原支付流水删除
+            s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
+            order_main.OPayno = opayno
             # 新建支付流水
-
-
+            order_pay_instance = OrderPay.create({
+                'OPayid': str(uuid.uuid4()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': order_main.OMtrueMount
+            })
+            # 付款时候的body信息
+            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
+            s.add(order_pay_instance)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('生成付款参数成功', response)
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         if opaytype == PayType.wechat_pay.value:

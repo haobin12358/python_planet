@@ -12,7 +12,7 @@ class ACart(Resource):
         apis = {
             'create': self.ccart.add,
             'update': self.ccart.update,
-            'destroy': self.ccart.destroy
+            'destroy': self.ccart.destroy,
         }
         return apis
 
@@ -29,7 +29,8 @@ class AOrder(Resource):
 
     def post(self, order):
         apis = {
-            'create': self.corder.create
+            'create': self.corder.create,
+            'pay': self.corder.pay
         }
         return apis
 
