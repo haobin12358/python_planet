@@ -32,13 +32,16 @@ class Query(_Query):
         """
         不提取isdelete为True的记录
         """
-        if args:
-            args = list(args)
-            arg = args.pop()
+        for arg in args:
             kwargs.update(arg)
-            return self.filter_by_(*args, **kwargs)
         if 'isdelete' not in kwargs.keys():
             kwargs['isdelete'] = False
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        return super(Query, self).filter_by(**kwargs)
+
+    def filter_by(self, *args, **kwargs):
+        for arg in args:
+            kwargs.update(arg)
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
         return super(Query, self).filter_by(**kwargs)
 
@@ -88,26 +91,6 @@ class Query(_Query):
         if isinstance(cen.right.type, NullType):
             return self
         return self.filter(cen.left.contains(cen.right))
-
-    def gt(self, cen):
-        """
-        使用session.query(User).filter(User.age > 13)
-        类似于 session.query(User).gt(User.age == 13)
-        二者唯一不同在于: session.query(User).gt(User.age == None) 将不过滤不异常
-        """
-        if isinstance(cen.right.type, NullType):
-            return self
-        return self.filter(cen.left > cen.right)
-
-    def lt(self, cen):
-        """
-        使用session.query(User).filter(User.age < 13)
-        类似于 session.query(User).lt(User.age == 13)
-        二者唯一不同在于: session.query(User).lt(User.age == None) 将不过滤不异常
-        """
-        if isinstance(cen.right.type, NullType):
-            return self
-        return self.filter(cen.left < cen.right)
 
     def test(self, cen):
         """测试"""

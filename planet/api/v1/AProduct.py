@@ -19,6 +19,7 @@ class AProduct(Resource):
     def post(self, product):
         apis = {
             'create': self.cproduct.add_product,
+            'update': self.cproduct.update_product,
         }
         return apis
 

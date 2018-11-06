@@ -2,10 +2,10 @@
 import json
 import uuid
 
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, admin_required
 from planet.models import Products, ProductSku
 from planet.service.SProduct import SProducts
 
@@ -71,5 +71,17 @@ class CSku(object):
             [setattr(sku, k, v) for k, v in sku_dict.items() if v is not None]
             s.add(sku)
         return Success('更新成功')
+
+    @admin_required
+    def delete(self):
+        data = parameter_required(('skuid', ))
+        skuid = data.get('skuid')
+        with self.sproduct.auto_commit() as s:
+            count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
+            if not count:
+                raise NotFound('不存在的sku')
+        return Success('删除成功')
+
+
 
 
