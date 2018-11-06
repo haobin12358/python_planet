@@ -119,7 +119,7 @@ class CProducts:
                 'PRstatus': self.prstatus,
 
             }
-            product_dict = {k: v for k, v in product_dict.items()}
+            product_dict = {k: v for k, v in product_dict.items() if v is not None}
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku
