@@ -36,12 +36,14 @@ class CPay():
         except Exception as e:
             raise ParamsError('客户端或支付方式类型错误')
         with self.strade.auto_commit() as s:
+            session_list = []
             opayno = self.wx_pay.nonce_str
             order_main = s.query(OrderMain).filter_by_({'OMid': omid}).first_('不存在的订单')
             # 原支付流水删除
             s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
             order_main.OPayno = opayno
+            session_list.append(order_main)
             # 新建支付流水
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid4()),
@@ -52,7 +54,8 @@ class CPay():
             # 付款时候的body信息
             order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
-            s.add(order_pay_instance)
+            session_list.append(order_pay_instance)
+            s.add_all(session_list)
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
         response = {
             'pay_type': PayType(opaytype).name,

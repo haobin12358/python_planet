@@ -100,9 +100,17 @@ class COrder(CPay):
                     # 订单价格计算
                     order_price += small_total
                     # 删除购物车
-                    s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+                    if omfrom == OrderFrom.carts.value:
+                        s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
+                    # 对应商品销量 + num sku库存 -num
+                    s.query(Products).filter_by_(PRid=prid).update({
+                        'PRsalesValue': Products.PRsalesValue + opnum,
+                    })
+                    s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                        'SKUstock': ProductSku.SKUstock - opnum
+                    })
                 # 主单
                 order_main_dict = {
                     'OMid': omid,

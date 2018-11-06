@@ -6,7 +6,7 @@ from sqlalchemy import inspection, log, util
 from sqlalchemy.orm import Query as _Query, Session as _Session
 from sqlalchemy.sql.sqltypes import NullType
 
-from .error_response import ParamsError, NotFound
+from .error_response import ParamsError, NotFound, SystemError
 
 
 @inspection._self_inspects
@@ -51,6 +51,9 @@ class Query(_Query):
 
     def delete_(self):
         return self.update({'isdelete': True})
+
+    def delete(self, synchronize_session='evaluate'):
+        raise SystemError("do not use delete")
 
     def filter_(self, *args, **kwargs):
         return self.filter_without_none(*args).filter_by_()

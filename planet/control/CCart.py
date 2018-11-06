@@ -107,11 +107,15 @@ class CCart(object):
         for cart in my_carts:
             pbid = cart.PBid
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
+            if not product:
+                continue
             product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
             # skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
             product_skus = self.sproduct.get_sku({'PRid': cart.PRid})  # 商品的sku
+            if not product_skus:
+                continue
             # 转json
             cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
             for product_sku in product_skus:
