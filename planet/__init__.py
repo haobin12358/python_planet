@@ -69,6 +69,7 @@ class Request(_Request):
             'args': self.args.to_dict(),
             'data': self.data,
             'file': self.files,
+            'form': self.form
         }
 
 

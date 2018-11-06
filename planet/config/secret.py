@@ -20,12 +20,12 @@ wxtoken = env.get('DXXWXTOKEN', '')
 wxscope = 'snsapi_userinfo'
 mch_id = env.get('MCH_ID')
 mch_key = env.get('MCH_KEY')
-wxpay_notify_url = API_HOST + 'api/v1/wechat_notify'
+wxpay_notify_url = API_HOST + '/api/v1/wechat_notify'
 # 支付宝
 alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
 alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'public.pem')
-alipay_notify = API_HOST + 'api/v1/alipay_notify'
+alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
 # assert database and host and port and username and password
 # assert appid and appsecret and wxscope and wxpay_notify_url
 

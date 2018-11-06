@@ -281,7 +281,6 @@ class CProducts:
             s.query(Products).filter_by_(PRid=prid).delete_()
         return Success('删除成功')
 
-
     def _can_add_product(self):
         if is_admin():
             self.product_from = ProductFrom.platform.value

@@ -67,7 +67,7 @@ class CPay():
     def alipay_notify(self):
         """异步通知, 文档 https://docs.open.alipay.com/203/105286/"""
         # 待测试
-        data = request.json
+        data = request.form.to_dict()
         signature = data.pop("sign")
         success = self.alipay.verify(data, signature)
         if not(success and data["trade_status"] in ("TRADE_SUCCESS", "TRADE_FINISHED")):
@@ -105,6 +105,15 @@ class CPay():
                 'OMstatus': OrderMainStatus.wait_send.value
             })
             return self.pay.reply("OK", True)
+
+    def test_pay(self):
+        order_string = self.alipay.api_alipay_trade_page_pay(
+            out_trade_no=self.wx_pay.nonce_str,
+            total_amount=0.01,
+            subject='elllfjdl',
+            return_url="https://example.com",
+        )
+        return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         if opaytype == PayType.wechat_pay.value:
@@ -145,6 +154,6 @@ class CPay():
             app_notify_url=alipay_notify,  # 默认回调url
             app_private_key_string=open(app_private_path).read(),
             alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA",  # RSA 或者 RSA2
+            sign_type="RSA2",  # RSA 或者 RSA2
         )
 
