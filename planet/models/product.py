@@ -120,3 +120,11 @@ class ProductCategory(Base):
     PCsort = Column(String(64), comment='显示顺序')
     PCpic = Column(String(255), comment='图片')
 
+
+class UserSearchHistory(Base):
+    """用户搜索记录,  需放到user.py文件中"""
+    __tablename__ = 'UserSearchHistory'
+    USHid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    USHname = Column(String(64), nullable=False, comment='搜索词')
+

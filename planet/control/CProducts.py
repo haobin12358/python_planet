@@ -8,9 +8,9 @@ from sqlalchemy import or_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, admin_required
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, admin_required, is_tourist
 from planet.config.enums import ProductStatus, ProductFrom
-from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items
+from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
 
 
@@ -72,6 +72,15 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+        # 搜索记录表
+        if kw and not is_tourist():
+            with self.sproduct.auto_commit() as s:
+                instance = UserSearchHistory.create({
+                    'USHid': str(uuid.uuid4()),
+                    'USid': request.user.id,
+                    'USHname': kw
+                })
+                s.add(instance)
         return Success(data=products)
 
     @token_required
