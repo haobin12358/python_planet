@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, admin_required
 from planet.config.enums import ProductStatus, ProductFrom
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items
 from planet.service.SProduct import SProducts
@@ -273,6 +273,14 @@ class CProducts:
                     session_list.append(item_product_instance)
             s.add_all(session_list)
         return Success('更新成功')
+
+    def delete(self):
+        data = parameter_required(('prid', ))
+        prid = data.get('prid')
+        with self.sproduct.auto_commit() as s:
+            s.query(Products).filter_by_(PRid=prid).delete_()
+        return Success('删除成功')
+
 
     def _can_add_product(self):
         if is_admin():

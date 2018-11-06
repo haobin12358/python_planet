@@ -20,6 +20,7 @@ class AProduct(Resource):
         apis = {
             'create': self.cproduct.add_product,
             'update': self.cproduct.update_product,
+            'delete': self.cproduct.delete,
         }
         return apis
 
