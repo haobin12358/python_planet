@@ -154,6 +154,26 @@ class COrder(CPay):
         }
         return Success('创建成功', data=response)
 
+    @token_required
+    def get(self):
+        """单个订单"""
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
+        order_main = self.strade.get_ordermain_one({'OMid': omid, 'USid': request.user.id}, '该订单不存在')
+        order_parts = self.strade.get_orderpart_list({'OMid': omid})
+        for order_part in order_parts:
+            order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
+            order_part.PRattribute = json.loads(order_part.PRattribute)
+            # 状态
+            order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
+            order_part.add('OPstatus_en')
+        order_main.fill('order_part', order_parts)
+        # 状态
+        order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
+        order_main.add('OMstatus_en').hide('OPayno', 'USid', )
+        return Success(data=order_main)
+
+
     @staticmethod
     def _generic_omno():
         """生成订单号"""

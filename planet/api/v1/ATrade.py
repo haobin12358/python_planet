@@ -38,6 +38,7 @@ class AOrder(Resource):
 
     def get(self, order):
         apis = {
-            'list': self.corder.list
+            'list': self.corder.list,
+            'get': self.corder.get,
         }
         return apis
