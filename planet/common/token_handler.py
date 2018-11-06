@@ -27,7 +27,7 @@ def usid_to_token(id, model='User', level=0, expiration=''):
 
 def is_admin():
     """是否是管理员"""
-    return hasattr(request, 'user') and request.user.model == u'Admin'
+    return hasattr(request, 'user') and request.user.model == 'Admin'
 
 
 def is_tourist():
@@ -37,7 +37,12 @@ def is_tourist():
 
 def common_user():
     """是否是普通用户, 不包括管理员"""
-    return hasattr(request, 'user') and request.user.model == u'user'
+    return hasattr(request, 'user') and request.user.model == 'user'
+
+
+def is_shop_keeper():
+    """是否是店主 todo"""
+    return True
 
 
 def is_hign_level_admin():

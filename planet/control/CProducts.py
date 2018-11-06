@@ -2,12 +2,14 @@
 import json
 import uuid
 
+from flask import request
 from sqlalchemy import or_
 
-from planet.common.error_response import NotFound, ParamsError
+from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.config.enums import ProductStatus
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper
+from planet.config.enums import ProductStatus, ProductFrom
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items
 from planet.service.SProduct import SProducts
 
@@ -24,6 +26,7 @@ class CProducts:
             return NotFound()
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
         product.PRattribute = json.loads(product.PRattribute)
+        product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
         # 顶部图
         images = self.sproduct.get_product_images({'PRid': prid})
         product.fill('images', images)
@@ -68,26 +71,36 @@ class CProducts:
             brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
+            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
         return Success(data=products)
 
+    @token_required
     def add_product(self):
+        self._can_add_product()
         data = parameter_required((
             'pcid', 'pbid', 'prtitle', 'prprice', 'prattribute',
             'prstocks', 'prmainpic', 'prdesc', 'images', 'skus'
         ))
         pbid = data.get('pbid')  # 品牌id
         pcid = data.get('pcid')  # 3级分类id
-        prstatus = int(data.get('prstatus', ProductStatus.usual.value))  # 状态
-        ProductStatus(prstatus)
         images = data.get('images')
         skus = data.get('skus')
         product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
+        # 商品来源
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
             prattribute = data.get('prattribute')
             prid = str(uuid.uuid4())
+            prmarks = data.get('prmarks')  # 备注
+            if prmarks:
+                try:
+                    prmarks = json.dumps(prmarks)
+                    if not isinstance(prmarks, dict):
+                        raise TypeError
+                except Exception as e:
+                    pass
             product_dict = {
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
@@ -95,12 +108,16 @@ class CProducts:
                 'PRlinePrice': data.get('prlinePrice'),
                 'PRfreight': data.get('prfreight'),
                 'PRstocks': data.get('prstocks'),
-                'PRstatus': prstatus,
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
                 'PRdesc': data.get('prdesc'),
-                'PRattribute': json.dumps(prattribute)
+                'PRattribute': json.dumps(prattribute),
+                'PRremarks': prmarks,
+                'PRfrom': self.product_from,
+                'CreaterId': request.user.id,
+                'PRstatus': self.prstatus,
+
             }
             product_dict = {k: v for k, v in product_dict.items()}
             product_instance = Products.create(product_dict)
@@ -145,3 +162,13 @@ class CProducts:
                     session_list.append(item_product_instance)
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
+
+    def _can_add_product(self):
+        if is_admin():
+            self.product_from = ProductFrom.platform.value
+            self.prstatus = None
+        elif is_shop_keeper():
+            self.product_from = ProductFrom.shop_keeper.value
+            self.prstatus = ProductStatus.auditing.value
+        else:
+            raise AuthorityError()

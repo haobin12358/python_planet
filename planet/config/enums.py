@@ -5,7 +5,15 @@ from enum import Enum
 class ProductStatus(Enum):
     """商品状态"""
     usual = 0  # 正常
-    offsale = 10  # 下架
+    auditing = 10  # 审核中
+    offsale = 60  # 下架
+
+
+class ProductFrom(Enum):
+    """商品来源"""
+    platform = 0  # 平台发布
+    shop_keeper = 10  # 店主发布
+    # ..其他
 
 
 class PayType(Enum):

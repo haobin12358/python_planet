@@ -19,6 +19,10 @@ class CCategory(object):
             self._sub_category(category, deep)
         return Success(data=categorys)
 
+    def create(self):
+        """创建分类"""
+        pass
+
     def _sub_category(self, category, deep):
         """遍历子分类"""
         try:
