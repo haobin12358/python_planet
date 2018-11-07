@@ -15,6 +15,7 @@ from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, is_tourist, usid_to_token
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
+from planet.common.request_handler import gennerc_log
 from planet.models.user import User, UserLoginTime, UserCommission
 from planet.service.SUser import SUser
 from planet.models.identifyingcode import IdentifyingCode
@@ -33,16 +34,28 @@ class CUser(SUser):
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
             usid = str(uuid.uuid1())
-
-            default_head_path = ''
-            default_head_path = GithubAvatarGenerator().save_avatar(default_head_path)
+            uslevel = 1
+            default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
                 "USname": '客官'+str(ustelphone)[:-4],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
-
+                "USintegral": 0,
+                "USlevel": uslevel
             })
+            self.session.add(user)
+        else:
+            usid = user.USid
+            uslevel = user.USlevel
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+        self.session.add(userloggintime)
+        token = usid_to_token(usid, model='User', level=uslevel)
+        return Success('登录成功', data={'token': token})
 
     @get_session
     def get_inforcode(self):
@@ -87,4 +100,16 @@ class CUser(SUser):
             'ustelphone': Utel
         }
         return Success('获取验证码成功', data=response)
+
+    def wx_login(self):
+        pass
+
+    @get_session
+    @token_required
+    def get_user(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+
 

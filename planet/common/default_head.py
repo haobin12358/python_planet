@@ -8,8 +8,6 @@ from flask import current_app
 from datetime import datetime
 
 
-
-
 class GithubAvatarGenerator:
     '''
     Github default avatar is a 420*420 image contains 5*5 block vertex.
