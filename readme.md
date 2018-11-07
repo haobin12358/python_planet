@@ -3,11 +3,15 @@
 
 - python3.6
 
-- 依赖
-
-```bash
-pip install -r requirments.txt
-```
+- 依赖  
+    - 新增依赖
+    ```bash
+    pip freeze > requirments.txt
+    ```
+    - 导入依赖
+    ```bash
+    pip install -r requirments.txt
+    ```
 
 - 环境变量
 
