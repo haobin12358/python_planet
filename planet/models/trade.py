@@ -85,25 +85,27 @@ class OrderPart(Base):
     PRmainpic = Column(String(255), nullable=False, comment='主图')
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
-    OPstatus = Column(Integer, default=0, comment='状态: 售后状态, 0未发起售后, 10 申请售后 -10 售后已取消 20 处理中 200 处理完毕')
+    OPstatus = Column(Integer, default=0, comment='状态: 售后状态,0未发起售后, 10 申请售后 -10 售后已取消 -20 已拒绝  20 处理中 200 处理完毕')
 
 
 class OrderRefundApply(Base):
     """订单售后申请"""
     __tablename__ = 'OrderRefundApply'
     ORAid = Column(String(64), primary_key=True)
+    ORAsn = Column(String(64), nullable=False, comment='售后编号')
     OMid = Column(String(64), nullable=False, comment='主单id')
     OPid = Column(String(64), nullable=False, comment='副单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 暂定')
     ORAreason = Column(String(255), nullable=False, comment='退款原因')
+    ORAproductStatus = Column(Integer, default=0, comment='0已收货, 10 未收货')
     ORAstatus = Column(Integer, default=0, comment='状态 -1 拒绝 0 未审核 1审核通过')
     ORAcheckReason = Column(String(255), comment='审核原因')
     ORAcheckTime = Column(DateTime, comment='审核时间')
 
 
 class OrderRefund(Base):
-    """订单退换货"""
+    """订单售后表"""
     __tablename__ = 'OrderRefund'
     ORid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')

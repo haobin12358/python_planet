@@ -191,10 +191,38 @@ class COrder(CPay):
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
 
+    @token_required
     def apply_refund(self):
         """申请退款"""
-        data = parameter_required(('omid', ))
-        omid = data.get('omid')
+        data = parameter_required(('opid', 'orareason'))
+        opid = data.get('opid')
+        usid = request.user.id
+        with self.strade.auto_commit() as s:
+            s_list = []
+            # 副单进入售后状态
+            order_part = s.query(OrderPart).filter_by_({
+                'OPid': opid,
+                'OPstatus': OrderPartStatus.usual.value
+            }).first_('不存在的订单详情')
+            order_part.OPstatus = OrderPartStatus.apply_refund.value
+            s_list.append(order_part)
+            # 主单售后状态
+            omid = order_part.OMid
+            order_main = s.query(OrderMain).filter_(
+                OrderMain.OMid == omid,
+                OrderMain.OMstatus.notin_([OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]),
+                OrderMain.USid == usid
+            ).first_('不存在的订单')
+            order_main.OMinRefund = True
+            s_list.append(order_main)
+            # 售后申请表
+            order_refund_apply_dict = {
+                'ORAid': str(uuid.uuid4()),
+                'OMid': omid,
+                'OPid': opid,
+                'USid': usid,
+
+            }
 
 
     @staticmethod

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 
-
+# 商品
 class ProductStatus(Enum):
     """商品状态"""
     usual = 0  # 正常
@@ -28,6 +28,7 @@ class Client(Enum):
     app = 10
 
 
+# 订单
 class OrderFrom(Enum):
     """订单商品来源"""
     carts = 0
@@ -46,11 +47,26 @@ class OrderMainStatus(Enum):
 
 
 class OrderPartStatus(Enum):
-    """订单副表状态 0正常状态, -10退货申请,-20退货中,-30已退货"""
+    """订单副表状态 0未发起售后, 10 申请售后 -10 售后已取消 -20 已拒绝  20 处理中 200 处理完毕"""
     usual = 0
-    apply_refund = -10
-    refunding = -20
-    already = -30
+    apply_refund = 10
+    refunding = -20  # 处理中
+    reject = -20
+    already = 200  # 处理完毕
+
+
+class OrderRefundApplyStatus(Enum):
+    """申请售后状态-1 拒绝 0 未审核 1审核通过"""
+    reject = -1
+    wait_check = 0
+    agree = 1
+
+
+class ORAproductStatus(Enum):
+    """退货申请时商品状态0已收货, 10 未收货"""
+    already_recv = 0
+    not_recv = 10
+
 
 
 if __name__ == '__main__':
