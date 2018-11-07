@@ -35,11 +35,12 @@ class Base(AbstractConcreteBase, _Base):
     @classmethod
     def create(cls, data):
         instance = cls()
-        for k, v in data.items():
-            if v is None:
-                continue
-            setattr(instance, k, v)
+        [setattr(instance, k, v) for k, v in data.items() if v is not None]
         return instance
+
+    def update(self, data):
+        [setattr(self, k, v) for k, v in data.items() if v is not None]
+        return self
 
     def __getitem__(self, item):
         return getattr(self, item)

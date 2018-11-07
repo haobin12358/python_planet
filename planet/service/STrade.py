@@ -25,7 +25,7 @@ class STrade(SBase):
     @close_session
     def get_ordermain_one(self, args, error=None):
         return self.session.query(OrderMain).filter_by_(
-            *args
+            args
         ).first_(error)
 
     @close_session

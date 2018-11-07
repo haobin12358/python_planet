@@ -36,12 +36,14 @@ class CPay():
         except Exception as e:
             raise ParamsError('客户端或支付方式类型错误')
         with self.strade.auto_commit() as s:
+            session_list = []
             opayno = self.wx_pay.nonce_str
             order_main = s.query(OrderMain).filter_by_({'OMid': omid}).first_('不存在的订单')
             # 原支付流水删除
             s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
             order_main.OPayno = opayno
+            session_list.append(order_main)
             # 新建支付流水
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid4()),
@@ -52,7 +54,8 @@ class CPay():
             # 付款时候的body信息
             order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
-            s.add(order_pay_instance)
+            session_list.append(order_pay_instance)
+            s.add_all(session_list)
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
         response = {
             'pay_type': PayType(opaytype).name,
@@ -64,7 +67,7 @@ class CPay():
     def alipay_notify(self):
         """异步通知, 文档 https://docs.open.alipay.com/203/105286/"""
         # 待测试
-        data = request.json
+        data = request.form.to_dict()
         signature = data.pop("sign")
         success = self.alipay.verify(data, signature)
         if not(success and data["trade_status"] in ("TRADE_SUCCESS", "TRADE_FINISHED")):
@@ -102,6 +105,15 @@ class CPay():
                 'OMstatus': OrderMainStatus.wait_send.value
             })
             return self.pay.reply("OK", True)
+
+    def test_pay(self):
+        order_string = self.alipay.api_alipay_trade_page_pay(
+            out_trade_no=self.wx_pay.nonce_str,
+            total_amount=0.01,
+            subject='elllfjdl',
+            return_url="https://example.com",
+        )
+        return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         if opaytype == PayType.wechat_pay.value:
@@ -142,6 +154,6 @@ class CPay():
             app_notify_url=alipay_notify,  # 默认回调url
             app_private_key_string=open(app_private_path).read(),
             alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA",  # RSA 或者 RSA2
+            sign_type="RSA2",  # RSA 或者 RSA2
         )
 

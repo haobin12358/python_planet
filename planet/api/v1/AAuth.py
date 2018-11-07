@@ -11,8 +11,9 @@ class AAuthTest(Resource):
     def post(self):
         # data = request.json
         # usid = data.get('usid')
+        data = request.json or {}
         usid = 'usid1'
-        token = usid_to_token(usid)
+        token = usid_to_token(usid, data.get('user', 'User'))
         return token
 
 

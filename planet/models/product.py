@@ -20,13 +20,15 @@ class Products(Base):
     PRfreight = Column(Float, default=0, comment='运费')
     PRstocks = Column(Integer, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
-    PRstatus = Column(Integer, default=0, comment='状态  0 正常 10下架')
+    PRstatus = Column(Integer, default=0, comment='状态  0 正常, 10 审核中 60下架')
     PRmainpic = Column(String(255), comment='主图')
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     PCid = Column(String(64), comment='分类id')
     PBid = Column(String(64), comment='品牌id')
     PRdesc = Column(Text, comment='商品详细介绍')
     PRremarks = Column(String(255), comment='备注')
+    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    CreaterId = Column(String(64), nullable=False, comment='创建者')
 
 
 class ProductSku(Base):
@@ -117,4 +119,12 @@ class ProductCategory(Base):
     ParentPCid = Column(String(64), comment='父类别id, 为空则为一级主类别')
     PCsort = Column(String(64), comment='显示顺序')
     PCpic = Column(String(255), comment='图片')
+
+
+class UserSearchHistory(Base):
+    """用户搜索记录,  需放到user.py文件中"""
+    __tablename__ = 'UserSearchHistory'
+    USHid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    USHname = Column(String(64), nullable=False, comment='搜索词')
 

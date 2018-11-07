@@ -6,14 +6,14 @@ from planet.models import Products, ProductCategory, ProductImage, ProductBrand,
 
 class SProducts(SBase):
     @close_session
-    def get_product_by_prid(self, prid):
+    def get_product_by_prid(self, prid, error=None):
         """获取id获取单个商品"""
         return self.session.query(Products).filter_by_(
             PRid=prid
-        ).first()
+        ).first_(error)
 
     @close_session
-    def get_product_list(self, args, order=[]):
+    def get_product_list(self, args, order=()):
         """获取商品列表"""
         return self.session.query(Products).filter_by_().\
             outerjoin(
@@ -37,9 +37,9 @@ class SProducts(SBase):
         return self.session.query(ProductSku).filter_by_(**args).all()
 
     @close_session
-    def get_sku_one(self, args):
+    def get_sku_one(self, args, error=None):
         """获取单个sku"""
-        return self.session.query(ProductSku).filter_by_(**args).first()
+        return self.session.query(ProductSku).filter_by_(**args).first_(error)
 
     @close_session
     def get_sku_value(self, args):
@@ -58,7 +58,7 @@ class SProducts(SBase):
         return self.session.query(ProductCategory).filter_by_(**args).first_(error)
 
     @close_session
-    def get_item_list(self, args, order=[]):
+    def get_item_list(self, args, order=()):
         """获取场景"""
         return self.session.query(Items).outerjoin(ProductItems, Items.ITid == ProductItems.ITid).filter_(
             *args

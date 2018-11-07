@@ -100,9 +100,17 @@ class COrder(CPay):
                     # 订单价格计算
                     order_price += small_total
                     # 删除购物车
-                    s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+                    if omfrom == OrderFrom.carts.value:
+                        s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
+                    # 对应商品销量 + num sku库存 -num
+                    s.query(Products).filter_by_(PRid=prid).update({
+                        'PRsalesValue': Products.PRsalesValue + opnum,
+                    })
+                    s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                        'SKUstock': ProductSku.SKUstock - opnum
+                    })
                 # 主单
                 order_main_dict = {
                     'OMid': omid,
@@ -145,6 +153,26 @@ class COrder(CPay):
             'args': pay_args
         }
         return Success('创建成功', data=response)
+
+    @token_required
+    def get(self):
+        """单个订单"""
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
+        order_main = self.strade.get_ordermain_one({'OMid': omid, 'USid': request.user.id}, '该订单不存在')
+        order_parts = self.strade.get_orderpart_list({'OMid': omid})
+        for order_part in order_parts:
+            order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
+            order_part.PRattribute = json.loads(order_part.PRattribute)
+            # 状态
+            order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
+            order_part.add('OPstatus_en')
+        order_main.fill('order_part', order_parts)
+        # 状态
+        order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
+        order_main.add('OMstatus_en').hide('OPayno', 'USid', )
+        return Success(data=order_main)
+
 
     @staticmethod
     def _generic_omno():

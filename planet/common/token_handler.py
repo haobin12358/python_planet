@@ -1,5 +1,5 @@
 # -*-LJ_DB_PWi coding: utf-8 -*-
-from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 
 from .error_response import AuthorityError, TokenError
@@ -27,7 +27,7 @@ def usid_to_token(id, model='User', level=0, expiration=''):
 
 def is_admin():
     """是否是管理员"""
-    return hasattr(request, 'user') and request.user.model == u'Admin'
+    return hasattr(request, 'user') and request.user.model == 'Admin'
 
 
 def is_tourist():
@@ -37,7 +37,12 @@ def is_tourist():
 
 def common_user():
     """是否是普通用户, 不包括管理员"""
-    return hasattr(request, 'user') and request.user.model == u'user'
+    return hasattr(request, 'user') and request.user.model == 'user'
+
+
+def is_shop_keeper():
+    """是否是店主 todo"""
+    return True
 
 
 def is_hign_level_admin():
@@ -53,60 +58,8 @@ def admin_required(func):
     return inner
 
 
-def is_agent():
-    """是否是代理商"""
-    return hasattr(request, 'user') and request.user.level == 2
-
-
 def token_required(func):
     def inner(self, *args, **kwargs):
-        parameter = request.args.to_dict()
-        token = parameter.get('token')
-        s = Serializer(current_app.config['SECRET_KEY'])
-        try:
-            data = s.loads(token)
-        except BadSignature as e:
-            # 签名出错的token
-            return func(self, *args, **kwargs)
-        except SignatureExpired as e:
-            # 过期的token
-            return func(self, *args, **kwargs)
-        except Exception as e:
-            # 无法解析的token
-            return func(self, *args, **kwargs)
-        id = data['id']
-        time = data['time']
-        model = data['model']
-        if model != 'User' and model != 'Admin':
-            return func(self, *args, **kwargs)
-
-        sessions = db_session()
-        try:
-            if model == 'User':
-                from WeiDian.models.model import User
-                user = sessions.query(User).filter_by(USid=id).first()
-                if not user:
-                    # 不存在的用户
-                    return func(self, *args, **kwargs)
-                user.id = user.USid
-                user.scope = 'User'
-                user.level = user.USlevel
-            if model == 'SuperUser':
-                from WeiDian.models.model import SuperUser
-                user = sessions.query(SuperUser).filter_by(SUid=id).first()
-                if not user:
-                    # 不存在的管理
-                    return func(self, *args, **kwargs)
-                user.id = user.SUid
-                user.scope = 'SuperUser'
-                user.level = user.SUlevel
-            sessions.expunge_all()
-            sessions.commit()
-            if user:
-                request.user = user
-            return func(self, *args, **kwargs)
-        finally:
-            sessions.close()
         if not is_tourist():
             return func(self, *args, **kwargs)
         raise TokenError()
