@@ -8,7 +8,7 @@ from decimal import Decimal
 from flask import request
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError
+from planet.common.error_response import ParamsError, SystemError, NotFound
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderPartStatus
@@ -173,6 +173,23 @@ class COrder(CPay):
         order_main.add('OMstatus_en').hide('OPayno', 'USid', )
         return Success(data=order_main)
 
+    @token_required
+    def cancle(self):
+        """付款前取消订单"""
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
+        usid = request.user.id
+        with self.strade.auto_commit() as s:
+            updated = s.query(OrderMain).filter_by_({
+                'OMid': omid,
+                'USid': usid,
+                'OMstatus': OrderMainStatus.wait_pay.value
+            }).update({
+                'OMstatus': OrderMainStatus.cancle.value
+            })
+            if not updated:
+                raise NotFound('指定订单不存在')
+        return Success('取消成功')
 
     @staticmethod
     def _generic_omno():

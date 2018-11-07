@@ -26,6 +26,7 @@ class CPay():
         """订单发起支付"""
         data = parameter_required(('omid', ))
         omid = data.get('omid')
+        usid = request.user.id
         try:
             omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
             opaytype = int(data.get('opaytype', PayType.wechat_pay.value))  # 付款方式
@@ -38,7 +39,9 @@ class CPay():
         with self.strade.auto_commit() as s:
             session_list = []
             opayno = self.wx_pay.nonce_str
-            order_main = s.query(OrderMain).filter_by_({'OMid': omid}).first_('不存在的订单')
+            order_main = s.query(OrderMain).filter_by_({
+                'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value
+            }).first_('不存在的订单')
             # 原支付流水删除
             s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
