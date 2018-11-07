@@ -36,7 +36,7 @@ source ~/.bashrc
 - 生成迁移文件
 
 ```bash
-alembic revision --autogenerate -m 'add order
+alembic revision --autogenerate -m 'add'
 ```
 
 - 执行
