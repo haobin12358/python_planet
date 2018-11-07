@@ -204,16 +204,20 @@ class COrder(CPay):
                 'OPid': opid,
                 'OPstatus': OrderPartStatus.usual.value
             }).first_('不存在的订单详情')
-            order_part.OPstatus = OrderPartStatus.apply_refund.value
+            order_part.OPstatus = OrderPartStatus.apply_refund.value  # 申请售后
             s_list.append(order_part)
             # 主单售后状态
             omid = order_part.OMid
             order_main = s.query(OrderMain).filter_(
                 OrderMain.OMid == omid,
-                OrderMain.OMstatus.notin_([OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]),
+                OrderMain.OMstatus.notin_([
+                    OrderMainStatus.wait_pay.value,
+                    OrderMainStatus.cancle.value,
+                    OrderMainStatus.ready.value,
+                ]),
                 OrderMain.USid == usid
             ).first_('不存在的订单')
-            order_main.OMinRefund = True
+            order_main.OMinRefund = True  # 存在售后商品
             s_list.append(order_main)
             # 售后申请表
             order_refund_apply_dict = {
