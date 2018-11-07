@@ -26,13 +26,14 @@ class User(Base):
     USCommission = Column(Float, comment='佣金分成')        # 总体佣金分成比例
     USintegral = Column(Integer, comment='积分')
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商}')
+    USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
 
 
 class UserLoginTime(Base):
     __tablename__ = 'UserLoginTime'
     ULTid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='用户id')
-    USTcreatetime = Column(DateTime, default=datetime.now(), comment='登录时间')
+    # USTcreatetime = Column(DateTime, default=datetime.now(), comment='登录时间')
     USTip = Column(String(64), comment='登录ip地址')
 
 
@@ -43,4 +44,4 @@ class UserCommission(Base):
     UCcommission = Column(DECIMAL, comment='获取佣金')
     USid = Column(String(64), comment='用户id')
     UCstatus = Column(Integer, default=0, comment='佣金状态{0：预期到账, 1: 已到账, 2: 已提现}')
-    UCcreateTime = Column(DateTime, default=datetime.now(), comment='佣金创建时间')
+    # UCcreateTime = Column(DateTime, default=datetime.now(), comment='佣金创建时间')
