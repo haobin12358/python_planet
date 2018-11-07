@@ -14,6 +14,7 @@ from planet.api.v1.ATrade import ACart, AOrder
 from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
+from planet.extensions.loggers import LoggerHandler
 
 
 class JSONEncoder(_JSONEncoder):
@@ -97,6 +98,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(DefaltSettig)
     register_v1(app)
+    LoggerHandler(app, file='/tmp/planet/')
     error_handler(app)
     CORS(app, supports_credentials=True)
     request_first_handler(app)
