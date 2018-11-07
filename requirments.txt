@@ -8,6 +8,7 @@ certifi==2018.8.24
 cffi==1.11.5
 chardet==3.0.4
 Click==7.0
+colorama==0.4.0
 cryptography==2.3.1
 decorator==4.3.0
 Flask==1.0.2
@@ -30,6 +31,8 @@ kombu==4.2.1
 lxml==4.2.5
 Mako==1.0.7
 MarkupSafe==1.0
+numpy==1.15.4
+opencv-python==3.4.3.18
 parso==0.3.1
 pexpect==4.6.0
 pickleshare==0.7.5
@@ -37,7 +40,6 @@ prompt-toolkit==2.0.5
 psutil==5.4.8
 ptyprocess==0.6.0
 pycparser==2.19
-pycrypto==2.6.1
 pycryptodomex==3.6.6
 Pygments==2.2.0
 PyMySQL==0.9.2
