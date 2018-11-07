@@ -12,7 +12,6 @@ from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct, ACategory, ASku
 from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
-from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.loggers import LoggerHandler
@@ -37,6 +36,7 @@ class JSONEncoder(_JSONEncoder):
 
 class Request(_Request):
     def on_json_loading_failed(self, e):
+        from planet.common.error_response import ParamsError
         if current_app is not None and current_app.debug:
             raise ParamsError('Failed to decode JSON object: {0}'.format(e))
         raise ParamsError('参数异常')
