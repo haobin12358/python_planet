@@ -191,6 +191,12 @@ class COrder(CPay):
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
 
+    def apply_refund(self):
+        """申请退款"""
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
+
+
     @staticmethod
     def _generic_omno():
         """生成订单号"""
