@@ -35,6 +35,13 @@ class ACategory(Resource):
         }
         return apis
 
+    def post(self, category):
+        apis = {
+            'create': self.ccategory.create,
+            'delete': self.ccategory.delete,
+        }
+        return apis
+
 
 class ASku(Resource):
     def __init__(self):

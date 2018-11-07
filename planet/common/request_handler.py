@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import sys
 import traceback
 from collections import namedtuple
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
 
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask import current_app, request
@@ -18,7 +20,7 @@ User = namedtuple('User', ('id', 'model', 'level'))
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        generic_error_log('before request', info='info')
+        gennerc_log('before request', info='info')
         parameter = request.args.to_dict()
         token = parameter.get('token')
         s = Serializer(current_app.config['SECRET_KEY'])
@@ -47,7 +49,7 @@ def error_handler(app):
     def framework_error(e):
         if isinstance(e, Success):
             return e
-        generic_error_log(e)
+        gennerc_log(e)
         if isinstance(e, BaseError):
             return e
         else:
@@ -56,32 +58,20 @@ def error_handler(app):
             return SystemError()
 
 
-def generic_error_log(data, path='flask', info='bug'):
-    logger_file_name = datetime.now().strftime("%Y-%m-%d") + '.log'
-    logger_dir = os.path.join('/tmp/planet/', 'logs', path)
-    if not os.path.isdir(logger_dir):
-        os.makedirs(logger_dir)
-    logger_file = os.path.join(logger_dir, logger_file_name)
-    handler = logging.FileHandler(logger_file)
-    logging_format = logging.Formatter(
-        "%(asctime)s - %(filename)s \n %(message)s"
-    )
-    handler.setFormatter(logging_format)
+def gennerc_log(data, info='bug'):
     if isinstance(data, Exception):
         data = traceback.format_exc()
-    current_app.logger.addHandler(handler)
     current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
     current_app.logger.error(data)
+    try:
+        current_app.logger.info(request.detail)
+    except Exception as e:
+        pass
+
+
+def check_mem():
     # 查看内存(M)
     import psutil
     process = psutil.Process(os.getpid())
     mem = process.memory_info()[0] / float(2 ** 20)
     current_app.logger.info('mem is %f ' % mem)
-    #
-    try:
-        current_app.logger.info(request.detail)
-    except Exception as e:
-        pass
-    finally:
-        current_app.logger.removeHandler(handler)
-
