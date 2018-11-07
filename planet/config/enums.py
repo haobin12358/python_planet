@@ -46,20 +46,12 @@ class OrderMainStatus(Enum):
     cancle = -40
 
 
-class OrderPartStatus(Enum):
-    """订单副表状态 0未发起售后, 10 申请售后 -10 售后已取消 -20 已拒绝  20 处理中 200 处理完毕"""
-    usual = 0
-    apply_refund = 10
-    refunding = -20  # 处理中
-    reject = -20
-    already = 200  # 处理完毕
-
-
 class OrderRefundApplyStatus(Enum):
     """申请售后状态-1 拒绝 0 未审核 1审核通过"""
-    reject = -1
+    cancle = -20
+    reject = -10
     wait_check = 0
-    agree = 1
+    agree = 10
 
 
 class ORAproductStatus(Enum):
