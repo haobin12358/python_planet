@@ -17,7 +17,7 @@ from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.models.user import User, UserLoginTime, UserCommission
 from planet.service.SUser import SUser
-from planet.models.identifyingcode import IdentifyingCode
+from planet.models import IdentifyingCode
 
 
 class CUser(SUser):
