@@ -37,7 +37,7 @@ class OrderFrom(Enum):
 
 class OrderMainStatus(Enum):
     """主订单状态
-    0待付款,10待发货,20待收货,30完成
+        0待付款,10待发货,20待收货,30完成
     """
     wait_pay = 0
     wait_send = 10
