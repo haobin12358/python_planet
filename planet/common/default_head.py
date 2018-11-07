@@ -7,11 +7,7 @@ import os
 from flask import current_app
 from datetime import datetime
 
-time_now = datetime.now()
-year = str(time_now.year)
-month = str(time_now.month)
-day = str(time_now.day)
-newPath = os.path.join(current_app.config['BASEDIR'], 'img', 'defaulhead', year, month, day)
+
 
 
 class GithubAvatarGenerator:
@@ -102,9 +98,16 @@ class GithubAvatarGenerator:
         cv2.waitKey()
 
     def save_avatar(self, filepath):
+        time_now = datetime.now()
+        year = str(time_now.year)
+        month = str(time_now.month)
+        day = str(time_now.day)
         img = self._get_avatar_data()
+        newPath = os.path.join(current_app.config['BASEDIR'], 'img', 'defaulhead', year, month, day)
         filepath = newPath + filepath + '.png'
         cv2.imwrite(filepath, img)
+        data = '/img/defaulhead/{}/{}/{}/{}'.format(year, month, day, filepath + '.png')
+        return data
 
 
 if __name__ == '__main__':
