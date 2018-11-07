@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import sys
 from logging.handlers import TimedRotatingFileHandler
 
 
@@ -21,6 +22,10 @@ class LoggerHandler():
         log_file_handler.setFormatter(formatter)
         log_file_handler.setLevel(logging.DEBUG)
         app.logger.addHandler(log_file_handler)
+
+        # stream_handler = logging.StreamHandler(sys.stdout)
+        # stream_handler.setFormatter(formatter)
+        # app.logger.addHandler(stream_handler)
 
     def set_format(self, format):
         self.format = format

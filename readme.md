@@ -58,6 +58,11 @@ alembic upgrade head
 ./start.sh stop
 ```
 
+## 日志
+
+```bash
+/tmp/planet/log*
+```
 
 ## 错误码
 ```
