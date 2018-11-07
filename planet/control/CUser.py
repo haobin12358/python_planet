@@ -35,12 +35,12 @@ class CUser(SUser):
             usid = str(uuid.uuid1())
 
             default_head_path = ''
-            GithubAvatarGenerator().save_avatar(default_head_path)
+            default_head_path = GithubAvatarGenerator().save_avatar(default_head_path)
             user = User.create({
                 "USid": usid,
                 "USname": '客官'+str(ustelphone)[:-4],
                 "UStelphone": ustelphone,
-                "USheader": ustelphone,
+                "USheader": default_head_path,
 
             })
 
