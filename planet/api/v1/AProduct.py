@@ -37,7 +37,8 @@ class ACategory(Resource):
 
     def post(self, category):
         apis = {
-            'create': self.ccategory.create
+            'create': self.ccategory.create,
+            'delete': self.ccategory.delete,
         }
         return apis
 

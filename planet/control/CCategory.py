@@ -53,6 +53,13 @@ class CCategory(object):
             s.add(category_instance)
         return Success('创建成功', {'pcid': category_instance.PCid})
 
+    def delete(self):
+        data = parameter_required(('pcid', ))
+        pcid = data.get('pcid')
+        with self.sproduct.auto_commit() as s:
+            s.query(ProductCategory).filter_by_({'PCid': pcid}).delete_()
+        return Success('删除成功')
+
     def _sub_category(self, category, deep):
         """遍历子分类"""
         try:
