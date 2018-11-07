@@ -86,6 +86,7 @@ class SendSMS:
             return False
         else:
             jn = json.loads(r.text)
+            print('get sms response :', jn)
             if jn.get("Code") == "OK":
                 return True
             else:

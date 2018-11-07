@@ -13,16 +13,19 @@ from .query_session import Session
 db_session = sessionmaker(bind=mysql_engine, class_=Session, expire_on_commit=False)
 
 
-def get_session():
-    try:
-        session = db_session()
-        status = True
-    except Exception as e:
-        session = None
-        status = False
-        raise SystemError(e.args)
-    finally:
-        return session, status
+def get_session(fn):
+    def inner(self, *args, **kwargs):
+        try:
+            self.session = db_session()
+            result = fn(self, *args, **kwargs)
+            self.session.commit()
+            return result
+        except Exception as e:
+            self.session.rollback()
+            raise SystemError(e.args)
+        finally:
+            self.session.close()
+    return inner
 
 
 def close_session(fn):

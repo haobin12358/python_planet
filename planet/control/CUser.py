@@ -13,23 +13,38 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, is_tourist, usid_to_token
+from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
-from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderPartStatus
-from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
-    alipay_public_key_path, alipay_notify
-from planet.extensions.weixin import WeixinPay
 from planet.models.user import User, UserLoginTime, UserCommission
+from planet.service.SUser import SUser
 from planet.models.identifyingcode import IdentifyingCode
 
 
-
-class CUser:
+class CUser(SUser):
+    @get_session
     def login(self):
         """手机验证码登录"""
-        data = parameter_required('usatelphone', '')
+        data = parameter_required('ustelphone', 'identifyingcode')
         ustelphone = data.get('ustelphone')
-        uspassword = data.get('uspassword')
+        identifyingcode = str(data.get('identifyingcode'))
+        idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
+        if not idcode or str(idcode.ICcode) != identifyingcode:
+            raise ParamsError('验证码有误')
+        user = self.get_user_by_ustelphone(ustelphone)
+        if not user:
+            usid = str(uuid.uuid1())
 
+            default_head_path = ''
+            GithubAvatarGenerator().save_avatar(default_head_path)
+            user = User.create({
+                "USid": usid,
+                "USname": '客官'+str(ustelphone)[:-4],
+                "UStelphone": ustelphone,
+                "USheader": ustelphone,
+
+            })
+
+    @get_session
     def get_inforcode(self):
         """发送/校验验证码"""
         args = request.args.to_dict()
@@ -39,7 +54,6 @@ class CUser:
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
-            import random
             item = random.randint(1, 9)
             code = code + str(item)
 
@@ -48,35 +62,29 @@ class CUser:
         time_time = datetime.datetime.now()
 
         # 根据电话号码获取时间
-        session, status = get_session()
-        if not status:
-            raise SystemError(u'数据库连接失败')
-
-        time_up = session.query(IdentifyingCode).filter(IdentifyingCode.ICtelphone == Utel).first_()
+        time_up = self.get_identifyingcode_by_ustelphone(Utel)
         print("this is time up %s", time_up)
 
         if time_up:
-            delta = time_time - time_up
+            delta = time_time - time_up.createtime
             if delta.seconds < 60:
-                raise TimeError(u"验证码已发送")
+                raise TimeError("验证码已发送")
 
-        newidcode = IdentifyingCode
-        newidcode.ICtelphone, newidcode.ICcode, newidcode.ICid = Utel, code, str(uuid.uuid1())
+        newidcode = IdentifyingCode.create({
+            "ICtelphone": Utel,
+            "ICcode": code,
+            "ICid": str(uuid.uuid1())
+        })
+        self.session.add(newidcode)
 
         params = {"code": code}
         response_send_message = SendSMS(Utel, params)
 
-        response_send_message = json.loads(response_send_message)
-        logger.debug("this is response %s", response_send_message)
+        if not response_send_message:
+            raise SystemError('发送验证码失败')
 
-        if response_send_message["Code"] == "OK":
-            status = 200
-        else:
-            status = 405
-        # 手机号中四位替换为星号
-        # response_ok = {"usphone": Utel[:3] + '****' + Utel[-4: ]}
-        response_ok = {"usphone": Utel}
-        response_ok["status"] = status
-        response_ok["messages"] = response_send_message["Message"]
+        response = {
+            'ustelphone': Utel
+        }
+        return Success('获取验证码成功', data=response)
 
-        return response_ok
