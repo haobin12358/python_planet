@@ -9,8 +9,8 @@ import time
 import urllib
 import requests
 from hashlib import sha1
-from planet.config.secret import ACCESS_KEY_ID, ACCESS_KEY_SECRET, SignName, TemplateCode
-from planet.config.cfgsetting import singleton
+from ..config.secret import ACCESS_KEY_ID, ACCESS_KEY_SECRET, SignName, TemplateCode
+from ..config.cfgsetting import singleton
 
 
 @singleton

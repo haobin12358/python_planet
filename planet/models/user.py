@@ -55,6 +55,13 @@ class IdentifyingCode(Base):
     ICcode = Column(String(8), nullable=False)    # 获取到的验证码
 
 
+class UserSearchHistory(Base):
+    """用户搜索记录"""
+    __tablename__ = 'UserSearchHistory'
+    USHid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    USHname = Column(String(64), nullable=False, comment='搜索词')
+
 
 class Admin(Base):
     """
