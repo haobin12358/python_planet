@@ -10,9 +10,8 @@ from flask_cors import CORS
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct, ACategory, ASku
-from planet.api.v1.ATrade import ACart, AOrder
+from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
-from planet.common.error_response import ParamsError
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.loggers import LoggerHandler
@@ -37,6 +36,7 @@ class JSONEncoder(_JSONEncoder):
 
 class Request(_Request):
     def on_json_loading_failed(self, e):
+        from planet.common.error_response import ParamsError
         if current_app is not None and current_app.debug:
             raise ParamsError('Failed to decode JSON object: {0}'.format(e))
         raise ParamsError('参数异常')
@@ -89,6 +89,7 @@ def register_v1(app):
     v1.add_url_rule('/order/<string:order>', view_func=AOrder.as_view('order'))
     v1.add_url_rule('/sku/<string:sku>', view_func=ASku.as_view('sku'))
     v1.add_url_rule('/user/<string:user>', view_func=AUser.as_view('user'))
+    v1.add_url_rule('/refund/<string:refund>', view_func=ARefund.as_view('refund'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

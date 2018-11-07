@@ -11,10 +11,10 @@ from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderPartStatus
+from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.CPay import CPay
 from planet.models import ProductSku, Products, ProductBrand
-from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts
+from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply
 
 
 class COrder(CPay):
@@ -31,8 +31,8 @@ class COrder(CPay):
                 order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
                 order_part.PRattribute = json.loads(order_part.PRattribute)
                 # 状态
-                order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
-                order_part.add('OPstatus_en')
+                # order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
+                # order_part.add('OPstatus_en')
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -165,8 +165,11 @@ class COrder(CPay):
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
             order_part.PRattribute = json.loads(order_part.PRattribute)
             # 状态
-            order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
-            order_part.add('OPstatus_en')
+            # order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
+            # order_part.add('OPstatus_en')
+            # 售后状态信息
+            if order_part.OPisinORA:
+                pass
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -190,44 +193,6 @@ class COrder(CPay):
             if not updated:
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
-
-    @token_required
-    def apply_refund(self):
-        """申请退款"""
-        data = parameter_required(('opid', 'orareason'))
-        opid = data.get('opid')
-        usid = request.user.id
-        with self.strade.auto_commit() as s:
-            s_list = []
-            # 副单进入售后状态
-            order_part = s.query(OrderPart).filter_by_({
-                'OPid': opid,
-                'OPstatus': OrderPartStatus.usual.value
-            }).first_('不存在的订单详情')
-            order_part.OPstatus = OrderPartStatus.apply_refund.value  # 申请售后
-            s_list.append(order_part)
-            # 主单售后状态
-            omid = order_part.OMid
-            order_main = s.query(OrderMain).filter_(
-                OrderMain.OMid == omid,
-                OrderMain.OMstatus.notin_([
-                    OrderMainStatus.wait_pay.value,
-                    OrderMainStatus.cancle.value,
-                    OrderMainStatus.ready.value,
-                ]),
-                OrderMain.USid == usid
-            ).first_('不存在的订单')
-            order_main.OMinRefund = True  # 存在售后商品
-            s_list.append(order_main)
-            # 售后申请表
-            order_refund_apply_dict = {
-                'ORAid': str(uuid.uuid4()),
-                'OMid': omid,
-                'OPid': opid,
-                'USid': usid,
-
-            }
-
 
     @staticmethod
     def _generic_omno():

@@ -45,3 +45,44 @@ class UserCommission(Base):
     USid = Column(String(64), comment='用户id')
     UCstatus = Column(Integer, default=0, comment='佣金状态{0：预期到账, 1: 已到账, 2: 已提现}')
     # UCcreateTime = Column(DateTime, default=datetime.now(), comment='佣金创建时间')
+
+
+class IdentifyingCode(Base):
+    """验证码"""
+    __tablename__ = "identifyingcode"
+    ICid = Column(String(64), primary_key=True)
+    ICtelphone = Column(String(14), nullable=False)  # 获取验证码的手机号
+    ICcode = Column(String(8), nullable=False)    # 获取到的验证码
+
+
+class UserSearchHistory(Base):
+    """用户搜索记录"""
+    __tablename__ = 'UserSearchHistory'
+    USHid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    USHname = Column(String(64), nullable=False, comment='搜索词')
+
+
+class Admin(Base):
+    """
+    管理员
+    """
+    __tablename__ = 'Admin'
+    ADid = Column(String(64), primary_key=True)
+    ADname = Column(String(255), comment='管理员名')
+    ADpassword = Column(Text, nullable=False, comment='密码')
+    ADheader = Column(Text, comment='头像')
+    ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员}')
+    ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
+    ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
+
+
+class AdminNotes(Base):
+    """
+    管理员变更记录
+    """
+    __tablename__ = 'AdminNotes'
+    ANid = Column(String(64), primary_key=True)
+    ADid = Column(String(64), nullable=False, comment='管理员id')
+    ANcreateTime = Column(DateTime, default=datetime.now(), comment='变更时间')
+    ANdoneid = Column(String(64), comment='修改人id')
