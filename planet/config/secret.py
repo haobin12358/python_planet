@@ -28,6 +28,14 @@ alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'public.pem')
 alipay_notify = API_HOST + 'api/v1/alipay_notify'
 # assert database and host and port and username and password
 # assert appid and appsecret and wxscope and wxpay_notify_url
+# 阿里云短信
+# ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
+ACCESS_KEY_ID = env.get('ACCESS_KEY_ID')
+ACCESS_KEY_SECRET = env.get('ACCESS_KEY_SECRET')
+# 数字签名
+SignName = env.get("SignName", "etech研发团队")
+# 短信模板
+TemplateCode =env.get("TemplateCode")
 
 
 class DefaltSettig(object):

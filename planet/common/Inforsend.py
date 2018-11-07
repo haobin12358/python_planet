@@ -1,53 +1,96 @@
 # -*- coding: utf-8 -*-
-import sys
-from aliyunsdkdysmsapi.request.v20170525 import SendSmsRequest
-from aliyunsdkcore.client import AcsClient
-from aliyunsdkcore.profile import region_provider
-from WeiDian.config.Inforcode import ACCESS_KEY_ID, ACCESS_KEY_SECRET
 
-try:
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-except NameError:
-    pass
-except Exception as err:
-    raise err
+import uuid
+import hmac
+import base64
+import datetime
+import json
+import time
+import urllib
+import requests
+from hashlib import sha1
+from planet.config.secret import ACCESS_KEY_ID, ACCESS_KEY_SECRET, SignName, TemplateCode
+from planet.config.cfgsetting import singleton
 
-# 注意：不要更改
-REGION = "cn-hangzhou"
-PRODUCT_NAME = "Dysmsapi"
-DOMAIN = "dysmsapi.aliyuncs.com"
 
-acs_client = AcsClient(ACCESS_KEY_ID, ACCESS_KEY_SECRET, REGION)
-region_provider.add_endpoint(PRODUCT_NAME, REGION, DOMAIN)
+@singleton
+class SendSMS:
+    prefix_url = "https://dysmsapi.aliyuncs.com/?"
 
-def send_sms(business_id, phone_numbers, sign_name, template_code, template_param=None):
-    smsRequest = SendSmsRequest.SendSmsRequest()
-    # 申请的短信模板编码,必填
-    smsRequest.set_TemplateCode(template_code)
+    def __init__(self, reciver, _tpl_params):
+        """
+        发送阿里云短信
+        :param reciver: 接受人电话
+        :param _tpl_params: {code: '123456'}
+        """
+        self._send_sms_ali(reciver, _tpl_params)
 
-    # 短信模板变量参数
-    if template_param is not None:
-        smsRequest.set_TemplateParam(template_param)
+    def params(self, mobiles, tpl_params, sign_name):
+        p = [
+            ["SignatureMethod", "HMAC-SHA1"],
+            ["SignatureNonce", uuid.uuid4().hex],
+            ["AccessKeyId", ACCESS_KEY_ID],
+            ["SignatureVersion", "1.0"],
+            ["Timestamp", self.time_now_fmt()],
+            ["Format", "JSON"],
 
-    # 设置业务请求流水号，必填。
-    smsRequest.set_OutId(business_id)
+            ["Action", "SendSms"],
+            ["Version", "2017-05-25"],
+            ["RegionId", "cn-hangzhou"],
+            ["PhoneNumbers", "{0}".format(mobiles)],
+            ["SignName", sign_name],
+            ["TemplateParam", json.dumps(tpl_params, ensure_ascii=False)],
+            ["TemplateCode", TemplateCode],
+            ["OutId", "123"],
+        ]
+        return p
 
-    # 短信签名
-    smsRequest.set_SignName(sign_name)
+    @staticmethod
+    def time_now_fmt():
+        r = datetime.datetime.utcfromtimestamp(time.time())
+        r = time.strftime("%Y-%m-%dT%H:%M:%SZ", r.timetuple())
+        return r
 
-    # 数据提交方式
-    # smsRequest.set_method(MT.POST)
+    def special_url_encode(self, s):
+        r = urllib.parse.quote_plus(s).replace("+", "%20").replace("*", "%2A").replace("%7E", "~")
+        return r
 
-    # 数据提交格式
-    # smsRequest.set_accept_format(FT.JSON)
+    def encode_params(self, lst):
+        s = "&".join(list(map(
+            lambda p: "=".join([self.special_url_encode(p[0]), self.special_url_encode(p[1])]),
+            sorted(lst, key=lambda p: p[0])
+        )))
+        return s
 
-    # 短信发送的号码列表，必填。
-    smsRequest.set_PhoneNumbers(phone_numbers)
+    def prepare_sign(self, s):
+        r = "&".join(["GET", self.special_url_encode("/"), self.special_url_encode(s)])
+        return r
 
-    # 调用短信发送接口，返回json
-    smsResponse = acs_client.do_action_with_exception(smsRequest)
+    def sign(self, prepare_str):
+        k = "{0}{1}".format(ACCESS_KEY_SECRET, "&")
+        r = hmac.new(k.encode(), prepare_str.encode(), sha1).digest()
+        base_str = base64.b64encode(r).decode()
+        return self.special_url_encode(base_str)
 
-    # TODO 业务处理
+    def _send_sms_ali(self, mobiles, tpl_params):
+        sign_name = SignName
+        params_lst = self.params(mobiles, tpl_params, sign_name)
+        eps = self.encode_params(params_lst)
+        prepare_str = self.prepare_sign(eps)
+        sign_str = self.sign(prepare_str)
 
-    return smsResponse
+        url = "{0}Signature={1}&{2}".format(self.prefix_url, sign_str, eps)
+
+        r = requests.get(url)
+        if r.status_code != 200:
+            return False
+        else:
+            jn = json.loads(r.text)
+            if jn.get("Code") == "OK":
+                return True
+            else:
+                return False
+
+
+if __name__ == "__main__":
+    SendSMS("13588046135", '123456')
