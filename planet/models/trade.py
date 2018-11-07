@@ -37,6 +37,7 @@ class OrderMain(Base):
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
     OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成,-40取消交易')
+    OMinRefund = Column(Boolean, default=False, comment='有商品在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
@@ -84,4 +85,34 @@ class OrderPart(Base):
     PRmainpic = Column(String(255), nullable=False, comment='主图')
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
-    OPstatus = Column(Integer, default=0, comment='状态: 0正常状态, -10退货申请,-20退货中,-30已退货')
+    OPstatus = Column(Integer, default=0, comment='状态: 售后状态,0未发起售后, 10 申请售后 -10 售后已取消 -20 已拒绝  20 处理中 200 处理完毕')
+
+
+class OrderRefundApply(Base):
+    """订单售后申请"""
+    __tablename__ = 'OrderRefundApply'
+    ORAid = Column(String(64), primary_key=True)
+    ORAsn = Column(String(64), nullable=False, comment='售后编号')
+    OMid = Column(String(64), nullable=False, comment='主单id')
+    OPid = Column(String(64), nullable=False, comment='副单id')
+    USid = Column(String(64), nullable=False, comment='用户id')
+    ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 暂定')
+    ORAreason = Column(String(255), nullable=False, comment='退款原因')
+    ORAproductStatus = Column(Integer, default=0, comment='0已收货, 10 未收货')
+    ORAstatus = Column(Integer, default=0, comment='状态 -1 拒绝 0 未审核 1审核通过')
+    ORAcheckReason = Column(String(255), comment='审核原因')
+    ORAcheckTime = Column(DateTime, comment='审核时间')
+
+
+class OrderRefund(Base):
+    """订单售后表"""
+    __tablename__ = 'OrderRefund'
+    ORid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), nullable=False, comment='订单id')
+    # 其他
+
+
+
+#
+# class OrderLogistic(Base):
+#     """物流"""
