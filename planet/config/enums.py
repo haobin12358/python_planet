@@ -6,7 +6,8 @@ class ProductStatus(Enum):
     """商品状态"""
     usual = 0  # 正常
     auditing = 10  # 审核中
-    offsale = 60  # 下架
+    off_shelves = 60  # 下架
+    all = None
 
 
 class ProductFrom(Enum):
@@ -14,6 +15,12 @@ class ProductFrom(Enum):
     platform = 0  # 平台发布
     shop_keeper = 10  # 店主发布
     # ..其他
+
+
+class ProductBrandStatus(Enum):
+    """品牌状态"""
+    upper = 0  # 未下架
+    off_shelves = 10  # 下架
 
 
 class PayType(Enum):

@@ -63,6 +63,7 @@ class ABrands(Resource):
     def post(self, brand):
         apis = {
             'create': self.cbrands.create,
+            'off_shelves': self.cbrands.off_shelves,
         }
         return apis
 

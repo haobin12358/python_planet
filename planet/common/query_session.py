@@ -25,7 +25,7 @@ class Query(_Query):
         return super(Query, self).filter(*new_criterion)
 
     def _right_not_none(self, x):
-        if hasattr(x, 'right') and hasattr(x.right, 'value'):
+        if hasattr(x, 'right'):
             return not isinstance(x.right.type, NullType)
         return True
 

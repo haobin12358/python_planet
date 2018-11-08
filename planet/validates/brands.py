@@ -12,6 +12,7 @@ class BrandsListForm(BaseForm):
                              choices=[('desc', ProductBrand.createtime.desc()),
                                       ('asc', ProductBrand.createtime)],
                              default='desc')
+    pbstatus = SelectField('状态', choices=[('upper', 0), ('off_shelves', 10), ('all', None)], default='upper')
 
 
 class BrandsCreateForm(BaseForm):

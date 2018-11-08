@@ -52,7 +52,12 @@ class CProducts:
         pbid = data.get('pbid')  # 品牌
         pcid = data.get('pcid')  # 分类id
         itid = data.get('itid')  # 场景下的标签id
-
+        prstatus = data.get('prstatus') or 'usual'  # 商品状态
+        # try:
+        prstatus = getattr(ProductStatus, prstatus).value
+        print('status is ', prstatus)
+        # except Exception as e:
+        #     prstatus = ProductStatus.usual.value
         if order == 'desc':
             order = Products.createtime.desc()
         else:
@@ -62,7 +67,8 @@ class CProducts:
             Products.PBid == pbid,
             or_(Products.PRtitle.contains(kw), ProductBrand.PBname.contains(kw)),
             Products.PCid == pcid,
-            ProductItems.ITid == itid
+            ProductItems.ITid == itid,
+            Products.PRstatus == prstatus,
         ], [order, ])
         # 填充
         for product in products:
