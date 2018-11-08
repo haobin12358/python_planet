@@ -17,7 +17,16 @@ class BrandsListForm(BaseForm):
 
 class BrandsCreateForm(BaseForm):
     pblogo = StringField(validators=[DataRequired(), Length(1, 255)])
-    pbname = StringField(validators=[DataRequired(), Length(1, 255)])
+    pbname = StringField(validators=[DataRequired(), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
+
+
+class BrandUpdateForm(BrandsCreateForm):
+    pbid = StringField(validators=[DataRequired, Length(1, 64)])
+    pblogo = StringField(validators=[Length(1, 255)])
+    pbname = StringField(validators=[Length(1, 32)])
+    pbdesc = StringField(validators=[Length(1, 255)])
+    pblinks = StringField(validators=[Length(1, 255)])
+
 

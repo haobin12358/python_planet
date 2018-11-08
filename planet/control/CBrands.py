@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 import uuid
 
-from sqlalchemy.testing import in_, not_in_
-
 from planet.common.params_validates import parameter_required
 from planet.config.enums import ProductBrandStatus, ProductStatus
 from planet.service.SProduct import SProducts
 from planet.models import ProductBrand, IndexProductBrand, Products
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin
-from planet.validates.brands import BrandsListForm, BrandsCreateForm
+from planet.common.token_handler import token_required
+from planet.validates.brands import BrandsListForm, BrandsCreateForm, BrandUpdateForm
 
 
 class CBrands(object):
@@ -19,7 +17,7 @@ class CBrands(object):
     @token_required
     def create(self):
         """创建品牌"""
-        data = BrandsCreateForm().validate_for_api()
+        data = BrandsCreateForm().valid_data()
         pblogo = data.pblogo.data
         pbname = data.pbname.data
         pbdesc = data.pbdesc.data
@@ -37,7 +35,7 @@ class CBrands(object):
         return Success('添加成功', {'pbid': pb_instance.PBid})
 
     def list(self):
-        form = BrandsListForm().validate_for_api()
+        form = BrandsListForm().valid_data()
         index = dict(form.index.choices).get(form.index.data)
         time_order = dict(form.time_order.choices).get(form.time_order.data)
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
@@ -84,4 +82,26 @@ class CBrands(object):
             })
             s.add_all(s_list)
         return Success('下架成功')
+
+    @token_required
+    def update(self):
+        form = BrandUpdateForm().valid_data()
+        pbid = form.pbid.data
+        with self.sproduct.auto_commit() as s:
+            product_brand_instance = s.query(ProductBrand).filter_by_({
+                'PBid': pbid
+            }).first_('不存在的品牌')
+            product_brand_instance.update({
+                'PBlogo': form.pblogo.data,
+                'PBname': form.pbname.data,
+                'pbdesc': form.pbdesc.data,
+                'pblinks': form.pblinks.data,
+            })
+            s.add(product_brand_instance)
+        return Success('更新成功')
+
+
+
+
+
 
