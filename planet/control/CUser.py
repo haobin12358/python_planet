@@ -9,7 +9,7 @@ from alipay import AliPay
 from flask import request
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError
+from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, is_tourist, usid_to_token
@@ -147,3 +147,45 @@ class CUser(SUser):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
+
+    @get_session
+    def get_all_province(self):
+        """获取所有省份信息"""
+        province_list = self.get_province()
+        gennerc_log('This is to get province list')
+        if not province_list:
+            raise NotFound('未找到省份信息')
+        return Success(data=province_list)
+
+    @get_session
+    def get_citys_by_provinceid(self):
+        """获取省份下的城市"""
+        args = parameter_required(('apid',))
+        gennerc_log('This to get city, provibceid is {0}'.format(args))
+        provinceid = args.get('apid')
+        city_list = self.get_citylist_by_provinceid(provinceid)
+        if not city_list:
+            raise NotFound('未找到该省下的城市信息')
+        return Success(data=city_list)
+
+    @get_session
+    def get_areas_by_cityid(self):
+        """获取城市下的区县"""
+        args = parameter_required(('acid',))
+        gennerc_log('This to get area info, cityid is {0}'.format(args))
+        cityid = args.get('acid')
+        area_list = self.get_arealist_by_cityid(cityid)
+        if not area_list:
+            raise NotFound('未找到该城市下的区县信息')
+        return Success(data=area_list)
+
+    def _get_addressinfo_by_areaid(self, areaid):
+        """通过areaid获取地址具体信息, 返回xx省xx市xx区字符串"""
+        area_info = self.get_addressinfo_by_areaid(areaid)
+        for area, city, province in area_info:
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(area, "AAname", '')
+        return address
+
+
+
+
