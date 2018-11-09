@@ -10,6 +10,7 @@ class AUser(Resource):
     def post(self, user):
         apis = {
             'login': self.user.login,
+            'login_test': self.user.login_test,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -19,6 +20,7 @@ class AUser(Resource):
         apis = {
             'get_inforcode': self.user.get_inforcode,
             'get_home': self.user.get_home,
+            'get_all_address': self.user.get_useraddress,
         }
         return apis
 

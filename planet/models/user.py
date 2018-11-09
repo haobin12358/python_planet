@@ -101,5 +101,14 @@ class UserAddress(Base):
     UAtext = Column(String(255), nullable=False, comment='具体地址')
     UApostalcode = Column(String(8), comment='邮政编码')
     UAdefault = Column(Boolean, default=False, comment='默认收获地址')
-    UAisdelete = Column(Boolean, default=False, comment='是否删除')
-    areaid = Column(String(8), nullable=False, comment='关联的区域id')
+
+
+class UserMedia(Base):
+    """
+    用户身份证图片表
+    """
+    __tablename__ = 'UserMetia'
+    UMid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    UMurl = Column(Text, comment='图片路径')
+    UMtype = Column(Integer, default=1, comment='图片类型 1: 身份证正面, 2: 身份证反面')

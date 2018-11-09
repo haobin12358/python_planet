@@ -1,5 +1,5 @@
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea
+    AddressCity, AddressArea, UserMedia
 
 
 class SUser():
@@ -14,6 +14,14 @@ class SUser():
 
     def get_useraddress_by_usid(self, usid):
         return self.session.query(UserAddress).filter(UserAddress.USid == usid).all_with_page()
+
+    def get_useraddress_by_filter(self, uafilter):
+        """根据条件获取地址"""
+        return self.session.query(UserAddress).filter_by(**uafilter).first()
+
+    def update_useraddress_by_filter(self, uafilter, uainfo):
+        """更新地址"""
+        return self.session.query(UserAddress).filter_by(**uafilter).update()
 
     def get_province(self):
         """获取所有省份"""
@@ -32,3 +40,6 @@ class SUser():
         return self.session.query(AddressArea, AddressCity, AddressProvince).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
             AddressArea.AAid == areaid).all()
+
+    def get_usermedia(self, usid):
+        return self.session.query(UserMedia).filter(UserMedia.USid == usid).all()
