@@ -20,6 +20,7 @@ class AUser(Resource):
         apis = {
             'get_inforcode': self.user.get_inforcode,
             'get_home': self.user.get_home,
+            'get_all_address': self.user.get_useraddress,
         }
         return apis
 

@@ -197,9 +197,8 @@ class CUser(SUser):
         useraddress_list = self.get_useraddress_by_usid(user.USid)
         for useraddress in useraddress_list:
             useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'UAdefault']
-            # todo 添加省市县
-            useraddress.address = self._get_addressinfo_by_areaid(useraddress.AAid)
-            useraddress.add('address')
+            addressinfo = self._get_addressinfo_by_areaid(useraddress.AAid)
+            useraddress.fill('addressinfo', addressinfo + getattr(useraddress, 'UAtext', ''))
         return Success('获取个人地址成功', data=useraddress_list)
 
     @get_session
@@ -209,6 +208,24 @@ class CUser(SUser):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
+        data = parameter_required(('uaname', 'uaphone', 'uatext', 'uapostalcode', 'aaid'))
+        uaid = str(uuid.uuid1())
+        uadefault = data.get('uadefault', False)
+        default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+        if default_address and uadefault == True:
+            # self.update_useraddress_by_filter({})
+            # todo
+            pass
+        address = UserAddress.create({
+            'UAid': uaid,
+            'USid': request.user.id,
+            'UAname': data.get('uaname'),
+            'UAphone': data.get('uaphone'),
+            'UAtext': data.get('uatext'),
+            'UApostalcode': data.get('uapostalcode'),
+            'AAid': data.get('aaid')
+        })
+
 
     @get_session
     def get_all_province(self):
