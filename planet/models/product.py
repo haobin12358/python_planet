@@ -91,13 +91,14 @@ class ProductScene(Base):
 
 class Items(Base):
     """
-    标签, 标签是场景下的小标签
+    标签
     """
     __tablename__ = 'Items'
     ITid = Column(String(64), primary_key=True)
-    PSid = Column(String(64), nullable=False, comment='场景id')
+    PSid = Column(String(64), comment='关联的场景id')
     ITname = Column(String(16), nullable=False, comment='标签名字')
     ITsort = Column(Integer, comment='顺序')
+    ITtype = Column(Integer, index=True, comment='标签类型{0: 商品, 10:资讯, 20:优惠券}')
 
 
 class ProductItems(Base):
