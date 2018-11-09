@@ -3,7 +3,7 @@ import json
 import uuid
 
 from flask import request
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
@@ -12,6 +12,7 @@ from planet.common.token_handler import token_required, is_admin, is_shop_keeper
 from planet.config.enums import ProductStatus, ProductFrom
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
+from planet.validates.product import ProductOffshelvesForm
 
 
 class CProducts:
@@ -48,7 +49,7 @@ class CProducts:
     def get_produt_list(self):
         data = parameter_required()
         order = data.get('order', 'desc')  # 时间排序
-        kw = data.get('kw', '')  # 关键词
+        kw = data.get('kw', '').split()  # 关键词
         pbid = data.get('pbid')  # 品牌
         pcid = data.get('pcid')  # 分类id
         pcids = self._sub_category_id(pcid) if pcid else []  # 遍历以下的所有分类
@@ -67,7 +68,7 @@ class CProducts:
         print(pcids)
         products = self.sproduct.get_product_list([
             Products.PBid == pbid,
-            or_(Products.PRtitle.contains(kw), ProductBrand.PBname.contains(kw)),
+            or_(and_(*[Products.PRtitle.contains(x) for x in kw]), and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             ProductItems.ITid == itid,
             Products.PRstatus == prstatus,
@@ -182,6 +183,7 @@ class CProducts:
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
 
+    @token_required
     def update_product(self):
         """更新商品"""
         data = parameter_required(('prid', ))
@@ -291,12 +293,29 @@ class CProducts:
             s.add_all(session_list)
         return Success('更新成功')
 
+    @token_required
     def delete(self):
         data = parameter_required(('prid', ))
         prid = data.get('prid')
         with self.sproduct.auto_commit() as s:
             s.query(Products).filter_by_(PRid=prid).delete_()
         return Success('删除成功')
+
+    # @token_required
+    def off_shelves(self):
+        """上下架"""
+        form = ProductOffshelvesForm().valid_data()
+        prid = form.prid.data
+        status = form.status.data
+        with self.sproduct.auto_commit() as s:
+            product_instance = s.query(Products).filter_by_({"PRid": prid}).first_('指定商品不存在')
+            product_instance.PRstatus = status
+            if ProductStatus(status).name == 'usual':
+                msg = '上架成功'
+            else:
+                msg = '下架成功'
+            s.add(product_instance)
+        return Success(msg)
 
     def _can_add_product(self):
         if is_admin():

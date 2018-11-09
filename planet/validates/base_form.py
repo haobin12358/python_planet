@@ -7,7 +7,7 @@ from ..common.error_response import ParamsError
 
 class BaseForm(Form):
     def __init__(self, formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs):
-        if formdata or obj or prefix or data or meta or kwargs:
+        if formdata is not None or obj is not None or prefix or data is not None or meta is not None or kwargs:
             super(BaseForm, self).__init__(formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs)
         else:
             data = request.json

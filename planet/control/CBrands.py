@@ -7,7 +7,7 @@ from planet.service.SProduct import SProducts
 from planet.models import ProductBrand, IndexProductBrand, Products
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.validates.brands import BrandsListForm, BrandsCreateForm, BrandUpdateForm
+from planet.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm
 
 
 class CBrands(object):

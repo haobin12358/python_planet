@@ -22,6 +22,7 @@ class AProduct(Resource):
             'create': self.cproduct.add_product,
             'update': self.cproduct.update_product,
             'delete': self.cproduct.delete,
+            'off_shelves': self.cproduct.off_shelves,  # 上下架
         }
         return apis
 

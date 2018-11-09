@@ -78,6 +78,23 @@ class ProductBrand(Base):
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
 
 
+class BrandItems(Base):
+    """品牌标签"""
+    __tablename__ = 'BrandItems'
+    BIid = Column(String(64), primary_key=True)
+    BIname = Column(String(16), nullable=False, comment='品牌标签名字')
+    BIsort = Column(Integer, comment='顺序')
+    BIdesc = Column(String(255), comment='品牌标签描述')
+
+
+class BrandWithItems(Base):
+    """品牌标签中间"""
+    __tablename__ = 'BrandwithItems'
+    BWIid = Column(String(64), primary_key=True)
+    BIid = Column(String(64), nullable=False, comment='品牌标签id')
+    PBid = Column(String(64), nullable=False, comment='品牌标签id')
+
+
 class ProductScene(Base):
     """
     场景

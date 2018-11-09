@@ -2,6 +2,7 @@
 from wtforms.validators import *
 from wtforms import *
 
+from planet.config.enums import ProductStatus
 from planet.models import ProductBrand
 from .base_form import BaseForm
 
@@ -30,3 +31,17 @@ class BrandUpdateForm(BrandsCreateForm):
     pblinks = StringField(validators=[Length(1, 255)])
 
 
+class ProductOffshelvesForm(BaseForm):
+    prid = StringField(validators=[DataRequired('prid不可以为空')])
+    status = IntegerField(validators=[InputRequired('status不可以为空'), DataRequired()])
+
+    # def validate_status(self, value):
+    #     try:
+    #         print(value.data)
+    #         if value.data in [ProductStatus.all.value, ProductStatus.auditing.value]:
+    #             raise Exception
+    #         ProductStatus(value.data)
+    #     except Exception as e:
+    #         return ValidationError(message='status 参数错误')
+    #     self.status.data = value
+    #
