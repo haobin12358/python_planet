@@ -23,21 +23,22 @@ def request_first_handler(app):
         gennerc_log('before request', info='info')
         parameter = request.args.to_dict()
         token = parameter.get('token')
-        s = Serializer(current_app.config['SECRET_KEY'])
-        try:
-            data = s.loads(token)
-            id = data['id']
-            model = data['model']
-            level = data['level']
-            User = namedtuple('User', ('id', 'model', 'level'))
-            user = User(id, model, level)
-            setattr(request, 'user', user)
-        except BadSignature as e:
-            pass
-        except SignatureExpired as e:
-            pass
-        except Exception as e:
-            pass
+        if token:
+            s = Serializer(current_app.config['SECRET_KEY'])
+            try:
+                data = s.loads(token)
+                id = data['id']
+                model = data['model']
+                level = data['level']
+                User = namedtuple('User', ('id', 'model', 'level'))
+                user = User(id, model, level)
+                setattr(request, 'user', user)
+            except BadSignature as e:
+                pass
+            except SignatureExpired as e:
+                pass
+            except Exception as e:
+                pass
 
 
 def error_handler(app):
@@ -59,6 +60,12 @@ def error_handler(app):
 
 
 def gennerc_log(data, info='bug'):
+    """
+
+    :param data: 'success get user %s, user id %s' %(user,userid)
+    :param info:
+    :return:
+    """
     if isinstance(data, Exception):
         data = traceback.format_exc()
     current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
