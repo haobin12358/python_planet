@@ -22,7 +22,6 @@ class Query(_Query):
         for criterion in list(criterion):
             if self._right_not_none(criterion):
                 new_criterion.append(criterion)
-
         return super(Query, self).filter(*new_criterion)
 
     def _right_not_none(self, x):
@@ -54,8 +53,8 @@ class Query(_Query):
             return res
         raise NotFound(error)
 
-    def delete_(self):
-        return self.update({'isdelete': True})
+    def delete_(self, synchronize_session='evaluate', update_args=None):
+        return self.update({'isdelete': True}, synchronize_session=synchronize_session, update_args=update_args)
 
     def delete(self, synchronize_session='evaluate'):
         raise SystemError("do not use delete")

@@ -87,6 +87,6 @@ class SBase(object):
             if func is not None:
                 func(*args)
             self.session.rollback()
-            raise SystemError(e.args)
+            raise e
         finally:
             self.session.close()

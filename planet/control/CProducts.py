@@ -51,7 +51,7 @@ class CProducts:
         kw = data.get('kw', '')  # 关键词
         pbid = data.get('pbid')  # 品牌
         pcid = data.get('pcid')  # 分类id
-        pcids = self._sub_category(pcid) or None  # 遍历以下的所有分类
+        pcids = self._sub_category_id(pcid) or None  # 遍历以下的所有分类
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
         # try:
@@ -307,7 +307,7 @@ class CProducts:
         else:
             raise AuthorityError()
 
-    def _sub_category(self, pcid):
+    def _sub_category_id(self, pcid):
         """遍历子分类, 返回id列表"""
         queue = [pcid]
         pcids = []
