@@ -67,6 +67,12 @@ class ORAproductStatus(Enum):
     not_recv = 10
 
 
+class ItemType(Enum):
+    """标签类型{0: 商品, 10:资讯, 20:优惠券}"""
+    product = 0
+    news = 10
+    coupon = 20
+
 
 if __name__ == '__main__':
     pass

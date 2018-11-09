@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
 from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
-    ProductItems, Items, ProductBrand
+    ProductItems, Items, ProductBrand, ProductMonthSaleValue
 
 
 class SProducts(SBase):
@@ -70,4 +70,8 @@ class SProducts(SBase):
         return self.session.query(Items).outerjoin(ProductItems, Items.ITid == ProductItems.ITid).filter_(
             *args
         ).order_by(*order).all()
+
+    @close_session
+    def get_monthsale_value_one(self, args, error=None):
+        return self.session.query(ProductMonthSaleValue).filter_by_(args).first_(error)
 

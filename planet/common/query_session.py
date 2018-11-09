@@ -18,14 +18,18 @@ class Query(_Query):
         例子: session.query(Admin).filter_without_none(Admin.ADisfreeze == freeze)
                 如果freeze是None则不执行过滤
         """
-        new_criterion = []
-        for criterion in list(criterion):
-            if self._right_not_none(criterion):
-                new_criterion.append(criterion)
-        return super(Query, self).filter(*new_criterion)
+        # new_criterion = []
+        # for criterion in list(criterion):
+        #     if self._right_not_none(criterion):
+        #         new_criterion.append(criterion)
+        criterion = list(filter(self._right_not_none, list(criterion)))
+        return super(Query, self).filter(*criterion)
 
     def _right_not_none(self, x):
         if hasattr(x, 'right'):
+            if hasattr(x.right, 'element'):
+                # 对in查询的过滤
+                return len(x.right.element)
             return not isinstance(x.right.type, NullType)
         return True
 
@@ -53,14 +57,14 @@ class Query(_Query):
             return res
         raise NotFound(error)
 
-    def delete_(self):
-        return self.update({'isdelete': True})
+    def delete_(self, synchronize_session='evaluate', update_args=None):
+        return self.update({'isdelete': True}, synchronize_session=synchronize_session, update_args=update_args)
 
     def delete(self, synchronize_session='evaluate'):
         raise SystemError("do not use delete")
 
     def filter_(self, *args, **kwargs):
-        return self.filter_without_none(*args).filter_by_()
+        return self.filter_without_none(*args)
 
     def all_with_page(self):
         """

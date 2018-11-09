@@ -7,12 +7,10 @@ from ..common.error_response import ParamsError
 
 class BaseForm(Form):
     def __init__(self, formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs):
-        if formdata or obj or prefix or data or meta or kwargs:
-            super(BaseForm, self).__init__(formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs)
-        else:
-            data = request.json
-            args = request.args.to_dict()
-            super(BaseForm, self).__init__(data=data, **args)
+        data = request.json or {}
+        data = {k: v for k, v in data.items() if v or v == 0}
+        args = {k: v for k, v in request.args.to_dict().items() if v or v == 0}
+        super(BaseForm, self).__init__(data=data, **args)
 
     def valid_data(self):
         valid = super(BaseForm, self).validate()

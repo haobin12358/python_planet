@@ -3,7 +3,7 @@ import json
 import uuid
 
 from flask import request
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
@@ -12,6 +12,7 @@ from planet.common.token_handler import token_required, is_admin, is_shop_keeper
 from planet.config.enums import ProductStatus, ProductFrom
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
+from planet.validates.product import ProductOffshelvesForm
 
 
 class CProducts:
@@ -42,35 +43,47 @@ class CProducts:
         items = self.sproduct.get_item_list([
             ProductItems.PRid == prid
         ])
+        # 月销量
+        month_sale_instance = self.sproduct.get_monthsale_value_one({'PRid': prid})
+        month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
+        product.fill('month_sale_value', month_sale_value)
         product.fill('items', items)
         return Success(data=product)
 
     def get_produt_list(self):
         data = parameter_required()
-        order = data.get('order', 'desc')  # 时间排序
-        kw = data.get('kw', '')  # 关键词
+        try:
+            order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
+            order_enum = {
+                'time': Products.createtime,
+                'sale_value': Products.PRsalesValue,
+                'price': Products.PRprice,
+            }
+            assert order in order_enum and desc_asc in ['desc', 'asc'], 'order_type 参数错误'
+        except Exception as e:
+            raise e
+        kw = data.get('kw', '').split() or ['']  # 关键词
         pbid = data.get('pbid')  # 品牌
         pcid = data.get('pcid')  # 分类id
-        pcids = self._sub_category(pcid) or None  # 遍历以下的所有分类
+        pcids = self._sub_category_id(pcid) if pcid else []  # 遍历以下的所有分类
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
-        # try:
         prstatus = getattr(ProductStatus, prstatus).value
-        print('status is ', prstatus)
-        # except Exception as e:
-        #     prstatus = ProductStatus.usual.value
-        if order == 'desc':
-            order = Products.createtime.desc()
-        else:
-            order = Products.createtime
+
+        product_order = order_enum.get(order)
+        if desc_asc == 'desc':
+            order_by = product_order.desc()
+        elif desc_asc == 'asc':
+            order_by = product_order
         # 筛选
+        print(pcids)
         products = self.sproduct.get_product_list([
             Products.PBid == pbid,
-            or_(Products.PRtitle.contains(kw), ProductBrand.PBname.contains(kw)),
+            or_(and_(*[Products.PRtitle.contains(x) for x in kw]), and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             ProductItems.ITid == itid,
             Products.PRstatus == prstatus,
-        ], [order, ])
+        ], [order_by, ])
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
@@ -181,6 +194,7 @@ class CProducts:
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
 
+    @token_required
     def update_product(self):
         """更新商品"""
         data = parameter_required(('prid', ))
@@ -290,12 +304,29 @@ class CProducts:
             s.add_all(session_list)
         return Success('更新成功')
 
+    @token_required
     def delete(self):
         data = parameter_required(('prid', ))
         prid = data.get('prid')
         with self.sproduct.auto_commit() as s:
             s.query(Products).filter_by_(PRid=prid).delete_()
         return Success('删除成功')
+
+    @token_required
+    def off_shelves(self):
+        """上下架"""
+        form = ProductOffshelvesForm().valid_data()
+        prid = form.prid.data
+        status = form.status.data
+        with self.sproduct.auto_commit() as s:
+            product_instance = s.query(Products).filter_by_({"PRid": prid}).first_('指定商品不存在')
+            product_instance.PRstatus = status
+            if ProductStatus(status).name == 'usual':
+                msg = '上架成功'
+            else:
+                msg = '下架成功'
+            s.add(product_instance)
+        return Success(msg)
 
     def _can_add_product(self):
         if is_admin():
@@ -307,7 +338,7 @@ class CProducts:
         else:
             raise AuthorityError()
 
-    def _sub_category(self, pcid):
+    def _sub_category_id(self, pcid):
         """遍历子分类, 返回id列表"""
         queue = [pcid]
         pcids = []
@@ -315,12 +346,13 @@ class CProducts:
             if not queue:
                 return pcids
             pcid = queue.pop()
-            pcids.append(pcid)
-            subs = self.sproduct.get_categorys({'ParentPCid': pcid})
-            if subs:
-                for sub in subs:
-                    pcid = sub.PCid
-                    queue.append(pcid)
+            if pcid not in pcids:
+                pcids.append(pcid)
+                subs = self.sproduct.get_categorys({'ParentPCid': pcid})
+                if subs:
+                    for sub in subs:
+                        pcid = sub.PCid
+                        queue.append(pcid)
 
 
 

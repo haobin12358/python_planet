@@ -22,6 +22,7 @@ class AProduct(Resource):
             'create': self.cproduct.add_product,
             'update': self.cproduct.update_product,
             'delete': self.cproduct.delete,
+            'off_shelves': self.cproduct.off_shelves,  # 上下架
         }
         return apis
 
@@ -64,6 +65,7 @@ class ABrands(Resource):
         apis = {
             'create': self.cbrands.create,
             'off_shelves': self.cbrands.off_shelves,
+            'update': self.cbrands.update,
         }
         return apis
 
