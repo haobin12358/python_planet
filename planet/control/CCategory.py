@@ -79,18 +79,24 @@ class CCategory(object):
                 })
         return Success('删除成功')
 
-    def _sub_category(self, category, deep):
+    def _sub_category(self, category, deep, parent_ids=()):
         """遍历子分类"""
+        parent_ids = list(parent_ids)
         try:
             deep = int(deep)
         except TypeError as e:
             raise ParamsError()
         if deep <= 0:
+            del parent_ids
             return
         deep -= 1
-        subs = self.sproduct.get_categorys({'ParentPCid': category.PCid})
-        if subs:
-            category.fill('subs', subs)
-            for sub in subs:
-                self._sub_category(sub, deep)
+        pcid = category.PCid
+        if pcid not in parent_ids:
+            subs = self.sproduct.get_categorys({'ParentPCid': pcid})
+            if subs:
+                parent_ids.append(pcid)
+                category.fill('subs', subs)
+                for sub in subs:
+                    self._sub_category(sub, deep, parent_ids)
+
 

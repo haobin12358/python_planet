@@ -315,12 +315,13 @@ class CProducts:
             if not queue:
                 return pcids
             pcid = queue.pop()
-            pcids.append(pcid)
-            subs = self.sproduct.get_categorys({'ParentPCid': pcid})
-            if subs:
-                for sub in subs:
-                    pcid = sub.PCid
-                    queue.append(pcid)
+            if pcid not in pcids:
+                pcids.append(pcid)
+                subs = self.sproduct.get_categorys({'ParentPCid': pcid})
+                if subs:
+                    for sub in subs:
+                        pcid = sub.PCid
+                        queue.append(pcid)
 
 
 
