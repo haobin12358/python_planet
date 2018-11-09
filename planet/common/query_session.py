@@ -64,7 +64,7 @@ class Query(_Query):
         raise SystemError("do not use delete")
 
     def filter_(self, *args, **kwargs):
-        return self.filter_without_none(*args).filter_by_()
+        return self.filter_without_none(*args)
 
     def all_with_page(self):
         """

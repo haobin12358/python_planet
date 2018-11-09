@@ -31,6 +31,14 @@ class Products(Base):
     CreaterId = Column(String(64), nullable=False, comment='创建者')
 
 
+class ProductMonthSaleValue(Base):
+    """商品月销量"""
+    __tablename__ = 'ProductMonthSaleValue'
+    PMSVid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    PMSVnum = Column(Integer, default=0)
+
+
 class ProductSku(Base):
     """
     商品SKU

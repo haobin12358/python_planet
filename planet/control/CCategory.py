@@ -14,7 +14,7 @@ class CCategory(CProducts):
     def get_category(self):
         """获取类目"""
         data = parameter_required()
-        up = data.get('up', '')
+        up = data.get('up')
         deep = data.get('deep', 0)  # 深度
         categorys = self.sproduct.get_categorys({'ParentPCid': up})
         for category in categorys:
