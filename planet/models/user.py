@@ -27,7 +27,7 @@ class User(Base):
     USintegral = Column(Integer, comment='积分')
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
-
+    USqrcode = Column(Text, comment='用户二维码')
 
 class UserLoginTime(Base):
     __tablename__ = 'UserLoginTime'
@@ -86,3 +86,19 @@ class AdminNotes(Base):
     ADid = Column(String(64), nullable=False, comment='管理员id')
     ANcreateTime = Column(DateTime, default=datetime.now(), comment='变更时间')
     ANdoneid = Column(String(64), comment='修改人id')
+
+
+class UserAddress(Base):
+    """
+    用户地址表
+    """
+    __tablename__ = 'UserAddress'
+    UAid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户')
+    UAname = Column(String(16), nullable=False, comment='收货人姓名')
+    UAphone = Column(String(16), nullable=False, comment='收货人电话')
+    UAtext = Column(String(255), nullable=False, comment='具体地址')
+    UApostalcode = Column(String(8), comment='邮政编码')
+    UAdefault = Column(Boolean, default=False, comment='默认收获地址')
+    UAisdelete = Column(Boolean, default=False, comment='是否删除')
+    areaid = Column(String(8), nullable=False, comment='关联的区域id')

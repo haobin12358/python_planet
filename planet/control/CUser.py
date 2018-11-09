@@ -16,7 +16,7 @@ from planet.common.token_handler import token_required, is_tourist, usid_to_toke
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
-from planet.models.user import User, UserLoginTime, UserCommission
+from planet.models.user import User, UserLoginTime, UserCommission, UserAddress
 from planet.service.SUser import SUser
 from planet.models import IdentifyingCode
 
@@ -106,10 +106,44 @@ class CUser(SUser):
 
     @get_session
     @token_required
-    def get_user(self):
+    def get_home(self):
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
+        # todo 插入 优惠券信息
+        # user.add('优惠券')
+        user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
+        return Success('获取首页用户信息成功', data=user)
 
+    @get_session
+    @token_required
+    def get_profile(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        user.fields = ['USname', 'USbirthday', 'USheader', 'USlevel', 'USgender']
+        return Success('获取个人资料信息成功', data=user)
 
+    @get_session
+    @token_required
+    def get_useraddress(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        useraddress_list = self.get_useraddress_by_usid(user.USid)
+        for useraddress in useraddress_list:
+            useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'UAdefault']
+            # todo 添加省市县
+            # useraddress.add()
+        return Success('获取个人地址成功', data=useraddress_list)
+
+    @get_session
+    @token_required
+    def add_useraddress(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
