@@ -25,7 +25,7 @@ class CUser(SUser):
     @get_session
     def login(self):
         """手机验证码登录"""
-        data = parameter_required('ustelphone', 'identifyingcode')
+        data = parameter_required(('ustelphone', 'identifyingcode'))
         ustelphone = data.get('ustelphone')
         identifyingcode = str(data.get('identifyingcode'))
         idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
