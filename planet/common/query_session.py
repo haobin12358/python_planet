@@ -18,14 +18,18 @@ class Query(_Query):
         例子: session.query(Admin).filter_without_none(Admin.ADisfreeze == freeze)
                 如果freeze是None则不执行过滤
         """
-        new_criterion = []
-        for criterion in list(criterion):
-            if self._right_not_none(criterion):
-                new_criterion.append(criterion)
-        return super(Query, self).filter(*new_criterion)
+        # new_criterion = []
+        # for criterion in list(criterion):
+        #     if self._right_not_none(criterion):
+        #         new_criterion.append(criterion)
+        criterion = list(filter(self._right_not_none, list(criterion)))
+        return super(Query, self).filter(*criterion)
 
     def _right_not_none(self, x):
-        if hasattr(x, 'right') and hasattr(x.right, 'value'):
+        if hasattr(x, 'right'):
+            if hasattr(x.right, 'element'):
+                # 对in查询的过滤
+                return len(x.right.element)
             return not isinstance(x.right.type, NullType)
         return True
 

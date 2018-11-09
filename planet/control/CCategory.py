@@ -6,7 +6,6 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.models import ProductCategory, Products
-from planet.service.SProduct import SProducts
 from .CProducts import CProducts
 
 
@@ -66,13 +65,13 @@ class CCategory(CProducts):
             if not parent_catetgory_id:
                 # 如果没有父级目录, 商品状态改为无分类
                 s.query(Products).filter_(Products.PCid.in_(sub_ids)).update({
-                    'PCid': None
+                    'PCid': 'null'
                 }, synchronize_session=False)
             else:
                 parent_catetgory_instance = s.query(ProductCategory).filter_by_({'PCid': parent_catetgory_id}).first_()
                 if not parent_catetgory_instance:   # 父级目录已删除
                     s.query(Products).filter_(Products.PCid.in_(sub_ids)).update({
-                        'PCid': None
+                        'PCid': 'null'
                     }, synchronize_session=False)
                 else:
                     pass
