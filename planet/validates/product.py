@@ -14,7 +14,7 @@ class BrandsListForm(BaseForm):
                                       ('asc', ProductBrand.createtime)],
                              default='desc')
     pbstatus = SelectField('状态', choices=[('upper', 0), ('off_shelves', 10), ('all', None)], default='upper')
-    biid = StringField('品牌标签id')
+    itid = StringField('品牌标签id')
 
 
 class BrandsCreateForm(BaseForm):
@@ -22,16 +22,16 @@ class BrandsCreateForm(BaseForm):
     pbname = StringField(validators=[DataRequired(), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
-    biids = StringField('品牌标签id', validators=[])
+    itids = StringField('品牌标签id', validators=[])
 
 
-class BrandUpdateForm(BrandsCreateForm):
-    pbid = StringField(validators=[DataRequired, Length(1, 64)])
+class BrandUpdateForm(BaseForm):
+    pbid = StringField(validators=[DataRequired(), Length(1, 64)])
     pblogo = StringField(validators=[Length(1, 255)])
     pbname = StringField(validators=[Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
-    biids = StringField('品牌标签id', validators=[])
+    itids = StringField('品牌标签id', validators=[DataRequired()])
 
 
 class ProductOffshelvesForm(BaseForm):

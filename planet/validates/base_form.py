@@ -6,7 +6,7 @@ from ..common.error_response import ParamsError
 
 
 class BaseForm(Form):
-    def __init__(self, formdata=None, obj=None, prefix='', data=None, meta=None, **kwargs):
+    def __init__(self):
         data = request.json or {}
         data = {k: v for k, v in data.items() if v or v == 0}
         args = {k: v for k, v in request.args.to_dict().items() if v or v == 0}
