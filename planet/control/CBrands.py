@@ -2,9 +2,9 @@
 import uuid
 
 from planet.common.params_validates import parameter_required
-from planet.config.enums import ProductBrandStatus, ProductStatus
+from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType
 from planet.service.SProduct import SProducts
-from planet.models import ProductBrand, IndexProductBrand, Products, BrandWithItems, BrandItems
+from planet.models import ProductBrand, IndexProductBrand, Products, Items, BrandWithItems
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm
@@ -22,10 +22,9 @@ class CBrands(object):
         pbname = data.pbname.data
         pbdesc = data.pbdesc.data
         pblinks = data.pblinks.data
-        biids = data.biids.data
+        itids = data.itids.data
         with self.sproduct.auto_commit() as s:
             s_list = []
-
             pbid = str(uuid.uuid4())
             pb_dict = {
                 'PBid': pbid,
@@ -37,12 +36,12 @@ class CBrands(object):
             pb_instance = ProductBrand.create(pb_dict)
             s_list.append(pb_instance)
             # 创建标签-品牌中间表
-            if biids:
-                for biid in biids:
-                    s.query(BrandItems).filter_by_({'BIid': biid}).first_('标签不存在{}'.format(biid))
+            if itids:
+                for itid in itids:
+                    s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.brand.value}).first_('{}标签不存在或类型不正确'.format(itid))
                     brand_with_pbitem_instance = BrandWithItems.create({
                         'BWIid': str(uuid.uuid4()),
-                        'BIid': biid,
+                        'ITid': itid,
                         'PBid': pbid
                     })
                     s_list.append(brand_with_pbitem_instance)
@@ -54,7 +53,7 @@ class CBrands(object):
         index = dict(form.index.choices).get(form.index.data)
         time_order = dict(form.time_order.choices).get(form.time_order.data)
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
-        biid = form.biid.data
+        itid = form.itid.data
         with self.sproduct.auto_commit() as s:
             brands = s.query(ProductBrand).filter_by_().outerjoin(BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid)
             if index:  # 在首页的
@@ -62,40 +61,25 @@ class CBrands(object):
                     IndexProductBrand, IndexProductBrand.PBid == ProductBrand.PBid
                 ).filter_(
                     IndexProductBrand.isdelete == False,
-                    BrandWithItems.BIid == biid,
+                    BrandWithItems.ITid == itid,
                     ProductBrand.PBstatus == pbstatus).order_by(*[time_order]).all_with_page()
-                for brand in brands:
-                    brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
-                    brand.fill('index', True)
-                    # 标签
-                    pb_items = s.query(BrandItems).join(BrandWithItems, BrandItems.BIid == BrandWithItems.BIid).filter_(
-                        BrandWithItems.PBid == brand.PBid
-                    ).all()
-                    brand.fill('pb_items', pb_items)
             elif index is False:  # 不在首页的
                 index_brands = s.query(IndexProductBrand).filter_by_().all()
                 brands = brands.filter_(ProductBrand.PBid.notin_([x.PBid for x in index_brands]),
-                                                       ProductBrand.PBstatus == pbstatus, BrandWithItems.BIid == biid).\
+                                                       ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).\
                     order_by(*[time_order]).all_with_page()
-                for brand in brands:
-                    brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
-                    brand.fill('index', False)
-                    # 标签
-                    pb_items = s.query(BrandItems).join(BrandWithItems, BrandItems.BIid == BrandWithItems.BIid).filter_(
-                        BrandWithItems.PBid == brand.PBid
-                    ).all()
-                    brand.fill('pb_items', pb_items)
             elif index is None:  # 不筛选首页
-                brands = brands.filter_(ProductBrand.PBstatus == pbstatus, BrandWithItems.BIid == biid).order_by(*[time_order]).all_with_page()
-                for brand in brands:
-                    is_index = s.query(IndexProductBrand).filter_by_({'PBid': brand.PBid}).first_()
-                    brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
-                    brand.fill('index', bool(is_index))
-                    # 标签
-                    pb_items = s.query(BrandItems).join(BrandWithItems, BrandItems.BIid == BrandWithItems.BIid).filter_(
-                        BrandWithItems.PBid == brand.PBid
-                    ).all()
-                    brand.fill('pb_items', pb_items)
+                brands = brands.filter_(ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).order_by(*[time_order]).all_with_page()
+            for brand in brands:
+                is_index = s.query(IndexProductBrand).filter_by_({'PBid': brand.PBid}).first_()
+                brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
+                brand.fill('index', bool(is_index))
+                # 标签
+                pb_items = s.query(Items).filter_by().join(BrandWithItems, Items.ITid == BrandWithItems.ITid).filter_(
+                    BrandWithItems.PBid == brand.PBid,
+                    BrandWithItems.isdelete == False,
+                ).all()
+                brand.fill('pb_items', pb_items)
         return Success(data=brands)
 
     @token_required
@@ -122,7 +106,7 @@ class CBrands(object):
     def update(self):
         form = BrandUpdateForm().valid_data()
         pbid = form.pbid.data
-        biids = form.biids.data
+        itids = form.itids.data
         with self.sproduct.auto_commit() as s:
             s_list = []
             product_brand_instance = s.query(ProductBrand).filter_by_({
@@ -135,24 +119,28 @@ class CBrands(object):
                 'pblinks': form.pblinks.data,
             })
             s_list.append(product_brand_instance)
-            if biids:
-                # 已存在的标签
-                brand_with_item = ''
-                for biid in biids:
-
-
-                    s.query(BrandItems).filter_by_({'BIid': biid}).first_('标签不存在{}'.format(biid))
-
-                    brand_with_pbitem_instance = BrandWithItems.create({
-                        'BWIid': str(uuid.uuid4()),
-                        'BIid': biid,
-                        'PBid': pbid
-                    })
-                    s_list.append(brand_with_pbitem_instance)
+            # 品牌已经关联的中间
+            old_item_id = s.query(BrandWithItems.ITid).filter_by_({'PBid': pbid}).all()
+            old_item_id = [x.ITid for x in old_item_id]
+            if itids:
+                for itid in itids:
+                    if itid in old_item_id:
+                        old_item_id.remove(itid)
+                        # 已经存在
+                        continue
+                    # 如果没在之前的表中
+                    else:
+                        s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.brand.value}).first_(
+                            '{}标签不存在或类型不正确'.format(itid))
+                        brand_with_pbitem_instance = BrandWithItems.create({
+                            'BWIid': str(uuid.uuid4()),
+                            'ITid': itid,
+                            'PBid': pbid
+                        })
+                        s_list.append(brand_with_pbitem_instance)
+            # 删除
+            if old_item_id:
+                s.query(BrandWithItems).filter_(BrandWithItems.ITid.in_(old_item_id)).delete_(synchronize_session=False)
         return Success('更新成功')
-
-
-
-
 
 
