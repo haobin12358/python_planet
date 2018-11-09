@@ -85,21 +85,21 @@ class ProductBrand(Base):
     PBlinks = Column(String(255), comment='官网, 待用')
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
 
+#
+# class BrandItems(Base):
+#     """品牌标签"""
+#     __tablename__ = 'BrandItems'
+#     BIid = Column(String(64), primary_key=True)
+#     BIname = Column(String(16), nullable=False, comment='品牌标签名字')
+#     BIsort = Column(Integer, comment='顺序')
+#     BIdesc = Column(String(255), comment='品牌标签描述')
 
-class BrandItems(Base):
-    """品牌标签"""
-    __tablename__ = 'BrandItems'
-    BIid = Column(String(64), primary_key=True)
-    BIname = Column(String(16), nullable=False, comment='品牌标签名字')
-    BIsort = Column(Integer, comment='顺序')
-    BIdesc = Column(String(255), comment='品牌标签描述')
-
-
+#
 class BrandWithItems(Base):
-    """品牌标签中间"""
+    """品牌-标签关联表"""
     __tablename__ = 'BrandwithItems'
     BWIid = Column(String(64), primary_key=True)
-    BIid = Column(String(64), nullable=False, comment='品牌标签id')
+    ITid = Column(String(64), nullable=False, comment='标签id')
     PBid = Column(String(64), nullable=False, comment='品牌标签id')
 
 
@@ -116,14 +116,15 @@ class ProductScene(Base):
 
 class Items(Base):
     """
-    标签
+    商品, 资讯, 优惠券,品牌标签
     """
     __tablename__ = 'Items'
     ITid = Column(String(64), primary_key=True)
     PSid = Column(String(64), comment='关联的场景id')
     ITname = Column(String(16), nullable=False, comment='标签名字')
     ITsort = Column(Integer, comment='顺序')
-    ITtype = Column(Integer, index=True, comment='标签类型{0: 商品, 10:资讯, 20:优惠券}')
+    ITdesc = Column(String(255), comment='标签描述')
+    ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
 
 
 class ProductItems(Base):

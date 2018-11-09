@@ -72,6 +72,7 @@ class ItemType(Enum):
     product = 0
     news = 10
     coupon = 20
+    brand = 40
 
 
 if __name__ == '__main__':
