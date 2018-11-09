@@ -22,7 +22,7 @@ def usid_to_token(id, model='User', level=0, expiration=''):
         'id': id,
         'model': model,
         'level': level
-    })
+    }).decode()
 
 
 def is_admin():

@@ -60,7 +60,7 @@ class CUser(SUser):
     @get_session
     def login_test(self):
         """获取token"""
-        data = parameter_required(('ustelphone'))
+        data = parameter_required(('ustelphone',))
         ustelphone = data.get('ustelphone')
 
         user = self.get_user_by_ustelphone(ustelphone)
@@ -89,6 +89,7 @@ class CUser(SUser):
         })
         self.session.add(userloggintime)
         token = usid_to_token(usid, model='User', level=uslevel)
+        print(token, type(token))
         return Success('登录成功', data={'token': token})
 
     @get_session
