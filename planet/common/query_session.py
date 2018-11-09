@@ -22,10 +22,11 @@ class Query(_Query):
         for criterion in list(criterion):
             if self._right_not_none(criterion):
                 new_criterion.append(criterion)
+
         return super(Query, self).filter(*new_criterion)
 
     def _right_not_none(self, x):
-        if hasattr(x, 'right'):
+        if hasattr(x, 'right') and hasattr(x.right, 'value'):
             return not isinstance(x.right.type, NullType)
         return True
 
