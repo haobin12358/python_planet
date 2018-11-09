@@ -1,5 +1,5 @@
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea
+    AddressCity, AddressArea, UserMedia
 
 
 class SUser():
@@ -32,3 +32,6 @@ class SUser():
         return self.session.query(AddressArea, AddressCity, AddressProvince).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
             AddressArea.AAid == areaid).all()
+
+    def get_usermedia(self, usid):
+        return self.session.query(UserMedia).filter(UserMedia.USid == usid).all()
