@@ -10,6 +10,7 @@ class AUser(Resource):
     def post(self, user):
         apis = {
             'login': self.user.login,
+            'login_test': self.user.login_test,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }

@@ -58,6 +58,40 @@ class CUser(SUser):
         return Success('登录成功', data={'token': token})
 
     @get_session
+    def login_test(self):
+        """获取token"""
+        data = parameter_required(('ustelphone'))
+        ustelphone = data.get('ustelphone')
+
+        user = self.get_user_by_ustelphone(ustelphone)
+        if not user:
+            usid = str(uuid.uuid1())
+            uslevel = 1
+            default_head_path = GithubAvatarGenerator().save_avatar(usid)
+            user = User.create({
+                "USid": usid,
+                "USname": '客官' + str(ustelphone)[:-4],
+                "UStelphone": ustelphone,
+                "USheader": default_head_path,
+                "USintegral": 0,
+                "USlevel": uslevel
+            })
+            self.session.add(user)
+        else:
+            usid = user.USid
+            uslevel = user.USlevel
+
+        # 用户登录记录
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+        self.session.add(userloggintime)
+        token = usid_to_token(usid, model='User', level=uslevel)
+        return Success('登录成功', data={'token': token})
+
+    @get_session
     def get_inforcode(self):
         """发送/校验验证码"""
         args = request.args.to_dict()
@@ -185,7 +219,3 @@ class CUser(SUser):
         for area, city, province in area_info:
             address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(area, "AAname", '')
         return address
-
-
-
-
