@@ -51,8 +51,14 @@ class CProducts:
         kw = data.get('kw', '')  # 关键词
         pbid = data.get('pbid')  # 品牌
         pcid = data.get('pcid')  # 分类id
+        pcids = self._sub_category(pcid) or None  # 遍历以下的所有分类
         itid = data.get('itid')  # 场景下的标签id
-
+        prstatus = data.get('prstatus') or 'usual'  # 商品状态
+        # try:
+        prstatus = getattr(ProductStatus, prstatus).value
+        print('status is ', prstatus)
+        # except Exception as e:
+        #     prstatus = ProductStatus.usual.value
         if order == 'desc':
             order = Products.createtime.desc()
         else:
@@ -61,8 +67,9 @@ class CProducts:
         products = self.sproduct.get_product_list([
             Products.PBid == pbid,
             or_(Products.PRtitle.contains(kw), ProductBrand.PBname.contains(kw)),
-            Products.PCid == pcid,
-            ProductItems.ITid == itid
+            Products.PCid.in_(pcids),
+            ProductItems.ITid == itid,
+            Products.PRstatus == prstatus,
         ], [order, ])
         # 填充
         for product in products:
@@ -299,3 +306,21 @@ class CProducts:
             self.prstatus = ProductStatus.auditing.value
         else:
             raise AuthorityError()
+
+    def _sub_category(self, pcid):
+        """遍历子分类, 返回id列表"""
+        queue = [pcid]
+        pcids = []
+        while True:
+            if not queue:
+                return pcids
+            pcid = queue.pop()
+            pcids.append(pcid)
+            subs = self.sproduct.get_categorys({'ParentPCid': pcid})
+            if subs:
+                for sub in subs:
+                    pcid = sub.PCid
+                    queue.append(pcid)
+
+
+

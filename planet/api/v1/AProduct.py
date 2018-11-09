@@ -3,6 +3,7 @@ from planet.control.CCategory import CCategory
 from planet.control.CProducts import CProducts
 from planet.common.base_resource import Resource
 from planet.control.CSku import CSku
+from planet.control.CBrands import CBrands
 
 
 class AProduct(Resource):
@@ -51,5 +52,23 @@ class ASku(Resource):
         apis = {
             'create': self.csku.add,
             'update': self.csku.update,
+        }
+        return apis
+
+
+class ABrands(Resource):
+    def __init__(self):
+        self.cbrands = CBrands()
+
+    def post(self, brand):
+        apis = {
+            'create': self.cbrands.create,
+            'off_shelves': self.cbrands.off_shelves,
+        }
+        return apis
+
+    def get(self, brand):
+        apis = {
+            'list': self.cbrands.list,
         }
         return apis

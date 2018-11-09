@@ -51,7 +51,7 @@ class OrderPay(Base):
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
-    OPayno = Column(String(64), comment='交易号, 自己生成')
+    OPayno = Column(String(64), index=True,comment='交易号, 自己生成')
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')

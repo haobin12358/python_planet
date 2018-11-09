@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import uuid
 
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.models import ProductCategory
+from planet.models import ProductCategory, Products
 from planet.service.SProduct import SProducts
 
 
@@ -57,7 +57,26 @@ class CCategory(object):
         data = parameter_required(('pcid', ))
         pcid = data.get('pcid')
         with self.sproduct.auto_commit() as s:
-            s.query(ProductCategory).filter_by_({'PCid': pcid}).delete_()
+            # 删除分类
+            product_category_instance = s.query(ProductCategory).filter_by_({'PCid': pcid}).first_('该分类不存在')
+            product_category_instance.isdelete = True
+            s.add(product_category_instance)
+            # 该分类下的商品挂在上一级
+            up_catetgory_id = product_category_instance.ParentPCid
+            if not up_catetgory_id:
+                # 如果没有父级目录 todo
+                #
+                raise StatusError()
+            else:
+                # 如果父级目录不存在 todo
+                up_catetgory_instance = s.query(ProductCategory).filter_by_({'PCid': up_catetgory_id}).first_()
+                if not up_catetgory_instance:
+                    raise StatusError()
+                s.query(Products).filter_by_({
+                    'PCid': pcid
+                }).update({
+                    'PCid': up_catetgory_id
+                })
         return Success('删除成功')
 
     def _sub_category(self, category, deep):

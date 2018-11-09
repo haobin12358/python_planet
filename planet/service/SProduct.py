@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
 from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
-    ProductItems, Items
+    ProductItems, Items, ProductBrand
 
 
 class SProducts(SBase):
@@ -15,10 +15,12 @@ class SProducts(SBase):
     @close_session
     def get_product_list(self, args, order=()):
         """获取商品列表"""
-        return self.session.query(Products).filter_by_().\
+        return self.session.query(Products).filter(Products.isdelete == False).\
             outerjoin(
-                ProductItems, ProductItems.PRid == Products.PRid
-            ).filter_(*args).order_by(*order).all_with_page()
+            ProductItems, ProductItems.PRid == Products.PRid
+        ).outerjoin(
+            ProductBrand, ProductBrand.PBid == Products.PBid
+        ).filter_(*args).order_by(*order).all_with_page()
 
     @close_session
     def get_product_images(self, args):
@@ -30,6 +32,11 @@ class SProducts(SBase):
     def get_product_brand_one(self, args, error=None):
         """获取品牌"""
         return self.session.query(ProductBrand).filter_by_(**args).first_(error)
+
+    @close_session
+    def get_product_brand(self, args, order=()):
+        """获取品牌"""
+        return self.session.query(ProductBrand).filter_by_(**args).order_by(*order).all_with_page()
 
     @close_session
     def get_sku(self, args):
@@ -63,3 +70,4 @@ class SProducts(SBase):
         return self.session.query(Items).outerjoin(ProductItems, Items.ITid == ProductItems.ITid).filter_(
             *args
         ).order_by(*order).all()
+

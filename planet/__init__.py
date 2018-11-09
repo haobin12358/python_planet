@@ -9,7 +9,7 @@ from flask_cors import CORS
 
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
-from planet.api.v1.AProduct import AProduct, ACategory, ASku
+from planet.api.v1.AProduct import AProduct, ACategory, ASku, ABrands
 from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
 from planet.common.request_handler import error_handler, request_first_handler
@@ -90,6 +90,7 @@ def register_v1(app):
     v1.add_url_rule('/sku/<string:sku>', view_func=ASku.as_view('sku'))
     v1.add_url_rule('/user/<string:user>', view_func=AUser.as_view('user'))
     v1.add_url_rule('/refund/<string:refund>', view_func=ARefund.as_view('refund'))
+    v1.add_url_rule('/brand/<string:brand>', view_func=ABrands.as_view('brand'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
