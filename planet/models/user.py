@@ -101,6 +101,7 @@ class UserAddress(Base):
     UAtext = Column(String(255), nullable=False, comment='具体地址')
     UApostalcode = Column(String(8), comment='邮政编码')
     UAdefault = Column(Boolean, default=False, comment='默认收获地址')
+    AAid = Column(String(8), nullable=False, comment='关联的区域id')
 
 
 class UserMedia(Base):
