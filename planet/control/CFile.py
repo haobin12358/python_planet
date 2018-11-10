@@ -53,7 +53,7 @@ class CFile(object):
 
     @staticmethod
     def allowed_file(shuffix):
-        return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', ]
+        return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv']
 
     @staticmethod
     def allowed_folder(folder):

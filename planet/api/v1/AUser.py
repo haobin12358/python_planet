@@ -12,6 +12,7 @@ class AUser(Resource):
             'login': self.user.login,
             'add_address': self.user.add_useraddress,
             'update_address': self.user.update_useraddress,
+            'login_test': self.user.login_test,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }

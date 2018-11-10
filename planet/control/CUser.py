@@ -20,13 +20,13 @@ from planet.common.request_handler import gennerc_log
 from planet.models.user import User, UserLoginTime, UserCommission, UserAddress
 from planet.service.SUser import SUser
 from planet.models import IdentifyingCode
-
+from planet.config.http_config import HTTP_HOST
 
 class CUser(SUser):
     @get_session
     def login(self):
         """手机验证码登录"""
-        data = parameter_required('ustelphone', 'identifyingcode')
+        data = parameter_required(('ustelphone', 'identifyingcode'))
         ustelphone = data.get('ustelphone')
         identifyingcode = str(data.get('identifyingcode'))
         idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
@@ -56,6 +56,41 @@ class CUser(SUser):
         })
         self.session.add(userloggintime)
         token = usid_to_token(usid, model='User', level=uslevel)
+        return Success('登录成功', data={'token': token})
+
+    @get_session
+    def login_test(self):
+        """获取token"""
+        data = parameter_required(('ustelphone',))
+        ustelphone = data.get('ustelphone')
+
+        user = self.get_user_by_ustelphone(ustelphone)
+        if not user:
+            usid = str(uuid.uuid1())
+            uslevel = 1
+            default_head_path = GithubAvatarGenerator().save_avatar(usid)
+            user = User.create({
+                "USid": usid,
+                "USname": '客官' + str(ustelphone)[:-4],
+                "UStelphone": ustelphone,
+                "USheader": default_head_path,
+                "USintegral": 0,
+                "USlevel": uslevel
+            })
+            self.session.add(user)
+        else:
+            usid = user.USid
+            uslevel = user.USlevel
+
+        # 用户登录记录
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+        self.session.add(userloggintime)
+        token = usid_to_token(usid, model='User', level=uslevel)
+        print(token, type(token))
         return Success('登录成功', data={'token': token})
 
     @get_session
@@ -108,6 +143,7 @@ class CUser(SUser):
     @get_session
     @token_required
     def get_home(self):
+        """获取个人主页信息"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
@@ -120,12 +156,37 @@ class CUser(SUser):
     @get_session
     @token_required
     def get_profile(self):
+        """ 个人资料"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
         user.fields = ['USname', 'USbirthday', 'USheader', 'USlevel', 'USgender']
         return Success('获取个人资料信息成功', data=user)
+
+    @get_session
+    @token_required
+    def get_safecenter(self):
+        """安全中心"""
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', 'USidentification', 'UStelphone']
+        return Success('获取安全中心信息成功', data=user)
+
+    @get_session
+    @token_required
+    def get_identifyinginfo(self):
+        """获取个人身份证详情"""
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', 'USidentification']
+        usmedia = self.get_usermedia(user.USid)
+        user.fill('usmedia', usmedia)
+        return Success('获取身份证详情成功', data=user)
 
     @get_session
     @token_required

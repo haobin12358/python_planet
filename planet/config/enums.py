@@ -75,6 +75,13 @@ class ItemType(Enum):
     brand = 40
 
 
+# user
+class UserSearchHistoryType(Enum):
+    """搜索记录类型 0 商品, 10 圈子"""
+    product = 0
+    news = 10
+
+
 if __name__ == '__main__':
     pass
 
