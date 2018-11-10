@@ -21,7 +21,7 @@ class SUser():
 
     def update_useraddress_by_filter(self, uafilter, uainfo):
         """更新地址"""
-        return self.session.query(UserAddress).filter_by(**uafilter).update()
+        return self.session.query(UserAddress).filter_by(**uafilter).update(uainfo)
 
     def get_province(self):
         """获取所有省份"""
