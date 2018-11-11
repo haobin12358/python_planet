@@ -2,6 +2,7 @@
 from planet.control.CCategory import CCategory
 from planet.control.CProducts import CProducts
 from planet.common.base_resource import Resource
+from planet.control.CScene import CScene
 from planet.control.CSku import CSku
 from planet.control.CBrands import CBrands
 
@@ -72,5 +73,23 @@ class ABrands(Resource):
     def get(self, brand):
         apis = {
             'list': self.cbrands.list,
+        }
+        return apis
+
+
+class AScene(Resource):
+    """场景"""
+    def __init__(self):
+        self.cscene = CScene()
+
+    def get(self, scene):
+        apis = {
+            'list': self.cscene.list
+        }
+        return apis
+
+    def post(self, scene):
+        apis = {
+            'create': self.cscene.create
         }
         return apis
