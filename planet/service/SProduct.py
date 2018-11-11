@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
 from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
-    ProductItems, Items, ProductBrand, ProductMonthSaleValue
+    ProductItems, Items, ProductBrand, ProductMonthSaleValue, ProductScene
 
 
 class SProducts(SBase):
@@ -66,10 +66,24 @@ class SProducts(SBase):
 
     @close_session
     def get_item_list(self, args, order=()):
-        """获取场景"""
+        """获取商品对应的标签"""
         return self.session.query(Items).outerjoin(ProductItems, Items.ITid == ProductItems.ITid).filter_(
             *args
         ).order_by(*order).all()
+
+    @close_session
+    def get_product_scene_one(self, args, error=None):
+        """获取单个场景"""
+        return self.session.query(ProductScene).filter_by_(args).first_(error)
+
+    @close_session
+    def get_product_scenes(self):
+        """获取所有场景"""
+        return self.session.query(ProductScene).order_by(ProductScene.PSsort, ProductScene.createtime).all()
+
+    @close_session
+    def get_items(self, args, order=(Items.ITsort, )):
+        return self.session.query(Items).filter_by_(args).order_by(*order).all()
 
     @close_session
     def get_monthsale_value_one(self, args, error=None):

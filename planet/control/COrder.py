@@ -3,9 +3,11 @@ import json
 import random
 import time
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from flask import request
+from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound
@@ -13,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.CPay import CPay
-from planet.models import ProductSku, Products, ProductBrand
+from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply
 
 
@@ -42,9 +44,9 @@ class COrder(CPay):
     @token_required
     def create(self):
         """创建并发起支付"""
-        data = parameter_required(('info', 'omclient', 'omfrom', 'udid', 'opaytype'))
+        data = parameter_required(('info', 'omclient', 'omfrom', 'uaid', 'opaytype'))
         usid = request.user.id
-        udid = data.get('udid')  # todo udid 表示用户的地址信息
+        uaid = data.get('uaid')
         opaytype = data.get('opaytype')
         try:
             omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
@@ -56,9 +58,11 @@ class COrder(CPay):
         infos = data.get('info')
         with self.strade.auto_commit() as s:
             body = set()  # 付款时候需要使用的字段
-            omrecvphone = '18753391801'
-            omrecvaddress = '钱江世纪城'
-            omrecvname = '老哥'
+            # 用户的地址信息
+            user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            omrecvphone = user_address_instance.UAphone
+            omrecvaddress = user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str
             model_bean = []
             mount_price = Decimal()  # 总价
@@ -111,6 +115,22 @@ class COrder(CPay):
                     s.query(ProductSku).filter_by_(SKUid=skuid).update({
                         'SKUstock': ProductSku.SKUstock - opnum
                     })
+                    # 月销量 修改或新增
+                    today = datetime.now()
+                    month_sale_updated = s.query(ProductMonthSaleValue).filter_(
+                        ProductMonthSaleValue.PRid == prid,
+                        extract('month', ProductMonthSaleValue.createtime) == today.month,
+                        extract('year', ProductMonthSaleValue.createtime) == today.year
+                    ).update({
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                    }, synchronize_session=False)
+                    if not month_sale_updated:
+                        month_sale_instance = ProductMonthSaleValue.create({
+                            'PMSVid': str(uuid.uuid4()),
+                            'PRid': prid,
+                            'PMSVnum': opnum
+                        })
+                        model_bean.append(month_sale_instance)
                 # 主单
                 order_main_dict = {
                     'OMid': omid,

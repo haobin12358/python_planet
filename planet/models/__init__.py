@@ -3,4 +3,4 @@ from .product import *
 from .index import *
 from .user import *
 from .address import *
-from .news import *
+# from .news import *

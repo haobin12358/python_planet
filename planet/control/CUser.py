@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import time
 import datetime
 import uuid
@@ -190,42 +191,148 @@ class CUser(SUser):
     @get_session
     @token_required
     def get_useraddress(self):
+        """获取用户地址列表"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
-            raise ParamsError('token error')
+            raise TokenError('token error')
         useraddress_list = self.get_useraddress_by_usid(user.USid)
         for useraddress in useraddress_list:
-            useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'UAdefault']
+            useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'AAid']
+            uadefault = 1 if useraddress.UAdefault is True else 0
             addressinfo = self._get_addressinfo_by_areaid(useraddress.AAid)
             useraddress.fill('addressinfo', addressinfo + getattr(useraddress, 'UAtext', ''))
+            useraddress.fill('uadefault', uadefault)
         return Success('获取个人地址成功', data=useraddress_list)
 
     @get_session
     @token_required
     def add_useraddress(self):
+        """添加收货地址"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
-            raise ParamsError('token error')
-        data = parameter_required(('uaname', 'uaphone', 'uatext', 'uapostalcode', 'aaid'))
+            raise TokenError('token error')
+        data = parameter_required(('uaname', 'uaphone', 'uatext', 'aaid'))
         uaid = str(uuid.uuid1())
-        uadefault = data.get('uadefault', False)
+        uadefault = data.get('uadefault', 0)
+        uaphone = data.get('uaphone')
+        uapostalcode = data.get('uapostalcode', '000000')
+        if not re.match(r'^[0|1]$', str(uadefault)):
+            raise ParamsError('uadefault, 参数异常')
+        if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+            raise ParamsError('请填写正确的手机号码')
+        if not re.match(r'^\d{6}$', str(uapostalcode)):
+            raise ParamsError('请输入正确的六位邮编')
         default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
-        if default_address and uadefault == True:
-            # self.update_useraddress_by_filter({})
-            # todo
-            pass
+        if default_address:
+            if str(uadefault) == '1':
+                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid}, {'UAdefault': False})
+                if not updateinfo:
+                    raise SystemError('服务器繁忙')
+                uadefault = True
+            else:
+                uadefault = False
+        else:
+            uadefault = True
         address = UserAddress.create({
             'UAid': uaid,
             'USid': request.user.id,
             'UAname': data.get('uaname'),
-            'UAphone': data.get('uaphone'),
+            'UAphone': uaphone,
             'UAtext': data.get('uatext'),
-            'UApostalcode': data.get('uapostalcode'),
-            'AAid': data.get('aaid')
+            'UApostalcode': uapostalcode,
+            'AAid': data.get('aaid'),
+            'UAdefault': uadefault
         })
+        self.session.add(address)
+        return Success('创建地址成功', {'uaid': uaid})
 
+    @get_session
+    @token_required
+    def update_useraddress(self):
+        """修改收货地址"""
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise TokenError('token error')
+        data = parameter_required(('uaid',))
+        uaid = data.get('uaid')
+        uadefault = data.get('uadefault')
+        uaphone = data.get('uaphone')
+        uapostalcode = data.get('uapostalcode')
+        uaisdelete = data.get('uaisdelete', 0)
+        if not re.match(r'^[0|1]$', str(uaisdelete)):
+            raise ParamsError('uaisdelete, 参数异常')
+        usaddress = self.get_useraddress_by_filter({'UAid': uaid})
+        if not usaddress:
+            raise NotFound('未找到要修改的地址信息')
+        if str(uaisdelete) == '1' and usaddress.UAdefault is True:
+            anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
+            if anyone:
+                self.update_useraddress_by_filter({'UAid': anyone.UAid}, {'UAdefault': True})
+        uaisdelete = True if str(uaisdelete) == '1' else False
+        if uadefault:
+            if not re.match(r'^[0|1]$', str(uadefault)):
+                raise ParamsError('uadefault, 参数异常')
+            default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+            if default_address:
+                if str(uadefault) == '1':
+                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid}, {'UAdefault': False})
+                    if not updateinfo:
+                        raise SystemError('服务器繁忙')
+                    uadefault = True
+                else:
+                    uadefault = False
+            else:
+                uadefault = True
+        if uaphone:
+            if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+                raise ParamsError('请填写正确的手机号码')
+        if uapostalcode:
+            if not re.match(r'^\d{6}$', str(uapostalcode)):
+                raise ParamsError('请输入正确的六位邮编')
+        address_dict = {
+            'UAname': data.get('uaname'),
+            'UAphone': uaphone,
+            'UAtext': data.get('uatext'),
+            'UApostalcode': uapostalcode,
+            'AAid': data.get('aaid'),
+            'UAdefault': uadefault,
+            'updatetime': datetime.datetime.now(),
+            'isdelete': uaisdelete
+        }
+        address_dict = {k: v for k, v in address_dict.items() if v is not None}
+        update_info = self.update_useraddress_by_filter({'UAid': uaid}, address_dict)
+        if not update_info:
+            raise SystemError('服务器繁忙')
+        return Success('修改地址成功', {'uaid': uaid})
+
+    @get_session
+    @token_required
+    def get_one_address(self):
+        """获取单条地址信息详情"""
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise TokenError('token error')
+        args = request.args.to_dict()
+        uaid = args.get('uaid')
+        if uaid:
+            uafilter = {'UAid': uaid, 'isdelete': False}
+        else:
+            uafilter = {'UAdefault': True, 'isdelete': False}
+        get_address = self.get_useraddress_by_filter(uafilter)
+        any_address = self.get_useraddress_by_filter({'isdelete': False})
+        if not any_address:
+            raise NotFound('用户未设置任何地址信息')
+        address = get_address or any_address
+        addressinfo = self._get_addressinfo_by_areaid(address.AAid)
+        address.fill('addressinfo', addressinfo + getattr(address, 'UAtext', ''))
+        uadefault = 1 if address.UAdefault is True else 0
+        address.fill('uadefault', uadefault)
+        address.hide('USid')
+        return Success(data=address)
 
     @get_session
     def get_all_province(self):
@@ -262,5 +369,6 @@ class CUser(SUser):
         """通过areaid获取地址具体信息, 返回xx省xx市xx区字符串"""
         area_info = self.get_addressinfo_by_areaid(areaid)
         for area, city, province in area_info:
-            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(area, "AAname", '')
+            address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
+                area, "AAname", '') + ' '
         return address

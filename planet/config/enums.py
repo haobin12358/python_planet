@@ -68,11 +68,18 @@ class ORAproductStatus(Enum):
 
 
 class ItemType(Enum):
-    """标签类型{0: 商品, 10:资讯, 20:优惠券}"""
+    """标签类型{0: 商品, 10:资讯, 20:优惠券, 40 品牌标签}"""
     product = 0
     news = 10
     coupon = 20
     brand = 40
+
+
+# user
+class UserSearchHistoryType(Enum):
+    """搜索记录类型 0 商品, 10 圈子"""
+    product = 0
+    news = 10
 
 
 if __name__ == '__main__':

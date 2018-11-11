@@ -2,7 +2,7 @@
 from wtforms.validators import *
 from wtforms import *
 
-from planet.config.enums import ProductStatus
+from planet.config.enums import ProductStatus, ItemType
 from planet.models import ProductBrand
 from .base_form import BaseForm
 
@@ -46,3 +46,13 @@ class ProductOffshelvesForm(BaseForm):
         except Exception as e:
             raise ValidationError(message='status 参数错误')
         self.status = value
+
+
+class SceneCreateForm(BaseForm):
+    pspic = StringField('图片', validators=[DataRequired(), Length(0, 255)])
+    psname = StringField('名字', validators=[DataRequired(), Length(0, 16)])
+    pssort = IntegerField('排序')
+
+
+
+

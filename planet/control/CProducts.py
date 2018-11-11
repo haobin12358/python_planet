@@ -8,11 +8,11 @@ from sqlalchemy import or_, and_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, admin_required, is_tourist
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
 from planet.config.enums import ProductStatus, ProductFrom
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
-from planet.validates.product import ProductOffshelvesForm
+from planet.extensions.validates.product import ProductOffshelvesForm
 
 
 class CProducts:
@@ -98,7 +98,7 @@ class CProducts:
                 instance = UserSearchHistory.create({
                     'USHid': str(uuid.uuid4()),
                     'USid': request.user.id,
-                    'USHname': kw
+                    'USHname': ' '.join(kw)
                 })
                 s.add(instance)
         return Success(data=products)
@@ -314,7 +314,7 @@ class CProducts:
 
     @token_required
     def off_shelves(self):
-        """上下架"""
+        """上下架, 包括审核状态"""
         form = ProductOffshelvesForm().valid_data()
         prid = form.prid.data
         status = form.status.data
