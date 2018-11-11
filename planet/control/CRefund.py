@@ -31,7 +31,7 @@ class CRefund(object):
                 'OPid': opid,
                 'OPisinORA': False
             }).first_('不存在的订单详情')
-            order_part.OPisinORA = True  # 改为售后状态
+            order_part.OPisinORA = True  # 附单状态
             s_list.append(order_part)
             # 主单售后状态
             omid = order_part.OMid
@@ -44,10 +44,9 @@ class CRefund(object):
                 ]),
                 OrderMain.USid == usid
             ).first_('不存在的订单')
-            order_main.OMinRefund = True  # 存在售后商品
+            order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
-            # 售后申请表
-            # 参数
+            # 申请参数校验
             oraproductstatus = data.get('oraproductstatus')
             ORAproductStatus(oraproductstatus)
             oramount = data.get('oramount')
@@ -59,7 +58,7 @@ class CRefund(object):
             else:
                 oraddtionvoucher = None
             oraaddtion = data.get('oraaddtion')
-            # 添加
+            # 添加申请表
             order_refund_apply_dict = {
                 'ORAid': str(uuid.uuid4()),
                 'OMid': omid,

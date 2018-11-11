@@ -18,7 +18,7 @@ class LoggerHandler():
         if not os.path.isdir(logger_dir):
             os.makedirs(logger_dir)
         formatter = logging.Formatter(self.format)
-        log_file_handler = TimedRotatingFileHandler(filename=os.path.join(logger_dir, 'log'), when="D", interval=2)
+        log_file_handler = TimedRotatingFileHandler(filename=os.path.join(logger_dir, 'log'), when="d")
         log_file_handler.setFormatter(formatter)
         log_file_handler.setLevel(logging.DEBUG)
         app.logger.addHandler(log_file_handler)

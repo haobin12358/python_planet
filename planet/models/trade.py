@@ -113,10 +113,16 @@ class OrderRefund(Base):
     __tablename__ = 'OrderRefund'
     ORid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
+    OPid = Column(String(64), nullable=False, comment='附单id')
     # 其他
 
 
+class OrderLogistics(Base):
+    """订单物流"""
+    __tablename__ = 'OrderLogistics'
+    OLid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), nullable=False, comment='主单id')
+    OPid = Column(String(125), comment='订单物流')
+    # 其他
 
-#
-# class OrderLogistic(Base):
-#     """物流"""
+
