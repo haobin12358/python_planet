@@ -112,18 +112,30 @@ class CCart(object):
             product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
-            # skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
-            product_skus = self.sproduct.get_sku({'PRid': cart.PRid})  # 商品的sku
-            if not product_skus:
-                continue
-            # 转json
             cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
-            for product_sku in product_skus:
-                product_sku.SKUattriteDetail = json.loads(product_sku.SKUattriteDetail)
+            # skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
             # 填充商品
-            product.fill('skus', product_skus)
             product.hide('PRdesc')
             product.fill('PRstatus_en', ProductStatus(product.PRstatus).name)
+            # 商品sku
+            skus = self.sproduct.get_sku({'PRid': product.PRid})
+            sku_value_item = []
+            for sku in skus:
+                sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+                sku_value_item.append(sku.SKUattriteDetail)
+            product.fill('skus', skus)
+            # 商品sku value
+            sku_value_item_reverse = []
+            for index, name in enumerate(product.PRattribute):
+                value = list(set([attribute[index] for attribute in sku_value_item]))
+                value = sorted(value)
+                temp = {
+                    'name': name,
+                    'value': value
+                }
+                sku_value_item_reverse.append(temp)
+            product.fill('SkuValue', sku_value_item_reverse)
+
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)

@@ -44,9 +44,13 @@ class CProducts:
         product.fill('skus', skus)
         # sku value
         sku_value_item_reverse = []
-        for index, _ in enumerate(product.PRattribute):
-            temp = list(set([attribute[index] for attribute in sku_value_item]))
-            temp = sorted(temp)
+        for index, name in enumerate(product.PRattribute):
+            value = list(set([attribute[index] for attribute in sku_value_item]))
+            value = sorted(value)
+            temp = {
+                'name': name,
+                'value': value
+            }
             sku_value_item_reverse.append(temp)
         product.fill('SkuValue', sku_value_item_reverse)
         # product_sku_value = self.sproduct.get_sku_value({'PRid': prid})
