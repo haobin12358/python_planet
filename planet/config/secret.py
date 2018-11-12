@@ -36,6 +36,8 @@ ACCESS_KEY_SECRET = env.get('ACCESS_KEY_SECRET')
 SignName = env.get("SignName", "etech研发团队")
 # 短信模板
 TemplateCode =env.get("TemplateCode")
+# 身份实名认证
+ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 
 
 class DefaltSettig(object):

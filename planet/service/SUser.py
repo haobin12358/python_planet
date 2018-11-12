@@ -1,10 +1,11 @@
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea, UserMedia
+    AddressCity, AddressArea, UserMedia, IDCheck
 
 
 class SUser():
     def get_identifyingcode_by_ustelphone(self, utel):
-        return self.session.query(IdentifyingCode).filter(IdentifyingCode.ICtelphone == utel).first_()
+        return self.session.query(IdentifyingCode).filter(IdentifyingCode.ICtelphone == utel).order_by(
+            IdentifyingCode.createtime.desc()).first_()
 
     def get_user_by_ustelphone(self, utel):
         return self.session.query(User).filter(User.UStelphone == utel).first_()
@@ -44,3 +45,10 @@ class SUser():
 
     def get_usermedia(self, usid):
         return self.session.query(UserMedia).filter(UserMedia.USid == usid).all()
+
+    def get_idcheck_by_name_code(self, name, idcode):
+        return self.session.query(IDCheck).filter(
+            IDCheck.IDCcode == idcode,
+            IDCheck.IDCrealName == name,
+            IDCheck.IDCerrorCode != 80008
+        ).first_()

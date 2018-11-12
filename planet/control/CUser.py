@@ -17,9 +17,9 @@ from planet.common.token_handler import token_required, is_tourist, usid_to_toke
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
-from planet.models.user import User, UserLoginTime, UserCommission, UserAddress
+from planet.common.id_check import IDCheck
+from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode
 from planet.service.SUser import SUser
-from planet.models import IdentifyingCode
 from planet.config.http_config import HTTP_HOST
 
 class CUser(SUser):
@@ -30,8 +30,15 @@ class CUser(SUser):
         ustelphone = data.get('ustelphone')
         identifyingcode = str(data.get('identifyingcode'))
         idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
+
         if not idcode or str(idcode.ICcode) != identifyingcode:
+            gennerc_log('get identifyingcode ={0} get idcode = {1}'.format(identifyingcode, idcode.ICcode))
             raise ParamsError('验证码有误')
+        timenow = datetime.datetime.now()
+        if (timenow - idcode.createtime).seconds > 600:
+            gennerc_log('get timenow ={0}, sendtime = {1}'.format(timenow, idcode.createtime))
+            raise ParamsError('验证码已经过期')
+
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
             usid = str(uuid.uuid1())
@@ -39,7 +46,7 @@ class CUser(SUser):
             default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
-                "USname": '客官'+str(ustelphone)[:-4],
+                "USname": '客官'+str(ustelphone)[-4:],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
@@ -71,7 +78,7 @@ class CUser(SUser):
             default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
-                "USname": '客官' + str(ustelphone)[:-4],
+                "USname": '客官' + str(ustelphone)[-4:],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
@@ -99,7 +106,8 @@ class CUser(SUser):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-
+        if not Utel:
+            raise ParamsError('手机号不能为空')
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
@@ -157,6 +165,7 @@ class CUser(SUser):
     @token_required
     def get_profile(self):
         """ 个人资料"""
+        # todo 微信二维码目前没有前台地址
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
@@ -372,3 +381,44 @@ class CUser(SUser):
             address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
                 area, "AAname", '') + ' '
         return address
+
+    @get_session
+    @token_required
+    def check_idcode(self):
+        # todo 待测试
+        data = parameter_required(('usrealname', 'usidentification'))
+        name = data.get("usrealname")
+        idcode = data.get("usidentification")
+        if not (name and idcode):
+            raise ParamsError('姓名和身份证号码不能为空')
+        idcheck = self.get_idcheck_by_name_code(name, idcode)
+        if not idcheck:
+            idcheck = IDCheck(idcode, name)
+            newidcheck_dict = {
+                "IDCid": str(uuid.uuid1()),
+                "IDCcode": idcheck.idcode,
+                "IDCname": idcheck.name,
+                "IDCresult": idcheck.result
+            }
+            if idcheck.result:
+                newidcheck_dict['IDrealName'] = idcheck.check_response.get('result').get('realName')
+                newidcheck_dict['IDCcardNo'] = idcheck.check_response.get('result').get('realName')
+                newidcheck_dict['IDCaddrCode'] = idcheck.check_response.get('result').get('cardNo')
+                newidcheck_dict['IDCbirth'] = idcheck.check_response.get('result').get('details').get('addrCode')
+                newidcheck_dict['IDCsex'] = idcheck.check_response.get('result').get('details').get('sex')
+                newidcheck_dict['IDCcheckBit'] = idcheck.check_response.get('result').get('checkBit')
+                newidcheck_dict['IDCaddr'] = idcheck.check_response.get('result').get('addr')
+                newidcheck_dict['IDCerrorCode'] = idcheck.check_response.get('error_code')
+                newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
+            else:
+                newidcheck_dict['IDCerrorCode'] = idcheck.check_response.get('error_code')
+                newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
+            newidcheck = IDCheck.create(newidcheck_dict)
+            check_result = idcheck.result
+            check_message =  idcheck.check_response.get('reason')
+            self.session.add(newidcheck)
+        else:
+            check_message = idcheck.IDCerrorCode
+            check_result = idcheck.IDCresult
+
+        return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
