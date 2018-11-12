@@ -29,6 +29,7 @@ class User(Base):
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
     USqrcode = Column(Text, comment='用户二维码')
 
+
 class UserLoginTime(Base):
     __tablename__ = 'UserLoginTime'
     ULTid = Column(String(64), primary_key=True)
@@ -113,3 +114,20 @@ class UserMedia(Base):
     USid = Column(String(64), comment='用户id')
     UMurl = Column(Text, comment='图片路径')
     UMtype = Column(Integer, default=1, comment='图片类型 1: 身份证正面, 2: 身份证反面')
+
+
+class IDCheck(Base):
+    __tablename__ = 'IDcheck'
+    IDCid = Column(String(64), primary_key=True)
+    IDCcode = Column(String(24), nullable=False, comment='查询所用的身份证')
+    IDCname = Column(Text, comment='查询所用的姓名')
+    IDCresult = Column(Boolean, default=False, comment='查询结果')
+    IDCrealName = Column(Text, comment='查询结果里的真实姓名')
+    IDCcardNo = Column(Text, comment='查询结果的真实身份证')
+    IDCaddrCode = Column(Text, comment='查询结果的地区编码')
+    IDCbirth = Column(Text, comment='生日')
+    IDCsex = Column(Integer, comment='性别')
+    IDCcheckBit = Column(String(2), comment='身份证最后一位')
+    IDCaddr = Column(Text, comment='查询结果的地址信息，精确到县')
+    IDCerrorCode = Column(String(8), comment='查询结果code')
+    IDCreason = Column(Text, comment='查询结果')

@@ -24,6 +24,7 @@ class AUser(Resource):
             'get_home': self.user.get_home,
             'get_all_address': self.user.get_useraddress,
             'get_one_address': self.user.get_one_address,
+            'check_idcode': self.user.check_idcode,
         }
         return apis
 

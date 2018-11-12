@@ -17,9 +17,9 @@ from planet.common.token_handler import token_required, is_tourist, usid_to_toke
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
-from planet.models.user import User, UserLoginTime, UserCommission, UserAddress
+from planet.common.id_check import IDCheck
+from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode
 from planet.service.SUser import SUser
-from planet.models import IdentifyingCode
 from planet.config.http_config import HTTP_HOST
 
 class CUser(SUser):
@@ -372,3 +372,43 @@ class CUser(SUser):
             address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
                 area, "AAname", '') + ' '
         return address
+
+    @get_session
+    @token_required
+    def check_idcode(self):
+        data = parameter_required('usrealname', 'usidentification')
+        name = data.get("usrealname")
+        idcode = data.get("usidentification")
+        if not (name and idcode):
+            raise ParamsError('姓名和身份证号码不能为空')
+        idcheck = self.get_idcheck_by_name_code(name, idcode)
+        if not idcheck:
+            idcheck = IDCheck(idcode, name)
+            newidcheck_dict = {
+                "IDCid": str(uuid.uuid1()),
+                "IDCcode": idcheck.idcode,
+                "IDCname": idcheck.name,
+                "IDCresult": idcheck.result
+            }
+            if idcheck.result:
+                newidcheck_dict['IDrealName'] = idcheck.check_response.get('result').get('realName')
+                newidcheck_dict['IDCcardNo'] = idcheck.check_response.get('result').get('realName')
+                newidcheck_dict['IDCaddrCode'] = idcheck.check_response.get('result').get('cardNo')
+                newidcheck_dict['IDCbirth'] = idcheck.check_response.get('result').get('details').get('addrCode')
+                newidcheck_dict['IDCsex'] = idcheck.check_response.get('result').get('details').get('sex')
+                newidcheck_dict['IDCcheckBit'] = idcheck.check_response.get('result').get('checkBit')
+                newidcheck_dict['IDCaddr'] = idcheck.check_response.get('result').get('addr')
+                newidcheck_dict['IDCerrorCode'] = idcheck.check_response.get('error_code')
+                newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
+            else:
+                newidcheck_dict['IDCerrorCode'] = idcheck.check_response.get('error_code')
+                newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
+            newidcheck = IDCheck.create(newidcheck_dict)
+            check_result = idcheck.result
+            check_message =  idcheck.check_response.get('reason')
+            self.session.add(newidcheck)
+        else:
+            check_message = idcheck.IDCerrorCode
+            check_result = idcheck.IDCresult
+
+        return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
