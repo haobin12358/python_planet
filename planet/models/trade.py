@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
+from sqlalchemy import Integer, String, Text, Float, DateTime, Boolean
 
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, Boolean
-
-from planet.common.base_model import Base
+from planet.common.base_model import Base, Column
 
 
 class Carts(Base):
@@ -82,7 +80,7 @@ class OrderPart(Base):
     SKUattriteDetail = Column(Text, nullable=False, comment='sku详情[]')
     SKUprice = Column(Float, nullable=False, comment='单价')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
-    PRmainpic = Column(String(255), nullable=False, comment='主图')
+    PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
