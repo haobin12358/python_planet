@@ -15,6 +15,8 @@ class AProduct(Resource):
         apis = {
             'get': self.cproduct.get_product,
             'list': self.cproduct.get_produt_list,
+            'guess_search': self.cproduct.guess_search,
+            'search_history': self.cproduct.search_history,  # 搜索记录
         }
         return apis
 

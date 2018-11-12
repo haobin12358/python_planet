@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
-from planet.models import Products, ProductCategory, ProductImage, ProductBrand, ProductSkuValue, ProductSku, \
-    ProductItems, Items, ProductBrand, ProductMonthSaleValue, ProductScene
+from planet.models import *
 
 
 class SProducts(SBase):
@@ -88,4 +87,11 @@ class SProducts(SBase):
     @close_session
     def get_monthsale_value_one(self, args, error=None):
         return self.session.query(ProductMonthSaleValue).filter_by_(args).first_(error)
+
+    @close_session
+    def get_search_history(self, *args, order=()):
+        return self.session.query(UserSearchHistory).\
+            filter_(*args).order_by(*order).group_by(
+            UserSearchHistory.USHname
+        ).all_with_page()
 
