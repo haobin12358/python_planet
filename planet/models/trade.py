@@ -122,7 +122,7 @@ class OrderLogistics(Base):
     __tablename__ = 'OrderLogistics'
     OLid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OPid = Column(String(125), comment='订单物流')
+    # OPid = Column(String(125), comment='副单物流')
     OLcompany = Column(String(32), nullable=False, comment='物流公司')
     OLexpressNo = Column(String(64), nullable=False, comment='物流单号')
     OLsearchStatus = Column(String(8), default=0, comment='物流查询状态 polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')

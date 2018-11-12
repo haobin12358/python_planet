@@ -13,7 +13,8 @@ class SUser():
         return self.session.query(User).filter(User.USid == usid).first_('用户不存在')
 
     def get_useraddress_by_usid(self, usid):
-        return self.session.query(UserAddress).filter(UserAddress.USid == usid).all_with_page()
+        return self.session.query(UserAddress).filter(UserAddress.USid == usid, UserAddress.isdelete == False
+                                                      ).all_with_page()
 
     def get_useraddress_by_filter(self, uafilter):
         """根据条件获取地址"""

@@ -49,6 +49,7 @@ class ProductOffshelvesForm(BaseForm):
 
 
 class SceneCreateForm(BaseForm):
+    """场景创建"""
     pspic = StringField('图片', validators=[DataRequired(), Length(0, 255)])
     psname = StringField('名字', validators=[DataRequired(), Length(0, 16)])
     pssort = IntegerField('排序')
