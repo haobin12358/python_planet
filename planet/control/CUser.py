@@ -30,8 +30,15 @@ class CUser(SUser):
         ustelphone = data.get('ustelphone')
         identifyingcode = str(data.get('identifyingcode'))
         idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
+
         if not idcode or str(idcode.ICcode) != identifyingcode:
+            gennerc_log('get identifyingcode ={0} get idcode = {1}'.format(identifyingcode, idcode.ICcode))
             raise ParamsError('验证码有误')
+        timenow = datetime.datetime.now()
+        if (timenow - idcode.createtime).seconds > 600:
+            gennerc_log('get timenow ={0}, sendtime = {1}'.format(timenow, idcode.createtime))
+            raise ParamsError('验证码已经过期')
+
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
             usid = str(uuid.uuid1())
@@ -39,7 +46,7 @@ class CUser(SUser):
             default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
-                "USname": '客官'+str(ustelphone)[:-4],
+                "USname": '客官'+str(ustelphone)[-4:],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
@@ -71,7 +78,7 @@ class CUser(SUser):
             default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
-                "USname": '客官' + str(ustelphone)[:-4],
+                "USname": '客官' + str(ustelphone)[-4:],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
@@ -99,7 +106,8 @@ class CUser(SUser):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-
+        if not Utel:
+            raise ParamsError('手机号不能为空')
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
@@ -157,6 +165,7 @@ class CUser(SUser):
     @token_required
     def get_profile(self):
         """ 个人资料"""
+        # todo 微信二维码目前没有前台地址
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
@@ -376,7 +385,8 @@ class CUser(SUser):
     @get_session
     @token_required
     def check_idcode(self):
-        data = parameter_required('usrealname', 'usidentification')
+        # todo 待测试
+        data = parameter_required(('usrealname', 'usidentification'))
         name = data.get("usrealname")
         idcode = data.get("usidentification")
         if not (name and idcode):

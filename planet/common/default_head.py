@@ -6,7 +6,7 @@ import cv2
 import os
 from flask import current_app
 from datetime import datetime
-
+from planet.common.request_handler import gennerc_log
 
 class GithubAvatarGenerator:
     '''
@@ -101,10 +101,14 @@ class GithubAvatarGenerator:
         month = str(time_now.month)
         day = str(time_now.day)
         img = self._get_avatar_data()
-        newPath = os.path.join(current_app.config['BASEDIR'], 'img', 'defaulhead', year, month, day)
-        filepath = newPath + filepath + '.png'
-        cv2.imwrite(filepath, img)
-        data = '/img/defaulhead/{}/{}/{}/{}'.format(year, month, day, filepath + '.png')
+        newPath = os.path.join(current_app.config['BASEDIR'], 'img', 'defaulthead', year, month, day)
+        if not os.path.isdir(newPath):
+            os.makedirs(newPath)
+        # newPath = newPath + filepath + '.png'
+        newPath = os.path.join(newPath, filepath + '.png')
+        gennerc_log(newPath)
+        cv2.imwrite(newPath, img)
+        data = '/img/defaulthead/{}/{}/{}/{}'.format(year, month, day, filepath + '.png')
         return data
 
 
