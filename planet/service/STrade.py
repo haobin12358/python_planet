@@ -10,7 +10,7 @@ class STrade(SBase):
         brands = self.session.query(Carts).filter_by_(**args)
         pbids = brands.group_by(Carts.PBid).all_with_page()
         return brands.filter(Carts.PBid.in_([x.PBid for x in pbids])).\
-            order_by(Carts.createtime).all()
+            order_by(Carts.createtime.desc()).all()
 
     @close_session
     def get_card_one(self, args, error=None):
@@ -20,7 +20,7 @@ class STrade(SBase):
     def get_ordermain_list(self, args):
         return self.session.query(OrderMain).filter_(
             *args
-        ).order_by(OrderMain.createtime).all_with_page()
+        ).order_by(OrderMain.createtime.desc()).all_with_page()
 
     @close_session
     def get_ordermain_one(self, args, error=None):
