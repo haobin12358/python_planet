@@ -26,6 +26,7 @@ class CProducts:
         if not product:
             return NotFound()
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
+        product.PRdesc = json.loads(product.PRdesc)
         product.PRattribute = json.loads(product.PRattribute)
         product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
         # 顶部图
@@ -69,7 +70,6 @@ class CProducts:
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
         prstatus = getattr(ProductStatus, prstatus).value
-
         product_order = order_enum.get(order)
         if desc_asc == 'desc':
             order_by = product_order.desc()
@@ -92,6 +92,7 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+            product.PRdesc = json.loads(product.PRdesc)
         # 搜索记录表
         if kw and not is_tourist():
             with self.sproduct.auto_commit() as s:
@@ -139,7 +140,7 @@ class CProducts:
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
-                'PRdesc': data.get('prdesc'),
+                'PRdesc': json.dumps(data.get('prdesc')),
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
                 'PRfrom': self.product_from,
@@ -229,7 +230,7 @@ class CProducts:
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
-                'PRdesc': data.get('prdesc'),
+                'PRdesc': json.dumps(data.get('prdesc')),
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
             }
