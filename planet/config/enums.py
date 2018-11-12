@@ -75,6 +75,27 @@ class ItemType(Enum):
     brand = 40
 
 
+class LogisticsSearchStatus(Enum):
+    """物流状态"""
+    # :polling: 监控中，shutdown: 结束，abort: 中止，updateall：重新推送
+    polling = '监控中'
+    shutdown = '结束'
+    abort = '终止'
+    updateall = '重新推送'
+
+
+class LogisticsSignStatus(Enum):
+    """物流签收状态"""
+    # -3 等待揽收 0在途中、1已揽收、2疑难、3已签收、
+    wait_collect = -3
+    ready_collect = 1
+    on_the_way = 0
+    question = 2
+    already_signed = 3
+
+
+
+
 # user
 class UserSearchHistoryType(Enum):
     """搜索记录类型 0 商品, 10 圈子"""
