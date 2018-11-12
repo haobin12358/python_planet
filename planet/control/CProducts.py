@@ -81,8 +81,13 @@ class CProducts:
             raise e
         kw = data.get('kw', '').split() or ['']  # 关键词
         pbid = data.get('pbid')  # 品牌
+        # 分类参数
         pcid = data.get('pcid')  # 分类id
-        pcids = self._sub_category_id(pcid) if pcid else []  # 遍历以下的所有分类
+        pcid = pcid.split('|') if pcid else []
+        pcids = []
+        for pci in pcid:
+            pcids.extend(self._sub_category_id(pci) if pcid else [])  # 遍历以下的所有分类
+        pcids = list(set(pcids))
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
         prstatus = getattr(ProductStatus, prstatus).value
