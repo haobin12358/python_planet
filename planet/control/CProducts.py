@@ -37,9 +37,21 @@ class CProducts:
         product.fill('brand', brand)
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
+        sku_value_item = []
         for sku in skus:
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            sku_value_item.append(sku.SKUattriteDetail)
         product.fill('skus', skus)
+        # sku value
+        sku_value_item_reverse = []
+        for index, _ in enumerate(product.PRattribute):
+            temp = list(set([attribute[index] for attribute in sku_value_item]))
+            temp = sorted(temp)
+            sku_value_item_reverse.append(temp)
+        product.fill('SkuValue', sku_value_item_reverse)
+        # product_sku_value = self.sproduct.get_sku_value({'PRid': prid})
+        # product_sku_value.PSKUvalue = json.loads(getattr(product_sku_value, 'PSKUvalue', '[]'))
+        # product.fill('ProductSkuValue', product_sku_value)
         # 场景
         items = self.sproduct.get_item_list([
             ProductItems.PRid == prid

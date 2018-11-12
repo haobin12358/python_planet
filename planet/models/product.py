@@ -54,12 +54,12 @@ class ProductSku(Base):
 
 class ProductSkuValue(Base):
     """
-    商品sku属性值 此表暂时不使用
+    商品sku属性值
     """
     __tablename__ = 'ProductSkuValue'
     PSKUid = Column(String(64), primary_key=True)
-    PCid = Column(String(64), nullable=False, comment='产品id')  # todo 修改不一定绑定商品id, 可能绑定的是类目的id
-    PSKUvalue = Column(Text, comment='商品属性值')
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    PSKUvalue = Column(Text, comment='商品属性值[[xl, xxl, xxxl, xxxxl], [红, 绿, 蓝]]')
 
 
 class ProductImage(Base):
