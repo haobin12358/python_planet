@@ -104,6 +104,7 @@ class UserSearchHistoryType(Enum):
 
 
 if __name__ == '__main__':
-    pass
+    import ipdb
+    ipdb.set_trace()
 
 

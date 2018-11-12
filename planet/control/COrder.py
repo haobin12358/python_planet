@@ -15,6 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.CPay import CPay
+from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics
@@ -25,9 +26,10 @@ class COrder(CPay):
     @token_required
     def list(self):
         usid = request.user.id
-        data = parameter_required()
-        status = data.get('omstatus')
-        order_mains = self.strade.get_ordermain_list({'USid': usid, 'OMstatus': status})
+        form = OrderListForm().valid_data()
+        filter_args = form.omstatus.data
+        filter_args.append(OrderMain.USid == usid)
+        order_mains = self.strade.get_ordermain_list(filter_args)
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
@@ -230,7 +232,7 @@ class COrder(CPay):
                 raise StatusError('订单状态不正确')
             if order_main_instance.OMinRefund is True:
                 raise StatusError('商品在售后状态')
-            logistics_compnay_instance = s.query(LogisticsCompnay).filter_by_({
+            s.query(LogisticsCompnay).filter_by_({
                 'LCcode': olcompany
             }).first_('快递公司不存在')
             # 添加物流记录
@@ -242,10 +244,7 @@ class COrder(CPay):
             })
             # 发送
 
-
-
-
-
+    # todo 卖家订单
 
     @staticmethod
     def _generic_omno():

@@ -2,6 +2,8 @@
 from wtforms.validators import *
 from wtforms import *
 
+from planet.config.enums import OrderMainStatus
+from planet.models.trade import OrderMain
 from .base_form import BaseForm
 
 
@@ -13,3 +15,28 @@ class OrderSendForm(BaseForm):
 
     def validate_olcompany(self, raw):
         pass
+
+
+class OrderListForm(BaseForm):
+    omstatus = Field()
+
+    def validate_omstatus(self, raw):
+        try:
+            if raw.data is None:
+                self.omstatus.data = []
+            else:
+                raw.data = int(raw.data)
+                OrderMainStatus(raw.data)
+                self.omstatus.data = [
+                    OrderMain.OMstatus == raw.data,
+                    OrderMain.OMinRefund == False
+                ]
+        except ValueError as e:
+            if raw.data == 'inrefund':
+                self.omstatus.data = [
+                    OrderMain.OMinRefund == True,
+                ]
+            else:
+                raise ValidationError('status 参数错误')
+        except Exception as e:
+            raise e
