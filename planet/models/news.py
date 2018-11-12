@@ -18,6 +18,7 @@ class NewsImage(Base):
     """资讯图片"""
     __tablename__ = 'NewsImage'
     NIid = Column(String(64), primary_key=True)
+    NEid = Column(String(64), nullable=False, comment='资讯id')
     NIimage = Column(String(255), nullable=False, comment='图片url')
     NIsort = Column(Integer, comment='图片顺序')
 
@@ -26,6 +27,7 @@ class NewsVideo(Base):
     """资讯视频"""
     __tablename__ = 'NewsVideo'
     NVid = Column(String(64), primary_key=True)
+    NEid = Column(String(64), nullable=False, comment='资讯id')
     NVvideo = Column(String(255), nullable=False, comment='视频url')
 
 
