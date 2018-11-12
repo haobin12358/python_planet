@@ -130,3 +130,10 @@ class OrderLogistics(Base):
     OLdata = Column(Text, comment='查询结果')
     OLlastresult = Column(String(255), comment='物流最后状态')
 
+
+class LogisticsCompnay(Base):
+    """快递公司"""
+    __tablename__ = 'LogisticsCompnay'
+    _id = Column(String(64), primary_key=True)
+    LCname = Column(String(32), nullable=False, index=True, comment='公司名称')
+    LCcode = Column(String(32), nullable=False, index=True, comment='快递公司编码')
