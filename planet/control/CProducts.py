@@ -26,7 +26,7 @@ class CProducts:
         if not product:
             return NotFound()
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
-        product.PRdesc = json.loads(product.PRdesc)
+        product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         product.PRattribute = json.loads(product.PRattribute)
         product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
         # 顶部图
@@ -92,7 +92,7 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
-            product.PRdesc = json.loads(product.PRdesc)
+            product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw and not is_tourist():
             with self.sproduct.auto_commit() as s:
@@ -130,6 +130,9 @@ class CProducts:
                         raise TypeError
                 except Exception as e:
                     pass
+            prdesc = data.get('prdesc')
+            if prdesc:
+                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
@@ -140,7 +143,7 @@ class CProducts:
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
-                'PRdesc': json.dumps(data.get('prdesc')),
+                'PRdesc': prdesc,
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
                 'PRfrom': self.product_from,
@@ -221,6 +224,9 @@ class CProducts:
                 product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
             if pcid:
                 product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
+            prdesc = data.get('prdesc')
+            if prdesc:
+                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
@@ -230,7 +236,7 @@ class CProducts:
                 'PRmainpic': data.get('prmainpic'),
                 'PCid': pcid,
                 'PBid': pbid,
-                'PRdesc': json.dumps(data.get('prdesc')),
+                'PRdesc': prdesc,
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
             }
