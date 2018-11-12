@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean
 
 from planet.common.base_model import Base
 
@@ -33,6 +33,7 @@ class IndexBanner(Base):
     PRid = Column(String(64), nullable=False, comment='跳转商品')
     IBpic = Column(String(255), nullable=False, comment='图片')
     IBsort = Column(Integer, comment='顺序')
+    IBshow = Column(Boolean, default=True, comment='是否展示')
 
 
 

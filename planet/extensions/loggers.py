@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-import sys
 from logging.handlers import TimedRotatingFileHandler
+
+from flask import request
+
+from ..common.error_response import ApiError, BaseError, SystemError
+from ..common.request_handler import gennerc_log
+from ..common.success_response import Success
 
 
 class LoggerHandler():
@@ -27,6 +32,23 @@ class LoggerHandler():
         # stream_handler = logging.StreamHandler(sys.stdout)
         # stream_handler.setFormatter(formatter)
         # app.logger.addHandler(stream_handler)
+
+    def error_handler(self):
+        @self.app.errorhandler(404)
+        def error404(e):
+            return ApiError(u'接口未注册' + request.path)
+
+        @self.app.errorhandler(Exception)
+        def framework_error(e):
+            if isinstance(e, Success):
+                return e
+            gennerc_log(e)
+            if isinstance(e, BaseError):
+                return e
+            else:
+                if self.app.config['DEBUG']:
+                    return SystemError(e.args)
+                return SystemError()
 
     def set_format(self, format):
         self.format = format
