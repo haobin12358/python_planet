@@ -7,6 +7,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v1.AIndex import AIndex
 from planet.api.v1.AItems import AItems
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
@@ -16,6 +17,7 @@ from planet.api.v1.AUser import AUser
 from planet.api.v1.AAddress import AAddress
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
+from planet.extensions.register_ext import register_ext
 from planet.extensions.loggers import LoggerHandler
 
 
@@ -96,6 +98,7 @@ def register_v1(app):
     v1.add_url_rule('/address/<string:address>', view_func=AAddress.as_view('address'))
     v1.add_url_rule('/items/<string:items>', view_func=AItems.as_view('items'))
     v1.add_url_rule('/scene/<string:scene>', view_func=AScene.as_view('scene'))
+    v1.add_url_rule('/index/<string:index>', view_func=AIndex.as_view('index'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
@@ -107,9 +110,8 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(DefaltSettig)
     register_v1(app)
-    LoggerHandler(app, file='/tmp/planet/')
-    error_handler(app)
     CORS(app, supports_credentials=True)
     request_first_handler(app)
+    register_ext(app)
     return app
 

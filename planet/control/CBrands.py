@@ -4,7 +4,7 @@ import uuid
 from planet.common.params_validates import parameter_required
 from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType
 from planet.service.SProduct import SProducts
-from planet.models import ProductBrand, IndexProductBrand, Products, Items, BrandWithItems
+from planet.models import ProductBrand, IndexBrand, Products, Items, BrandWithItems
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.extensions.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm
@@ -58,20 +58,20 @@ class CBrands(object):
             brands = s.query(ProductBrand).filter_by_().outerjoin(BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid)
             if index:  # 在首页的
                 brands = brands.join(
-                    IndexProductBrand, IndexProductBrand.PBid == ProductBrand.PBid
+                    IndexBrand, IndexBrand.PBid == ProductBrand.PBid
                 ).filter_(
-                    IndexProductBrand.isdelete == False,
+                    IndexBrand.isdelete == False,
                     BrandWithItems.ITid == itid,
                     ProductBrand.PBstatus == pbstatus).order_by(*[time_order]).all_with_page()
             elif index is False:  # 不在首页的
-                index_brands = s.query(IndexProductBrand).filter_by_().all()
+                index_brands = s.query(IndexBrand).filter_by_().all()
                 brands = brands.filter_(ProductBrand.PBid.notin_([x.PBid for x in index_brands]),
                                                        ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).\
                     order_by(*[time_order]).all_with_page()
             elif index is None:  # 不筛选首页
                 brands = brands.filter_(ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).order_by(*[time_order]).all_with_page()
             for brand in brands:
-                is_index = s.query(IndexProductBrand).filter_by_({'PBid': brand.PBid}).first_()
+                is_index = s.query(IndexBrand).filter_by_({'PBid': brand.PBid}).first_()
                 brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
                 brand.fill('index', bool(is_index))
                 # 标签

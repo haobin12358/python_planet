@@ -214,6 +214,12 @@ class COrder(CPay):
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
 
+    @token_required
+    def send(self):
+        """发货"""
+
+
+
     @staticmethod
     def _generic_omno():
         """生成订单号"""
