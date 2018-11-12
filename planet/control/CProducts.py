@@ -9,7 +9,7 @@ from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
-from planet.config.enums import ProductStatus, ProductFrom
+from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
@@ -44,9 +44,13 @@ class CProducts:
         product.fill('skus', skus)
         # sku value
         sku_value_item_reverse = []
-        for index, _ in enumerate(product.PRattribute):
-            temp = list(set([attribute[index] for attribute in sku_value_item]))
-            temp = sorted(temp)
+        for index, name in enumerate(product.PRattribute):
+            value = list(set([attribute[index] for attribute in sku_value_item]))
+            value = sorted(value)
+            temp = {
+                'name': name,
+                'value': value
+            }
             sku_value_item_reverse.append(temp)
         product.fill('SkuValue', sku_value_item_reverse)
         # product_sku_value = self.sproduct.get_sku_value({'PRid': prid})
@@ -346,6 +350,32 @@ class CProducts:
                 msg = '下架成功'
             s.add(product_instance)
         return Success(msg)
+
+    def search_history(self):
+        """"搜索历史"""
+        if not is_tourist():
+            usid = request.user.id
+            search_history = self.sproduct.get_search_history(
+                UserSearchHistory.USid == usid,
+                UserSearchHistory.USHtype == UserSearchHistoryType.product.value,
+                order=[UserSearchHistory.createtime.desc()]
+            )
+        else:
+            search_history = []
+        return Success(data=search_history)
+
+    def guess_search(self):
+        """推荐搜索"""
+        data = parameter_required(('kw', ))
+        kw = data.get('kw').strip()
+        if not kw:
+            raise ParamsError()
+        search_words = self.sproduct.get_search_history(
+            UserSearchHistory.USHtype == UserSearchHistoryType.product.value,
+            UserSearchHistory.USHname.like(kw + '%'),
+            order=[UserSearchHistory.createtime.desc()]
+        )
+        return Success(data=search_words)
 
     def _can_add_product(self):
         if is_admin():

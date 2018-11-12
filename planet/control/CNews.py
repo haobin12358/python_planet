@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from flask import request
-from planet.common.base_service import get_session
 from planet.common.error_response import TokenError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
@@ -13,19 +12,19 @@ class CNews(object):
     def __init__(self):
         self.snews = SNews()
 
-    @get_session
     @token_required
     def get_all_news(self):
-        user = self.get_user_by_id(request.user.id)
+        usid = request.user.id
+        user = self.snews.get_user_by_id(usid)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise TokenError('token error')
         parameter_required(('page_num', 'page_size'))
-        news_list = self.snews.get_all_news()
+        news_list = self.snews.get_news_list()
         for news in news_list:
             news.fields = ['NEtitle', 'NEpageviews']
             self.snews.update_pageviews(news.NEid)
-            is_favorite = self.snews.news_is_favorite(news.NEid, request.user.id)
+            is_favorite = self.snews.news_is_favorite(news.NEid, usid)
             favorite = 1 if is_favorite else 0
             news.fill('is_favorite', favorite)
             commentnumber = self.snews.get_news_comment_count(news.NEid)
@@ -40,8 +39,9 @@ class CNews(object):
             else:
                 video = self.snews.get_news_video(news.NEid)
                 if video:
+                    video_source = video.NVvideo
                     showtype = 'video'
-                    news.fill('video', video)
+                    news.fill('video', video_source)
                 else:
                     netext = news.NEtext[:120]
                     news.fill('netext', netext)

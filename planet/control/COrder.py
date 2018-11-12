@@ -217,6 +217,8 @@ class COrder(CPay):
     @token_required
     def send(self):
         """发货"""
+        omid = parameter_required(('omid', ))
+
 
 
 

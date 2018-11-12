@@ -14,6 +14,7 @@ from planet.api.v1.AFile import AFile
 from planet.api.v1.AProduct import AProduct, ACategory, ASku, ABrands, AScene
 from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
+from planet.api.v1.ANews import ANews
 from planet.api.v1.AAddress import AAddress
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
@@ -99,6 +100,7 @@ def register_v1(app):
     v1.add_url_rule('/items/<string:items>', view_func=AItems.as_view('items'))
     v1.add_url_rule('/scene/<string:scene>', view_func=AScene.as_view('scene'))
     v1.add_url_rule('/index/<string:index>', view_func=AIndex.as_view('index'))
+    v1.add_url_rule('/news/<string:news>', view_func=ANews.as_view('news'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
