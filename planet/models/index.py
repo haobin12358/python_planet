@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Integer, String, Boolean
 
-from planet.common.base_model import Base
+from planet.common.base_model import Base, Column
 
 
 class IndexBrand(Base):

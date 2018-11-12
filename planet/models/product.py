@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
+from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime
 
-from sqlalchemy import Column, create_engine, Integer, String, Text, Float, Boolean, orm, DateTime
-
-from planet.common.base_model import Base
+from planet.common.base_model import Base, Column
 
 
 # 疑问, 资讯的分类和商品的一级类目有关系吗
@@ -21,11 +19,11 @@ class Products(Base):
     PRstocks = Column(Integer, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
     PRstatus = Column(Integer, default=0, comment='状态  0 正常, 10 审核中 60下架')
-    PRmainpic = Column(String(255), comment='主图')
+    PRmainpic = Column(String(255), comment='主图', url=True)
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     PCid = Column(String(64), comment='分类id')
     PBid = Column(String(64), comment='品牌id')
-    PRdesc = Column(Text, comment='商品详细介绍')
+    PRdesc = Column(Text, comment='商品详细介绍', url_list=True)
     PRremarks = Column(String(255), comment='备注')
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
@@ -46,7 +44,7 @@ class ProductSku(Base):
     __tablename__ = 'ProductSku'
     SKUid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='产品id')
-    SKUpic = Column(String(255), nullable=False, comment='图片')
+    SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
     SKUprice = Column(Float, nullable=False, comment='价格')
     SKUstock = Column(Integer, comment='库存')
@@ -69,7 +67,7 @@ class ProductImage(Base):
     __tablename__ = 'ProductImage'
     PIid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='商品id')
-    PIpic = Column(String(255), nullable=False, comment='商品图片')
+    PIpic = Column(String(255), nullable=False, comment='商品图片', url=True)
     PIsort = Column(Integer, comment='顺序')
 
 
@@ -109,7 +107,7 @@ class ProductScene(Base):
     """
     __tablename__ = 'ProductScene'
     PSid = Column(String(64), primary_key=True)
-    PSpic = Column(String(255), nullable=False, comment='图片')
+    PSpic = Column(String(255), nullable=False, comment='图片', url=True)
     PSname = Column(String(16), nullable=False, comment='名字')
     PSsort = Column(Integer, comment='顺序标志')
 
@@ -148,5 +146,5 @@ class ProductCategory(Base):
     PCdesc = Column(String(125), comment='类别描述')
     ParentPCid = Column(String(64), comment='父类别id, 为空则为一级主类别')
     PCsort = Column(String(64), comment='显示顺序')
-    PCpic = Column(String(255), comment='图片')
+    PCpic = Column(String(255), comment='图片', url=True)
 
