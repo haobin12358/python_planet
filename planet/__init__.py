@@ -11,6 +11,7 @@ from planet.api.v1.AIndex import AIndex
 from planet.api.v1.AItems import AItems
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
+from planet.api.v1.ALogistic import ALogistic
 from planet.api.v1.AProduct import AProduct, ACategory, ASku, ABrands, AScene
 from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
@@ -74,10 +75,17 @@ class Request(_Request):
             'url': self.url,
             'method': self.method,
             'args': self.args.to_dict(),
-            'data': self.data,
-            'file': self.files,
-            'form': self.form
+            'data': dict(self.data.decode()),
+            'file': dict(self.files),
+            'form': dict(self.form),
+            'address': self.remote_addr
         }
+
+    @property
+    def remote_addr(self):
+        if 'X-Real-Ip' in self.headers:
+            return self.headers['X-Real-Ip']
+        return super(Request, self).remote_addr
 
 
 class Flask(_Flask):
@@ -101,6 +109,7 @@ def register_v1(app):
     v1.add_url_rule('/scene/<string:scene>', view_func=AScene.as_view('scene'))
     v1.add_url_rule('/index/<string:index>', view_func=AIndex.as_view('index'))
     v1.add_url_rule('/news/<string:news>', view_func=ANews.as_view('news'))
+    v1.add_url_rule('/logistic/<string:logistic>', view_func=ALogistic.as_view('logistic'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

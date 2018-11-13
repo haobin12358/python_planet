@@ -223,32 +223,6 @@ class COrder(CPay):
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
 
-    @token_required
-    def send(self):
-        """发货"""
-        data = parameter_required(('omid', 'olcompany', 'olexpressno'))
-        omid = data.get('omid')
-        olcompany = data.get('olcompany')
-        olexpressno = data.get('olexpressno')
-        with self.strade.auto_commit() as s:
-            order_main_instance = s.query(OrderMain).filter_by_({
-                'OMid': omid,
-            }).first_('订单不存在')
-            if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
-                raise StatusError('订单状态不正确')
-            if order_main_instance.OMinRefund is True:
-                raise StatusError('商品在售后状态')
-            s.query(LogisticsCompnay).filter_by_({
-                'LCcode': olcompany
-            }).first_('快递公司不存在')
-            # 添加物流记录
-            OrderLogistics.create({
-                'OLid': str(uuid.uuid4()),
-                'OMid': omid,
-                'OLcompany': olcompany,
-                'OLexpressNo': olexpressno,
-            })
-            # 发送
 
     # todo 卖家订单
 

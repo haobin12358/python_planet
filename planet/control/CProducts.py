@@ -370,6 +370,8 @@ class CProducts:
             search_history = []
         return Success(data=search_history)
 
+    # todo 删除清空历史
+
     def guess_search(self):
         """推荐搜索"""
         data = parameter_required(('kw', ))

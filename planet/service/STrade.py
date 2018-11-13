@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
-from planet.models.trade import Carts, OrderMain, OrderPart
+from planet.models.trade import Carts, OrderMain, OrderPart, LogisticsCompnay
 
 
 class STrade(SBase):
@@ -33,4 +33,8 @@ class STrade(SBase):
         return self.session.query(OrderPart).filter_by_(
             **args
         ).all()
+
+    @close_session
+    def get_logistics_list(self, args):
+        return self.session.query(LogisticsCompnay).filter_by_().filter_(*args).all_with_page()
 
