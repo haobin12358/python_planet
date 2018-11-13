@@ -74,10 +74,17 @@ class Request(_Request):
             'url': self.url,
             'method': self.method,
             'args': self.args.to_dict(),
-            'data': self.data,
-            'file': self.files,
-            'form': self.form
+            'data': self.data.decode(),
+            'file': self.files.to_dict(),
+            'form': self.form.to_dict(),
+            'ip': self.remote_addr
         }
+
+    @property
+    def remote_addr(self):
+        if 'X-Real-Ip' in self.headers:
+            return self.headers['X-Real-Ip']
+        return super(Request, self).remote_addr()
 
 
 class Flask(_Flask):
