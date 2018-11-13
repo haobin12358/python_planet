@@ -1,13 +1,34 @@
 # -*- coding: utf-8 -*-
+import codecs
 import logging
 import os
-from logging.handlers import TimedRotatingFileHandler
+import time
+from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 
 from flask import request
 
 from ..common.error_response import ApiError, BaseError, SystemError
 from ..common.request_handler import gennerc_log
 from ..common.success_response import Success
+
+
+class MyTimedRotatingFileHandler(TimedRotatingFileHandler):
+
+    def __init__(self, dir_log, when):
+        self.dir_log = dir_log
+        filename = self.dir_log + time.strftime("%Y%d%m")+".txt"
+        logging.handlers.TimedRotatingFileHandler.__init__(self, filename, when=when, interval=1, backupCount=0,  encoding=None)
+
+    def doRollover(self):
+        self.stream.close()
+        t = self.rolloverAt - self.interval
+        timeTuple = time.localtime(t)
+        self.baseFilename = self.dir_log+time.strftime("%Y%d%m")+".txt"
+        if self.encoding:
+            self.stream = codecs.open(self.baseFilename, 'w', self.encoding)
+        else:
+            self.stream = open(self.baseFilename, 'w')
+            self.rolloverAt = self.rolloverAt + self.interval
 
 
 class LoggerHandler():
@@ -23,7 +44,8 @@ class LoggerHandler():
         if not os.path.isdir(logger_dir):
             os.makedirs(logger_dir)
         formatter = logging.Formatter(self.format)
-        log_file_handler = TimedRotatingFileHandler(filename=os.path.join(logger_dir, 'log'), when="d")
+        log_file_handler = MyTimedRotatingFileHandler(dir_log=os.path.join(logger_dir, 'log'), when='MIDNIGHT')
+        # log_file_handler = RotatingFileHandler(filename=os.path.join(logger_dir, 'log'), maxBytes=12)
         log_file_handler.setFormatter(formatter)
         log_file_handler.setLevel(logging.DEBUG)
         app.logger.addHandler(log_file_handler)
@@ -52,5 +74,8 @@ class LoggerHandler():
 
     def set_format(self, format):
         self.format = format
+
+
+
 
 
