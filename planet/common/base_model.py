@@ -51,9 +51,6 @@ class Base(AbstractConcreteBase, _Base):
         return self
 
     def __getitem__(self, item):
-        return self.__getattr__(item)
-
-    def __getattr__(self, item):
         cls_attr = getattr(self.__class__, item, None)
         is_url = getattr(cls_attr, 'url', None)
         is_url_list = getattr(cls_attr, 'url_list', None)
