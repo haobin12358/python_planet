@@ -44,6 +44,14 @@ kd_api_subscribe_callbackurl = env.get('KDSubScribeUrl', API_HOST + '/api/v1/log
 kd_api_key = env.get('KDApiKey', 'guss')
 kd_subscribe_api = 'https://poll.kuaidi100.com/poll'
 
+DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
+    sqlenginename,
+    username,
+    password,
+    host,
+    database,
+    charset)
+
 
 class DefaltSettig(object):
     SECRET_KEY = env.get('SECRET', 'guess')

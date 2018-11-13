@@ -16,7 +16,7 @@ from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
-from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress
+from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics
 
@@ -66,6 +66,7 @@ class COrder(CPay):
             raise ParamsError('客户端或商品来源错误')
         infos = data.get('info')
         with self.strade.auto_commit() as s:
+            user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
             body = set()  # 付款时候需要使用的字段
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
@@ -172,6 +173,9 @@ class COrder(CPay):
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             model_bean.append(order_pay_instance)
+            # 一级代理
+            if user.USsupper1:
+                pass
             s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))
