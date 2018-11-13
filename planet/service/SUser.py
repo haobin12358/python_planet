@@ -1,8 +1,9 @@
+from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
     AddressCity, AddressArea, UserMedia, IDCheck
 
 
-class SUser():
+class SUser(SBase):
     def get_identifyingcode_by_ustelphone(self, utel):
         return self.session.query(IdentifyingCode).filter(IdentifyingCode.ICtelphone == utel).order_by(
             IdentifyingCode.createtime.desc()).first_()
