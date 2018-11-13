@@ -510,6 +510,7 @@ class CUser(SUser):
             if data.get(k.lower()):
                 setattr(user, k, data.get(k.lower()))
         if data.get('usbirthday'):
+            gennerc_log('get usbirthday = {0}'.format(data.get("usbirthday")))
             user.USbirthday = datetime.datetime.strptime(data.get("usbirthday"), '%Y-%m-%d')
         return Success("更新成功")
 
