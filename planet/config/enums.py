@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 
+
 # 商品
 class ProductStatus(Enum):
     """商品状态"""
@@ -94,6 +95,11 @@ class LogisticsSignStatus(Enum):
     already_signed = 3
 
 
+class NewsStatus(Enum):
+    """资讯状态"""
+    usual = 1  # 上架
+    auditing = 2  # 审核中
+    refuse = 0  # 下架
 
 
 # user

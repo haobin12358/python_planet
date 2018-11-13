@@ -26,7 +26,7 @@ class Success(BaseError):
             message=self.message,
         )
         if self.data is not None:
-            body['data'] =self.data
+            body['data'] = self.data
         if hasattr(request, 'page_all'):
             body['total_page'] = request.page_all
         if hasattr(request, 'mount'):

@@ -7,15 +7,16 @@ from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist
-from planet.config.enums import ItemType
-from planet.models import News, NewsImage, NewsVideo, NewsTag, Items
+from planet.config.enums import ItemType, NewsStatus
+from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory
 from planet.service.SNews import SNews
+from sqlalchemy import or_, and_
 
 
 class CNews(object):
     def __init__(self):
         self.snews = SNews()
-        self.empty = ['', {}, [], None]
+        self.empty = ['', {}, [], [''], None]
 
     def get_all_news(self):
         if not is_tourist():
@@ -28,8 +29,16 @@ class CNews(object):
         else:
             usid = None
             tourist = 1
-        parameter_required(('page_num', 'page_size'))
-        news_list = self.snews.get_news_list()
+        args = parameter_required(('page_num', 'page_size'))
+        itid = args.get('itid')
+        kw = args.get('kw', '').split() or ['']  # 关键词
+        nestatus = args.get('nestatus') or 'usual'
+        nestatus = getattr(NewsStatus, nestatus).value
+        news_list = self.snews.get_news_list([
+            or_(and_(*[News.NEtitle.contains(x) for x in kw]), and_(*[News.NEtext.contains(x) for x in kw])),
+            NewsTag.ITid == itid,
+            News.NEstatus == nestatus,
+        ])
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews']
             self.snews.update_pageviews(news.NEid)
@@ -45,13 +54,13 @@ class CNews(object):
             news.fill('favoritnumber', favoritnumber)
             video = self.snews.get_news_video(news.NEid)
             if video:
-                video_source = video.NVvideo
+                video_source = video['NVvideo']
                 showtype = 'video'
                 news.fill('video', video_source)
             else:
                 image_list = self.snews.get_news_images(news.NEid)
                 if image_list:
-                    mainpic = image_list[0].NIimage
+                    mainpic = image_list[0]['NIimage']
                     showtype = 'picture'
                     news.fill('mainpic', mainpic)
                 else:
@@ -59,7 +68,17 @@ class CNews(object):
                     news.fill('netext', netext)
                     showtype = 'text'
             news.fill('showtype', showtype)
-        return Success(data=news_list)
+        # 增加搜索记录
+        if kw not in self.empty and usid:
+            with self.snews.auto_commit() as s:
+                instance = UserSearchHistory.create({
+                    'USHid': str(uuid.uuid4()),
+                    'USid': request.user.id,
+                    'USHname': ' '.join(kw),
+                    'USHtype': 10
+                })
+                s.add(instance)
+        return Success(data=news_list).get_body(istourst=tourist)
 
     def get_news_content(self):
         """资讯详情"""
@@ -70,8 +89,10 @@ class CNews(object):
                 gennerc_log('get user is {0}'.format(user.USname))
                 if not user:
                     raise TokenError('token error')
+                tourist = 0
         else:
             usid = None
+            tourist = 1
         args = parameter_required(('neid',))
         news = self.snews.get_news_content({'NEid': args.get('neid')})
         news.fields = ['NEtitle', 'NEpageviews']
@@ -92,10 +113,14 @@ class CNews(object):
         news.fill('image', image_list)
         video = self.snews.get_news_video(news.NEid)
         if video:
-            news.fill('video', video.NVvideo)
+            news.fill('video', dict(video)['NVvideo'])
+        tags = self.snews.get_item_list((NewsTag.NEid == news.NEid,))
+        if tags:
+            [tag.hide('PSid') for tag in tags]
+        news.fill('items', tags)
         netext = news.NEtext
         news.fill('netext', netext)
-        return Success(data=news)
+        return Success(data=news).get_body(istourist=tourist)
 
     @token_required
     def create_news(self):
@@ -106,7 +131,7 @@ class CNews(object):
             gennerc_log('get user is {0}'.format(user.USname))
             if not user:
                 raise TokenError('token error')
-        data = parameter_required(('netitle', 'netext'))
+        data = parameter_required(('netitle', 'netext', 'items', 'source'))
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2',]
@@ -118,7 +143,7 @@ class CNews(object):
                 'USid': request.user.id,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                'NEstatus': 0
+                'NEstatus': NewsStatus.auditing.value
             })
             session_list.append(news_info)
             if images not in self.empty:
@@ -146,7 +171,7 @@ class CNews(object):
                         'NEid': neid,
                         'ITid': item
                     })
-                session_list.append(news_item_info)
+                    session_list.append(news_item_info)
             s.add_all(session_list)
         return Success('添加成功', {'neid': neid})
 

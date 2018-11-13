@@ -26,6 +26,7 @@ class AProduct(Resource):
             'update': self.cproduct.update_product,
             'delete': self.cproduct.delete,
             'off_shelves': self.cproduct.off_shelves,  # 上下架
+            'del_search_history': self.cproduct.del_search_history,
         }
         return apis
 

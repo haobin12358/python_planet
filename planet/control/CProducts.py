@@ -360,29 +360,51 @@ class CProducts:
     def search_history(self):
         """"搜索历史"""
         if not is_tourist():
+            args = parameter_required(('shtype',))
+            shtype = args.get('shtype')
+            if shtype not in ['product', 'news']:
+                raise ParamsError('shtype, 参数错误')
+            shtype = getattr(UserSearchHistoryType, shtype, 'product').value
             usid = request.user.id
             search_history = self.sproduct.get_search_history(
                 UserSearchHistory.USid == usid,
-                UserSearchHistory.USHtype == UserSearchHistoryType.product.value,
+                UserSearchHistory.USHtype == shtype,
+                UserSearchHistory.isdelete == False,
                 order=[UserSearchHistory.createtime.desc()]
             )
         else:
             search_history = []
         return Success(data=search_history)
 
-    # todo 删除清空历史
+    def del_search_history(self):
+        """清空当前搜索历史"""
+        if not is_tourist():
+            data = parameter_required(('shtype',))
+            shtype = data.get('shtype')
+            if shtype not in ['product', 'news']:
+                raise ParamsError('shtype, 参数错误')
+            shtype = getattr(UserSearchHistoryType, shtype, 'product').value
+            usid = request.user.id
+            with self.sproduct.auto_commit() as s:
+                s.query(UserSearchHistory).filter_by_({'USid': usid, 'USHtype': shtype}).delete_()
+        return Success('删除成功')
 
     def guess_search(self):
         """推荐搜索"""
-        data = parameter_required(('kw', ))
+        data = parameter_required(('kw', 'shtype'))
+        shtype = data.get('shtype')
+        if shtype not in ['product', 'news']:
+            raise ParamsError('shtype, 参数错误')
+        shtype = getattr(UserSearchHistoryType, shtype, 'product').value
         kw = data.get('kw').strip()
         if not kw:
             raise ParamsError()
         search_words = self.sproduct.get_search_history(
-            UserSearchHistory.USHtype == UserSearchHistoryType.product.value,
+            UserSearchHistory.USHtype == shtype,
             UserSearchHistory.USHname.like(kw + '%'),
             order=[UserSearchHistory.createtime.desc()]
         )
+        [sw.hide('USid', 'USHid') for sw in search_words]
         return Success(data=search_words)
 
     def _can_add_product(self):

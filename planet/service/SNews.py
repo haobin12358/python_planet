@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import close_session, SBase
-from planet.models import User
+from planet.models import User, Items
 from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag
 
 
 class SNews(SBase):
 
     @close_session
-    def get_news_list(self):
-        return self.session.query(News).filter_by_(NEstatus=1).all_with_page()
+    def get_news_list(self, args):
+        """获取资讯列表"""
+        return self.session.query(News).filter(News.isdelete == False).outerjoin(
+            NewsTag, NewsTag.NEid == News.NEid).filter_(*args).order_by(
+            News.createtime.desc()).all_with_page()
 
     @close_session
     def get_news_content(self, nfilter):
@@ -18,13 +21,25 @@ class SNews(SBase):
     @close_session
     def get_news_images(self, neid):
         """获取资讯关联图片"""
-        return self.session.query(NewsImage).filter_(NewsImage.NEid == neid, NewsImage.isdelete == False).order_by(
+        return self.session.query(NewsImage).filter_by_(NEid=neid).order_by(
             NewsImage.NIsort.asc(), NewsImage.createtime.asc()).all()
 
     @close_session
     def get_news_video(self, neid):
         """获取资讯视频"""
-        return self.session.query(NewsVideo).filter_(NewsVideo.NEid == neid, NewsVideo.isdelete == False).first()
+        return self.session.query(NewsVideo).filter_by_(NEid=neid).first()
+
+    @close_session
+    def get_news_tags(self, neid):
+        """获取资讯关联标签"""
+        return self.session.query(NewsTag).filter_by_(NEid=neid).all()
+
+    @close_session
+    def get_item_list(self, args, order=()):
+        """获取资讯对应的标签"""
+        return self.session.query(Items).outerjoin(NewsTag, Items.ITid == NewsTag.ITid).filter_(
+            *args
+        ).order_by(*order).all()
 
     @close_session
     def update_pageviews(self, neid, num=1):

@@ -31,7 +31,9 @@ class CFile(object):
                 os.makedirs(newPath)
             newFile = os.path.join(newPath, newName)
             file.save(newFile)  # 保存图片
-            data = '/img/{}/{}/{}/{}/{}'.format(folder,year, month, day, img_name)
+            data = '/img/{}/{}/{}/{}/{}'.format(folder, year, month, day, img_name)
+            # todo 是视频 增加缩略图
+            # if shuffix in []
             return Success(u'上传成功', data)
         else:
             return SystemError(u'上传有误')

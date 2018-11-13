@@ -10,7 +10,7 @@ class News(Base):
     USid = Column(String(64), nullable=False, comment='发布用户id')
     NEtitle = Column(String(32), nullable=False, comment='标题')
     NEtext = Column(Text, comment='文本内容')
-    NEstatus = Column(Integer, default=0, comment='资讯上下架{0: 下架, 1: 上架}')
+    NEstatus = Column(Integer, default=0, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')
 
 
@@ -29,6 +29,7 @@ class NewsVideo(Base):
     NVid = Column(String(64), primary_key=True)
     NEid = Column(String(64), nullable=False, comment='资讯id')
     NVvideo = Column(String(255), nullable=False, url=True, comment='视频url')
+    NVthumbnail = Column(String(255), nullable=False, url=True, comment='视频缩略图')
 
 
 class NewsComment(Base):
