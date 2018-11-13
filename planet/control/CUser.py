@@ -1,12 +1,11 @@
 import json
 import random
 import re
-import time
+
 import datetime
 import uuid
 from decimal import Decimal
 
-from alipay import AliPay
 from flask import request
 
 from planet.common.params_validates import parameter_required
@@ -17,10 +16,10 @@ from planet.common.token_handler import token_required, is_tourist, usid_to_toke
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
-from planet.common.id_check import IDCheck
-from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode
+from planet.common.id_check import DOIDCheck
+from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode, UserMedia
 from planet.service.SUser import SUser
-from planet.config.http_config import HTTP_HOST
+
 
 class CUser(SUser):
     @get_session
@@ -182,6 +181,7 @@ class CUser(SUser):
         if not user:
             raise ParamsError('token error')
         user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', 'USidentification', 'UStelphone']
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
         return Success('获取安全中心信息成功', data=user)
 
     @get_session
@@ -192,9 +192,18 @@ class CUser(SUser):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', 'USidentification']
-        usmedia = self.get_usermedia(user.USid)
-        user.fill('usmedia', usmedia)
+        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender']
+        umfront = self.get_usermedia(user.USid, 1)
+        if umfront:
+            user.fill('umfront', umfront.UMurl)
+        else:
+            user.fill('umfront',None)
+        umback = self.get_usermedia(user.USid, 2)
+        if umback:
+            user.fill('umback', umback.UMurl)
+        else:
+            user.fill('umback', None)
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
         return Success('获取身份证详情成功', data=user)
 
     @get_session
@@ -385,15 +394,15 @@ class CUser(SUser):
     @get_session
     @token_required
     def check_idcode(self):
-        # todo 待测试
-        data = parameter_required(('usrealname', 'usidentification'))
+        """验证用户身份姓名是否正确"""
+        data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
         name = data.get("usrealname")
         idcode = data.get("usidentification")
         if not (name and idcode):
             raise ParamsError('姓名和身份证号码不能为空')
         idcheck = self.get_idcheck_by_name_code(name, idcode)
         if not idcheck:
-            idcheck = IDCheck(idcode, name)
+            idcheck = DOIDCheck(name, idcode)
             newidcheck_dict = {
                 "IDCid": str(uuid.uuid1()),
                 "IDCcode": idcheck.idcode,
@@ -401,13 +410,13 @@ class CUser(SUser):
                 "IDCresult": idcheck.result
             }
             if idcheck.result:
-                newidcheck_dict['IDrealName'] = idcheck.check_response.get('result').get('realName')
-                newidcheck_dict['IDCcardNo'] = idcheck.check_response.get('result').get('realName')
-                newidcheck_dict['IDCaddrCode'] = idcheck.check_response.get('result').get('cardNo')
-                newidcheck_dict['IDCbirth'] = idcheck.check_response.get('result').get('details').get('addrCode')
+                newidcheck_dict['IDCrealName'] = idcheck.check_response.get('result').get('realName')
+                newidcheck_dict['IDCcardNo'] = idcheck.check_response.get('result').get('cardNo')
+                newidcheck_dict['IDCaddrCode'] = idcheck.check_response.get('result').get('details').get('addrCode')
+                newidcheck_dict['IDCbirth'] = idcheck.check_response.get('result').get('details').get('birth')
                 newidcheck_dict['IDCsex'] = idcheck.check_response.get('result').get('details').get('sex')
-                newidcheck_dict['IDCcheckBit'] = idcheck.check_response.get('result').get('checkBit')
-                newidcheck_dict['IDCaddr'] = idcheck.check_response.get('result').get('addr')
+                newidcheck_dict['IDCcheckBit'] = idcheck.check_response.get('result').get('details').get('checkBit')
+                newidcheck_dict['IDCaddr'] = idcheck.check_response.get('result').get('details').get('addr')
                 newidcheck_dict['IDCerrorCode'] = idcheck.check_response.get('error_code')
                 newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
             else:
@@ -415,10 +424,71 @@ class CUser(SUser):
                 newidcheck_dict['IDCreason'] = idcheck.check_response.get('reason')
             newidcheck = IDCheck.create(newidcheck_dict)
             check_result = idcheck.result
-            check_message =  idcheck.check_response.get('reason')
+            check_message = idcheck.check_response.get('reason')
             self.session.add(newidcheck)
         else:
             check_message = idcheck.IDCerrorCode
             check_result = idcheck.IDCresult
 
+        if check_result:
+            # 如果验证成功，更新用户信息
+            update_result = self.update_user_by_filter(us_and_filter=[User.USid == request.user.id], us_or_filter=[],
+                                       usinfo={"USrealname": name, "USidentification": idcode})
+            if not update_result:
+                gennerc_log('update user error usid = {0}, name = {1}, identification = {2}'.format(
+                    request.user.id, name, idcode), info='error')
+                raise SystemError('服务器异常')
+            self.delete_usemedia_by_usid(request.user.id)
+            um_front = UserMedia.create({
+                "UMid": str(uuid.uuid1()),
+                "USid": request.user.id,
+                "UMurl": data.get("umfront"),
+                "UMtype": 1
+            })
+            um_back = UserMedia.create({
+                "UMid": str(uuid.uuid1()),
+                "USid": request.user.id,
+                "UMurl": data.get("umback"),
+                "UMtype": 2
+            })
+            self.session.add(um_front)
+            self.session.add(um_back)
         return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
+
+    @get_session
+    def upgrade_agent(self):
+        """申请成为店主"""
+        data = request.json
+        user = self.get_user_by_id(request.user.id)
+        # 如果需要可以在此更新自己用户名联系方式以及性别。
+        if data.get('ustelphone'):
+            user.UStelphone = data.get("ustelphone")
+        if data.get('usname'):
+            user.USname = data.get("usname")
+        if data.get("usgender"):
+            user.USgender = data.get("usgender")
+        # 资质认证
+        if self.__check_qualifications(user):
+            # 资质认证ok，创建审批流
+            # todo 审批流创建
+            return Success('申请成功')
+        else:
+            raise ParamsError(','.join(self.check_reason))
+
+    @staticmethod
+    def __conver_idcode(idcode):
+        """掩盖部分身份证号码"""
+        return idcode[:6] + "*" * 12
+
+    def __check_qualifications(self, user):
+        check_result = True
+        check_reason = []
+        if not user.UStelphone:
+            check_result = False
+            check_reason.append("手机号未绑定")
+        if not (user.USrealname or user.USidentification):
+            check_result = False
+            check_reason.append("实名认证通过")
+        # todo 创建押金订单
+        self.check_reason = check_reason[:]
+        return check_result

@@ -112,7 +112,7 @@ class UserMedia(Base):
     __tablename__ = 'UserMetia'
     UMid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
-    UMurl = Column(Text, comment='图片路径')
+    UMurl = Column(Text, url=True, comment='图片路径')
     UMtype = Column(Integer, default=1, comment='图片类型 1: 身份证正面, 2: 身份证反面')
 
 
