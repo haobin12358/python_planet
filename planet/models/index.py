@@ -36,4 +36,12 @@ class IndexBanner(Base):
     IBshow = Column(Boolean, default=True, comment='是否展示')
 
 
+class IndexHotProduct(Base):
+    """首页显示的热卖商品"""
+    __tablename__ = 'IndexHotProduct'
+    IHPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    IHPsort = Column(Integer, comment='顺序标志')
+
+
 

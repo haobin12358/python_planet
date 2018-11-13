@@ -116,7 +116,7 @@ class CProducts:
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
             product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
-        if kw and not is_tourist():
+        if kw != [''] and not is_tourist():
             with self.sproduct.auto_commit() as s:
                 instance = UserSearchHistory.create({
                     'USHid': str(uuid.uuid4()),

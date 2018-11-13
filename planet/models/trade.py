@@ -41,12 +41,11 @@ class OrderMain(Base):
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
-    # # 卖家信息 todo
-    # PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
-    # CreaterId = Column(String(64), nullable=False, comment='商品发布者')
-    # # 上级信息
-    # UPperid = Column(String(64), comment='上级id')
-    # UPperid2 = Column(String(64), comment='上上级id')
+    # 卖家信息
+    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    # 上级信息
+    UPperid = Column(String(64), comment='上级id')
+    UPperid2 = Column(String(64), comment='上上级id')
 
 
 class OrderPay(Base):
