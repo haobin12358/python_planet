@@ -11,8 +11,9 @@ class SNews(SBase):
         return self.session.query(News).filter_by_(NEstatus=1).all_with_page()
 
     @close_session
-    def get_news_content(self):
-        pass
+    def get_news_content(self, nfilter):
+        """获取资讯详情"""
+        return self.session.query(News).filter_by_(**nfilter).first_()
 
     @close_session
     def get_news_images(self, neid):

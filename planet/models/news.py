@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, String, Text, Integer
-from planet.common.base_model import Base
+from sqlalchemy import String, Text, Integer
+from planet.common.base_model import Base, Column
 
 
 class News(Base):
@@ -19,7 +19,7 @@ class NewsImage(Base):
     __tablename__ = 'NewsImage'
     NIid = Column(String(64), primary_key=True)
     NEid = Column(String(64), nullable=False, comment='资讯id')
-    NIimage = Column(String(255), nullable=False, comment='图片url')
+    NIimage = Column(String(255), nullable=False, url=True, comment='图片url')
     NIsort = Column(Integer, comment='图片顺序')
 
 
@@ -28,7 +28,7 @@ class NewsVideo(Base):
     __tablename__ = 'NewsVideo'
     NVid = Column(String(64), primary_key=True)
     NEid = Column(String(64), nullable=False, comment='资讯id')
-    NVvideo = Column(String(255), nullable=False, comment='视频url')
+    NVvideo = Column(String(255), nullable=False, url=True, comment='视频url')
 
 
 class NewsComment(Base):

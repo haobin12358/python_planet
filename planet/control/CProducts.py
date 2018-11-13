@@ -9,7 +9,7 @@ from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
-from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType
+from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
@@ -208,7 +208,7 @@ class CProducts:
             if items:
                 for item in items:
                     itid = item.get('itid')
-                    item = s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在')
+                    item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签不存在')
                     item_product_dict = {
                         'PIid': str(uuid.uuid4()),
                         'PRid': prid,
