@@ -456,6 +456,7 @@ class CUser(SUser):
         return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
 
     @get_session
+    @token_required
     def upgrade_agent(self):
         """申请成为店主"""
         data = request.json
