@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base, AbstractConcreteBase
 from sqlalchemy import create_engine
 
 from planet.config.http_config import HTTP_HOST
+from planet.extensions.register_ext import db
 from .error_response import NotFound
 from ..config import secret as cfg
 
@@ -27,7 +28,8 @@ class Column(_Column):
         super(Column, self).__init__(*args, **kwargs)
 
 
-class Base(AbstractConcreteBase, _Base):
+class Base(db.Model):
+    __abstract__ = True
     isdelete = Column(Boolean, default=False, comment='是否删除')
     createtime = Column(DateTime, default=datetime.now, comment='创建时间')
     updatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')

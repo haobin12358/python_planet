@@ -2,6 +2,7 @@
 from flask import request
 
 from planet.common.success_response import Success
+from planet.common.token_handler import token_required
 from planet.extensions.register_ext import cache
 from planet.extensions.validates.index import IndexListBannerForm
 from planet.service.SIndex import SIndex
@@ -10,6 +11,14 @@ from planet.service.SIndex import SIndex
 class CIndex:
     def __init__(self):
         self.sindex = SIndex()
+
+    def brand_recommend(self):
+        data = {
+            'brands': self.list_brand().data,
+            'product': self.list_product().data,
+            'hot': []
+        }
+        return Success(data=data)
 
     # @cache.cached(timeout=50, key_prefix='index')
     def list_brand(self):
@@ -31,12 +40,20 @@ class CIndex:
         index_products = self.sindex.get_index_product()
         res = []
         for index_product, product in index_products:
-            index_product.fill('PRmainpic', product.PRmainpic)
+            index_product.fill('PRmainpic', product['PRmainpic'])
             index_product.fill('PRlinePrice', product.PRlinePrice)
             index_product.fill('PRprice', product.PRprice)
             index_product.fill('PRtitle', product.PRtitle)
             res.append(index_product)
         return Success(data=res)
+
+    def list_hot(self):
+        pass
+
+    @token_required
+    def set_hot(self):
+        pass
+
 
 
 
