@@ -15,11 +15,13 @@ from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipa
 from planet.extensions.weixin import WeixinPay
 from planet.models.trade import OrderMain, OrderPart, OrderPay
 from planet.service.STrade import STrade
+from planet.service.SUser import SUser
 
 
 class CPay():
     def __init__(self):
         self.strade = STrade()
+        self.suser = SUser()
 
     @token_required
     def pay(self):

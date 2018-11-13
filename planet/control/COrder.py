@@ -12,7 +12,7 @@ from sqlalchemy import extract
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
@@ -25,8 +25,8 @@ class COrder(CPay):
 
     @token_required
     def list(self):
-        usid = request.user.id
         form = OrderListForm().valid_data()
+        usid = form.usid.data
         filter_args = form.omstatus.data
         filter_args.append(OrderMain.USid == usid)
         order_mains = self.strade.get_ordermain_list(filter_args)
@@ -42,6 +42,12 @@ class COrder(CPay):
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
             order_main.add('OMstatus_en').hide('OPayno', 'USid', )
+            # 用户
+            if is_admin():
+                user = self.suser.get_user_by_id(order_main.USid)
+                if user:
+                    user.fields = ['USname', 'USheader', 'USgender']
+                    order_main.fill('user', user)
         return Success(data=order_mains)
 
     @token_required

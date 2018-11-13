@@ -84,9 +84,10 @@ class CProducts:
         # 分类参数
         pcid = data.get('pcid')  # 分类id
         pcid = pcid.split('|') if pcid else []
-        pcids = []
-        for pci in pcid:
-            pcids.extend(self._sub_category_id(pci) if pcid else [])  # 遍历以下的所有分类
+        pcids = self._sub_category_id(pcid)
+        # pcids = []
+        # for pci in pcid:
+        #     pcids.extend(self._sub_category_id(pci) if pcid else [])  # 遍历以下的所有分类
         pcids = list(set(pcids))
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
@@ -394,7 +395,7 @@ class CProducts:
 
     def _sub_category_id(self, pcid):
         """遍历子分类, 返回id列表"""
-        queue = [pcid]
+        queue = pcid if isinstance(pcid, list) else [pcid]
         pcids = []
         while True:
             if not queue:

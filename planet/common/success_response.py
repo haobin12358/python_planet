@@ -20,7 +20,7 @@ class Success(BaseError):
             self.data = data
         super(Success, self).__init__(*args, **kwargs)
 
-    def get_body(self, environ=None):
+    def get_body(self, environ=None, *args, **kwargs):
         body = dict(
             status=self.status,
             message=self.message,
@@ -31,6 +31,7 @@ class Success(BaseError):
             body['total_page'] = request.page_all
         if hasattr(request, 'mount'):
             body['total_count'] = request.mount
+        body.update(kwargs)
         text = json.dumps(body)
         return text
 

@@ -13,7 +13,8 @@ class AAuthTest(Resource):
         # usid = data.get('usid')
         data = request.json or {}
         usid = 'usid1'
-        token = usid_to_token(usid, data.get('user', 'User'))
+        model = data.get('model', 'User')
+        token = usid_to_token(usid, data.get('user', model))
         return token
 
 
