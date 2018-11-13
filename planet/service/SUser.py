@@ -15,6 +15,9 @@ class SUser(SBase):
     def get_user_by_id(self, usid):
         return self.session.query(User).filter(User.USid == usid, User.isdelete == False).first_('用户不存在')
 
+    def get_user_by_tel(self, ustel):
+        return self.session.query(User).filter(User.UStelphone == ustel, User.isdelete == False).first_()
+
     def get_useraddress_by_usid(self, usid):
         return self.session.query(UserAddress).filter(UserAddress.USid == usid, UserAddress.isdelete == False
                                                       ).all_with_page()

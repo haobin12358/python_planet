@@ -23,6 +23,7 @@ from planet.service.SUser import SUser
 
 class CUser(SUser):
     APPROVAL_TYPE = 1
+
     @get_session
     def login(self):
         """手机验证码登录"""
@@ -484,12 +485,33 @@ class CUser(SUser):
     @get_session
     @token_required
     def get_upgrade(self):
+        """获取店主申请"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
         user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', "UStelphone"]
         return Success('获取店主申请页成功', data=user)
+
+    @get_session
+    @token_required
+    def update_user(self):
+        """更新用户 昵称/性别/绑定电话/头像/出生日期"""
+        data = request.json
+        user = self.get_user_by_id(request.user.id)
+        update_params = ['USname', 'UStelphone', 'USgender', 'USheader']
+
+        for k in update_params:
+            if k == 'UStelphone':
+                user_check = self.get_user_by_tel(data.get(k.lower()))
+                if user_check and user_check.USid != user.USid:
+                    gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
+                    raise ParamsError("该手机号已经被绑定")
+            if data.get(k.lower()):
+                setattr(user, k, data.get(k.lower()))
+        if data.get('usbirthday'):
+            user.USbirthday = datetime.datetime.strptime(data.get("usbirthday"), '%Y-%m-%d')
+        return Success("更新成功")
 
     @staticmethod
     def __conver_idcode(idcode):

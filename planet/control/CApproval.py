@@ -15,7 +15,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin
 
 from planet.models.approval import Approval, Permission, ApprovalNotes
-from planet.models.user import Admin, AdminNotes
+from planet.models.user import Admin, AdminNotes, User
 from planet.models.product import Products
 from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
@@ -128,6 +128,8 @@ class CApproval(BASEAPPROVAL):
                 # 审批操作为拒绝 等级回退到最低级
                 approval_model.AVstatus = -10
                 approval_model.AVlevel = 1
+                if approval_model.AVtype == 1:
+                    s.query(User).filter(User.USid == approval_model.AVstartid).update({"USlevel": 1})
 
             # 审批流水记录
             approvalnote_dict = {
