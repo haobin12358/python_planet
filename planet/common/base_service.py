@@ -22,7 +22,7 @@ def get_session(fn):
             return result
         except Exception as e:
             self.session.rollback()
-            raise SystemError(e.args)
+            raise e
         finally:
             self.session.close()
     return inner

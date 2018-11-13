@@ -42,12 +42,12 @@ def common_user():
 
 def is_shop_keeper():
     """是否是店主 todo"""
-    return True
+    return common_user() and request.user.level == 2
 
 
 def is_hign_level_admin():
-    """高级管理员, 包括高级和超级"""
-    return is_admin() and request.user.level > 0
+    """超级管理员"""
+    return is_admin() and request.user.level == 1
 
 
 def admin_required(func):

@@ -94,7 +94,21 @@ class LogisticsSignStatus(Enum):
     already_signed = 3
 
 
+class ApprovalType(Enum):
+    """审批流状态"""
+    toagent = 1
+    tosell = 2
+    toreturn = 3
+    tocash = 4
+    topublish = 5
 
+
+class PermissionType(Enum):
+    成为代理商审批 = 1
+    商品上架审批 = 2
+    订单退换货审批 = 3
+    提现审批 = 4
+    用户资讯发布审批 = 5
 
 # user
 class UserSearchHistoryType(Enum):

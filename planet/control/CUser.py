@@ -22,6 +22,7 @@ from planet.service.SUser import SUser
 
 
 class CUser(SUser):
+    APPROVAL_TYPE = 1
     @get_session
     def login(self):
         """手机验证码登录"""
@@ -459,22 +460,36 @@ class CUser(SUser):
     @token_required
     def upgrade_agent(self):
         """申请成为店主"""
-        data = request.json
+        data = request.json or {}
         user = self.get_user_by_id(request.user.id)
-        # 如果需要可以在此更新自己用户名联系方式以及性别。
+        # 如果需要可以在此更新自己联系方式以及性别。
         if data.get('ustelphone'):
             user.UStelphone = data.get("ustelphone")
-        if data.get('usname'):
-            user.USname = data.get("usname")
+        if data.get('usrealname') and user.USrealname != data.get("usrealname"):
+            raise ParamsError("当前姓名与验证姓名不符")
         if data.get("usgender"):
             user.USgender = data.get("usgender")
+        user.USlevel = 3
         # 资质认证
-        if self.__check_qualifications(user):
+        check_result, check_reason = self.__check_qualifications(user)
+        if check_result:
             # 资质认证ok，创建审批流
+
             # todo 审批流创建
+
             return Success('申请成功')
         else:
-            raise ParamsError(','.join(self.check_reason))
+            raise ParamsError(','.join(check_reason))
+
+    @get_session
+    @token_required
+    def get_upgrade(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', "UStelphone"]
+        return Success('获取店主申请页成功', data=user)
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -489,7 +504,6 @@ class CUser(SUser):
             check_reason.append("手机号未绑定")
         if not (user.USrealname or user.USidentification):
             check_result = False
-            check_reason.append("实名认证通过")
+            check_reason.append("实名认证未通过")
         # todo 创建押金订单
-        self.check_reason = check_reason[:]
-        return check_result
+        return check_result, check_reason[:]
