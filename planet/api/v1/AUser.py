@@ -13,6 +13,8 @@ class AUser(Resource):
             'add_address': self.user.add_useraddress,
             'update_address': self.user.update_useraddress,
             'login_test': self.user.login_test,
+            'upgrade_agent': self.user.upgrade_agent,
+            'update_user': self.user.update_user,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -28,6 +30,7 @@ class AUser(Resource):
             'get_profile': self.user.get_profile,
             'get_safecenter': self.user.get_safecenter,
             'get_identifyinginfo': self.user.get_identifyinginfo,
+            'get_upgrade': self.user.get_upgrade,
         }
         return apis
 

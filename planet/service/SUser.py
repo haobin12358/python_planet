@@ -1,18 +1,22 @@
 from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
     AddressCity, AddressArea, UserMedia, IDCheck
-
+from sqlalchemy import or_, and_
 
 class SUser(SBase):
     def get_identifyingcode_by_ustelphone(self, utel):
-        return self.session.query(IdentifyingCode).filter(IdentifyingCode.ICtelphone == utel).order_by(
+        return self.session.query(IdentifyingCode).filter(
+            IdentifyingCode.ICtelphone == utel, IdentifyingCode.isdelete == False).order_by(
             IdentifyingCode.createtime.desc()).first_()
 
     def get_user_by_ustelphone(self, utel):
-        return self.session.query(User).filter(User.UStelphone == utel).first_()
+        return self.session.query(User).filter(User.UStelphone == utel, User.isdelete == False).first_()
 
     def get_user_by_id(self, usid):
-        return self.session.query(User).filter(User.USid == usid).first_('用户不存在')
+        return self.session.query(User).filter(User.USid == usid, User.isdelete == False).first_('用户不存在')
+
+    def get_user_by_tel(self, ustel):
+        return self.session.query(User).filter(User.UStelphone == ustel, User.isdelete == False).first_()
 
     def get_useraddress_by_usid(self, usid):
         return self.session.query(UserAddress).filter(UserAddress.USid == usid, UserAddress.isdelete == False
@@ -21,10 +25,6 @@ class SUser(SBase):
     def get_useraddress_by_filter(self, uafilter):
         """根据条件获取地址"""
         return self.session.query(UserAddress).filter_by(**uafilter).first()
-
-    def update_useraddress_by_filter(self, uafilter, uainfo):
-        """更新地址"""
-        return self.session.query(UserAddress).filter_by(**uafilter).update(uainfo)
 
     def get_province(self):
         """获取所有省份"""
@@ -44,12 +44,28 @@ class SUser(SBase):
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
             AddressArea.AAid == areaid).all()
 
-    def get_usermedia(self, usid):
-        return self.session.query(UserMedia).filter(UserMedia.USid == usid).all()
+    def get_usermedia(self, usid, umtype):
+        return self.session.query(UserMedia).filter(
+            UserMedia.USid == usid, UserMedia.UMtype==umtype, UserMedia.isdelete == False).order_by(
+            UserMedia.createtime.desc()).first()
 
     def get_idcheck_by_name_code(self, name, idcode):
         return self.session.query(IDCheck).filter(
             IDCheck.IDCcode == idcode,
-            IDCheck.IDCrealName == name,
-            IDCheck.IDCerrorCode != 80008
+            IDCheck.IDCname == name,
+            IDCheck.IDCerrorCode != 80008,
+            IDCheck.isdelete == False
         ).first_()
+
+    # update 操作
+
+    def update_useraddress_by_filter(self, uafilter, uainfo):
+        """更新地址"""
+        return self.session.query(UserAddress).filter_by(**uafilter).update(uainfo)
+
+    def update_user_by_filter(self, us_and_filter, us_or_filter, usinfo):
+        return self.session.query(User).filter(and_(*us_and_filter), or_(*us_or_filter), User.isdelete == False).update(usinfo)
+
+    # 逻辑delete 操作
+    def delete_usemedia_by_usid(self, usid):
+        self.session.query(UserMedia).filter(UserMedia.USid == usid).delete_()

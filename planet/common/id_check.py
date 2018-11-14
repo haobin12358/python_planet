@@ -10,12 +10,17 @@ url = 'https://1.api.apistore.cn/idcard3'
 method = 'POST'
 
 
-class IDCheck(object):
+class DOIDCheck(object):
 
     result = False
     check_response = None
 
     def __init__(self, name, idcode):
+        """
+        执行身份实名认证
+        :param name:
+        :param idcode:
+        """
         self.name = name
         self.idcode = idcode
         self._get_check_response()
@@ -44,5 +49,5 @@ class IDCheck(object):
 
 
 if __name__ == '__main__':
-    result = IDCheck('刘帅斌', '620523199510080011').result
+    result = DOIDCheck('刘帅斌', '620523199510080011').result
     print(result)

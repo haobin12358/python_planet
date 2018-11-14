@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 
+
 # 商品
 class ProductStatus(Enum):
     """商品状态"""
@@ -94,7 +95,29 @@ class LogisticsSignStatus(Enum):
     already_signed = 3
 
 
+class ApprovalType(Enum):
+    """审批流状态"""
+    toagent = 1
+    tosell = 2
+    toreturn = 3
+    tocash = 4
+    topublish = 5
 
+
+class PermissionType(Enum):
+    """审批人类型"""
+    成为代理商审批 = 1
+    商品上架审批 = 2
+    订单退换货审批 = 3
+    提现审批 = 4
+    用户资讯发布审批 = 5
+
+
+class NewsStatus(Enum):
+    """资讯状态"""
+    usual = 1  # 上架
+    auditing = 2  # 审核中
+    refuse = 0  # 下架
 
 # user
 class UserSearchHistoryType(Enum):

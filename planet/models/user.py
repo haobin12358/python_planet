@@ -25,7 +25,7 @@ class User(Base):
     USsupper2 = Column(String(64), comment='二级代理商id')  # 如果二级代理商为空，则佣金抽成全归一级
     USCommission = Column(Float, comment='佣金分成')        # 总体佣金分成比例
     USintegral = Column(Integer, comment='积分')
-    USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商}')
+    USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
     USqrcode = Column(Text, comment='用户二维码')
 
@@ -86,6 +86,7 @@ class AdminNotes(Base):
     __tablename__ = 'AdminNotes'
     ANid = Column(String(64), primary_key=True)
     ADid = Column(String(64), nullable=False, comment='管理员id')
+    ANaction = Column(Text, comment='变更动作')
     ANcreateTime = Column(DateTime, default=datetime.now(), comment='变更时间')
     ANdoneid = Column(String(64), comment='修改人id')
 
@@ -112,7 +113,7 @@ class UserMedia(Base):
     __tablename__ = 'UserMetia'
     UMid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
-    UMurl = Column(Text, comment='图片路径')
+    UMurl = Column(Text, url=True, comment='图片路径')
     UMtype = Column(Integer, default=1, comment='图片类型 1: 身份证正面, 2: 身份证反面')
 
 

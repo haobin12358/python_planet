@@ -18,7 +18,7 @@ def singleton(cls, *args, **kw):
 
 class ConfigSettings(object):
     """读取和写入配置文件"""
-    def __init__(self, config_file_path='config.cfg'):
+    def __init__(self, config_file_path='planet/config/planet.cfg'):
         self.cf = ConfigParser()
         self.config_file_path = config_file_path
         self.cf.read(self.config_file_path)

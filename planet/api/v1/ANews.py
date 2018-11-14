@@ -9,6 +9,7 @@ class ANews(Resource):
 
     def post(self, news):
         apis = {
+            'create_news': self.cnews.create_news,
 
         }
         return apis
@@ -16,6 +17,7 @@ class ANews(Resource):
     def get(self, news):
         apis = {
             'get_all_news': self.cnews.get_all_news,
+            'get_news_content': self.cnews.get_news_content,
 
         }
         return apis
