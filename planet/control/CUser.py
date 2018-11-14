@@ -608,7 +608,5 @@ class CUser(SUser, BASEAPPROVAL):
     def get_agent_commission_list(self):
         data = request.args.to_dict()
         if data.get('date'):
-            date_filter = datetime.datetime.strptime(data.get(""))
-
-
+            date_filter = datetime.datetime.strptime(data.get("date"), "%Y-%m")
 
