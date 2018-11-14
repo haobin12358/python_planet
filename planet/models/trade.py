@@ -140,3 +140,44 @@ class LogisticsCompnay(Base):
     id = Column(Integer, autoincrement=True, primary_key=True)
     LCname = Column(String(64), nullable=False, index=True, comment='公司名称')
     LCcode = Column(String(64), nullable=False, index=True, comment='快递公司编码')
+
+
+class Coupon(Base):
+    """优惠券"""
+    __tablename__ = 'Coupon'
+    COid = Column(String(64), primary_key=True)
+    PCid = Column(String(64), comment='限制使用商品分类')
+    PRid = Column(String(64), comment='限制使用商品')
+    PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
+    COname = Column(String(32), comment='优惠券名字')
+    COisAvailable = Column(Boolean, default=True, comment='是否有效')
+    COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
+    COlimitNum = Column(Integer, default=0, comment='发放数量')
+    COcollectNum = Column(Integer, default=0, comment='领取数量')
+    COsendStarttime = Column(DateTime, comment='抢券时间起')
+    COsendEndtime = Column(DateTime, comment='抢卷结束时间')
+    COvalidStartTime = Column(DateTime, comment='有效起始时间')
+    COvalieEndTime = Column(DateTime, comment='有效期结束时间')
+    COdiscount = Column(Float, default=10, comment='折扣')
+    COdownLine = Column(Float, default=0, comment='使用最低金额限制,0 为无限制')
+    COsubtration = Column(Float, default=0, comment='优惠价格')
+    COdesc = Column(String(255), comment='描述')
+
+
+class CouponItem(Base):
+    """优惠券标签中间表"""
+    __tablename__ = 'CouponItem'
+    CIid = Column(String(64), primary_key=True)
+    COid = Column(String(64), nullable=False, comment='优惠券id')
+    ITid = Column(String(64), nullable=False, comment='标签id')
+
+
+class CouponUser(Base):
+    """用户的优惠券"""
+    __tablename__ = 'CouponUser'
+    UCid = Column(String(64), primary_key=True)
+    COid = Column(String(64), nullable=False, comment='优惠券id')
+    USid = Column(String(64), nullable=False, comment='用户id')
+    UCuserStatus = Column(Integer, default=0, comment='使用状态 0 未使用, 10 已使用')
+    UCstatus = Column(Integer, default=0, comment='状态: 10 禁用')
+

@@ -10,6 +10,7 @@ from .loggers import LoggerHandler
 class SQLAlchemy(_SQLAlchemy):
     def init_app(self, app):
         app.config.setdefault('SQLALCHEMY_DATABASE_URI', DB_PARAMS)
+        app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
         super(SQLAlchemy, self).init_app(app)
 
 

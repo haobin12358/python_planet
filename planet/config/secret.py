@@ -13,6 +13,13 @@ username = env.get('DXX_DB_USER', '')
 password = env.get('DXX_DB_PWD', 'password')
 charset = "utf8"
 sqlenginename = 'mysql+pymysql'
+DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
+    sqlenginename,
+    username,
+    password,
+    host,
+    database,
+    charset)
 # 微信
 appid = env.get('DXXAPPID', '')
 appsecret = env.get('DXXAPPSECRET', '')
@@ -26,8 +33,6 @@ alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
 alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'public.pem')
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
-# assert database and host and port and username and password
-# assert appid and appsecret and wxscope and wxpay_notify_url
 # 阿里云短信
 # ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
 ACCESS_KEY_ID = env.get('ACCESS_KEY_ID')
@@ -44,13 +49,6 @@ kd_api_subscribe_callbackurl = env.get('KDSubScribeUrl', API_HOST + '/api/v1/log
 kd_api_key = env.get('KDApiKey', 'guss')
 kd_subscribe_api = 'https://poll.kuaidi100.com/poll'
 
-DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
-    sqlenginename,
-    username,
-    password,
-    host,
-    database,
-    charset)
 
 
 class DefaltSettig(object):

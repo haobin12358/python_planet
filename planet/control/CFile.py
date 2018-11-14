@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 import os
 from datetime import datetime
-
 from flask import request, current_app
 
 from planet.common.error_response import NotFound, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
+from planet.common.token_handler import token_required
+from planet.common.video_extraction_thumbnail import video2frames
 from planet.config.http_config import API_HOST
 
 
 class CFile(object):
+    @token_required
     def upload_img(self):
         file = request.files.get('file')
         data = parameter_required()
@@ -32,9 +34,28 @@ class CFile(object):
             newFile = os.path.join(newPath, newName)
             file.save(newFile)  # 保存图片
             data = '/img/{}/{}/{}/{}/{}'.format(folder, year, month, day, img_name)
-            # todo 是视频 增加缩略图
-            # if shuffix in []
-            return Success(u'上传成功', data)
+            if shuffix in ['.mp4', '.avi', '.wmv']:
+                upload_type = 'video'
+                # 生成视频缩略图
+                thum_origin_name = img_name.split('.')[0]
+                thum_name = video2frames(newFile, newPath, output_prefix=thum_origin_name,
+                                         extract_time_points=(2,), jpg_quality=80)
+                video_thum = '/img/{}/{}/{}/{}/{}'.format(folder, year, month, day, thum_name.get('thumbnail_name_list')[0])
+                video_dur = '%.2f' % thum_name.get('video_duration')
+                s = video_dur.split('.')[0]
+                ms = video_dur.split('.')[-1]
+                if int(ms) > 60:
+                    s = str(int(s) + 1)
+                    ms = '00'
+                    change_video_dur = s + ':' + ms
+                else:
+                    change_video_dur = s + ':' + ms
+            else:
+                upload_type = 'image'
+                video_thum = ''
+                change_video_dur = ''
+            return Success(u'上传成功', data).get_body(video_thum=video_thum, upload_type=upload_type,
+                                                   video_dur=change_video_dur)
         else:
             return SystemError(u'上传有误')
 

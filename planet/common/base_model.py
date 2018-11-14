@@ -8,15 +8,7 @@ from sqlalchemy import create_engine
 from planet.config.http_config import HTTP_HOST
 from planet.extensions.register_ext import db
 from .error_response import NotFound
-from ..config import secret as cfg
-
-DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
-    cfg.sqlenginename,
-    cfg.username,
-    cfg.password,
-    cfg.host,
-    cfg.database,
-    cfg.charset)
+from ..config.secret import DB_PARAMS
 mysql_engine = create_engine(DB_PARAMS, encoding='utf-8', echo=False, pool_pre_ping=True,)
 _Base = declarative_base()
 

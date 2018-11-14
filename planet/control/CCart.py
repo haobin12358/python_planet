@@ -104,6 +104,7 @@ class CCart(object):
         my_carts = self.scart.get_card_list({'USid': usid})
         pb_list = []
         new_cart_list = []
+        product_num = 0
         for cart in my_carts:
             pbid = cart.PBid
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
@@ -141,6 +142,8 @@ class CCart(object):
             cart.fill('product', product)
             # 小计
             # cart.subtotal =
+            # 数量
+            product_num += 1
             # 店铺分组
             if pbid not in pb_list:
                 new_cart_list.append({'cart': [cart], 'pb': pb})
@@ -148,7 +151,7 @@ class CCart(object):
             else:
                 index = pb_list.index(pbid)
                 new_cart_list[index]['cart'].append(cart)
-        return Success(data=new_cart_list)
+        return Success(data=new_cart_list).get_body(product_num=product_num)
 
     @token_required
     def destroy(self):

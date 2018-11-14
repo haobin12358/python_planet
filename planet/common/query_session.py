@@ -87,6 +87,12 @@ class Query(_Query):
         request.mount = mount
         return self.offset((page - 1) * count).limit(count).all()
 
+    def all_(self, page=None):
+        if page:
+            return self.all_with_page()
+        else:
+            return self.all()
+
     def contain(self, cen):
         """
         使用 session.query(User).contain(User.phone=='187')
