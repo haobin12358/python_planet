@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 
-from sqlalchemy import or_, not_
+from sqlalchemy import or_
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required
-from planet.extensions.validates.trade import CouponUserListForm
+from planet.extensions.validates.trade import CouponUserListForm, CouponListForm
 from planet.models import Items, User, ProductCategory, ProductBrand
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
@@ -18,7 +18,7 @@ class CCoupon(object):
     @token_required
     def list(self):
         """获取优惠券列表"""
-        form = CouponUserListForm().valid_data()
+        form = CouponListForm().valid_data()
         itid = form.itid.data
         coupons = Coupon.query
         if itid:
@@ -30,8 +30,9 @@ class CCoupon(object):
             # 标签
             items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
                 CouponItem.COid == coupon.COid
-            )
+            ).all()
             coupon.fill('items', items)
+            coupon.fill('title_subtitle', self._title_subtitle(coupon))
         return Success(data=coupons)
 
     @token_required
@@ -40,10 +41,10 @@ class CCoupon(object):
         form = CouponUserListForm().valid_data()
         usid = form.usid.data
         itid = form.itid.data
-        can_use = form.can_use.data  # 是否可用
-        ucuserstatus = dict(form.ucuserstatus.choices).get(form.ucuserstatus.data)  # 是否已经使用
+        can_use = dict(form.can_use.choices).get(form.can_use.data)   # 是否可用
+        ucalreadyuse = dict(form.ucalreadyuse.choices).get(form.ucalreadyuse.data)  # 是否已经使用
         user_coupon = CouponUser.query.filter_by_({'USid': usid}).filter_(
-            CouponUser.UCalreadyUse == ucuserstatus
+            CouponUser.UCalreadyUse == ucalreadyuse
         )
         # 过滤标签
         if itid:
@@ -58,13 +59,14 @@ class CCoupon(object):
                 CouponUser.UCalreadyUse == False  # 未用
             ).all_with_page()
         elif can_use is False:
-            user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter_(
-                not(
-                    or_(Coupon.COvalieEndTime > time_now, Coupon.COvalieEndTime.is_(None)),
-                    or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
-                    Coupon.COisAvailable == True,
-                    CouponUser.UCalreadyUse == False
-                )
+            user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter(
+                or_(
+                    Coupon.COisAvailable == False,
+                    CouponUser.UCalreadyUse == True,
+                    Coupon.COvalieEndTime < time_now,   # 已经结束
+                    Coupon.COvalidStartTime > time_now ,  # 未开始c
+                ),
+
             ).all_with_page()
         else:
             user_coupons = user_coupon.all_with_page()
@@ -80,6 +82,7 @@ class CCoupon(object):
             coupon.subtitles = self._title_subtitle(coupon)
             coupon.fields = ['subtitles', 'COname', 'COisAvailable', 'COdiscount', 'COdownLine', 'COsubtration']
             user_coupon.fill('coupon', coupon)
+            user_coupon.fill('can_use', self._isavalible(coupon, user_coupon))
             # 标签
             item = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
                 CouponItem.COid == user_coupon.COid
@@ -95,7 +98,6 @@ class CCoupon(object):
 
     @staticmethod
     def _title_subtitle(coupon):
-        can_use = True
         if coupon.PCid:
             category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
             title = '{}类专用'.format(category.PCname)
@@ -108,19 +110,25 @@ class CCoupon(object):
             subtitle = '限时优惠'
         else:
             subtitle = ''
+        return {
+            'title': title,
+            'subtitle': subtitle,
+        }
+
+    def _isavalible(self, coupon, user_coupon=None):
         # 判断是否可用
         time_now = datetime.now()
         ended = (  # 已结束
             coupon.COvalieEndTime < time_now if coupon.COvalieEndTime else False
         )
         not_start = (  # 未开始
-            coupon.COvalidStartTime > time_now if coupon.COvalidStartTim else False
+            coupon.COvalidStartTime > time_now if coupon.COvalidStartTime else False
         )
-        if ended or not_start or not coupon.COisAvailable or coupon.UCalreadyUse:
-            can_use = False
-        return {
-            'title': title,
-            'subtitle': subtitle,
-            'can_use': can_use
-        }
+
+        if user_coupon:
+            avalible = not ended and not not_start and coupon.COisAvailable and not user_coupon.UCalreadyUse
+
+        else:
+            avalible = not (ended or not_start or not coupon.COisAvailable)
+        return avalible
 

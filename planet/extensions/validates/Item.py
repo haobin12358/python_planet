@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-from wtforms.validators import *
-from wtforms import *
-
 from planet.config.enums import ItemType
-from .base_form import BaseForm
+from .base_form import *
 
 
 class ItemListForm(BaseForm):
