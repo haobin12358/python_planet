@@ -24,7 +24,7 @@ from planet.models.user import User, UserLoginTime, UserCommission, UserAddress,
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products
-
+from planet.models.trade import OrderPart
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -582,17 +582,19 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 活动记录
         activity_count = 2
         # 佣金比例
-        commisision_profit = agent.USCommission or ConfigSettings().get_item('commission', "planetcommision")
+        # commisision_profit = agent.USCommission or ConfigSettings().get_item('commission', "planetcommision")
         product_sql = self.session.query(Products).filter_by_(CreaterId=request.user.id, PRstatus=0)
         # 最新
         newest_product = product_sql.order_by(Products.createtime.desc()).first()
         if newest_product:
-            self.__fill_product(newest_product, commisision_profit)
+            # self.__fill_product(newest_product, commisision_profit)
+            newest_product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
 
         # 最热
         hottest_product = product_sql.order_by(Products.PRsalesValue.desc()).first()
         if hottest_product:
-            self.__fill_product(hottest_product, commisision_profit)
+            # self.__fill_product(hottest_product, commisision_profit)
+            hottest_product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
 
         data = {
             'mounth_count': mounth_count,
@@ -605,8 +607,33 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取店主中心数据成功', data=data)
 
+    @get_session
+    @token_required
     def get_agent_commission_list(self):
         data = request.args.to_dict()
         if data.get('date'):
-            date_filter = datetime.datetime.strptime(data.get("date"), "%Y-%m")
-
+            if re.match(r'^[1-9]\d{3}-(0[1-9]|1[0-2])$', data.get("date")):
+                date_filter = datetime.datetime.strptime(data.get("date"), "%Y-%m")
+            elif re.match(r'^[1-9]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$', data.get("date")):
+                date_filter = datetime.datetime.strptime(data.get("date"), "%Y-%m-%d")
+            else:
+                raise ParamsError("时间格式不对")
+        else:
+            date_filter = datetime.datetime.now()
+        uc_model_list = self.session.query(UserCommission).filter(
+            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
+            extract('month', UserCommission.createtime) == date_filter.month,
+            extract('year', UserCommission.createtime) == date_filter.year,
+        ).all()
+        uc_mount = 0
+        for uc_model in uc_model_list:
+            uc_model.fields = ['OMid', 'createtime']
+            uc_model.fill('uccommission', float(uc_model.UCcommission))
+            uc_mount += float(uc_model.UCcommission)
+            op_list = self.session.query(OrderPart).filter(OrderPart.OMid == uc_model.OMid).all()
+            if not op_list:
+                gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
+                raise SystemError('服务器异常')
+            om_name = "+".join(str(op.PRtitle) for op in op_list)
+            uc_model.fill('UCname', om_name)
+        return Success('获取收益详情', data={'usercommission_mount': uc_mount, 'usercommission_list': uc_model_list})

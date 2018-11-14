@@ -32,6 +32,7 @@ class AUser(Resource):
             'get_identifyinginfo': self.user.get_identifyinginfo,
             'get_upgrade': self.user.get_upgrade,
             'get_agent_center': self.user.get_agent_center,
+            'get_agent_commission_list': self.user.get_agent_commission_list,
         }
         return apis
 
