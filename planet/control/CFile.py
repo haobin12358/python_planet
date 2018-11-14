@@ -41,12 +41,21 @@ class CFile(object):
                 thum_name = video2frames(newFile, newPath, output_prefix=thum_origin_name,
                                          extract_time_points=(2,), jpg_quality=80)
                 video_thum = '/img/{}/{}/{}/{}/{}'.format(folder, year, month, day, thum_name.get('thumbnail_name_list')[0])
-                video_dur = float('%.2f' % thum_name.get('video_duration'))
+                video_dur = '%.2f' % thum_name.get('video_duration')
+                s = video_dur.split('.')[0]
+                ms = video_dur.split('.')[-1]
+                if int(ms) > 60:
+                    s = str(int(s) + 1)
+                    ms = '00'
+                    change_video_dur = s + ':' + ms
+                else:
+                    change_video_dur = s + ':' + ms
             else:
                 upload_type = 'image'
                 video_thum = ''
-                video_dur = ''
-            return Success(u'上传成功', data).get_body(video_thum=video_thum, upload_type=upload_type, video_dur=video_dur)
+                change_video_dur = ''
+            return Success(u'上传成功', data).get_body(video_thum=video_thum, upload_type=upload_type,
+                                                   video_dur=change_video_dur)
         else:
             return SystemError(u'上传有误')
 

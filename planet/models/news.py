@@ -30,7 +30,7 @@ class NewsVideo(Base):
     NEid = Column(String(64), nullable=False, comment='资讯id')
     NVvideo = Column(String(255), nullable=False, url=True, comment='视频url')
     NVthumbnail = Column(String(255), nullable=False, url=True, comment='视频缩略图')
-    NVduration = Column(Float(precision=6), nullable=False, default=0, comment='视频时长')
+    NVduration = Column(String(8), nullable=False, default='00:00', comment='视频时长')
 
 
 class NewsComment(Base):

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import close_session, SBase
-from planet.models import User, Items
-from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag
+from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag, User, Items, NewsTrample
 
 
 class SNews(SBase):
@@ -16,7 +15,7 @@ class SNews(SBase):
     @close_session
     def get_news_content(self, nfilter):
         """获取资讯详情"""
-        return self.session.query(News).filter_by_(**nfilter).first_()
+        return self.session.query(News).filter_by_(**nfilter).first_('没有找到该资讯')
 
     @close_session
     def get_news_images(self, neid):
@@ -57,9 +56,19 @@ class SNews(SBase):
         return self.session.query(NewsFavorite).filter_by_(NEid=neid).count()
 
     @close_session
+    def get_news_trample_count(self, neid):
+        """获取资讯点踩数"""
+        return self.session.query(NewsTrample).filter_by_(NEid=neid).count()
+
+    @close_session
     def news_is_favorite(self, neid, usid):
         """是否已对资讯点赞"""
         return self.session.query(NewsFavorite).filter_by_(NEid=neid, USid=usid).first()
+
+    @close_session
+    def news_is_trample(self, neid, usid):
+        """是否已对资讯点踩"""
+        return self.session.query(NewsTrample).filter_by_(NEid=neid, USid=usid).first()
 
     @close_session
     def get_user_by_id(self, usid):
