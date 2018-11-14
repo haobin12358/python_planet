@@ -6,7 +6,6 @@ from wtforms import *
 from planet.common.error_response import AuthorityError
 from planet.common.token_handler import is_admin
 from planet.config.enums import OrderMainStatus
-from planet.models import Items
 from planet.models.trade import OrderMain
 from .base_form import BaseForm
 
@@ -54,9 +53,14 @@ class OrderListForm(BaseForm):
             pass
 
 
-class CouponListForm(BaseForm):
+class CouponUserListForm(BaseForm):
+    """用户优惠券"""
     usid = StringField('用户id')
     itid = StringField('标签id')
+    ucuserstatus = SelectField('是否已经使用', choices=[
+        ('true', True), ('false', False), ('all', None)
+    ], default='false')
+    can_use = BooleanField(default=True)
 
     def validate_usid(self, raw):
         """普通用户默认使用自己的id"""
@@ -65,3 +69,8 @@ class CouponListForm(BaseForm):
                 raw.data = request.user.id
                 if request.user.id != raw.data:
                     raise AuthorityError()
+
+
+class CouponListForm(BaseForm):
+    """优惠券"""
+    itid = StringField('标签id')

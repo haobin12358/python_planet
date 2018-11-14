@@ -155,12 +155,23 @@ class CCart(object):
 
     @token_required
     def destroy(self):
-        """清空个人购物车"""
+        """批量个人购物车"""
+        data = parameter_required()
         usid = request.user.id
+        caids = data.get('caids')
+        if isinstance(caids, list) and len(caids) == 0:
+            raise ParamsError('caids 为空')
+        if not caids:
+            caids = []
+        if not isinstance(caids, list):
+            raise ParamsError('caids 参数错误')
         # 删除
         with self.scart.auto_commit() as session:
-            session.query(Carts).filter_by_({'USid': usid}).delete_()
-        return Success('清空成功')
+            session.query(Carts).filter_(
+                Carts.CAid.in_(caids),
+                Carts.USid == usid
+            ).delete_(synchronize_session=False)
+        return Success('删除成功')
 
 
 

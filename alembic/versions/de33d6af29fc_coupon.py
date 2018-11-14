@@ -57,7 +57,7 @@ def upgrade():
     sa.Column('UCid', sa.String(length=64), nullable=False),
     sa.Column('COid', sa.String(length=64), nullable=False),
     sa.Column('USid', sa.String(length=64), nullable=False),
-    sa.Column('UCuserStatus', sa.Integer(), nullable=True),
+    sa.Column('UCalreadyUse', sa.Integer(), nullable=True),
     sa.Column('UCstatus', sa.Integer(), nullable=True),
     sa.PrimaryKeyConstraint('UCid')
     )
