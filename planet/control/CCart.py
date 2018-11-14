@@ -143,7 +143,7 @@ class CCart(object):
             # 小计
             # cart.subtotal =
             # 数量
-            product_num += cart.CAnums
+            product_num += 1
             # 店铺分组
             if pbid not in pb_list:
                 new_cart_list.append({'cart': [cart], 'pb': pb})
@@ -151,8 +151,6 @@ class CCart(object):
             else:
                 index = pb_list.index(pbid)
                 new_cart_list[index]['cart'].append(cart)
-        import ipdb
-        ipdb.set_trace()
         return Success(data=new_cart_list).get_body(product_num=product_num)
 
     @token_required
