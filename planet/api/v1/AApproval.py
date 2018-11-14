@@ -2,7 +2,7 @@ from planet.common.base_resource import Resource
 from planet.control.CApproval import CApproval
 
 
-class AUser(Resource):
+class Aapproval(Resource):
     def __init__(self):
         self.approval = CApproval()
 
@@ -13,7 +13,7 @@ class AUser(Resource):
         }
         return apis
 
-    def get(self, user):
+    def get(self, approval):
         apis = {
         }
         return apis

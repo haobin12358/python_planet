@@ -1,9 +1,10 @@
-from planet.common.base_service import SBase
+# from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
     AddressCity, AddressArea, UserMedia, IDCheck
 from sqlalchemy import or_, and_
 
-class SUser(SBase):
+
+class SUser():
     def get_identifyingcode_by_ustelphone(self, utel):
         return self.session.query(IdentifyingCode).filter(
             IdentifyingCode.ICtelphone == utel, IdentifyingCode.isdelete == False).order_by(
@@ -45,6 +46,7 @@ class SUser(SBase):
             AddressArea.AAid == areaid).all()
 
     def get_usermedia(self, usid, umtype):
+        """获取用户身份证图片"""
         return self.session.query(UserMedia).filter(
             UserMedia.USid == usid, UserMedia.UMtype==umtype, UserMedia.isdelete == False).order_by(
             UserMedia.createtime.desc()).first()

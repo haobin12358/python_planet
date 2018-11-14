@@ -27,10 +27,11 @@ class AUser(Resource):
             'get_all_address': self.user.get_useraddress,
             'get_one_address': self.user.get_one_address,
             'check_idcode': self.user.check_idcode,
-            'get_profile': self.user.get_profile,
-            'get_safecenter': self.user.get_safecenter,
+            # 'get_profile': self.user.get_profile,
+            # 'get_safecenter': self.user.get_safecenter,
             'get_identifyinginfo': self.user.get_identifyinginfo,
             'get_upgrade': self.user.get_upgrade,
+            'get_agent_center': self.user.get_agent_center,
         }
         return apis
 

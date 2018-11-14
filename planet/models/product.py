@@ -26,6 +26,7 @@ class Products(Base):
     PRdesc = Column(Text, comment='商品详细介绍', url_list=True)
     PRremarks = Column(String(255), comment='备注')
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
 
 
