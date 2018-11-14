@@ -76,6 +76,7 @@ class ABrands(Resource):
     def get(self, brand):
         apis = {
             'list': self.cbrands.list,
+            'list_with_group': self.cbrands.list_with_group,
         }
         return apis
 

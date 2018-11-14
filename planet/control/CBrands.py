@@ -54,33 +54,23 @@ class CBrands(object):
         time_order = dict(form.time_order.choices).get(form.time_order.data)
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
         itid = form.itid.data
+        print(itid)
         with self.sproduct.auto_commit() as s:
-            brands = s.query(ProductBrand).filter_by_().outerjoin(BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid)
-            if index:  # 在首页的
-                brands = brands.join(
-                    IndexBrand, IndexBrand.PBid == ProductBrand.PBid
-                ).filter_(
-                    IndexBrand.isdelete == False,
-                    BrandWithItems.ITid == itid,
-                    ProductBrand.PBstatus == pbstatus).order_by(*[time_order]).all_with_page()
-            elif index is False:  # 不在首页的
-                index_brands = s.query(IndexBrand).filter_by_().all()
-                brands = brands.filter_(ProductBrand.PBid.notin_([x.PBid for x in index_brands]),
-                                                       ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).\
-                    order_by(*[time_order]).all_with_page()
-            elif index is None:  # 不筛选首页
-                brands = brands.filter_(ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).order_by(*[time_order]).all_with_page()
-            for brand in brands:
-                is_index = s.query(IndexBrand).filter_by_({'PBid': brand.PBid}).first_()
-                brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
-                brand.fill('index', bool(is_index))
-                # 标签
-                pb_items = s.query(Items).filter_by().join(BrandWithItems, Items.ITid == BrandWithItems.ITid).filter_(
-                    BrandWithItems.PBid == brand.PBid,
-                    BrandWithItems.isdelete == False,
-                ).all()
-                brand.fill('pb_items', pb_items)
+            brands = self._get_brand_list(s, index, itid, pbstatus, time_order)
         return Success(data=brands)
+
+    def list_with_group(self):
+        form = BrandsListForm().valid_data()
+        index = dict(form.index.choices).get(form.index.data)
+        time_order = dict(form.time_order.choices).get(form.time_order.data)
+        pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
+        with self.sproduct.auto_commit() as s:
+            items = s.query(Items).filter_by_({'ITtype': ItemType.brand.value}).all()
+            for item in items:
+                itid = item.ITid
+                brands = self._get_brand_list(s, index, itid, pbstatus, time_order, page=False, pb_in_sub=False)
+                item.fill('brands', brands)
+        return items
 
     @token_required
     def off_shelves(self):
@@ -143,4 +133,34 @@ class CBrands(object):
                 s.query(BrandWithItems).filter_(BrandWithItems.ITid.in_(old_item_id)).delete_(synchronize_session=False)
         return Success('更新成功')
 
-
+    def _get_brand_list(self, s, index, itid, pbstatus, time_order=(), pb_in_sub=True, page=True):
+        brands = s.query(ProductBrand).filter_by_().outerjoin(BrandWithItems, ProductBrand.PBid == BrandWithItems.PBid)
+        if itid:
+            brands = brands.filter_(BrandWithItems.isdelete == False)
+        if index:  # 在首页的
+            brands = brands.join(
+                IndexBrand, IndexBrand.PBid == ProductBrand.PBid
+            ).filter_(
+                IndexBrand.isdelete == False,
+                BrandWithItems.ITid == itid,
+                ProductBrand.PBstatus == pbstatus).order_by(*[time_order]).all_(page)
+        elif index is False:  # 不在首页的
+            index_brands = s.query(IndexBrand).filter_by_().all()
+            brands = brands.filter_(ProductBrand.PBid.notin_([x.PBid for x in index_brands]),
+                                    ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid). \
+                order_by(*[time_order]).all_(page)
+        elif index is None:  # 不筛选首页
+            brands = brands.filter_(ProductBrand.PBstatus == pbstatus, BrandWithItems.ITid == itid).order_by(
+                *[time_order]).all_(page)
+        for brand in brands:
+            is_index = s.query(IndexBrand).filter_by_({'PBid': brand.PBid}).first_()
+            brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
+            brand.fill('index', bool(is_index))
+            # 标签
+            pb_items = s.query(Items).filter_by().join(BrandWithItems, Items.ITid == BrandWithItems.ITid).filter_(
+                BrandWithItems.PBid == brand.PBid,
+                BrandWithItems.isdelete == False,
+            ).all()
+            if pb_in_sub:
+                brand.fill('pb_items', pb_items)
+        return brands
