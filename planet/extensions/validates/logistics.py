@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-from wtforms.validators import *
-from wtforms import *
-
-from .base_form import BaseForm
+from .base_form import *
 
 
 class OrderSendForm(BaseForm):

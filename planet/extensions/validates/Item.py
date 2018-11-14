@@ -1,14 +1,26 @@
 # -*- coding: utf-8 -*-
-from wtforms.validators import *
-from wtforms import *
-
 from planet.config.enums import ItemType
-from .base_form import BaseForm
+from .base_form import *
 
 
 class ItemListForm(BaseForm):
     ittype = IntegerField()
     psid = StringField()
+    recommend = IntegerField()
+
+    def validate_psid(self, raw):
+        if raw.data and self.ittype.data is not None:
+            if self.ittype.data != ItemType.product.value:
+                raise ValidationError('仅商品标签可以筛选场景id')
+        if raw.data and self.ittype.data is None:
+            self.ittype.data = ItemType.product.value
+
+    def validate_recommend(self, raw):
+        if raw.data and self.ittype.data is not None:
+            if self.ittype.data != ItemType.news.value:
+                raise ValidationError('仅资讯标签可筛选推荐类型')
+        if raw.data and self.ittype.data is None:
+            self.ittype.data = ItemType.news.value
 
 
 class ItemCreateForm(BaseForm):

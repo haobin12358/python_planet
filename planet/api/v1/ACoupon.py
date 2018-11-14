@@ -10,6 +10,7 @@ class ACoupon(Resource):
     def get(self, coupon):
         apis = {
             'list_user_coupon': self.ccoupon.list_user_coupon,
+            'list': self.ccoupon.list,
         }
         return apis
 

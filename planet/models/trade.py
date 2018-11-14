@@ -178,6 +178,6 @@ class CouponUser(Base):
     UCid = Column(String(64), primary_key=True)
     COid = Column(String(64), nullable=False, comment='优惠券id')
     USid = Column(String(64), nullable=False, comment='用户id')
-    UCuserStatus = Column(Integer, default=0, comment='使用状态 0 未使用, 10 已使用')
+    UCalreadyUse = Column(Boolean, default=False, comment='是否已经使用')
     UCstatus = Column(Integer, default=0, comment='状态: 10 禁用')
 

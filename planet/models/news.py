@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import String, Text, Integer, Float
+from sqlalchemy import String, Text, Integer
 from planet.common.base_model import Base, Column
 
 
@@ -21,6 +21,7 @@ class NewsImage(Base):
     NEid = Column(String(64), nullable=False, comment='资讯id')
     NIimage = Column(String(255), nullable=False, url=True, comment='图片url')
     NIsort = Column(Integer, comment='图片顺序')
+    NIthumbnail = Column(String(255), url=True, comment='预览图')
 
 
 class NewsVideo(Base):

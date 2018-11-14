@@ -167,7 +167,7 @@ def video2frames(pathin,  # 视频的路径
                         thumbnail_name_list.append(thumbnail_name)
 
     re_data = {"thumbnail_name_list": thumbnail_name_list,
-               "video_duration": 1.9999999}
+               "video_duration": dur}
     return re_data
 
 # """测试"""
