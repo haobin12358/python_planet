@@ -37,11 +37,14 @@ def is_tourist():
 
 def common_user():
     """是否是普通用户, 不包括管理员"""
-    return hasattr(request, 'user') and request.user.model == 'user'
+    return hasattr(request, 'user') and request.user.model == 'User'
 
 
 def is_shop_keeper():
     """是否是店主 todo"""
+    print(common_user())
+    print(request.user.level, type(request.user.level))
+    print(request.user.model )
     return common_user() and request.user.level == 2
 
 
