@@ -6,6 +6,21 @@ from .base_form import *
 class ItemListForm(BaseForm):
     ittype = IntegerField()
     psid = StringField()
+    recommend = IntegerField()
+
+    def validate_psid(self, raw):
+        if raw.data and self.ittype.data is not None:
+            if int(self.ittype.data) != int(ItemType.product.value):
+                raise ValidationError('仅商品标签可以筛选场景id')
+        if raw.data and self.ittype.data is None:
+            self.ittype.data = ItemType.product.value
+
+    def validate_recommend(self, raw):
+        if raw.data and self.ittype.data is not None:
+            if int(self.ittype.data) != int(ItemType.news.value):
+                raise ValidationError('仅资讯标签可筛选推荐类型')
+        if raw.data and self.ittype.data is None:
+            self.ittype.data = ItemType.news.value
 
 
 class ItemCreateForm(BaseForm):

@@ -26,6 +26,7 @@ class Products(Base):
     PRdesc = Column(Text, comment='商品详细介绍', url_list=True)
     PRremarks = Column(String(255), comment='备注')
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
 
 
@@ -123,6 +124,7 @@ class Items(Base):
     ITsort = Column(Integer, comment='顺序')
     ITdesc = Column(String(255), comment='标签描述')
     ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
+    ITrecommend = Column(Boolean, default=False, comment='是否推荐(圈子)')
 
 
 class ProductItems(Base):

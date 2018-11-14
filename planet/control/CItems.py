@@ -17,8 +17,10 @@ class CItems:
         form = ItemListForm().valid_data()
         ittype = form.ittype.data
         psid = form.psid.data
+        recommend = form.recommend.data
         # 如果查询商品对应的标签, 则可以传场景的id
-        items = self.sproduct.get_items({'ITtype': ittype, 'PSid': psid})
+        recommend = True if str(recommend) == '1' else None
+        items = self.sproduct.get_items({'ITtype': ittype, 'PSid': psid, 'ITrecommend': recommend})
         return Success('获取成功', data=items)
 
     @token_required
