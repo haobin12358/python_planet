@@ -9,6 +9,14 @@ from .base_form import BaseForm
 class ItemListForm(BaseForm):
     ittype = IntegerField()
     psid = StringField()
+    recommend = IntegerField()
+
+    def validate_psid(self, raw):
+        if raw.data and self.ittype.data is not None:
+            if self.ittype.data != ItemType.product.value:
+                raise ValidationError('仅商品标签可以筛选场景id')
+        if raw.data and self.ittype is None:
+            self.psid.data = ItemType.product.value
 
 
 class ItemCreateForm(BaseForm):
