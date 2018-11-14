@@ -148,7 +148,7 @@ class Coupon(Base):
     COid = Column(String(64), primary_key=True)
     PCid = Column(String(64), comment='限制使用商品分类')
     PRid = Column(String(64), comment='限制使用商品')
-    PBid = Column(String(64), comment='限制使用品牌')
+    PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
     COname = Column(String(32), comment='优惠券名字')
     COisAvailable = Column(Boolean, default=True, comment='是否有效')
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')

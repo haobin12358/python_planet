@@ -20,9 +20,9 @@ class SIndex(SBase):
     @close_session
     def get_index_product(self, args=()):
         """首页推荐品牌商品"""
-        return self.session.query(IndexBrandProduct, Products).filter_by_(*args).join(
+        return self.session.query(IndexBrandProduct, Products, ProductBrand).filter_by_(*args).join(
             Products, Products.PRid == IndexBrandProduct.PRid
-        ).filter(
+        ).outerjoin(ProductBrand, Products.PBid == ProductBrand.PBid).filter(
             Products.isdelete == False,
             Products.PRstatus == ProductStatus.usual.value,
         ).order_by(IndexBrandProduct.IBPsort).all()

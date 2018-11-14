@@ -65,12 +65,12 @@ class CBrands(object):
         time_order = dict(form.time_order.choices).get(form.time_order.data)
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
         with self.sproduct.auto_commit() as s:
-            items = s.query(Items).filter_by_({'ITtype': ItemType.brand.value}).all()
+            items = s.query(Items).filter_by_({'ITtype': ItemType.brand.value}).order_by(Items.ITsort).all_(True)
             for item in items:
                 itid = item.ITid
                 brands = self._get_brand_list(s, index, itid, pbstatus, time_order, page=False, pb_in_sub=False)
                 item.fill('brands', brands)
-        return items
+        return Success(data=items)
 
     @token_required
     def off_shelves(self):

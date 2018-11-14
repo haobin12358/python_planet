@@ -39,11 +39,12 @@ class CIndex:
     def list_product(self):
         index_products = self.sindex.get_index_product()
         res = []
-        for index_product, product in index_products:
+        for index_product, product, brand in index_products:
             index_product.fill('PRmainpic', product['PRmainpic'])
             index_product.fill('PRlinePrice', product.PRlinePrice)
             index_product.fill('PRprice', product.PRprice)
             index_product.fill('PRtitle', product.PRtitle)
+            index_product.fill('brand', brand)
             res.append(index_product)
         return Success(data=res)
 
