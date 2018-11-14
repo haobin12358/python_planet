@@ -69,7 +69,10 @@ def gennerc_log(data, info='bug'):
     if isinstance(data, Exception):
         data = traceback.format_exc()
     current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
-    current_app.logger.error(data)
+    if info == 'info':
+        current_app.logger.info(data)
+    else:
+        current_app.logger.error(data)
     try:
         current_app.logger.info(request.detail)
     except Exception as e:
