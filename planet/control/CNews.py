@@ -2,7 +2,7 @@
 import uuid
 
 from flask import request
-from planet.common.error_response import TokenError
+from planet.common.error_response import TokenError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
@@ -56,7 +56,11 @@ class CNews(object):
             if video:
                 video_source = video['NVvideo']
                 showtype = 'video'
+                video_thumbnail = video['NVthumbnail']
+                dur_time = video['NVduration']
                 news.fill('video', video_source)
+                news.fill('videothumbnail', video_thumbnail)
+                news.fill('videoduration', dur_time)
             else:
                 image_list = self.snews.get_news_images(news.NEid)
                 if image_list:
@@ -100,20 +104,27 @@ class CNews(object):
         if usid:
             is_favorite = self.snews.news_is_favorite(news.NEid, usid)
             favorite = 1 if is_favorite else 0
+            is_trample = self.snews.news_is_trample(news.NEid, usid)
+            trample = 1 if is_trample else 0
         else:
             favorite = 0
+            trample = 0
         news.fill('is_favorite', favorite)
+        news.fill('is_trample', trample)
         commentnumber = self.snews.get_news_comment_count(news.NEid)
         news.fill('commentnumber', commentnumber)
         favoritnumber = self.snews.get_news_favorite_count(news.NEid)
         news.fill('favoritnumber', favoritnumber)
+        tramplenumber = self.snews.get_news_trample_count(news.NEid)
+        news.fill('tramplenumber', tramplenumber)
         image_list = self.snews.get_news_images(news.NEid)
         if image_list:
             [image.hide('NEid') for image in image_list]
         news.fill('image', image_list)
         video = self.snews.get_news_video(news.NEid)
         if video:
-            news.fill('video', dict(video)['NVvideo'])
+            video.hide('NEid')
+            news.fill('video', video)
         tags = self.snews.get_item_list((NewsTag.NEid == news.NEid,))
         if tags:
             [tag.hide('PSid') for tag in tags]
@@ -135,7 +146,7 @@ class CNews(object):
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2',]
-        video = data.get('video')  # url
+        video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = News.create({
@@ -147,6 +158,8 @@ class CNews(object):
             })
             session_list.append(news_info)
             if images not in self.empty:
+                if len(images) > 4:
+                    raise ParamsError('最多只能上传四张图片')
                 for image in images:
                     news_image_info = NewsImage.create({
                         'NIid': str(uuid.uuid1()),
@@ -156,11 +169,13 @@ class CNews(object):
                     })
                     session_list.append(news_image_info)
             if video not in self.empty:
+                parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
                 news_video_info = NewsVideo.create({
                     'NVid': str(uuid.uuid1()),
                     'NEid': neid,
-                    'NVvideo': video
-                    # todo 视频缩略图
+                    'NVvideo': video.get('nvurl'),
+                    'NVthumbnail': video.get('nvthum'),
+                    'NVduration': video.get('nvdur')
                 })
                 session_list.append(news_video_info)
             if items not in self.empty:

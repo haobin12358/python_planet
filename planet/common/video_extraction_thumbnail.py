@@ -32,6 +32,7 @@ def video2frames(pathin,  # 视频的路径
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # 视频的帧数
     fps = cap.get(cv2.CAP_PROP_FPS)  # 视频的帧率
     dur = n_frames / fps  # 视频的时间
+    thumbnail_name_list = []
     # 如果only_output_video_info=True, 只输出视频信息，不提取图片
     if only_output_video_info:
         print('only output the video information (without extract frames)::::::')
@@ -56,9 +57,12 @@ def video2frames(pathin,  # 视频的路径
                 if not iscolor:
                     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # 转化为黑白图片
                 print('Write a new frame: {}, {}th'.format(success, count + 1))
-                cv2.imwrite(os.path.join(pathout, "{}{}_{:06d}.jpg".format(str(dur)[:6], output_prefix, count + 1)), image,
-                            [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                # cv2.imwrite(os.path.join(pathout, "{}{}_{:06d}.jpg".format(str(dur)[:6], output_prefix, count + 1)), image,
+                #             [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                thumbnail_name = "{}_{:06d}.jpg".format( output_prefix, count + 1)
+                cv2.imwrite(os.path.join(pathout, thumbnail_name), image, [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality]) # save frame as JPEG file
                 count = count + 1
+                thumbnail_name_list.append(thumbnail_name)
 
     else:
         # 判断起始时间、终止时间参数是否符合要求
@@ -89,9 +93,13 @@ def video2frames(pathin,  # 视频的路径
                         if not iscolor:
                             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                         print('Write a new frame: {}, {}/{}'.format(success, count + 1, n_frames))
-                        cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        # cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        #             [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                        thumbnail_name = "{}_{:06d}.jpg".format(output_prefix, count + 1)
+                        cv2.imwrite(os.path.join(pathout, thumbnail_name), image,
                                     [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
                         count = count + 1
+                        thumbnail_name_list.append(thumbnail_name)
             else:
                 success = True
                 count = 0
@@ -101,9 +109,13 @@ def video2frames(pathin,  # 视频的路径
                         if not iscolor:
                             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                         print('Write a new frame: {}, {}/{}'.format(success, count + 1, n_frames))
-                        cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        # cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        #             [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                        thumbnail_name = "{}_{:06d}.jpg".format(output_prefix, count + 1)
+                        cv2.imwrite(os.path.join(pathout, thumbnail_name), image,
                                     [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
                         count = count + 1
+                        thumbnail_name_list.append(thumbnail_name)
 
         # 判断提取时间间隔设置是否符合要求
         elif extract_time_interval > 0 and extract_time_interval < 1 / fps:
@@ -129,9 +141,13 @@ def video2frames(pathin,  # 视频的路径
                         if not iscolor:
                             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                         print('Write a new frame: {}, {}th'.format(success, count + 1))
-                        cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        # cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        #             [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                        thumbnail_name = "{}_{:06d}.jpg".format(output_prefix, count + 1)
+                        cv2.imwrite(os.path.join(pathout, thumbnail_name), image,
                                     [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
                         count = count + 1
+                        thumbnail_name_list.append(thumbnail_name)
             else:
                 success = True
                 count = 0
@@ -142,10 +158,17 @@ def video2frames(pathin,  # 视频的路径
                         if not iscolor:
                             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                         print('Write a new frame: {}, {}th'.format(success, count + 1))
-                        cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        # cv2.imwrite(os.path.join(pathout, "{}_{:06d}.jpg".format(output_prefix, count + 1)), image,
+                        #             [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
+                        thumbnail_name = "{}_{:06d}.jpg".format(output_prefix, count + 1)
+                        cv2.imwrite(os.path.join(pathout, thumbnail_name), image,
                                     [int(cv2.IMWRITE_JPEG_QUALITY), jpg_quality])  # save frame as JPEG file
                         count = count + 1
+                        thumbnail_name_list.append(thumbnail_name)
 
+    re_data = {"thumbnail_name_list": thumbnail_name_list,
+               "video_duration": 1.9999999}
+    return re_data
 
 # """测试"""
 # pathin = 'D:\qrcode\ceui.mp4'
