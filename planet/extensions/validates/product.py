@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-from wtforms.validators import *
-from wtforms import *
-
 from planet.config.enums import ProductStatus, ItemType
 from planet.models import ProductBrand
-from .base_form import BaseForm
+from .base_form import *
 
 
 class BrandsListForm(BaseForm):

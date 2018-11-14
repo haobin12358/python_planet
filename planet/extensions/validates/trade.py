@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-from flask import request
-from wtforms.validators import *
-from wtforms import *
-
 from planet.common.error_response import AuthorityError
 from planet.common.token_handler import is_admin
 from planet.config.enums import OrderMainStatus
 from planet.models.trade import OrderMain
-from .base_form import BaseForm
+from .base_form import *
 
 
 class OrderListForm(BaseForm):
@@ -55,12 +51,14 @@ class OrderListForm(BaseForm):
 
 class CouponUserListForm(BaseForm):
     """用户优惠券"""
-    usid = StringField('用户id')
+    usid = StringField('用户id', default=None)
     itid = StringField('标签id')
-    ucuserstatus = SelectField('是否已经使用', choices=[
+    ucalreadyuse = SelectField('是否已经使用', choices=[
         ('true', True), ('false', False), ('all', None)
     ], default='false')
-    can_use = BooleanField(default=True)
+    can_use = SelectField('是否已经使用', choices=[
+        ('true', True), ('false', False), ('all', None)
+    ], default='all')
 
     def validate_usid(self, raw):
         """普通用户默认使用自己的id"""
