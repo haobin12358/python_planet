@@ -35,5 +35,5 @@ class ApprovalNotes(Base):
     AVid = Column(String(64), comment='审批流id')
     AVadname = Column(Text, comment='处理人姓名')
     ADid = Column(String(64), comment='处理人id')
-    ANaction = Column(Integer, default=1, comment='审批意见 1 同意, -1：拒绝')
+    ANaction = Column(Integer, default=1, comment='审批意见 1 同意,0 提交 -1：拒绝')
     ANabo = Column(Text, comment='审批备注')
