@@ -18,6 +18,7 @@ from planet.api.v1.ATrade import ACart, AOrder, ARefund
 from planet.api.v1.AUser import AUser
 from planet.api.v1.ANews import ANews
 from planet.api.v1.AAddress import AAddress
+from planet.api.v1.AApproval import Aapproval
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -112,6 +113,7 @@ def register_v1(app):
     v1.add_url_rule('/news/<string:news>', view_func=ANews.as_view('news'))
     v1.add_url_rule('/logistic/<string:logistic>', view_func=ALogistic.as_view('logistic'))
     v1.add_url_rule('/coupon/<string:coupon>', view_func=ACoupon.as_view('coupon'))
+    v1.add_url_rule('/coupon/<string:approval>', view_func=Aapproval.as_view('approval'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

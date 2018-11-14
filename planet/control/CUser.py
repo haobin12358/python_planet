@@ -33,7 +33,15 @@ class CUser(SUser, BASEAPPROVAL):
     @staticmethod
     def __conver_idcode(idcode):
         """掩盖部分身份证号码"""
+        if not idcode:
+            return ''
         return idcode[:6] + "*" * 12
+
+    def __update_birthday_str(self, birthday_date):
+        if not isinstance(birthday_date, datetime.datetime):
+            return ""
+
+        return birthday_date.strftime('%Y-%m-%d')
 
     def __check_qualifications(self, user):
         check_result = True
@@ -47,11 +55,11 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 创建押金订单
         return check_result, check_reason[:]
 
-    def __update_birthday_str(self, birthday_date):
-        if not isinstance(birthday_date, datetime.datetime):
-            return ""
-
-        return birthday_date.strftime('%Y-%m-%d')
+    def __fill_product(self, product_model, commisision_profit):
+        product_model.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
+        profit = float(product_model.PRprice) * float(commisision_profit) / 100
+        product_model.fill('profit', profit)
+        return product_model
 
     @get_session
     def login(self):
@@ -483,6 +491,10 @@ class CUser(SUser, BASEAPPROVAL):
         """申请成为店主"""
         data = request.json or {}
         user = self.get_user_by_id(request.user.id)
+        if user.USlevel == 2:
+            raise AuthorityError('已经是店主了！！！')
+        if user.USlevel == 3:
+            raise AuthorityError("已经提交了审批！！！")
         # 如果需要可以在此更新自己联系方式以及性别。
         if data.get('ustelphone'):
             user.UStelphone = data.get("ustelphone")
@@ -593,7 +605,10 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取店主中心数据成功', data=data)
 
-    def __fill_product(self, product_model, commisision_profit):
-        product_model.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdesc', 'PRmainpic']
-        profit = float(product_model.PRprice) * float(commisision_profit)
-        product_model.fill('profit', profit)
+    def get_agent_commission_list(self):
+        data = request.args.to_dict()
+        if data.get('date'):
+            date_filter = datetime.datetime.strptime(data.get(""))
+
+
+
