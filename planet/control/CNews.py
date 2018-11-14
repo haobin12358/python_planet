@@ -56,7 +56,11 @@ class CNews(object):
             if video:
                 video_source = video['NVvideo']
                 showtype = 'video'
+                video_thumbnail = video['NVthumbnail']
+                dur_time = video['NVduration']
                 news.fill('video', video_source)
+                news.fill('videothumbnail', video_thumbnail)
+                news.fill('videoduration', dur_time)
             else:
                 image_list = self.snews.get_news_images(news.NEid)
                 if image_list:
@@ -135,7 +139,7 @@ class CNews(object):
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2',]
-        video = data.get('video')  # url
+        video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = News.create({
@@ -156,11 +160,13 @@ class CNews(object):
                     })
                     session_list.append(news_image_info)
             if video not in self.empty:
+                parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
                 news_video_info = NewsVideo.create({
                     'NVid': str(uuid.uuid1()),
                     'NEid': neid,
-                    'NVvideo': video
-                    # todo 视频缩略图
+                    'NVvideo': video.get('nvurl'),
+                    'NVthumbnail': video.get('nvthum'),
+                    'NVduration': video.get('nvdur')
                 })
                 session_list.append(news_video_info)
             if items not in self.empty:
