@@ -7,22 +7,59 @@ import uuid
 from decimal import Decimal
 
 from flask import request
+from sqlalchemy import extract, or_
 
+from planet.config.enums import ProductStatus
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound
+from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
-from planet.common.token_handler import token_required, is_tourist, usid_to_token
+from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
+from planet.config.cfgsetting import ConfigSettings
 from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode, UserMedia
+from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
+from planet.models.product import Products
 
 
-class CUser(SUser):
+
+class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
+
+    @staticmethod
+    def __conver_idcode(idcode):
+        """掩盖部分身份证号码"""
+        if not idcode:
+            return ''
+        return idcode[:6] + "*" * 12
+
+    def __update_birthday_str(self, birthday_date):
+        if not isinstance(birthday_date, datetime.datetime):
+            return ""
+
+        return birthday_date.strftime('%Y-%m-%d')
+
+    def __check_qualifications(self, user):
+        check_result = True
+        check_reason = []
+        if not user.UStelphone:
+            check_result = False
+            check_reason.append("手机号未绑定")
+        if not (user.USrealname or user.USidentification):
+            check_result = False
+            check_reason.append("实名认证未通过")
+        # todo 创建押金订单
+        return check_result, check_reason[:]
+
+    def __fill_product(self, product_model, commisision_profit):
+        product_model.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
+        profit = float(product_model.PRprice) * float(commisision_profit) / 100
+        product_model.fill('profit', profit)
+        return product_model
 
     @get_session
     def login(self):
@@ -63,8 +100,13 @@ class CUser(SUser):
             "USTip": request.remote_addr
         })
         self.session.add(userloggintime)
+        user.fields = [
+            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
+            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         token = usid_to_token(usid, model='User', level=uslevel)
-        return Success('登录成功', data={'token': token})
+        return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
     def login_test(self):
@@ -96,10 +138,15 @@ class CUser(SUser):
             "USid": usid,
             "USTip": request.remote_addr
         })
+        user.fields = [
+            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
+            'UStelphone', 'USqrcode', 'USrealname']
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         self.session.add(userloggintime)
         token = usid_to_token(usid, model='User', level=uslevel)
         print(token, type(token))
-        return Success('登录成功', data={'token': token})
+        return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
     def get_inforcode(self):
@@ -159,32 +206,13 @@ class CUser(SUser):
             raise ParamsError('token error')
         # todo 插入 优惠券信息
         # user.add('优惠券')
-        user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
-        return Success('获取首页用户信息成功', data=user)
-
-    @get_session
-    @token_required
-    def get_profile(self):
-        """ 个人资料"""
-        # todo 微信二维码目前没有前台地址
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise ParamsError('token error')
-        user.fields = ['USname', 'USbirthday', 'USheader', 'USlevel', 'USgender']
-        return Success('获取个人资料信息成功', data=user)
-
-    @get_session
-    @token_required
-    def get_safecenter(self):
-        """安全中心"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise ParamsError('token error')
-        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', 'USidentification', 'UStelphone']
+        # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
+        user.fields = [
+            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
+            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        return Success('获取安全中心信息成功', data=user)
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        return Success('获取首页用户信息成功', data=user)
 
     @get_session
     @token_required
@@ -463,6 +491,10 @@ class CUser(SUser):
         """申请成为店主"""
         data = request.json or {}
         user = self.get_user_by_id(request.user.id)
+        if user.USlevel == 2:
+            raise AuthorityError('已经是店主了！！！')
+        if user.USlevel == 3:
+            raise AuthorityError("已经提交了审批！！！")
         # 如果需要可以在此更新自己联系方式以及性别。
         if data.get('ustelphone'):
             user.UStelphone = data.get("ustelphone")
@@ -477,6 +509,7 @@ class CUser(SUser):
             # 资质认证ok，创建审批流
 
             # todo 审批流创建
+            self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
 
             return Success('申请成功')
         else:
@@ -514,19 +547,66 @@ class CUser(SUser):
             user.USbirthday = datetime.datetime.strptime(data.get("usbirthday"), '%Y-%m-%d')
         return Success("更新成功")
 
-    @staticmethod
-    def __conver_idcode(idcode):
-        """掩盖部分身份证号码"""
-        return idcode[:6] + "*" * 12
+    @get_session
+    @token_required
+    def get_agent_center(self):
+        if not is_shop_keeper():
+            gennerc_log('权限不足 id={0} level={1} '.format(request.user.id, request.user.level))
+            raise AuthorityError
 
-    def __check_qualifications(self, user):
-        check_result = True
-        check_reason = []
-        if not user.UStelphone:
-            check_result = False
-            check_reason.append("手机号未绑定")
-        if not (user.USrealname or user.USidentification):
-            check_result = False
-            check_reason.append("实名认证未通过")
-        # todo 创建押金订单
-        return check_result, check_reason[:]
+        agent = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(agent))
+        if not agent:
+            raise ParamsError('token error')
+
+        today = datetime.datetime.now()
+        usercommission_model_month_list = self.session.query(UserCommission).filter(
+            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
+            extract('month', UserCommission.createtime) == today.month,
+            extract('year', UserCommission.createtime) == today.year,
+        ).all()
+        mounth_count = sum(usercommission_model_month.UCcommission for usercommission_model_month in usercommission_model_month_list)
+        # for usercommission_model_month in usercommission_model_month_list:
+        #     mounth_count += float(usercommission_model_month.UCcommission)
+        usercommission_model_list = self.session.query(UserCommission).filter(
+            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1
+        ).all()
+        uc_count = sum(usercommission_model.UCcommission for usercommission_model in usercommission_model_list)
+        fens_sql = self.session.query(User).filter(
+            or_(User.USsupper1 == request.user.id, User.USsupper2 ==request.user.id))
+        fens_count = fens_sql.count()
+        fens_mouth_count = fens_sql.filter(
+            extract('month', User.createtime) == today.month,
+            extract('year', User.createtime) == today.year,
+        ).count()
+        # todo 活动记录
+        activity_count = 2
+        # 佣金比例
+        commisision_profit = agent.USCommission or ConfigSettings().get_item('commission', "planetcommision")
+        product_sql = self.session.query(Products).filter_by_(CreaterId=request.user.id, PRstatus=0)
+        # 最新
+        newest_product = product_sql.order_by(Products.createtime.desc()).first()
+        if newest_product:
+            self.__fill_product(newest_product, commisision_profit)
+
+        # 最热
+        hottest_product = product_sql.order_by(Products.PRsalesValue.desc()).first()
+        if hottest_product:
+            self.__fill_product(hottest_product, commisision_profit)
+
+        data = {
+            'mounth_count': mounth_count,
+            'uc_count': uc_count,
+            'fens_count': fens_count,
+            'activity_count': activity_count,
+            'fens_mouth_count': fens_mouth_count,
+            'hottest_product': hottest_product,
+            'newest_product': newest_product,
+        }
+        return Success('获取店主中心数据成功', data=data)
+
+    def get_agent_commission_list(self):
+        data = request.args.to_dict()
+        if data.get('date'):
+            date_filter = datetime.datetime.strptime(data.get("date"), "%Y-%m")
+
