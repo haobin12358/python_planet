@@ -43,8 +43,9 @@ class COrder(CPay):
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
             order_main.add('OMstatus_en').hide('OPayno', 'USid', )
             # 用户
+            # todo 卖家订单
             if is_admin():
-                user = self.suser.get_user_by_id(order_main.USid)
+                user = User.query.filter_by_({'USid': usid}).first_()
                 if user:
                     user.fields = ['USname', 'USheader', 'USgender']
                     order_main.fill('user', user)
