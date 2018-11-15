@@ -34,6 +34,7 @@ class UserLoginTime(Base):
     USid = Column(String(64), nullable=False, comment='用户id')
     # USTcreatetime = Column(DateTime, default=datetime.now(), comment='登录时间')
     USTip = Column(String(64), comment='登录ip地址')
+    ULtype = Column(Integer, default=1, comment='登录用户类型 1: 用户，2 管理员')
 
 
 class UserCommission(Base):
@@ -72,7 +73,7 @@ class Admin(Base):
     ADname = Column(String(255), comment='管理员名')
     ADpassword = Column(Text, nullable=False, comment='密码')
     ADheader = Column(Text, comment='头像', url=True)
-    ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员}')
+    ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
 

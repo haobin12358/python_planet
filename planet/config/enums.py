@@ -136,6 +136,18 @@ class UserIntegralType(Enum):
     expenditure = 2
 
 
+class AdminLevel(Enum):
+    超级管理员 = 1
+    普通管理员 = 2
+    代理商 = 3
+
+
+class AdminStatus(Enum):
+    正常 = 0
+    已冻结 = 1
+    已删除 = 2
+
+
 if __name__ == '__main__':
     import ipdb
     ipdb.set_trace()
