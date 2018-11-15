@@ -727,6 +727,7 @@ class CUser(SUser, BASEAPPROVAL):
             admin.fill('adstatus', AdminStatus(admin.ADstatus).name)
 
             return Success('登录成功', data={'token': token, "admin": admin})
+        return ParamsError("用户名或密码错误")
 
     @get_session
     @token_required
@@ -740,7 +741,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         data = request.json
         gennerc_log("add admin data is %s" % data)
-        parameter_required(('adname', 'adpassword', 'adheader'))
+        parameter_required(('adname', 'adpassword'))
         adid = str(uuid.uuid1())
         password = data.get('adpassword')
         # 密码校验
@@ -752,8 +753,9 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError(u'密码包含中文字符')
 
         adname = data.get('adname')
-        adlevel = data.get('adlevel')
+        adlevel = getattr(AdminLevel, data.get('adlevel', '普通管理员'), 2).value
         adlevel = 2 if not adlevel else int(adlevel)
+        header = data.get('adheader') or GithubAvatarGenerator().save_avatar(adid)
         # 等级校验
         if adlevel not in [1, 2, 3]:
             raise ParamsError('adlevel参数错误')
@@ -768,7 +770,7 @@ class CUser(SUser, BASEAPPROVAL):
             'ADid': adid,
             'ADname': adname,
             'ADpassword': generate_password_hash(password),
-            'ADheader': data.get('adheader'),
+            'ADheader': header,
             'ADlevel': adlevel,
             'ADstatus': 0,
         })
