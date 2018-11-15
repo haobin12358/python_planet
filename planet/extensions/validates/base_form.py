@@ -7,7 +7,6 @@ from wtforms import *
 from wtforms.validators import *
 from wtforms import StringField as _StringField
 import collections
-
 from planet.common.error_response import ParamsError
 
 
@@ -25,8 +24,9 @@ class BaseForm(Form):
         if not hasattr(self, '_obj'):
             self._obj = None
         data = request.json or {}
-        data = {k: v for k, v in data.items() if v or v == 0 or v is False}
-        args = {k: v for k, v in request.args.to_dict().items() if v or v == 0 or v is False}
+        args = request.args.to_dict()
+        # data = {k: v for k, v in data.items() if v or v == 0 or v is False}
+        # args = {k: v for k, v in request.args.to_dict().items() if v or v == 0 or v is False}
         data.update(args)
         formdata = MultiDict(_flatten_json(data))
         super(BaseForm, self).__init__(formdata)
@@ -42,6 +42,8 @@ class BaseForm(Form):
 def _flatten_json(json, parent_key='', separator='-'):
     items = []
     for key, value in json.items():
+        if not(value or value == 0 or value is False):  # 筛选一部分空值
+            continue
         new_key = parent_key + separator + key if parent_key else key
         if isinstance(value, collections.MutableMapping):
             items.extend(_flatten_json(value, new_key, separator).items())

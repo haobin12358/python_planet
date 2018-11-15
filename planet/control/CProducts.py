@@ -137,6 +137,7 @@ class CProducts:
         pcid = data.get('pcid')  # 3级分类id
         images = data.get('images')
         skus = data.get('skus')
+        prdescription = data.get('prdescription')  # 简要描述
         product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
         with self.sproduct.auto_commit() as s:
@@ -171,7 +172,7 @@ class CProducts:
                 'PRfrom': self.product_from,
                 'CreaterId': request.user.id,
                 'PRstatus': self.prstatus,
-
+                'PRdescription': prdescription
             }
             product_dict = {k: v for k, v in product_dict.items() if v is not None}
             product_instance = Products.create(product_dict)
@@ -229,6 +230,7 @@ class CProducts:
         pcid = data.get('pcid')  # 3级分类id
         images = data.get('images')
         skus = data.get('skus')
+        prdescription = data.get('prdescription')
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
@@ -261,6 +263,7 @@ class CProducts:
                 'PRdesc': prdesc,
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
+                'PRdescription': prdescription
             }
             [setattr(product, k, v) for k, v in product_dict.items() if v]
             session_list.append(product)

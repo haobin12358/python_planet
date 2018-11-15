@@ -53,12 +53,12 @@ class ProductSku(Base):
 
 class ProductSkuValue(Base):
     """
-    商品sku属性值
+    商品分类sku属性名
     """
     __tablename__ = 'ProductSkuValue'
     PSKUid = Column(String(64), primary_key=True)
-    PRid = Column(String(64), nullable=False, comment='商品id')
-    PSKUvalue = Column(Text, comment='商品属性值[[xl, xxl, xxxl, xxxxl], [红, 绿, 蓝]]')
+    PCid = Column(String(64), nullable=False, comment='分类id')
+    PSKUvalue = Column(Text, comment='属性名["color", "尺寸"]')
 
 
 class ProductImage(Base):
