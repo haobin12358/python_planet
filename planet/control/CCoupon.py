@@ -5,7 +5,7 @@ from sqlalchemy import or_
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required
-from planet.extensions.validates.trade import CouponUserListForm, CouponListForm
+from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm
 from planet.models import Items, User, ProductCategory, ProductBrand
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
@@ -91,7 +91,9 @@ class CCoupon(object):
         return Success(data=user_coupons)
 
     def create(self):
-        pass
+        form = CouponCreateForm().valid_data()
+        import ipdb
+        ipdb.set_trace()
 
     def update(self):
         pass

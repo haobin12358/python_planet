@@ -59,6 +59,14 @@ class CBrands(object):
             brands = self._get_brand_list(s, index, itid, pbstatus, time_order)
         return Success(data=brands)
 
+    def get(self):
+        data = parameter_required(('pbid', ))
+        pbid = data.get('pbid')
+        product_brand = ProductBrand.query.filter_by({'PBid': pbid}).first_('品牌不存在')
+        product_brand.fill('pbstatus_en', ProductStatus(product_brand.PBstatus).name)
+        return Success(data=product_brand)
+
+
     def list_with_group(self):
         form = BrandsListForm().valid_data()
         index = dict(form.index.choices).get(form.index.data)

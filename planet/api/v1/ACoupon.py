@@ -16,7 +16,7 @@ class ACoupon(Resource):
 
     def post(self, coupon):
         apis = {
-            'post': self.ccoupon.create,
+            'create': self.ccoupon.create,
             'update': self.ccoupon.update,
         }
         return apis

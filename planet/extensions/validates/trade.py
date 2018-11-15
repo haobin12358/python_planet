@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+from wtforms.ext.sqlalchemy.orm import model_form
+
 from planet.common.error_response import AuthorityError
 from planet.common.token_handler import is_admin
 from planet.config.enums import OrderMainStatus
-from planet.models.trade import OrderMain
+from planet.models.trade import OrderMain, Coupon
 from .base_form import *
 
 
@@ -72,3 +74,6 @@ class CouponUserListForm(BaseForm):
 class CouponListForm(BaseForm):
     """优惠券"""
     itid = StringField('标签id')
+
+
+CouponCreateForm = model_form(model=Coupon, base_class=BaseForm)
