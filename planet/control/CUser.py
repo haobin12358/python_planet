@@ -9,7 +9,8 @@ from decimal import Decimal
 from flask import request
 from sqlalchemy import extract, or_
 
-from planet.config.enums import ProductStatus
+from planet.config.cfgsetting import ConfigSettings
+from planet.config.enums import UserIntegralType
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -19,8 +20,9 @@ from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
-from planet.config.cfgsetting import ConfigSettings
-from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode, UserMedia
+
+from planet.models.user import User, UserLoginTime, UserCommission, \
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
@@ -661,3 +663,34 @@ class CUser(SUser, BASEAPPROVAL):
             'usercommission_mount': uc_mount,
             'usercommission_common_list': common_list,
             "usercommission_popular_list": popular_list})
+
+    @get_session
+    @token_required
+    def user_sign_in(self):
+        ui = UserIntegral.create({
+            'UIid': str(uuid.uuid1()),
+            'USid': request.user.id,
+            'UIintegral': ConfigSettings().get_item('integralbase', 'integral'),
+            'UIaction': 1,
+            'UItype': 1
+        })
+        self.session.add(ui)
+        return Success('签到成功')
+
+    @get_session
+    @token_required
+    def get_user_integral(self):
+        """获取积分列表"""
+        user = self.get_user_by_id(request.user.id)
+        uifilter = request.args.to_dict().get("uifilter", "all")
+        gennerc_log('get uifilter ={0}'.format(uifilter))
+        uifilter = getattr(UserIntegralType, uifilter, None)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+
+        ui_list = self.session.query(UserIntegral).filter_(UserIntegral.UItype == uifilter).all_with_page()
+        for ui in ui_list:
+            ui.fields = ['UIintegral', 'UIaction', 'createtime']
+
+        return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})

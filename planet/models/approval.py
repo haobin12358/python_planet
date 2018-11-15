@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
-
-from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL
+from sqlalchemy import Integer, String, Text
 
 from planet.common.base_model import Base, Column
 
