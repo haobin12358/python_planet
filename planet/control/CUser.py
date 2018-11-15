@@ -667,6 +667,15 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def user_sign_in(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        # todo 时间拦截器
+        ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid).order_by(UserIntegral.createtime).first()
+        today = datetime.datetime.now()
+        if ui_model and ui_model.createtime.date() == today.date():
+            raise TimeError('今天已经签到')
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': request.user.id,
@@ -675,6 +684,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UItype': 1
         })
         self.session.add(ui)
+        user.USintegral += int(ui.UIintegral)
         return Success('签到成功')
 
     @get_session
@@ -684,7 +694,7 @@ class CUser(SUser, BASEAPPROVAL):
         user = self.get_user_by_id(request.user.id)
         uifilter = request.args.to_dict().get("uifilter", "all")
         gennerc_log('get uifilter ={0}'.format(uifilter))
-        uifilter = getattr(UserIntegralType, uifilter, None)
+        uifilter = getattr(UserIntegralType, uifilter, None).value
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
