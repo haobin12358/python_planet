@@ -34,7 +34,7 @@ def upgrade():
     sa.Column('COsendStarttime', sa.DateTime(), nullable=True),
     sa.Column('COsendEndtime', sa.DateTime(), nullable=True),
     sa.Column('COvalidStartTime', sa.DateTime(), nullable=True),
-    sa.Column('COvalieEndTime', sa.DateTime(), nullable=True),
+    sa.Column('COvalidEndTime', sa.DateTime(), nullable=True),
     sa.Column('COdiscount', sa.Float(), nullable=True),
     sa.Column('COdownLine', sa.Float(), nullable=True),
     sa.Column('COsubtration', sa.Float(), nullable=True),
