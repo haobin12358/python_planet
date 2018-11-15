@@ -23,12 +23,13 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode, UserMedia
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
-from planet.models.product import Products
+from planet.models.product import Products, ProductBrand
 from planet.models.trade import OrderPart
 
 
 class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
+    AGENT_TYPE = 2
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -105,6 +106,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': user})
 
@@ -143,6 +145,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UStelphone', 'USqrcode', 'USrealname']
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.session.add(userloggintime)
         token = usid_to_token(usid, model='User', level=uslevel)
         print(token, type(token))
@@ -212,6 +215,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         return Success('获取首页用户信息成功', data=user)
 
     @get_session
@@ -491,7 +495,7 @@ class CUser(SUser, BASEAPPROVAL):
         """申请成为店主"""
         data = request.json or {}
         user = self.get_user_by_id(request.user.id)
-        if user.USlevel == 2:
+        if user.USlevel == self.AGENT_TYPE:
             raise AuthorityError('已经是店主了！！！')
         if user.USlevel == 3:
             raise AuthorityError("已经提交了审批！！！")
@@ -524,6 +528,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
         user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', "UStelphone"]
+        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         return Success('获取店主申请页成功', data=user)
 
     @get_session
@@ -631,6 +636,8 @@ class CUser(SUser, BASEAPPROVAL):
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_mount += float(uc_model.UCcommission)
             op_list = self.session.query(OrderPart).filter(OrderPart.OMid == uc_model.OMid).all()
+            common_list = []
+            popular_list = []
             if not op_list:
                 gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
                 raise SystemError('服务器异常')
