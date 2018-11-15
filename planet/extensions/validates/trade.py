@@ -4,6 +4,7 @@ from wtforms.ext.sqlalchemy.orm import model_form
 from planet.common.error_response import AuthorityError
 from planet.common.token_handler import is_admin
 from planet.config.enums import OrderMainStatus
+from planet.models import Products, ProductBrand, ProductCategory
 from planet.models.trade import OrderMain, Coupon
 from .base_form import *
 
@@ -76,4 +77,39 @@ class CouponListForm(BaseForm):
     itid = StringField('标签id')
 
 
-CouponCreateForm = model_form(model=Coupon, base_class=BaseForm)
+class CouponCreateForm(BaseForm):
+    pcid = StringField()
+    prid = StringField()
+    pbid = StringField()
+    coname = StringField(validators=[DataRequired(), Length(1, 32)])
+    coisavailable = BooleanField('可用', default=True)
+    coiscancollect = BooleanField('可以领取', default=True)
+    colimitnum = IntegerField('发放数量', default=0, validators=[NumberRange(0)])
+    cocollectnum = IntegerField('限领数量', default=0, validators=[NumberRange(0)])
+    cosendstarttime = DateTimeField('抢券时间起', default=datetime.datetime.now)
+    cosendendtime = DateTimeField('抢卷时间止')
+    covalidstarttime = DateTimeField('有效时间起')
+    covalidendtime = DateTimeField('有效时间起')
+    codiscount = FloatField('折扣', default=10, validators=[NumberRange(0, 10)])
+    codownline = FloatField('满额可用', default=0, validators=[NumberRange(0)])
+    cosubtration = FloatField('减额', default=0, validators=[NumberRange(0)])
+    codesc = StringField('描述')
+
+    def valid_data(self):
+        if self.pcid.data is not None and self.prid.data is not None and self.pbid.data is not None:
+            raise ValidationError('pbid pcid prid 不可以同时存在')
+        if self.prid.data:
+            product = Products.query.filter_by_({"PRid": self.prid.data}).first_('商品不存在')
+        if self.pbid.data:
+            brand = ProductBrand.query.filter_by_({"PBid": self.pbid.data}).first_('品牌不存在')
+        if self.pcid.data:
+            category = ProductCategory.query.filter_by_({'PCid': self.pcid.data}).first_('分类不存在')
+        return super(CouponCreateForm, self).valid_data()
+
+    def validate_cosubtration(self, raw):
+        """减额或打折必需存在一个"""
+        if not raw.data and self.codiscount.data == 10:
+            raise ValidationError('减额或打折必需存在一个')
+
+
+

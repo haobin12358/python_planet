@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import SBase, close_session
-from planet.models.trade import Carts, OrderMain, OrderPart, LogisticsCompnay
+from planet.models.trade import Carts, OrderMain, OrderPart, LogisticsCompnay, OrderRefundApply, OrderLogistics
 
 
 class STrade(SBase):
@@ -35,6 +35,16 @@ class STrade(SBase):
         ).all()
 
     @close_session
-    def get_logistics_list(self, args):
+    def get_logisticscompany_list(self, args):
         return self.session.query(LogisticsCompnay).filter_by_().filter_(*args).all_with_page()
 
+    @close_session
+    def get_orderrefundapply_one(self, args, error=None):
+        """获取单个售后申请"""
+        return self.session.query(OrderRefundApply).filter_by_(args).first_(error)
+
+
+    @close_session
+    def get_orderlogistics_one(self, args, error=None):
+        """获取单个物流信息"""
+        return self.session.query(OrderLogistics).filter_by_(args).first_(error)

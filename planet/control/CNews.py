@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
+import re
 import uuid
 
 from flask import request
-from planet.common.error_response import TokenError, ParamsError
+from planet.common.error_response import TokenError, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist
 from planet.config.enums import ItemType, NewsStatus
-from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory
+from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
+    NewsComment
 from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
 
@@ -34,10 +36,16 @@ class CNews(object):
         kw = args.get('kw', '').split() or ['']  # 关键词
         nestatus = args.get('nestatus') or 'usual'
         nestatus = getattr(NewsStatus, nestatus).value
+        userid = None
+        if str(itid) == 'mynews':
+            userid = usid
+            itid = None
+            nestatus = None
         news_list = self.snews.get_news_list([
             or_(and_(*[News.NEtitle.contains(x) for x in kw]), and_(*[News.NEtext.contains(x) for x in kw])),
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
+            News.USid == userid
         ])
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews']
@@ -48,6 +56,12 @@ class CNews(object):
             else:
                 favorite = 0
             news.fill('is_favorite', favorite)
+            if userid:
+                news_status = news.NEstatus
+                news.fill('nestatus', NewsStatus(news_status).name)
+                if str(news_status) == '0':
+                    news.fill('refuse_info', '因内容不符合规定，审核未通过，建议修改后重新发布')
+                    # todo 获取审批拒绝理由
             commentnumber = self.snews.get_news_comment_count(news.NEid)
             news.fill('commentnumber', commentnumber)
             favoritnumber = self.snews.get_news_favorite_count(news.NEid)
@@ -190,4 +204,80 @@ class CNews(object):
             s.add_all(session_list)
         return Success('添加成功', {'neid': neid})
 
+    @token_required
+    def news_favorite(self):
+        """资讯点赞/踩"""
+        usid = request.user.id
+        if usid:
+            user = self.snews.get_user_by_id(usid)
+            gennerc_log('get user is {0}'.format(user.USname))
+        data = parameter_required(('neid', 'tftype'))
+        neid = data.get('neid')
+        news = self.snews.get_news_content({'NEid': neid})
+        tftype = data.get('tftype')  # {1:点赞, 0:点踩}
+        if not re.match(r'^[0|1]$', str(tftype)):
+            raise ParamsError('tftype, 参数异常')
+        msg = '取消成功'
+        if str(tftype) == '1':
+            is_favorite = self.snews.news_is_favorite(neid, usid)
+            if not is_favorite:
+                with self.snews.auto_commit() as s:
+                    news_favorite = NewsFavorite.create({
+                        'NEFid': str(uuid.uuid1()),
+                        'NEid': neid,
+                        'USid': usid
+                    })
+                    s.add(news_favorite)
+                msg = '点赞成功'
+            else:
+                cancel_favorite = self.snews.cancel_favorite(neid, usid)
+                if not cancel_favorite:
+                    raise SystemError('服务器繁忙')
+        else:
+            is_trample = self.snews.news_is_trample(news.NEid, usid)
+            if not is_trample:
+                with self.snews.auto_commit() as sn:
+                    news_trample = NewsTrample.create({
+                        'NETid': str(uuid.uuid1()),
+                        'NEid': neid,
+                        'USid': usid
+                    })
+                    sn.add(news_trample)
+                msg = '踩了一下'
+            else:
+                cancel_trample = self.snews.cancel_trample(neid, usid)
+                if not cancel_trample:
+                    raise SystemError('服务器繁忙')
+        favorite = self.snews.news_is_favorite(neid, usid)
+        favorite = 1 if favorite else 0
+        trample = self.snews.news_is_trample(news.NEid, usid)
+        trample = 1 if trample else 0
+        return Success(message=msg, data={'neid': neid, 'is_favorite': favorite, 'is_trample': trample})
 
+    def get_news_comment(self):
+        """获取资讯评论"""
+        args = parameter_required(('neid', 'page_num', 'page_size'))
+        neid = args.get('neid')
+        news_comments = self.snews.get_news_comment((NewsComment.NEid == neid, NewsComment.isdelete == False,
+                                                     NewsComment.NCparentid.is_(None), NewsComment.NCrootid.is_(None)))
+        for news_comment in news_comments:
+            reply_comments = self.snews.get_news_comment((NewsComment.NEid == neid, NewsComment.isdelete == False,
+                                                     NewsComment.NCrootid == news_comment.NCid))
+            for reply_comment in reply_comments:
+                re_user = self.fill_user_info(reply_comment.USid)
+                reply_comment.fill('commentuser', re_user)
+                replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid),
+                                                                 NewsComment.createtime.desc())
+                reply_comment.fill('replieduser', replied_user.USname)
+            news_comment.fill('reply', reply_comments)
+            user_info = self.fill_user_info(news_comment.USid)
+            news_comment.fill('user', user_info)
+        return Success(data=news_comments)
+
+    def fill_user_info(self, usid):
+        usinfo = self.snews.get_user_by_id(usid)
+        usinfo.fields = ['USname', 'USheader']
+        return usinfo
+
+    def fill_apply_comment(self, ncid):
+        pass

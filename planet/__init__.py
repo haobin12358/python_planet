@@ -7,14 +7,20 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v1.ABrands import ABrands
+from planet.api.v1.ACart import ACart
+from planet.api.v1.ACategory import ACategory
 from planet.api.v1.ACoupon import ACoupon
 from planet.api.v1.AIndex import AIndex
 from planet.api.v1.AItems import AItems
 from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
 from planet.api.v1.ALogistic import ALogistic
-from planet.api.v1.AProduct import AProduct, ACategory, ASku, ABrands, AScene
-from planet.api.v1.ATrade import ACart, AOrder, ARefund
+from planet.api.v1.AOrder import AOrder
+from planet.api.v1.AProduct import AProduct
+from planet.api.v1.ARefund import ARefund
+from planet.api.v1.AScene import AScene
+from planet.api.v1.ASku import ASku
 from planet.api.v1.AUser import AUser
 from planet.api.v1.ANews import ANews
 from planet.api.v1.AAddress import AAddress
@@ -77,7 +83,7 @@ class Request(_Request):
             'url': self.url,
             'method': self.method,
             'args': self.args.to_dict(),
-            'data': dict(self.data.decode()),
+            'data': self.data.decode(),
             'file': dict(self.files),
             'form': dict(self.form),
             'address': self.remote_addr
