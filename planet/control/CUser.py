@@ -10,19 +10,19 @@ from flask import request
 from sqlalchemy import extract, or_
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import UserIntegralType
+from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
-from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper
+from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 
 from planet.models.user import User, UserLoginTime, UserCommission, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
@@ -42,12 +42,14 @@ class CUser(SUser, BASEAPPROVAL):
         return idcode[:6] + "*" * 12
 
     def __update_birthday_str(self, birthday_date):
+        """变更用户生日展示"""
         if not isinstance(birthday_date, datetime.datetime):
             return ""
 
         return birthday_date.strftime('%Y-%m-%d')
 
     def __check_qualifications(self, user):
+        """申请代理商资质验证"""
         check_result = True
         check_reason = []
         if not user.UStelphone:
@@ -58,12 +60,6 @@ class CUser(SUser, BASEAPPROVAL):
             check_reason.append("实名认证未通过")
         # todo 创建押金订单
         return check_result, check_reason[:]
-
-    def __fill_product(self, product_model, commisision_profit):
-        product_model.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
-        profit = float(product_model.PRprice) * float(commisision_profit) / 100
-        product_model.fill('profit', profit)
-        return product_model
 
     @get_session
     def login(self):
@@ -558,6 +554,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_agent_center(self):
+        """获取店主中心"""
         if not is_shop_keeper():
             gennerc_log('权限不足 id={0} level={1} '.format(request.user.id, request.user.level))
             raise AuthorityError
@@ -595,13 +592,11 @@ class CUser(SUser, BASEAPPROVAL):
         # 最新
         newest_product = product_sql.order_by(Products.createtime.desc()).first()
         if newest_product:
-            # self.__fill_product(newest_product, commisision_profit)
             newest_product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
 
         # 最热
         hottest_product = product_sql.order_by(Products.PRsalesValue.desc()).first()
         if hottest_product:
-            # self.__fill_product(hottest_product, commisision_profit)
             hottest_product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
 
         data = {
@@ -618,6 +613,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_agent_commission_list(self):
+        """获取收益列表"""
         data = request.args.to_dict()
         if data.get('date'):
             if re.match(r'^[1-9]\d{3}-(0[1-9]|1[0-2])$', data.get("date")):
@@ -667,11 +663,12 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def user_sign_in(self):
+        """用户签到"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        # todo 时间拦截器
+
         ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid).order_by(UserIntegral.createtime).first()
         today = datetime.datetime.now()
         if ui_model and ui_model.createtime.date() == today.date():
@@ -704,3 +701,84 @@ class CUser(SUser, BASEAPPROVAL):
             ui.fields = ['UIintegral', 'UIaction', 'createtime']
 
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})
+
+    @get_session
+    def admin_login(self):
+        """管理员登录"""
+        # todo  待测试
+        data = parameter_required(('adname', 'adpassword'))
+        admin = self.session.query().filter(Admin.ADname == data.get("adname"))
+        from werkzeug.security import check_password_hash
+        # 密码验证
+        if admin and check_password_hash(admin.ADpassword, data.get("adpassword")):
+            gennerc_log('管理员登录成功 %s' % admin.ADname)
+            # 创建管理员登录记录
+            ul_instance = UserLoginTime.create({
+                "ULTid": str(uuid.uuid1()),
+                "USid": admin.ADid,
+                "USTip": request.remote_addr,
+                "ULtype": 2
+            })
+            self.session.add(ul_instance)
+            token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel)
+            admin.fields = ['ADname', 'ADheader', 'ADlevel']
+
+            admin.fill('adlevel', AdminLevel(admin.ADlevel).name)
+            admin.fill('adstatus', AdminStatus(admin.ADstatus).name)
+
+            return Success('登录成功', data={'token': token, "admin": admin})
+
+    @get_session
+    @token_required
+    def add_admin_by_superadmin(self):
+        """超级管理员添加普通管理"""
+        # todo 待测试
+        from werkzeug.security import generate_password_hash
+        superadmin = self.session.query(Admin).filter(Admin.ADid == request.user.id).first_('不存在该管理员')
+        if not is_hign_level_admin() or superadmin.ADlevel != 1:
+            raise AuthorityError('当前非超管权限')
+
+        data = request.json
+        gennerc_log("add admin data is %s" % data)
+        parameter_required('adname', 'adpassword', 'adheader')
+        adid = str(uuid.uuid1())
+        password = data.get('password')
+        # 密码校验
+        if len(password) < 4:
+            raise ParamsError('密码长度低于4位')
+        zh_pattern = re.compile(r'[\u4e00-\u9fa5]+')
+        match = zh_pattern.search(password)
+        if match:
+            raise ParamsError(u'密码包含中文字符')
+
+        adname = data.get('adname')
+        adlevel = data.get('adlevel')
+        adlevel = 2 if not adlevel else int(adlevel)
+        # 等级校验
+        if adlevel not in [1, 2, 3]:
+            raise ParamsError('adlevel参数错误')
+
+        # 账户名校验
+        suexist = self.session.query(Admin).filter(Admin.ADname == adname).first()
+        if suexist:
+            raise ParamsError('用户名已存在')
+
+        # 创建管理员
+        adinstance = Admin.create({
+            'SUid': adid,
+            'SUname': adname,
+            'SUpassword': generate_password_hash(password),
+            'SUheader': data.get('suheader'),
+            'SUlevel': adlevel,
+        })
+        self.session.add(adinstance)
+
+        # 创建管理员变更记录
+        an_instance = AdminNotes.create({
+            'ANid': str(uuid.uuid1()),
+            'ADid': adid,
+            'ANaction': '{0} 创建管理员{1} 等级{2}'.format(superadmin.ADname, adname, adlevel),
+            "ANdoneid": request.user.id
+        })
+        self.session.add(an_instance)
+        return Success('创建管理员成功')
