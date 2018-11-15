@@ -707,7 +707,7 @@ class CUser(SUser, BASEAPPROVAL):
         """管理员登录"""
         # todo  待测试
         data = parameter_required(('adname', 'adpassword'))
-        admin = self.session.query().filter(Admin.ADname == data.get("adname"))
+        admin = self.session.query(Admin).filter(Admin.ADname == data.get("adname")).first()
         from werkzeug.security import check_password_hash
         # 密码验证
         if admin and check_password_hash(admin.ADpassword, data.get("adpassword")):
@@ -740,11 +740,11 @@ class CUser(SUser, BASEAPPROVAL):
 
         data = request.json
         gennerc_log("add admin data is %s" % data)
-        parameter_required('adname', 'adpassword', 'adheader')
+        parameter_required(('adname', 'adpassword', 'adheader'))
         adid = str(uuid.uuid1())
-        password = data.get('password')
+        password = data.get('adpassword')
         # 密码校验
-        if len(password) < 4:
+        if not password or len(password) < 4:
             raise ParamsError('密码长度低于4位')
         zh_pattern = re.compile(r'[\u4e00-\u9fa5]+')
         match = zh_pattern.search(password)
@@ -765,11 +765,12 @@ class CUser(SUser, BASEAPPROVAL):
 
         # 创建管理员
         adinstance = Admin.create({
-            'SUid': adid,
-            'SUname': adname,
-            'SUpassword': generate_password_hash(password),
-            'SUheader': data.get('suheader'),
-            'SUlevel': adlevel,
+            'ADid': adid,
+            'ADname': adname,
+            'ADpassword': generate_password_hash(password),
+            'ADheader': data.get('adheader'),
+            'ADlevel': adlevel,
+            'ADstatus': 0,
         })
         self.session.add(adinstance)
 

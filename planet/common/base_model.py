@@ -9,7 +9,7 @@ from planet.config.http_config import HTTP_HOST
 from planet.extensions.register_ext import db
 from .error_response import NotFound
 from ..config.secret import DB_PARAMS
-mysql_engine = create_engine(DB_PARAMS, encoding='utf-8', echo=True, pool_pre_ping=True,)
+mysql_engine = create_engine(DB_PARAMS, encoding='utf-8', echo=False, pool_pre_ping=True,)
 _Base = declarative_base()
 
 
