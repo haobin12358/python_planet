@@ -157,7 +157,7 @@ class Coupon(Base):
     COsendStarttime = Column(DateTime, comment='抢券时间起')
     COsendEndtime = Column(DateTime, comment='抢卷结束时间')
     COvalidStartTime = Column(DateTime, comment='有效起始时间')
-    COvalieEndTime = Column(DateTime, comment='有效期结束时间')
+    COvalidEndTime = Column(DateTime, comment='有效期结束时间')
     COdiscount = Column(Float, default=10, comment='折扣')
     COdownLine = Column(Float, default=0, comment='使用最低金额限制,0 为无限制')
     COsubtration = Column(Float, default=0, comment='优惠价格')
