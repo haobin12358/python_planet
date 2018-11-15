@@ -10,7 +10,7 @@ class News(Base):
     USid = Column(String(64), nullable=False, comment='发布用户id')
     NEtitle = Column(String(32), nullable=False, comment='标题')
     NEtext = Column(Text, comment='文本内容')
-    NEstatus = Column(Integer, default=0, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
+    NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')
 
 
@@ -41,7 +41,16 @@ class NewsComment(Base):
     NEid = Column(String(64), nullable=False, comment='资讯id')
     USid = Column(String(64), nullable=False, comment='评论者id')
     NCtext = Column(String(140), comment='评论内容')
-    NCparentid = Column(String(64), comment='评论回复的资讯id')
+    NCparentid = Column(String(64), comment='回复的父类评论id')
+    NCrootid = Column(String(64), comment='回复源评论id')
+
+
+class NewsCommentFavorite(Base):
+    """资讯评论点赞"""
+    __tablename__ = 'NewsCommentFavorite'
+    NCFid = Column(String(64), primary_key=True)
+    NCid = Column(String(64), nullable=False, comment='资讯评论id')
+    USid = Column(String(64), nullable=False, comment='点赞用户id')
 
 
 class NewsFavorite(Base):

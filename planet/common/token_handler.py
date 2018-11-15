@@ -3,10 +3,6 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 
 from .error_response import AuthorityError, TokenError
-from .success_response import Success
-from ..config.http_config import API_HOST
-from ..config.secret import wxscope, appid, appsecret
-from ..extensions.weixin import WeixinLogin
 
 
 def usid_to_token(id, model='User', level=0, expiration=''):
@@ -42,9 +38,6 @@ def common_user():
 
 def is_shop_keeper():
     """是否是店主 todo"""
-    print(common_user())
-    print(request.user.level, type(request.user.level))
-    print(request.user.model )
     return common_user() and request.user.level == 2
 
 

@@ -15,6 +15,7 @@ class AUser(Resource):
             'login_test': self.user.login_test,
             'upgrade_agent': self.user.upgrade_agent,
             'update_user': self.user.update_user,
+            'user_sign_in': self.user.user_sign_in,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -33,6 +34,7 @@ class AUser(Resource):
             'get_upgrade': self.user.get_upgrade,
             'get_agent_center': self.user.get_agent_center,
             'get_agent_commission_list': self.user.get_agent_commission_list,
+            'get_user_integral': self.user.get_user_integral,
         }
         return apis
 

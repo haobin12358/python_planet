@@ -9,7 +9,8 @@ from decimal import Decimal
 from flask import request
 from sqlalchemy import extract, or_
 
-from planet.config.enums import ProductStatus
+from planet.config.cfgsetting import ConfigSettings
+from planet.config.enums import UserIntegralType
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -19,17 +20,19 @@ from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
-from planet.config.cfgsetting import ConfigSettings
-from planet.models.user import User, UserLoginTime, UserCommission, UserAddress, IDCheck, IdentifyingCode, UserMedia
+
+from planet.models.user import User, UserLoginTime, UserCommission, \
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
-from planet.models.product import Products, ProductBrand
+from planet.models.product import Products, Items, ProductItems
 from planet.models.trade import OrderPart
 
 
 class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
     AGENT_TYPE = 2
+    POPULAR_NAME = '爆款'
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -50,7 +53,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user.UStelphone:
             check_result = False
             check_reason.append("手机号未绑定")
-        if not (user.USrealname or user.USidentification):
+        if not (user.USrealname and user.USidentification):
             check_result = False
             check_reason.append("实名认证未通过")
         # todo 创建押金订单
@@ -461,7 +464,7 @@ class CUser(SUser, BASEAPPROVAL):
             check_message = idcheck.check_response.get('reason')
             self.session.add(newidcheck)
         else:
-            check_message = idcheck.IDCerrorCode
+            check_message = idcheck.IDCreason
             check_result = idcheck.IDCresult
 
         if check_result:
@@ -631,16 +634,73 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserCommission.createtime) == date_filter.year,
         ).all()
         uc_mount = 0
+        common_list = []
+        popular_list = []
         for uc_model in uc_model_list:
             uc_model.fields = ['OMid', 'createtime']
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_mount += float(uc_model.UCcommission)
             op_list = self.session.query(OrderPart).filter(OrderPart.OMid == uc_model.OMid).all()
-            common_list = []
-            popular_list = []
+
             if not op_list:
                 gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
                 raise SystemError('服务器异常')
-            om_name = "+".join(str(op.PRtitle) for op in op_list)
+            is_popular = False
+            om_name = []
+            for op in op_list:
+                om_name.append(str(op.PRtitle))
+                itemes = self.session.query(Items).filter(
+                    Items.ITid == ProductItems.ITid, ProductItems.PRid == op.PRid).first()
+                if itemes and itemes.ITname == self.POPULAR_NAME:
+                    is_popular = True
+            om_name = "+".join(om_name)
+            if is_popular:
+                popular_list.append(uc_model)
+            else:
+                common_list.append(uc_model)
             uc_model.fill('UCname', om_name)
-        return Success('获取收益详情', data={'usercommission_mount': uc_mount, 'usercommission_list': uc_model_list})
+        return Success('获取收益详情', data={
+            'usercommission_mount': uc_mount,
+            'usercommission_common_list': common_list,
+            "usercommission_popular_list": popular_list})
+
+    @get_session
+    @token_required
+    def user_sign_in(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        # todo 时间拦截器
+        ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid).order_by(UserIntegral.createtime).first()
+        today = datetime.datetime.now()
+        if ui_model and ui_model.createtime.date() == today.date():
+            raise TimeError('今天已经签到')
+        ui = UserIntegral.create({
+            'UIid': str(uuid.uuid1()),
+            'USid': request.user.id,
+            'UIintegral': ConfigSettings().get_item('integralbase', 'integral'),
+            'UIaction': 1,
+            'UItype': 1
+        })
+        self.session.add(ui)
+        user.USintegral += int(ui.UIintegral)
+        return Success('签到成功')
+
+    @get_session
+    @token_required
+    def get_user_integral(self):
+        """获取积分列表"""
+        user = self.get_user_by_id(request.user.id)
+        uifilter = request.args.to_dict().get("uifilter", "all")
+        gennerc_log('get uifilter ={0}'.format(uifilter))
+        uifilter = getattr(UserIntegralType, uifilter, None).value
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+
+        ui_list = self.session.query(UserIntegral).filter_(UserIntegral.UItype == uifilter).all_with_page()
+        for ui in ui_list:
+            ui.fields = ['UIintegral', 'UIaction', 'createtime']
+
+        return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})

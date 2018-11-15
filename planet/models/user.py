@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
-
-from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL
+from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL
 
 from planet.common.base_model import Base, Column
 
@@ -76,7 +74,7 @@ class Admin(Base):
     ADheader = Column(Text, comment='头像', url=True)
     ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
-    ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
+    # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
 
 
 class AdminNotes(Base):
@@ -87,7 +85,7 @@ class AdminNotes(Base):
     ANid = Column(String(64), primary_key=True)
     ADid = Column(String(64), nullable=False, comment='管理员id')
     ANaction = Column(Text, comment='变更动作')
-    ANcreateTime = Column(DateTime, default=datetime.now(), comment='变更时间')
+    # ANcreateTime = Column(DateTime, default=datetime.now(), comment='变更时间')
     ANdoneid = Column(String(64), comment='修改人id')
 
 
@@ -132,3 +130,12 @@ class IDCheck(Base):
     IDCaddr = Column(Text, comment='查询结果的地址信息，精确到县')
     IDCerrorCode = Column(String(8), comment='查询结果code')
     IDCreason = Column(Text, comment='查询结果')
+
+
+class UserIntegral (Base):
+    __tablename__ = 'UserSignIn'
+    UIid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    UIintegral = Column(Integer, comment='该动作产生的积分变化数')
+    UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费')
+    UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')

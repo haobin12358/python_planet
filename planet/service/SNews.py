@@ -18,6 +18,17 @@ class SNews(SBase):
         return self.session.query(News).filter_by_(**nfilter).first_('没有找到该资讯')
 
     @close_session
+    def get_news_comment(self, ncfilter):
+        """获取资讯评论"""
+        return self.session.query(NewsComment).filter(*ncfilter).order_by(NewsComment.createtime.desc()).all_with_page()
+
+    @close_session
+    def get_comment_reply_user(self, args, order=()):
+        """获取回复评论的用户"""
+        return self.session.query(User).outerjoin(NewsComment, User.USid == NewsComment.USid).filter_(
+            *args).order_by(*order).all()
+
+    @close_session
     def get_news_images(self, neid):
         """获取资讯关联图片"""
         return self.session.query(NewsImage).filter_by_(NEid=neid).order_by(
@@ -66,9 +77,19 @@ class SNews(SBase):
         return self.session.query(NewsFavorite).filter_by_(NEid=neid, USid=usid).first()
 
     @close_session
+    def cancel_favorite(self, neid, usid):
+        """取消点赞"""
+        return self.session.query(NewsFavorite).filter_by_(NEid=neid, USid=usid).delete_()
+
+    @close_session
     def news_is_trample(self, neid, usid):
         """是否已对资讯点踩"""
         return self.session.query(NewsTrample).filter_by_(NEid=neid, USid=usid).first()
+
+    @close_session
+    def cancel_trample(self, neid, usid):
+        """取消踩"""
+        return self.session.query(NewsTrample).filter_by_(NEid=neid, USid=usid).delete_()
 
     @close_session
     def get_user_by_id(self, usid):
