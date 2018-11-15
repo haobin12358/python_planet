@@ -203,7 +203,9 @@ class COrder(CPay):
             # order_part.add('OPstatus_en')
             # 售后状态信息
             if order_part.OPisinORA:
-                pass
+                opid = order_part.OPId
+                order_refund_reply = self.strade.get_orderrefundapply_one({'OPid': opid})
+                order_part.fill('order_refund_apply', order_refund_reply)
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name

@@ -77,7 +77,7 @@ class Request(_Request):
             'url': self.url,
             'method': self.method,
             'args': self.args.to_dict(),
-            'data': dict(self.data.decode()),
+            'data': self.data.decode(),
             'file': dict(self.files),
             'form': dict(self.form),
             'address': self.remote_addr

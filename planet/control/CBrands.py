@@ -66,7 +66,6 @@ class CBrands(object):
         product_brand.fill('pbstatus_en', ProductStatus(product_brand.PBstatus).name)
         return Success(data=product_brand)
 
-
     def list_with_group(self):
         form = BrandsListForm().valid_data()
         index = dict(form.index.choices).get(form.index.data)

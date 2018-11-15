@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import uuid
 from datetime import datetime
 
 from sqlalchemy import or_
@@ -53,7 +54,7 @@ class CCoupon(object):
         time_now = datetime.now()
         if can_use:
             user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter_(
-                or_(Coupon.COvalieEndTime > time_now, Coupon.COvalieEndTime.is_(None)),
+                or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
                 or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
                 Coupon.COisAvailable == True,  # 可用
                 CouponUser.UCalreadyUse == False  # 未用
@@ -63,7 +64,7 @@ class CCoupon(object):
                 or_(
                     Coupon.COisAvailable == False,
                     CouponUser.UCalreadyUse == True,
-                    Coupon.COvalieEndTime < time_now,   # 已经结束
+                    Coupon.COvalidEndTime < time_now,   # 已经结束
                     Coupon.COvalidStartTime > time_now ,  # 未开始c
                 ),
 
@@ -92,8 +93,30 @@ class CCoupon(object):
 
     def create(self):
         form = CouponCreateForm().valid_data()
-        import ipdb
-        ipdb.set_trace()
+        with self.strade.auto_commit() as s:
+            coid = str(uuid.uuid4())
+            coupon_instance = Coupon.create({
+                'COid': str(uuid.uuid4()),
+                'PCid': form.pcid.data,
+                'PRid': form.prid.data,
+                'PBid': form.pbid.data,
+                'COname': form.coname.data,
+                'COisAvailable': form.coisavailable.data,
+                'COcanCollect': form.coiscancollect.data,
+                'COlimitNum': form.colimitnum.data,
+                'COcollectNum': form.cocollectnum.data,
+                'COsendStarttime': form.cosendstarttime.data,
+                'COsendEndtime': form.cosendendtime.data,
+                'COvalidStartTime': form.covalidstarttime.data,
+                'COvalidEndTime': form.covalidendtime.data,
+                'COdiscount': form.codiscount.data,
+                'COdownLine': form.codownline.data,
+                'COsubtration': form.cosubtration.data,
+                'COdesc': form.codesc.data,
+            })
+            s.add(coupon_instance)
+        return Success('添加成功')
+
 
     def update(self):
         pass
@@ -108,7 +131,7 @@ class CCoupon(object):
             title = '{}品牌专用'.format(brand.PBname)
         else:
             title = '全场通用'
-        if coupon.COvalieEndTime or coupon.COvalieEndTime:
+        if coupon.COvalidEndTime or coupon.COvalidEndTime:
             subtitle = '限时优惠'
         else:
             subtitle = ''
@@ -121,7 +144,7 @@ class CCoupon(object):
         # 判断是否可用
         time_now = datetime.now()
         ended = (  # 已结束
-            coupon.COvalieEndTime < time_now if coupon.COvalieEndTime else False
+            coupon.COvalidEndTime < time_now if coupon.COvalidEndTime else False
         )
         not_start = (  # 未开始
             coupon.COvalidStartTime > time_now if coupon.COvalidStartTime else False

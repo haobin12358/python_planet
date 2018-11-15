@@ -44,11 +44,9 @@ TemplateCode =env.get("TemplateCode")
 # 身份实名认证
 ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 
-# 快递100
-kd_api_subscribe_callbackurl = env.get('KDSubScribeUrl', API_HOST + '/api/v1/logistic/subcribe_callback')
-kd_api_key = env.get('KDApiKey', 'guss')
-kd_subscribe_api = 'https://poll.kuaidi100.com/poll'
-
+# 快递物流查询
+kd_api_code = env.get('KDApiKey', 'guess')
+kd_api_url = 'https://kdwlcxf.market.alicloudapi.com/kdwlcx'
 
 
 class DefaltSettig(object):

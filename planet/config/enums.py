@@ -25,7 +25,7 @@ class ProductBrandStatus(Enum):
 
 
 class PayType(Enum):
-    """支付方式"""
+    """{0: '微信支付', 10: 支付宝}"""
     wechat_pay = 0
     alipay = 10
 
@@ -78,7 +78,8 @@ class ItemType(Enum):
 
 class LogisticsSearchStatus(Enum):
     """物流状态"""
-    # :polling: 监控中，shutdown: 结束，abort: 中止，updateall：重新推送
+    # :polling: 监控中，shutdown: 结束，abort: 中止，updateall：重新推送, 此
+    # 为快递100参数,不用
     polling = '监控中'
     shutdown = '结束'
     abort = '终止'
@@ -87,12 +88,13 @@ class LogisticsSearchStatus(Enum):
 
 class LogisticsSignStatus(Enum):
     """物流签收状态"""
-    # -3 等待揽收 0在途中、1已揽收、2疑难、3已签收、
-    wait_collect = -3
-    ready_collect = 1
-    on_the_way = 0
-    question = 2
-    already_signed = 3
+    #  1.在途中 2.正在派件 3.已签收 4.派送失败
+    wait_collect = 0  # 等待揽收
+    on_the_way = 1
+    sending = 2  # 正在派件
+    already_signed = 3  # 已签收
+    send_fail = 4  # 配送失败
+    error = 200
 
 
 class ApprovalType(Enum):
