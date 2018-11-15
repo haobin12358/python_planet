@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
-import sys
 import traceback
 from collections import namedtuple
-from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler
 
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask import current_app, request
 
 from .error_response import ApiError, BaseError, SystemError
 from .success_response import Success
-from ..config.cfgsetting import singleton
+
 
 User = namedtuple('User', ('id', 'model', 'level'))
 

@@ -120,11 +120,18 @@ class NewsStatus(Enum):
     auditing = 2  # 审核中
     refuse = 0  # 下架
 
+
 # user
 class UserSearchHistoryType(Enum):
     """搜索记录类型 0 商品, 10 圈子"""
     product = 0
     news = 10
+
+
+class UserIntegralType(Enum):
+    all = None
+    income = 1
+    expenditure = 2
 
 
 if __name__ == '__main__':
