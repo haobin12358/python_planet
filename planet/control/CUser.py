@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from flask import request
 from sqlalchemy import extract, or_
+from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus
@@ -63,6 +64,24 @@ class CUser(SUser, BASEAPPROVAL):
             check_reason.append("实名认证未通过")
         # todo 创建押金订单
         return check_result, check_reason[:]
+
+    def __check_password(self, password):
+        if not password or len(password) < 4:
+            raise ParamsError('密码长度低于4位')
+        zh_pattern = re.compile(r'[\u4e00-\u9fa5]+')
+        match = zh_pattern.search(password)
+        if match:
+            raise ParamsError(u'密码包含中文字符')
+        return True
+
+    def __check_adname(self, adname, adid):
+        """账户名校验"""
+        if not adname or adid:
+            return True
+        suexist = self.session.query(Admin).filter(Admin.ADname == adname).first()
+        if suexist and suexist.ADid != adid:
+            raise ParamsError('用户名已存在')
+        return True
 
     def __check_identifyingcode(self, ustelphone, identifyingcode):
         """验证码校验"""
@@ -742,7 +761,7 @@ class CUser(SUser, BASEAPPROVAL):
     def add_admin_by_superadmin(self):
         """超级管理员添加普通管理"""
         # todo 待测试
-        from werkzeug.security import generate_password_hash
+
         superadmin = self.get_admin_by_id(request.user.id)
         if not is_hign_level_admin() or superadmin.ADlevel != 1:
             raise AuthorityError('当前非超管权限')
@@ -753,12 +772,7 @@ class CUser(SUser, BASEAPPROVAL):
         adid = str(uuid.uuid1())
         password = data.get('adpassword')
         # 密码校验
-        if not password or len(password) < 4:
-            raise ParamsError('密码长度低于4位')
-        zh_pattern = re.compile(r'[\u4e00-\u9fa5]+')
-        match = zh_pattern.search(password)
-        if match:
-            raise ParamsError(u'密码包含中文字符')
+        self.__check_password(password)
 
         adname = data.get('adname')
         adlevel = getattr(AdminLevel, data.get('adlevel', '普通管理员'), 2).value
@@ -769,9 +783,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('adlevel参数错误')
 
         # 账户名校验
-        suexist = self.session.query(Admin).filter(Admin.ADname == adname).first()
-        if suexist:
-            raise ParamsError('用户名已存在')
+        self.__check_adname(adname, adid)
 
         # 创建管理员
         adinstance = Admin.create({
@@ -800,20 +812,32 @@ class CUser(SUser, BASEAPPROVAL):
     def update_admin(self):
         if not is_admin():
             raise AuthorityError('权限不足')
-        data = request.json
+        data = request.json or {}
         admin = self.get_admin_by_id(request.user.id)
         update_admin = {
             'ADname': data.get("adname"),
-            'ADpassword': data.get('adpassword'),
-            'ADheader': data.get('adlevel'),
-            'ADstatus': data.get('adstatus'),
+            'ADheader': data.get('adheader'),
+
         }
-        if admin.level == AdminLevel.超级管理员.value:
+        password = data.get('adpassword')
+        if password:
+            self.__check_password(password)
+            password = generate_password_hash(password)
+            update_admin['ADpassword'] = password
+
+        if admin.ADlevel == AdminLevel.超级管理员.value:
             filter_adid = data.get('adid') or admin.ADid
+            if getattr(AdminLevel, data.get('adlevel', ""), ""):
+                update_admin['ADlevel'] = getattr(AdminLevel, data.get('adlevel')).value
+            if getattr(AdminStatus, data.get('adstatus', ""), ""):
+                update_admin['ADstatus'] = getattr(AdminStatus, data.get('adstatus')).value
         else:
             filter_adid = admin.ADid
+        self.__check_adname(data.get("adname"), filter_adid)
 
+        update_admin = {k: v for k, v in update_admin.items() if v or v == 0}
         update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
         if not update_result:
-            raise SystemError("服务器繁忙，稍后重试")
+            raise ParamsError('管理员不存在')
+
         return Success("操作成功")
