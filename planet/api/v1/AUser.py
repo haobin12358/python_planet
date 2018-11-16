@@ -18,6 +18,7 @@ class AUser(Resource):
             'user_sign_in': self.user.user_sign_in,
             'admin_login': self.user.admin_login,
             'add_admin_by_superadmin': self.user.add_admin_by_superadmin,
+            'update_admin': self.user.update_admin,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
