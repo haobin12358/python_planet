@@ -376,9 +376,9 @@ class CUser(SUser, BASEAPPROVAL):
         if uaid:
             uafilter = {'UAid': uaid, 'isdelete': False}
         else:
-            uafilter = {'UAdefault': True, 'isdelete': False}
+            uafilter = {'USid': user.USid, 'UAdefault': True, 'isdelete': False}
         get_address = self.get_useraddress_by_filter(uafilter)
-        any_address = self.get_useraddress_by_filter({'isdelete': False})
+        any_address = self.get_useraddress_by_filter({'USid': user.USid, 'isdelete': False})
         if not any_address:
             raise NotFound('用户未设置任何地址信息')
         address = get_address or any_address
