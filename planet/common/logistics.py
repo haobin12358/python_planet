@@ -32,11 +32,7 @@ class Logistics(object):
         }
         response = self.fetch(url, params)
         code = response.get('status')
-        if code == '0':
-            return response
-        else:
-            # 查询出错 todo
-            return
+        return response
 
 
 

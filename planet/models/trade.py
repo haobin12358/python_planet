@@ -41,11 +41,10 @@ class OrderMain(Base):
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
-    # 卖家信息
-    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
     # 上级信息
     UPperid = Column(String(64), comment='上级id')
     UPperid2 = Column(String(64), comment='上上级id')
+    OMtotalCommision = Column(Float, comment='产生的总佣金')
 
 
 class OrderPay(Base):
@@ -89,6 +88,9 @@ class OrderPart(Base):
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
+    # 卖家信息
+    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    PRcreateId = Column(String(64), comment='发布者id')
 
 
 class OrderRefundApply(Base):
@@ -129,7 +131,7 @@ class OrderLogistics(Base):
     OLcompany = Column(String(32), nullable=False, comment='物流公司')
     OLexpressNo = Column(String(64), nullable=False, comment='物流单号')
     OLsearchStatus = Column(String(8), default=0, comment='物流查询状态(待用字段) polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')
-    OLsignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败')
+    OLsignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
     OLdata = Column(Text, comment='查询结果')
     OLlastresult = Column(String(255), comment='物流最后状态')
 

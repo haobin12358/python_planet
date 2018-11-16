@@ -14,6 +14,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
+from planet.control.BaseControl import Commsion
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User
@@ -109,6 +110,9 @@ class COrder(CPay):
                         'OPnum': opnum,
                         'PRid': product_instance.PRid,
                         'OPsubTotal': small_total,
+                        # 商品来源
+                        'PRfrom': product_instance.PRfrom,
+                        'PRcreateId': product_instance.CreaterId
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
                     model_bean.append(order_part_instance)
@@ -152,7 +156,7 @@ class COrder(CPay):
                     'PBname': product_brand_instance.PBname,
                     'PBid': pbid,
                     'OMclient': omclient,
-                    'OMfreight': 0, # 运费暂时为0
+                    'OMfreight': 0,  # 运费暂时为0
                     'OMmount': order_price,
                     'OMmessage': ommessage,
                     'OMtrueMount': order_price,  # 暂时付费不优惠
@@ -160,7 +164,14 @@ class COrder(CPay):
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
                     'OMrecvAddress': omrecvaddress,
+                    'UPperid': user.USsupper1,
+                    'UPperid2': user.USsupper2,
                 }
+                if user.USsupper1:
+                    # 主单佣金数据
+                    commision = user.USCommission
+                    total_comm = Commsion(order_price, commision).total_comm
+                    order_main_dict.setdefault('OMtotalCommision', total_comm)
                 order_main_instance = OrderMain.create(order_main_dict)
                 model_bean.append(order_main_instance)
                 # 总价格累加
@@ -174,9 +185,6 @@ class COrder(CPay):
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             model_bean.append(order_pay_instance)
-            # 一级代理
-            if user.USsupper1:
-                pass
             s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))

@@ -81,15 +81,19 @@ class CPay():
         out_trade_no = data.get('out_trade_no')
         # 交易成功
         with self.strade.auto_commit() as s:
+            s_list = []
             # 更改付款流水
             order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('gmt_payment')
             order_pay_instance.OPaysn = data.get('trade_no')  # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
+            s_list.append(order_pay_instance)
             # 更改主单
-            s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).update({
+            order_main = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).first_()
+            order_main.update({
                 'OMstatus': OrderMainStatus.wait_send.value
             })
+            s_list.append(order_main)
         return 'success'
 
     def wechat_notify(self):
