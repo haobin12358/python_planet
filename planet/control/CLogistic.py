@@ -21,7 +21,7 @@ class CLogistic:
 
     def list_company(self):
         data = parameter_required()
-        kw = data.get('kw') or ''
+        kw = (data.get('kw') or '').split()
         logistics = self.strade.get_logisticscompany_list([
             LogisticsCompnay.LCname.contains(kw)
         ])
@@ -68,18 +68,27 @@ class CLogistic:
             s_list = []
             order_logistics = s.query(OrderLogistics).filter_by_({'OMid': omid}).first()
             time_now = datetime.now()
-            if not order_logistics.OLdata or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600:
+            if (not order_logistics.OLdata or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
+                    and order_logistics.OLsignStatus != 3:
                 # http查询
                 l = Logistics()
                 response = l.get_logistic(order_logistics.OLexpressNo, order_logistics.OLcompany)
                 if response:
                     # 插入数据库
-                    result = response.get('result')
-                    OrderLogisticsDict = {
-                        'OLsignStatus': int(result.get('deliverystatus')),
-                        'OLdata': json.dumps(result),  # 结果原字符串
-                        'OLlastresult': json.dumps(result.get('list')[0])  # 最新物流
-                    }
+                    code = response.get('status')
+                    if code == '0':
+                        result = response.get('result')
+                        OrderLogisticsDict = {
+                            'OLsignStatus': int(result.get('deliverystatus')),
+                            'OLdata': json.dumps(result),  # 结果原字符串
+                            'OLlastresult': json.dumps(result.get('list')[0])  # 最新物流
+                        }
+                    else:
+                        OrderLogisticsDict = {
+                            'OLsignStatus': -1,
+                            'OLdata': json.dumps(response),  # 结果原字符串
+                            'OLlastresult': '{}'
+                        }
                     order_logistics.update(OrderLogisticsDict)
                     s_list.append(order_logistics)
             logistics_company = s.query(LogisticsCompnay).filter_by_({'LCcode': order_logistics.OLcompany}).first()

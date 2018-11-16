@@ -37,6 +37,7 @@ class UserLoginTime(Base):
 
 
 class UserCommission(Base):
+    """用户佣金"""
     __tablename__ = 'UserCommission'
     UCid = Column(String(64), primary_key=True)
     OMid = Column(String(64), comment='佣金来源订单')
