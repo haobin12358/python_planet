@@ -12,7 +12,9 @@ from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderMainStatus
 from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
     alipay_public_key_path, alipay_notify
+from planet.control.BaseControl import Commsion
 from planet.extensions.weixin import WeixinPay
+from planet.models import User, UserCommission
 from planet.models.trade import OrderMain, OrderPart, OrderPay
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -30,10 +32,13 @@ class CPay():
         omid = data.get('omid')
         usid = request.user.id
         try:
-            omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
+            omclient = data.get('omclient', Client.wechat.value)  # 测试
+            if omclient != 'test':
+                omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
+                Client(omclient)
             opaytype = int(data.get('opaytype', PayType.wechat_pay.value))  # 付款方式
             PayType(opaytype)
-            Client(omclient)
+
         except ValueError as e:
             raise e
         except Exception as e:
@@ -89,11 +94,16 @@ class CPay():
             order_pay_instance.OPayJson = json.dumps(data)
             s_list.append(order_pay_instance)
             # 更改主单
-            order_main = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).first_()
-            order_main.update({
-                'OMstatus': OrderMainStatus.wait_send.value
-            })
-            s_list.append(order_main)
+            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            for order_main in order_mains:
+                order_main.update({
+                    'OMstatus': OrderMainStatus.wait_send.value
+                })
+                s_list.append(order_main)
+                # 添加佣金记录
+                commion_instance_list = self._insert_usercommision(s, order_main)
+                s_list.extend(commion_instance_list)
+            s.add_all(s_list)
         return 'success'
 
     def wechat_notify(self):
@@ -104,27 +114,67 @@ class CPay():
             return self.pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
         with self.strade.auto_commit() as s:
+            s_list = []
             # 更改付款流水
             order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('time_end')
             order_pay_instance.OPaysn = data.get('transaction_id')  # 微信支付订单号
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
-            s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).update({
-                'OMstatus': OrderMainStatus.wait_send.value
-            })
-            return self.pay.reply("OK", True)
+            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            for order_main in order_mains:
+                order_main.update({
+                    'OMstatus': OrderMainStatus.wait_send.value
+                })
+                s_list.append(order_main)
+                # 添加佣金记录
+                commion_instance_list = self._insert_usercommision(s, order_main)
+                s_list.extend(commion_instance_list)
+            s.add_all(s_list)
+        return self.pay.reply("OK", True)
 
-    def test_pay(self):
+    def _insert_usercommision(self, s, order_main):
+        """写入佣金流水表"""
+        s_list = []
+        up1 = order_main.UPperid
+        up2 = order_main.UPperid2
+        if not up1:
+            return []
+        user = s.query(User).filter_by_({'USid': order_main.USid}).first()
+        usccommsion = User.USCommission if user else None
+        commsion = Commsion(total_comm=order_main.OMtotalCommision, commision=usccommsion)
+        up1_comm = commsion.caculate_up_comm(up2)  # 记录一级应该得到的佣金
+        user_commision_dict = {
+            'UCid': str(uuid.uuid4()),
+            'OMid': order_main.OMid,
+            'UCcommission': up1_comm,
+            'USid': up1
+        }
+        s_list.append(UserCommission.create(user_commision_dict))
+        if up2:
+            users_commision_dict = {
+                'UCid': str(uuid.uuid4()),
+                'OMid': order_main.OMid,
+                'UCcommission': up1_comm,
+                'USid': up2
+            }
+            s_list.append(UserCommission.create(users_commision_dict))
+        return s_list
+
+    def test_pay(self, out_trade_no=1, mount_price=1):
         order_string = self.alipay.api_alipay_trade_page_pay(
-            out_trade_no=self.wx_pay.nonce_str,
-            total_amount=0.01,
-            subject='elllfjdl',
-            return_url="https://example.com",
+            out_trade_no=out_trade_no,
+            total_amount=mount_price,
+            subject='testestestestestestestestsetestsetsetest',
         )
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        ####
+        # 一种测试的付款方式, 使用支付宝网页支付
+        if omclient == 'test':
+            return self.test_pay(out_trade_no=opayno, mount_price=mount_price)
+        ####
         if opaytype == PayType.wechat_pay.value:
             body = body[:110] + '...'
             wechat_pay_dict = dict(

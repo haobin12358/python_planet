@@ -43,7 +43,7 @@ class UserCommission(Base):
     __tablename__ = 'UserCommission'
     UCid = Column(String(64), primary_key=True)
     OMid = Column(String(64), comment='佣金来源订单')
-    UCcommission = Column(DECIMAL, comment='获取佣金')
+    UCcommission = Column(DECIMAL(precision=28, scale=2), comment='获取佣金')
     USid = Column(String(64), comment='用户id')
     UCstatus = Column(Integer, default=0, comment='佣金状态{0：预期到账, 1: 已到账, 2: 已提现}')
     # UCcreateTime = Column(DateTime, default=datetime.now(), comment='佣金创建时间')
