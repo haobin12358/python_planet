@@ -39,10 +39,9 @@ class BASEAPPROVAL():
 class Commsion:
     def __init__(self, total_price=None, total_comm=None, commision=None, one_level_commission=None):
         """
-
         :param total_price: 总价
         :param total_comm: 总佣金
-        :param commision: 配置文件中的佣金比例
+        :param commision: 配置文件或用户中的佣金比例
         :param one_level_commission: 一级佣金比例
         """
         self.total_price = total_price
@@ -58,13 +57,15 @@ class Commsion:
 
     def caculate_up_comm(self, up2=None):
         """计算佣金"""
+        if not isinstance(self.total_comm, Decimal):
+            self.total_comm = Decimal(self.total_comm)
         self.up2_comm = 0
         if up2:
             self.up1_comm = self.total_comm * (Decimal(self.one_level_commission) / 100)
             self.up2_comm = self.total_comm - self.up1_comm
         else:
             self.up1_comm = self.total_comm
-        return self.up1_comm, self.up2_comm
+        return self.up1_comm
 
     def insert_into_order_main(self, omid):
         pass

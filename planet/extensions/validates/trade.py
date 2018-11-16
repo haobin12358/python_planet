@@ -37,9 +37,11 @@ class OrderListForm(BaseForm):
 
     def validate_usid(self, raw):
         if not is_admin() and self.issaler.data is False:  # 买家版仅可以查看自己的订单
+            if not raw.data:
+                raw.data = request.user.id
             if raw.data != request.user.id:
                 raise AuthorityError()
-            usid = request.user.id
+            usid = raw.data
         elif not is_admin() and self.issaler.data is True:  # 卖家不筛选usid
             usid = None
         else:

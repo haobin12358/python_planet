@@ -17,7 +17,8 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.BaseControl import Commsion
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
-from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User
+from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
+    AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics
 
@@ -73,7 +74,14 @@ class COrder(CPay):
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
             omrecvphone = user_address_instance.UAphone
-            omrecvaddress = user_address_instance.UAtext
+            areaid = user_address_instance.AAid
+            # 地址拼接
+            area, city, province = s.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str
             model_bean = []
@@ -110,7 +118,7 @@ class COrder(CPay):
                         'OPnum': opnum,
                         'PRid': product_instance.PRid,
                         'OPsubTotal': small_total,
-                        # 商品来源
+                        # 副单商品来源
                         'PRfrom': product_instance.PRfrom,
                         'PRcreateId': product_instance.CreaterId
                     }
@@ -246,3 +254,5 @@ class COrder(CPay):
         """生成订单号"""
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) +\
                  str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
+
+
