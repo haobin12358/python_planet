@@ -26,7 +26,6 @@ class BASEAPPROVAL():
             "AVcontent": avcontentid
         })
         with self.sapproval.auto_commit() as s:
-            # todo 待测试
             aninstance = ApprovalNotes.create({
                 "ANid": str(uuid.uuid1()),
                 "AVid": av.AVid,

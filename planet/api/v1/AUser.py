@@ -16,6 +16,8 @@ class AUser(Resource):
             'upgrade_agent': self.user.upgrade_agent,
             'update_user': self.user.update_user,
             'user_sign_in': self.user.user_sign_in,
+            'admin_login': self.user.admin_login,
+            'add_admin_by_superadmin': self.user.add_admin_by_superadmin,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
