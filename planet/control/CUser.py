@@ -810,6 +810,10 @@ class CUser(SUser, BASEAPPROVAL):
         }
         if admin.level == AdminLevel.超级管理员.value:
             filter_adid = data.get('adid') or admin.ADid
+        else:
+            filter_adid = admin.ADid
 
-            self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
-
+        update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
+        if not update_result:
+            raise SystemError("服务器繁忙，稍后重试")
+        return Success("操作成功")
