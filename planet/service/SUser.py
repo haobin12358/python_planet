@@ -21,7 +21,7 @@ class SUser():
 
     def get_useraddress_by_usid(self, usid):
         return self.session.query(UserAddress).filter(UserAddress.USid == usid, UserAddress.isdelete == False
-                                                      ).all_with_page()
+                                                      ).order_by(UserAddress.UAdefault.desc()).all_with_page()
 
     def get_useraddress_by_filter(self, uafilter):
         """根据条件获取地址"""
@@ -43,7 +43,7 @@ class SUser():
         """通过区县id 获取具体的三级地址"""
         return self.session.query(AddressArea, AddressCity, AddressProvince).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
-            AddressArea.AAid == areaid).all()
+            AddressArea.AAid == areaid).first_()
 
     def get_usermedia(self, usid, umtype):
         """获取用户身份证图片"""
