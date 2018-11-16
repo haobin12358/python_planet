@@ -11,7 +11,7 @@ class SQLAlchemy(_SQLAlchemy):
     def init_app(self, app):
         app.config.setdefault('SQLALCHEMY_DATABASE_URI', DB_PARAMS)
         app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
-        app.config.setdefault('SQLALCHEMY_ECHO', True)
+        # app.config.setdefault('SQLALCHEMY_ECHO', True)  # 开启sql日志
         super(SQLAlchemy, self).init_app(app)
 
 

@@ -1,6 +1,6 @@
 # from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea, UserMedia, IDCheck
+    AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes
 from sqlalchemy import or_, and_
 
 
@@ -59,6 +59,12 @@ class SUser():
             IDCheck.isdelete == False
         ).first_()
 
+    def get_admin_by_name(self, adname):
+        return self.session.query(Admin).filter_(Admin.ADname == adname).first()
+
+    def get_admin_by_id(self, adid):
+        return self.session.query(Admin).filter(Admin.ADid == adid).first_('不存在该管理员')
+
     # update 操作
 
     def update_useraddress_by_filter(self, uafilter, uainfo):
@@ -66,7 +72,12 @@ class SUser():
         return self.session.query(UserAddress).filter_by(**uafilter).update(uainfo)
 
     def update_user_by_filter(self, us_and_filter, us_or_filter, usinfo):
-        return self.session.query(User).filter(and_(*us_and_filter), or_(*us_or_filter), User.isdelete == False).update(usinfo)
+        return self.session.query(User).filter(
+            and_(*us_and_filter), or_(*us_or_filter), User.isdelete == False).update(usinfo)
+
+    def update_admin_by_filter(self, ad_and_filter, ad_or_filter, adinfo):
+        return self.session.query(Admin).filter_(
+            and_(*ad_and_filter), or_(*ad_or_filter), Admin.isdelete == False).update(adinfo)
 
     # 逻辑delete 操作
     def delete_usemedia_by_usid(self, usid):

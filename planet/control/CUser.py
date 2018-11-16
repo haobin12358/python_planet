@@ -15,7 +15,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
-from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin
+from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -600,8 +600,8 @@ class CUser(SUser, BASEAPPROVAL):
             hottest_product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRdescription', 'PRmainpic']
 
         data = {
-            'mounth_count': mounth_count,
-            'uc_count': uc_count,
+            'mounth_count': float(mounth_count),
+            'uc_count': float(uc_count),
             'fens_count': fens_count,
             'activity_count': activity_count,
             'fens_mouth_count': fens_mouth_count,
@@ -705,9 +705,8 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     def admin_login(self):
         """管理员登录"""
-        # todo  待测试
         data = parameter_required(('adname', 'adpassword'))
-        admin = self.session.query(Admin).filter(Admin.ADname == data.get("adname")).first()
+        admin = self.get_admin_by_name(data.get('adname'))
         from werkzeug.security import check_password_hash
         # 密码验证
         if admin and check_password_hash(admin.ADpassword, data.get("adpassword")):
@@ -735,7 +734,7 @@ class CUser(SUser, BASEAPPROVAL):
         """超级管理员添加普通管理"""
         # todo 待测试
         from werkzeug.security import generate_password_hash
-        superadmin = self.session.query(Admin).filter(Admin.ADid == request.user.id).first_('不存在该管理员')
+        superadmin = self.get_admin_by_id(request.user.id)
         if not is_hign_level_admin() or superadmin.ADlevel != 1:
             raise AuthorityError('当前非超管权限')
 
@@ -783,5 +782,25 @@ class CUser(SUser, BASEAPPROVAL):
             'ANaction': '{0} 创建管理员{1} 等级{2}'.format(superadmin.ADname, adname, adlevel),
             "ANdoneid": request.user.id
         })
+
         self.session.add(an_instance)
         return Success('创建管理员成功')
+
+    @get_session
+    @token_required
+    def update_admin(self):
+        if not is_admin():
+            raise AuthorityError('权限不足')
+        data = request.json
+        admin = self.get_admin_by_id(request.user.id)
+        update_admin = {
+            'ADname': data.get("adname"),
+            'ADpassword': data.get('adpassword'),
+            'ADheader': data.get('adlevel'),
+            'ADstatus': data.get('adstatus'),
+        }
+        if admin.level == AdminLevel.超级管理员.value:
+            filter_adid = data.get('adid') or admin.ADid
+
+            self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
+
