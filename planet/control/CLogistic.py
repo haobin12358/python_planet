@@ -69,7 +69,7 @@ class CLogistic:
             order_logistics = s.query(OrderLogistics).filter_by_({'OMid': omid}).first()
             time_now = datetime.now()
             if (not order_logistics.OLdata or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
-                    and order_logistics.OLsignStatus != 3:
+                    and order_logistics.OLsignStatus != 3:  # 没有data信息或超过6小时 并且状态不是已签收
                 # http查询
                 l = Logistics()
                 response = l.get_logistic(order_logistics.OLexpressNo, order_logistics.OLcompany)
@@ -91,6 +91,9 @@ class CLogistic:
                         }
                     order_logistics.update(OrderLogisticsDict)
                     s_list.append(order_logistics)
+                else:
+                    # 无信息 todo
+                    pass
             logistics_company = s.query(LogisticsCompnay).filter_by_({'LCcode': order_logistics.OLcompany}).first()
             order_logistics.fill('OLsignStatus_en', LogisticsSignStatus(order_logistics.OLsignStatus).name)
             order_logistics.fill('logistics_company', logistics_company)

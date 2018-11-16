@@ -43,6 +43,8 @@ class COrder(CPay):
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
+            import ipdb
+            ipdb.set_trace()
             order_main.add('OMstatus_en').hide('OPayno', 'USid', )
             # 用户
             # todo 卖家订单
