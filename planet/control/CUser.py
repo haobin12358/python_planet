@@ -33,6 +33,9 @@ class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
+    USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
+            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', "USpaycode"]
+
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -61,22 +64,29 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 创建押金订单
         return check_result, check_reason[:]
 
-    @get_session
-    def login(self):
-        """手机验证码登录"""
-        data = parameter_required(('ustelphone', 'identifyingcode'))
-        ustelphone = data.get('ustelphone')
-        identifyingcode = str(data.get('identifyingcode'))
+    def __check_identifyingcode(self, ustelphone, identifyingcode):
+        """验证码校验"""
+        # identifyingcode = str(data.get('identifyingcode'))
+        if not ustelphone or not identifyingcode:
+            raise ParamsError("验证码/手机号缺失")
         idcode = self.get_identifyingcode_by_ustelphone(ustelphone)
 
         if not idcode or str(idcode.ICcode) != identifyingcode:
             gennerc_log('get identifyingcode ={0} get idcode = {1}'.format(identifyingcode, idcode.ICcode))
             raise ParamsError('验证码有误')
+
         timenow = datetime.datetime.now()
         if (timenow - idcode.createtime).seconds > 600:
             gennerc_log('get timenow ={0}, sendtime = {1}'.format(timenow, idcode.createtime))
             raise ParamsError('验证码已经过期')
+        return True
 
+    @get_session
+    def login(self):
+        """手机验证码登录"""
+        data = parameter_required(('ustelphone', 'identifyingcode'))
+        ustelphone = data.get('ustelphone')
+        self.__check_identifyingcode(ustelphone, data.get("identifyingcode"))
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
             usid = str(uuid.uuid1())
@@ -100,9 +110,7 @@ class CUser(SUser, BASEAPPROVAL):
             "USTip": request.remote_addr
         })
         self.session.add(userloggintime)
-        user.fields = [
-            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
+        user.fields = self.USER_FIELDS
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
@@ -139,9 +147,7 @@ class CUser(SUser, BASEAPPROVAL):
             "USid": usid,
             "USTip": request.remote_addr
         })
-        user.fields = [
-            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname']
+        user.fields = self.USER_FIELDS
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
@@ -209,9 +215,7 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 插入 优惠券信息
         # user.add('优惠券')
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
-        user.fields = [
-            'USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday']
+        user.fields = self.USER_FIELDS
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
@@ -372,9 +376,9 @@ class CUser(SUser, BASEAPPROVAL):
         if uaid:
             uafilter = {'UAid': uaid, 'isdelete': False}
         else:
-            uafilter = {'UAdefault': True, 'isdelete': False}
+            uafilter = {'USid': user.USid, 'UAdefault': True, 'isdelete': False}
         get_address = self.get_useraddress_by_filter(uafilter)
-        any_address = self.get_useraddress_by_filter({'isdelete': False})
+        any_address = self.get_useraddress_by_filter({'USid': user.USid, 'isdelete': False})
         if not any_address:
             raise NotFound('用户未设置任何地址信息')
         address = get_address or any_address
@@ -533,10 +537,10 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def update_user(self):
-        """更新用户 昵称/性别/绑定电话/头像/出生日期"""
+        """更新用户 昵称/性别/绑定电话/头像/出生日期/支付密码"""
         data = request.json
         user = self.get_user_by_id(request.user.id)
-        update_params = ['USname', 'UStelphone', 'USgender', 'USheader']
+        update_params = ['USname', 'UStelphone', 'USgender', 'USheader', 'USpaycode']
 
         for k in update_params:
             if k == 'UStelphone':
@@ -544,6 +548,11 @@ class CUser(SUser, BASEAPPROVAL):
                 if user_check and user_check.USid != user.USid:
                     gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
                     raise ParamsError("该手机号已经被绑定")
+                self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
+
+            if k == 'USpaycode':
+                self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
+
             if data.get(k.lower()):
                 setattr(user, k, data.get(k.lower()))
         if data.get('usbirthday'):
