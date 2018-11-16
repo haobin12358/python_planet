@@ -26,6 +26,7 @@ class User(Base):
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
     USqrcode = Column(Text, comment='用户二维码')
+    USpaycode = Column(Text, comment='支付密码')
 
 
 class UserLoginTime(Base):
