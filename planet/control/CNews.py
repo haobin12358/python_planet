@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from flask import request
-from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound
+from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
@@ -286,21 +286,27 @@ class CNews(object):
                 if repliedusername == re_user['USname']:
                     repliedusername = ''
                 reply_comment.fill('replieduser', repliedusername)
+                if usid:
+                    is_own = 1 if usid == reply_comment.USid else 0
+                else:
+                    is_own = 0
+                reply_comment.fill('is_own', is_own)
             news_comment.fill('reply', reply_comments)
             user_info = self.fill_user_info(news_comment.USid)
             news_comment.fill('user', user_info)
             if usid:
                 is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
                 favorite = 1 if is_favorite else 0
+                is_own = 1 if usid == news_comment.USid else 0
             else:
                 favorite = 0
+                is_own = 0
+            news_comment.fill('is_own', is_own)
             news_comment.fill('is_favorite', favorite)
             createtime = news_comment.createtime or datetime.now()
             createtime = str(createtime).replace('-', '/')[:19]
             news_comment.fill('createtime', createtime)
         return Success(data=news_comments).get_body(comment_count=comment_total_count, istourist=tourist)
-
-    # todo 删除源评论时候需要同时删除源评论下所有回复
 
     @token_required
     def create_comment(self):
@@ -381,8 +387,26 @@ class CNews(object):
 
     @token_required
     def del_comment(self):
-        # todo 删除评论
-        pass
+        """删除评论"""
+        usid = request.user.id
+        user = self.snews.get_user_by_id(usid)
+        gennerc_log('get user is {0}'.format(user.USname))
+        data = parameter_required(('ncid',))
+        ncid = data.get('ncid')
+        comment = NewsComment.query.filter(NewsComment.NCid == ncid,
+                                           NewsComment.isdelete == False
+                                           ).first_('评论已删除')
+        if usid == comment.USid:
+            if comment.NCrootid is None:
+                del_reply = self.snews.del_comment(NewsComment.NCrootid == ncid)
+                if not del_reply:
+                    raise SystemError('服务器繁忙')
+            del_comment = self.snews.del_comment(NewsComment.NCid == ncid)
+            if not del_comment:
+                raise SystemError('服务器繁忙')
+        else:
+            raise AuthorityError('只能删除自己发布的评论')
+        return Success('删除成功', {'ncid': ncid})
 
     def fill_user_info(self, usid):
         try:

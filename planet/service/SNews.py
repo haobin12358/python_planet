@@ -98,6 +98,11 @@ class SNews(SBase):
         return self.session.query(NewsCommentFavorite).filter_by_(USid=usid, NCid=ncid).first()
 
     @close_session
+    def del_comment(self, ncfilter):
+        """删除评论"""
+        return self.session.query(NewsComment).filter(ncfilter).delete_()
+
+    @close_session
     def get_user_by_id(self, usid):
         return self.session.query(User).filter(User.USid == usid).first_('用户不存在')
 
