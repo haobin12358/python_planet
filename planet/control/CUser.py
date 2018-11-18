@@ -402,6 +402,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise NotFound('用户未设置任何地址信息')
         address = get_address or any_address
         addressinfo = self._get_addressinfo_by_areaid(address.AAid)
+        address.fill('areainfo', addressinfo)
         address.fill('addressinfo', addressinfo + getattr(address, 'UAtext', ''))
         uadefault = 1 if address.UAdefault is True else 0
         address.fill('uadefault', uadefault)
