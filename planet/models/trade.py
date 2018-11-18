@@ -133,7 +133,7 @@ class OrderLogistics(Base):
     OLsearchStatus = Column(String(8), default=0, comment='物流查询状态(待用字段) polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')
     OLsignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
     OLdata = Column(Text, comment='查询结果')
-    OLlastresult = Column(String(255), comment='物流最后状态')
+    OLlastresult = Column(Text, comment='物流最后状态')
 
 
 class LogisticsCompnay(Base):
@@ -156,6 +156,7 @@ class Coupon(Base):
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COcollectNum = Column(Integer, default=0, comment='领取数量')
+    COuseNum = Column(Integer, default=0, comment='可使用叠加数量, 0 表示无限制')
     COsendStarttime = Column(DateTime, comment='抢券时间起')
     COsendEndtime = Column(DateTime, comment='抢卷结束时间')
     COvalidStartTime = Column(DateTime, comment='有效起始时间')

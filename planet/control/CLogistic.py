@@ -8,6 +8,7 @@ from flask import request
 from planet.common.error_response import StatusError
 from planet.common.logistics import Logistics
 from planet.common.params_validates import parameter_required
+from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, LogisticsSignStatus
@@ -66,7 +67,7 @@ class CLogistic:
         omid = data.get('omid')
         with self.strade.auto_commit() as s:
             s_list = []
-            order_logistics = s.query(OrderLogistics).filter_by_({'OMid': omid}).first()
+            order_logistics = s.query(OrderLogistics).filter_by_({'OMid': omid}).first_('未获得物流信息')
             time_now = datetime.now()
             if (not order_logistics.OLdata or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
                     and order_logistics.OLsignStatus != 3:  # 没有data信息或超过6小时 并且状态不是已签收
@@ -93,7 +94,7 @@ class CLogistic:
                     s_list.append(order_logistics)
                 else:
                     # 无信息 todo
-                    pass
+                    gennerc_log('物流信息出错')
             logistics_company = s.query(LogisticsCompnay).filter_by_({'LCcode': order_logistics.OLcompany}).first()
             order_logistics.fill('OLsignStatus_en', LogisticsSignStatus(order_logistics.OLsignStatus).name)
             order_logistics.fill('logistics_company', logistics_company)

@@ -20,6 +20,7 @@ class AOrder(Resource):
         apis = {
             'list': self.corder.list,
             'get': self.corder.get,
+            'count': self.corder.get_order_count,
         }
         return apis
 
