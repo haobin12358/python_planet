@@ -45,6 +45,7 @@ class OrderMain(Base):
     UPperid = Column(String(64), comment='上级id')
     UPperid2 = Column(String(64), comment='上上级id')
     OMtotalCommision = Column(Float, comment='产生的总佣金')
+    PRcreateId = Column(String(64), comment='发布者id')
 
 
 class OrderPay(Base):
@@ -90,7 +91,6 @@ class OrderPart(Base):
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
-    PRcreateId = Column(String(64), comment='发布者id')
 
 
 class OrderRefundApply(Base):
@@ -133,7 +133,7 @@ class OrderLogistics(Base):
     OLsearchStatus = Column(String(8), default=0, comment='物流查询状态(待用字段) polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')
     OLsignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
     OLdata = Column(Text, comment='查询结果')
-    OLlastresult = Column(String(255), comment='物流最后状态')
+    OLlastresult = Column(Text, comment='物流最后状态')
 
 
 class LogisticsCompnay(Base):
@@ -156,6 +156,7 @@ class Coupon(Base):
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COcollectNum = Column(Integer, default=0, comment='领取数量')
+    COuseNum = Column(Integer, default=0, comment='可使用叠加数量, 0 表示无限制')
     COsendStarttime = Column(DateTime, comment='抢券时间起')
     COsendEndtime = Column(DateTime, comment='抢卷结束时间')
     COvalidStartTime = Column(DateTime, comment='有效起始时间')

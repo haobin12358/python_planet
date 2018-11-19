@@ -572,21 +572,21 @@ class CUser(SUser, BASEAPPROVAL):
         update_params = ['USname', 'UStelphone', 'USgender', 'USheader', 'USpaycode']
 
         for k in update_params:
-            if k == 'UStelphone':
-                user_check = self.get_user_by_tel(data.get(k.lower()))
-                if user_check and user_check.USid != user.USid:
-                    gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
-                    raise ParamsError("该手机号已经被绑定")
-                self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
-
-            if k == 'USpaycode':
-                self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
-
             if data.get(k.lower()):
+                if k == 'UStelphone':
+                    user_check = self.get_user_by_tel(data.get(k.lower()))
+                    if user_check and user_check.USid != user.USid:
+                        gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
+                        raise ParamsError("该手机号已经被绑定")
+                    self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
+                if k == 'USpaycode':
+                    self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
                 setattr(user, k, data.get(k.lower()))
+
         if data.get('usbirthday'):
             gennerc_log('get usbirthday = {0}'.format(data.get("usbirthday")))
             user.USbirthday = datetime.datetime.strptime(data.get("usbirthday"), '%Y-%m-%d')
+
         return Success("更新成功")
 
     @get_session

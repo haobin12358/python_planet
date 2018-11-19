@@ -37,6 +37,10 @@ class Enum(_Enum):
         cls._custom_map = value_dict
         return value_dict
 
+    @classmethod
+    def all_member(cls):
+        return [x.name for x in cls._member_map_.values()]
+
 
 if __name__ == '__main__':
 

@@ -57,13 +57,13 @@ class CCoupon(object):
                 or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
                 or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
                 Coupon.COisAvailable == True,  # 可用
-                CouponUser.UCalreadyUse == False  # 未用
+                # CouponUser.UCalreadyUse == False,  # 未用
             ).all_with_page()
         elif can_use is False:
             user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter(
                 or_(
                     Coupon.COisAvailable == False,
-                    CouponUser.UCalreadyUse == True,
+                    # CouponUser.UCalreadyUse == True,
                     Coupon.COvalidEndTime < time_now,   # 已经结束
                     Coupon.COvalidStartTime > time_now ,  # 未开始c
                 ),
@@ -123,6 +123,7 @@ class CCoupon(object):
 
     @staticmethod
     def _title_subtitle(coupon):
+        # 使用对象限制
         if coupon.PCid:
             category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
             title = '{}类专用'.format(category.PCname)
@@ -131,10 +132,17 @@ class CCoupon(object):
             title = '{}品牌专用'.format(brand.PBname)
         else:
             title = '全场通用'
-        if coupon.COvalidEndTime or coupon.COvalidEndTime:
-            subtitle = '限时优惠'
+        # 使用下限
+        if coupon.COdownLine:
+            subtitle = '满{:g}元'.format(coupon.COdownLine)
+            print(subtitle)
         else:
-            subtitle = ''
+            subtitle = '无限制'
+        # 叠加方式
+        if coupon.COuseNum:
+            subtitle += '可用'
+        else:
+            subtitle += '可叠加'
         return {
             'title': title,
             'subtitle': subtitle,

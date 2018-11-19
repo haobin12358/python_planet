@@ -31,7 +31,6 @@ class Logistics(object):
             'type': type
         }
         response = self.fetch(url, params)
-        code = response.get('status')
         return response
 
 
