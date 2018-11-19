@@ -13,6 +13,7 @@ class AOrder(Resource):
             'pay': self.corder.pay,
             'alipay_notify': self.corder.alipay_notify,
             'wechat_notify': self.corder.wechat_notify,
+            'create_evaluation': self.corder.create_order_evaluation,
         }
         return apis
 

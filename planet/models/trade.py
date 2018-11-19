@@ -66,9 +66,8 @@ class OrderPay(Base):
 class OrderCoupon(Base):
     __tablename__ = 'OrderRaward'
     OCid = Column(String(64), primary_key=True)
-    UCid = Column(String(64), nullable=False, comment='用户优惠券')
+    COid = Column(String(64), nullable=False, comment='优惠券id')
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OCnum = Column(Integer, default=1, comment='使用数量')
     OCreduce = Column(Float, nullable=False, comment='减额')
     # 其他
 
@@ -121,6 +120,33 @@ class OrderRefund(Base):
     OMid = Column(String(64), nullable=False, comment='订单id')
     OPid = Column(String(64), nullable=False, comment='附单id')
     # 其他
+
+
+class OrderEvaluation(Base):
+    """订单评价"""
+    __tablename__ = 'OrderEvaluation'
+    OEid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户')
+    OPid = Column(String(64), nullable=False, comment='订单副单id')
+    OEtext = Column(String(255), nullable=False, default='此用户没有填写评价。', comment='评价内容')
+    OEIid = Column(String(255), comment='评价图片')
+    OEVid = Column(String(255), comment='评价视频')
+    OEscore = Column(Integer, nullable=False, default=5, comment='五星评分')
+
+
+class OrderEvaluationImage(Base):
+    """订单评价图片"""
+    __tablename__ = 'OrderEvaluationImage'
+    OEIid = Column(String(64), primary_key=True)
+    OEImg = Column(String(255), nullable=False, url=True, comment='图片url')
+
+
+class OrderEvaluationVideo(Base):
+    """订单评价视频"""
+    __tablename__ = 'OrderEvaluationVideo'
+    OEVid = Column(String(64), primary_key=True)
+    OEVideo = Column(String(255), nullable=False, url=True, comment='视频url')
+    OEVthumbnail = Column(String(255), nullable=False, url=True, comment='视频缩略图')
 
 
 class OrderLogistics(Base):
@@ -184,4 +210,3 @@ class CouponUser(Base):
     USid = Column(String(64), nullable=False, comment='用户id')
     UCalreadyUse = Column(Boolean, default=False, comment='是否已经使用')
     UCstatus = Column(Integer, default=0, comment='状态: 10 禁用')
-

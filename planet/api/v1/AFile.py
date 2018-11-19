@@ -11,5 +11,6 @@ class AFile(Resource):
         apis = {
             'upload': self.cfile.upload_img,
             'remove': self.cfile.remove,
+            'batch_upload': self.cfile.batch_upload
         }
         return apis
