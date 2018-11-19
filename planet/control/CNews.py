@@ -395,7 +395,7 @@ class CNews(object):
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
                                            NewsComment.isdelete == False
-                                           ).first_('评论已删除')
+                                           ).first_('未找到该评论或已被删除')
         if usid == comment.USid:
             if comment.NCrootid is None:
                 del_reply = self.snews.del_comment(NewsComment.NCrootid == ncid)

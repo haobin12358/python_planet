@@ -43,7 +43,7 @@ class SUser():
         """通过区县id 获取具体的三级地址"""
         return self.session.query(AddressArea, AddressCity, AddressProvince).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
-            AddressArea.AAid == areaid).first_()
+            AddressArea.AAid == areaid).first_('aaid错误，没有该区域信息')
 
     def get_usermedia(self, usid, umtype):
         """获取用户身份证图片"""
