@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 import re
 import uuid
+from datetime import datetime
 
 from flask import request
-from planet.common.error_response import TokenError, ParamsError, SystemError
+from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist
 from planet.config.enums import ItemType, NewsStatus
-from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    NewsComment
+from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample
+from planet.models import NewsComment, NewsCommentFavorite
 from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
 
@@ -256,28 +257,163 @@ class CNews(object):
 
     def get_news_comment(self):
         """获取资讯评论"""
+        if not is_tourist():
+            usid = request.user.id
+            if usid:
+                user = self.snews.get_user_by_id(usid)
+                gennerc_log('get user is {0}'.format(user.USname))
+                if not user:
+                    raise TokenError('token error')
+                tourist = 0
+        else:
+            usid = None
+            tourist = 1
         args = parameter_required(('neid', 'page_num', 'page_size'))
         neid = args.get('neid')
         news_comments = self.snews.get_news_comment((NewsComment.NEid == neid, NewsComment.isdelete == False,
                                                      NewsComment.NCparentid.is_(None), NewsComment.NCrootid.is_(None)))
+        comment_total_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False).count()
         for news_comment in news_comments:
-            reply_comments = self.snews.get_news_comment((NewsComment.NEid == neid, NewsComment.isdelete == False,
-                                                     NewsComment.NCrootid == news_comment.NCid))
+            reply_comments = NewsComment.query.filter(NewsComment.NEid == neid,
+                                                      NewsComment.isdelete == False,
+                                                      NewsComment.NCrootid == news_comment.NCid
+                                                      ).order_by(NewsComment.createtime.desc()).all()
             for reply_comment in reply_comments:
                 re_user = self.fill_user_info(reply_comment.USid)
-                reply_comment.fill('commentuser', re_user)
-                replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid),
-                                                                 NewsComment.createtime.desc())
-                reply_comment.fill('replieduser', replied_user.USname)
+                reply_comment.fill('commentuser', re_user['USname'])
+                replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid,))
+                repliedusername = replied_user.USname if replied_user else '匿名用户'
+                if repliedusername == re_user['USname']:
+                    repliedusername = ''
+                reply_comment.fill('replieduser', repliedusername)
+                if usid:
+                    is_own = 1 if usid == reply_comment.USid else 0
+                else:
+                    is_own = 0
+                reply_comment.fill('is_own', is_own)
             news_comment.fill('reply', reply_comments)
             user_info = self.fill_user_info(news_comment.USid)
             news_comment.fill('user', user_info)
-        return Success(data=news_comments)
+            if usid:
+                is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
+                favorite = 1 if is_favorite else 0
+                is_own = 1 if usid == news_comment.USid else 0
+            else:
+                favorite = 0
+                is_own = 0
+            news_comment.fill('is_own', is_own)
+            news_comment.fill('is_favorite', favorite)
+            createtime = news_comment.createtime or datetime.now()
+            createtime = str(createtime).replace('-', '/')[:19]
+            news_comment.fill('createtime', createtime)
+        return Success(data=news_comments).get_body(comment_count=comment_total_count, istourist=tourist)
+
+    @token_required
+    def create_comment(self):
+        usid = request.user.id
+        user = self.snews.get_user_by_id(usid)
+        gennerc_log('get user is {0}'.format(user.USname))
+        if not user:
+            raise TokenError('token error')
+        data = parameter_required(('neid', 'nctext'))
+        neid = data.get('neid')
+        self.snews.get_news_content({'NEid': neid, 'isdelete': False})
+        ncid = data.get('ncid')
+        comment_ncid = str(uuid.uuid1())
+        reply_ncid = str(uuid.uuid1())
+        if ncid in self.empty:
+            with self.snews.auto_commit() as nc:
+                comment = NewsComment.create({
+                    'NCid': comment_ncid,
+                    'NEid': neid,
+                    'USid': usid,
+                    'NCtext': data.get('nctext'),
+                })
+                nc.add(comment)
+            re_data = comment_ncid
+        else:
+            news_comment = NewsComment.query.filter(NewsComment.NCid == ncid, NewsComment.isdelete == False).first()
+            if not news_comment:
+                raise NotFound('该评论已删除')
+            ncrootid = news_comment.NCrootid
+            if not ncrootid:
+                ncrootid = ncid
+            with self.snews.auto_commit() as r:
+                reply = NewsComment.create({
+                    'NCid': reply_ncid,
+                    'NEid': neid,
+                    'USid': usid,
+                    'NCtext': data.get('nctext'),
+                    'NCparentid': ncid,
+                    'NCrootid': ncrootid,
+                })
+                r.add(reply)
+            re_data = reply_ncid
+        return Success('评论成功', data={'ncid': re_data})
+
+    @token_required
+    def comment_favorite(self):
+        """评论点赞"""
+        usid = request.user.id
+        user = self.snews.get_user_by_id(usid)
+        gennerc_log('get user is {0}'.format(user.USname))
+        data = parameter_required(('ncid',))
+        ncid = data.get('ncid')
+        comment = NewsComment.query.filter(NewsComment.NCid == ncid,
+                                           NewsComment.isdelete == False,
+                                           NewsComment.NCrootid.is_(None)).first()
+        if not comment:
+            raise NotFound('不支持对回复点赞或评论已删除')
+        is_favorite = self.snews.comment_is_favorite(ncid, usid)
+        with self.snews.auto_commit() as s:
+            if not is_favorite:
+                comment_favorite = NewsCommentFavorite.create({
+                    'NCFid': str(uuid.uuid1()),
+                    'NCid': ncid,
+                    'USid': usid
+                })
+                s.add(comment_favorite)
+                msg = '已点赞'
+            else:
+                cancel_favorite = s.query(NewsCommentFavorite).filter(NewsCommentFavorite.NCid == ncid,
+                                                                      NewsCommentFavorite.USid == usid
+                                                                      ).delete_()
+                if not cancel_favorite:
+                    raise SystemError('服务器繁忙')
+                msg = '已取消'
+        favorite = self.snews.comment_is_favorite(ncid, usid)
+        fav = 1 if favorite else 0
+        return Success(msg, {'is_favorite': fav})
+
+    @token_required
+    def del_comment(self):
+        """删除评论"""
+        usid = request.user.id
+        user = self.snews.get_user_by_id(usid)
+        gennerc_log('get user is {0}'.format(user.USname))
+        data = parameter_required(('ncid',))
+        ncid = data.get('ncid')
+        comment = NewsComment.query.filter(NewsComment.NCid == ncid,
+                                           NewsComment.isdelete == False
+                                           ).first_('评论已删除')
+        if usid == comment.USid:
+            if comment.NCrootid is None:
+                del_reply = self.snews.del_comment(NewsComment.NCrootid == ncid)
+                if not del_reply:
+                    raise SystemError('服务器繁忙')
+            del_comment = self.snews.del_comment(NewsComment.NCid == ncid)
+            if not del_comment:
+                raise SystemError('服务器繁忙')
+        else:
+            raise AuthorityError('只能删除自己发布的评论')
+        return Success('删除成功', {'ncid': ncid})
 
     def fill_user_info(self, usid):
-        usinfo = self.snews.get_user_by_id(usid)
+        try:
+            usinfo = self.snews.get_user_by_id(usid)
+        except Exception as f:
+            gennerc_log("this user is deleted, error is {}".format(f))
+            user_dict = {"USname": "匿名用户", "USheader": ""}
+            return user_dict
         usinfo.fields = ['USname', 'USheader']
         return usinfo
-
-    def fill_apply_comment(self, ncid):
-        pass

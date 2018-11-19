@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import close_session, SBase
-from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag, User, Items, NewsTrample
+from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag, User, Items, NewsTrample, \
+    NewsCommentFavorite
 
 
 class SNews(SBase):
@@ -19,14 +20,14 @@ class SNews(SBase):
 
     @close_session
     def get_news_comment(self, ncfilter):
-        """获取资讯评论"""
+        """获取所有资讯评论"""
         return self.session.query(NewsComment).filter(*ncfilter).order_by(NewsComment.createtime.desc()).all_with_page()
 
     @close_session
-    def get_comment_reply_user(self, args, order=()):
+    def get_comment_reply_user(self, args):
         """获取回复评论的用户"""
         return self.session.query(User).outerjoin(NewsComment, User.USid == NewsComment.USid).filter_(
-            *args).order_by(*order).all()
+            *args).first()
 
     @close_session
     def get_news_images(self, neid):
@@ -90,6 +91,16 @@ class SNews(SBase):
     def cancel_trample(self, neid, usid):
         """取消踩"""
         return self.session.query(NewsTrample).filter_by_(NEid=neid, USid=usid).delete_()
+
+    @close_session
+    def comment_is_favorite(self, ncid, usid):
+        """评论是否已经点赞"""
+        return self.session.query(NewsCommentFavorite).filter_by_(USid=usid, NCid=ncid).first()
+
+    @close_session
+    def del_comment(self, ncfilter):
+        """删除评论"""
+        return self.session.query(NewsComment).filter(ncfilter).delete_()
 
     @close_session
     def get_user_by_id(self, usid):

@@ -29,8 +29,12 @@ class COrder(CPay):
     def list(self):
         form = OrderListForm().valid_data()
         usid = form.usid.data
-        filter_args = form.omstatus.data
-        filter_args.append(OrderMain.USid == usid)
+        issaler = form.issaler.data  # 是否是卖家
+        filter_args = form.omstatus.data  # 过滤参数
+        if issaler:  # 卖家
+            filter_args.append(OrderMain)  # todo
+        else:
+            filter_args.append(OrderMain.USid == usid)
         order_mains = self.strade.get_ordermain_list(filter_args)
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
@@ -43,7 +47,8 @@ class COrder(CPay):
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-            order_main.add('OMstatus_en').hide('OPayno', 'USid', )
+            order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value
+            order_main.add('OMstatus_en', 'OMstatus_zh').hide('OPayno', 'USid', )
             # 用户
             # todo 卖家订单
             if is_admin():
@@ -246,8 +251,31 @@ class COrder(CPay):
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
 
+    @token_required
+    def get_order_count(self):
+        """各状态订单的数量"""
+        form = OrderListForm().valid_data()
+        usid = form.usid.data
+        issaler = form.issaler.data  # 是否是卖家
+        if not issaler:
+            filter_args = OrderMain.USid == usid
+        else:
+            # 是卖家, 卖家订单显示有问题..
+            pass
+        data = {
+            k: self._get_order_count(filter_args, k)
+            for k in OrderMainStatus.all_member()
+        }
+        data.setdefault('refund', OrderMain.query.filter_(filter_args, OrderMain.OMinRefund == True).count())
+        return Success(data=data)
 
-    # todo 卖家订单
+    @staticmethod
+    def _get_order_count(arg, k):
+        return OrderMain.query.filter_(
+                arg,
+                OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
+                OrderMain.OMinRefund == False
+            ).count()
 
     @staticmethod
     def _generic_omno():

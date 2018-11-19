@@ -11,6 +11,9 @@ class ANews(Resource):
         apis = {
             'create_news': self.cnews.create_news,
             'favorite_news': self.cnews.news_favorite,
+            'create_comment': self.cnews.create_comment,
+            'favorite_comment': self.cnews.comment_favorite,
+            'del_comment': self.cnews.del_comment,
         }
         return apis
 

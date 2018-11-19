@@ -441,10 +441,9 @@ class CUser(SUser, BASEAPPROVAL):
 
     def _get_addressinfo_by_areaid(self, areaid):
         """通过areaid获取地址具体信息, 返回xx省xx市xx区字符串"""
-        area_info = self.get_addressinfo_by_areaid(areaid)
-        for area, city, province in area_info:
-            address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
-                area, "AAname", '') + ' '
+        area, city, province = self.get_addressinfo_by_areaid(areaid)
+        address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
+            area, "AAname", '') + ' '
         return address
 
     @get_session
