@@ -15,15 +15,16 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
 from planet.control.BaseControl import Commsion
+from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics
+    OrderLogistics, CouponUser, Coupon
 
 
-class COrder(CPay):
+class COrder(CPay, CCoupon):
 
     @token_required
     def list(self):
@@ -32,7 +33,7 @@ class COrder(CPay):
         issaler = form.issaler.data  # 是否是卖家
         filter_args = form.omstatus.data  # 过滤参数
         if issaler:  # 卖家
-            filter_args.append(OrderMain)  # todo
+            filter_args.append(OrderMain.PRcreateId == usid)  # todo
         else:
             filter_args.append(OrderMain.USid == usid)
         order_mains = self.strade.get_ordermain_list(filter_args)
@@ -47,7 +48,7 @@ class COrder(CPay):
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-            order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value
+            order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
             order_main.add('OMstatus_en', 'OMstatus_zh').hide('OPayno', 'USid', )
             # 用户
             # todo 卖家订单
@@ -97,6 +98,7 @@ class COrder(CPay):
                 info = parameter_required(('pbid', 'skus', ), datafrom=info)
                 pbid = info.get('pbid')
                 skus = info.get('skus')
+                coupons = info.get('coupons')
                 ommessage = info.get('ommessage')
                 product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
                 for sku in skus:
@@ -159,6 +161,17 @@ class COrder(CPay):
                             'PMSVnum': opnum
                         })
                         model_bean.append(month_sale_instance)
+                # 使用优惠券
+                if coupons:
+                    for ucid in coupons:
+                        coupon_user = s.query(CouponUser).filter_by_({"UCid": ucid}).first_('用户优惠券{}不存在'.format(ucid))
+                        coupon = s.query(Coupon).filter_by_({"COid": coupon_user.COid}).first_('优惠券不可用')
+                        # 是否过期或者已使用过
+                        can_use = self._isavalible(coupon, coupon_user)
+                        if not can_use:
+                            raise StatusError('优惠券已过期或不可用')
+                        # 是否可以在本订单使用
+                        # if coupon.
                 # 主单
                 order_main_dict = {
                     'OMid': omid,
@@ -220,17 +233,25 @@ class COrder(CPay):
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
             order_part.PRattribute = json.loads(order_part.PRattribute)
             # 状态
-            # order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
-            # order_part.add('OPstatus_en')
             # 售后状态信息
             if order_part.OPisinORA:
                 opid = order_part.OPId
                 order_refund_reply = self.strade.get_orderrefundapply_one({'OPid': opid})
                 order_part.fill('order_refund_apply', order_refund_reply)
         order_main.fill('order_part', order_parts)
+
+
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-        order_main.add('OMstatus_en').hide('OPayno', 'USid', )
+        order_main.add('OMstatus_en', 'createtime').hide('OPayno', 'USid', )
+        # 付款时间
+        if order_main.OMstatus > OrderMainStatus.wait_pay.value:
+            order_pay = OrderPay.query.filter_by_({'OPayno': order_main.OPayno}).first()
+            order_main.fill('pay_time', order_pay.OPaytime)
+        # 发货时间
+        if order_main.OMstatus > OrderMainStatus.wait_send.value:
+            order_logistics = OrderLogistics.filter_by_({'OMid': omid}).first()
+            order_main.fill('send_time', order_logistics.createtime)
         return Success(data=order_main)
 
     @token_required
@@ -261,12 +282,23 @@ class COrder(CPay):
             filter_args = OrderMain.USid == usid
         else:
             # 是卖家, 卖家订单显示有问题..
-            pass
-        data = {
-            k: self._get_order_count(filter_args, k)
-            for k in OrderMainStatus.all_member()
-        }
-        data.setdefault('refund', OrderMain.query.filter_(filter_args, OrderMain.OMinRefund == True).count())
+            filter_args = OrderMain.PRcreateId == usid
+        data = [  # 获取个状态的数量, '已完成'和'已取消'除外
+            {'count': self._get_order_count(filter_args, k),
+             'name': getattr(OrderMainStatus, k).zh_value,
+             'status': getattr(OrderMainStatus, k).value}
+            for k in OrderMainStatus.all_member() if k not in [
+                OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+            ]
+        ]
+        data.insert(  #
+            0,
+            {
+                'count': OrderMain.query.filter_(filter_args).count(),
+                'name': '全部',
+                'status': None
+            }
+        )
         return Success(data=data)
 
     @staticmethod
@@ -282,5 +314,8 @@ class COrder(CPay):
         """生成订单号"""
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) +\
                  str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
+
+    def _coupon_can_use_in_order(self, coupon, coupon_user, order_price):
+        pass
 
 

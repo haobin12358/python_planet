@@ -84,6 +84,7 @@ class CLogistic:
                             'OLdata': json.dumps(result),  # 结果原字符串
                             'OLlastresult': json.dumps(result.get('list')[0])  # 最新物流
                         }
+                        #
                     else:
                         OrderLogisticsDict = {
                             'OLsignStatus': -1,

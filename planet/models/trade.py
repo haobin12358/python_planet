@@ -54,7 +54,7 @@ class OrderPay(Base):
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
-    OPayno = Column(String(64), index=True,comment='交易号, 自己生成')
+    OPayno = Column(String(64), index=True, comment='交易号, 自己生成')
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')
@@ -66,7 +66,8 @@ class OrderPay(Base):
 class OrderCoupon(Base):
     __tablename__ = 'OrderRaward'
     OCid = Column(String(64), primary_key=True)
-    CPid = Column(String(64), nullable=False, comment='优惠券')
+    UCid = Column(String(64), nullable=False, comment='用户优惠券')
+    OMid = Column(String(64), nullable=False, comment='主单id')
     OCnum = Column(Integer, default=1, comment='使用数量')
     OCreduce = Column(Float, nullable=False, comment='减额')
     # 其他
