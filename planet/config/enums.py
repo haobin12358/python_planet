@@ -151,6 +151,14 @@ class UserIntegralAction(Enum):
     consumption = 2, '积分消费'
 
 
+class AdminAction(Enum):
+    ADname = '用户名'
+    ADpassword = '密码'
+    ADheader = '头像'
+    ADlevel = '用户等级'
+    ADstatus = '用户状态'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

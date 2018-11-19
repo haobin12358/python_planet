@@ -65,6 +65,8 @@ class SUser():
     def get_admin_by_id(self, adid):
         return self.session.query(Admin).filter(Admin.ADid == adid).first_('不存在该管理员')
 
+    def get_admins(self):
+        return self.session.query(Admin).filter(Admin.isdelete == False).all_with_page()
     # update 操作
 
     def update_useraddress_by_filter(self, uafilter, uainfo):

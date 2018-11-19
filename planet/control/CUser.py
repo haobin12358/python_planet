@@ -10,7 +10,7 @@ from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction
+from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -706,8 +706,11 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid).order_by(UserIntegral.createtime).first()
+        ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid == request.user.id).order_by(UserIntegral.createtime.desc()).first()
         today = datetime.datetime.now()
+        if ui_model:
+            gennerc_log('ui model time %s , today date %s' % (ui_model.createtime.date(), today.date()))
+
         if ui_model and ui_model.createtime.date() == today.date():
             raise TimeError('今天已经签到')
         ui = UserIntegral.create({
@@ -820,27 +823,38 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def update_admin(self):
+        """更新管理员信息"""
         if not is_admin():
             raise AuthorityError('权限不足')
         data = request.json or {}
         admin = self.get_admin_by_id(request.user.id)
-        update_admin = {
-            'ADname': data.get("adname"),
-            'ADheader': data.get('adheader'),
+        update_admin = {}
+        action_list = []
+        if data.get("adname"):
+            update_admin['ADname'] = data.get("adname")
+            action_list.append(str(AdminAction.ADname.value) + '为' + str(data.get("adname")) + '\n')
 
-        }
+        if data.get('adheader'):
+            update_admin['ADheader'] = data.get("adheader")
+            action_list.append(str(AdminAction.ADheader.value) + '\n')
+
         password = data.get('adpassword')
         if password:
             self.__check_password(password)
             password = generate_password_hash(password)
             update_admin['ADpassword'] = password
+            action_list.append(str(AdminAction.ADpassword.value) + '为' + str(password) + '\n')
 
         if admin.ADlevel == AdminLevel.super_admin.value:
             filter_adid = data.get('adid') or admin.ADid
             if getattr(AdminLevel, data.get('adlevel', ""), ""):
                 update_admin['ADlevel'] = getattr(AdminLevel, data.get('adlevel')).value
+                action_list.append(
+                    str(AdminAction.ADlevel.value) + '为' + getattr(AdminLevel, data.get('adlevel')).zh_value + '\n')
             if getattr(AdminStatus, data.get('adstatus', ""), ""):
                 update_admin['ADstatus'] = getattr(AdminStatus, data.get('adstatus')).value
+                action_list.append(
+                    str(AdminAction.ADstatus.value) + '为' + getattr(AdminStatus, data.get('adstatus')).zh_value + '\n')
         else:
             filter_adid = admin.ADid
         self.__check_adname(data.get("adname"), filter_adid)
@@ -849,5 +863,29 @@ class CUser(SUser, BASEAPPROVAL):
         update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
         if not update_result:
             raise ParamsError('管理员不存在')
+        filter_admin = self.get_admin_by_id(filter_adid)
 
+        action_str = admin.ADname + '修改' + filter_admin.ADname + ','.join(action_list)
+
+        an_instance = AdminNotes.create({
+            'ANid': str(uuid.uuid1()),
+            'ADid': filter_adid,
+            'ANaction': action_str,
+            "ANdoneid": request.user.id
+        })
+        self.session.add(an_instance)
         return Success("操作成功")
+
+    @get_session
+    @token_required
+    def get_admin_list(self):
+        """获取管理员列表"""
+        if not is_hign_level_admin():
+            raise AuthorityError('权限不足')
+        admins = self.get_admins()
+        for admin in admins:
+            admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime']
+            admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
+            admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
+
+        return Success('获取管理员列表成功', data=admins)
