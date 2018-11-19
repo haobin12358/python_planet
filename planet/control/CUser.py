@@ -569,14 +569,15 @@ class CUser(SUser, BASEAPPROVAL):
                     raise ParamsError("该手机号已经被绑定")
                 self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
 
-            if k == 'USpaycode':
-                self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
-
             if data.get(k.lower()):
                 setattr(user, k, data.get(k.lower()))
         if data.get('usbirthday'):
             gennerc_log('get usbirthday = {0}'.format(data.get("usbirthday")))
             user.USbirthday = datetime.datetime.strptime(data.get("usbirthday"), '%Y-%m-%d')
+        if data.get('uspaycode'):
+            self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
+            user.USpaycode = data.get('uspaycode')
+
         return Success("更新成功")
 
     @get_session
