@@ -66,9 +66,8 @@ class OrderPay(Base):
 class OrderCoupon(Base):
     __tablename__ = 'OrderRaward'
     OCid = Column(String(64), primary_key=True)
-    UCid = Column(String(64), nullable=False, comment='用户优惠券')
+    COid = Column(String(64), nullable=False, comment='优惠券id')
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OCnum = Column(Integer, default=1, comment='使用数量')
     OCreduce = Column(Float, nullable=False, comment='减额')
     # 其他
 
