@@ -84,7 +84,7 @@ class Request(_Request):
             'method': self.method,
             'args': self.args.to_dict(),
             'data': self.data.decode(),
-            'file': dict(self.files),
+            'file': self.files,
             'form': dict(self.form),
             'address': self.remote_addr
         }

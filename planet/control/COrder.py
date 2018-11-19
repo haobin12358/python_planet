@@ -11,6 +11,7 @@ from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError
+from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
@@ -21,7 +22,7 @@ from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics, CouponUser, Coupon
+    OrderLogistics, CouponUser, Coupon, OrderCoupon
 
 
 class COrder(CPay, CCoupon):
@@ -64,6 +65,7 @@ class COrder(CPay, CCoupon):
         """创建并发起支付"""
         data = parameter_required(('info', 'omclient', 'omfrom', 'uaid', 'opaytype'))
         usid = request.user.id
+        gennerc_log('current user is {}'.format(usid))
         uaid = data.get('uaid')
         opaytype = data.get('opaytype')
         try:
@@ -93,7 +95,8 @@ class COrder(CPay, CCoupon):
             model_bean = []
             mount_price = Decimal()  # 总价
             for info in infos:
-                order_price = Decimal()  # 订单价格
+                order_price = Decimal()  # 订单实际价格
+                order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid4())  # 主单id
                 info = parameter_required(('pbid', 'skus', ), datafrom=info)
                 pbid = info.get('pbid')
@@ -101,6 +104,7 @@ class COrder(CPay, CCoupon):
                 coupons = info.get('coupons')
                 ommessage = info.get('ommessage')
                 product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+                prid_dict = {}  # 一个临时的prid字典
                 for sku in skus:
                     # 订单副单
                     opid = str(uuid.uuid4())
@@ -109,6 +113,7 @@ class COrder(CPay, CCoupon):
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
+
                     product_instance = s.query(Products).filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
@@ -133,6 +138,9 @@ class COrder(CPay, CCoupon):
                     model_bean.append(order_part_instance)
                     # 订单价格计算
                     order_price += small_total
+                    order_old_price += small_total
+                    # 临时记录单品价格
+                    prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
                     if omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
@@ -163,15 +171,44 @@ class COrder(CPay, CCoupon):
                         model_bean.append(month_sale_instance)
                 # 使用优惠券
                 if coupons:
-                    for ucid in coupons:
-                        coupon_user = s.query(CouponUser).filter_by_({"UCid": ucid}).first_('用户优惠券{}不存在'.format(ucid))
+                    for coid in coupons:
+                        coupon_user = s.query(CouponUser).filter_by_({"COid": coid, 'USid': usid, 'UCalreadyUse': False}).first_('用户优惠券{}不存在'.format(coid))
                         coupon = s.query(Coupon).filter_by_({"COid": coupon_user.COid}).first_('优惠券不可用')
                         # 是否过期或者已使用过
                         can_use = self._isavalible(coupon, coupon_user)
                         if not can_use:
-                            raise StatusError('优惠券已过期或不可用')
+                            raise StatusError('优惠券已过期已使用')
                         # 是否可以在本订单使用
-                        # if coupon.
+                        if coupon.COuseNum and coupons.count(coid) > coupon.COuseNum:
+                            raise StatusError('叠加超出限制{}'.format(coid))
+                        if coupon.PBid and coupon.PBid != pbid:
+                            raise StatusError('仅可使用指定品牌{}'.format(coid))
+                        if coupon.COdownLine > order_old_price:
+                            raise StatusError('未达到满减条件{}'.format(coid))
+                        if coupon.PRid:
+                            if coupon.PRid not in prid_dict:
+                                raise StatusError('仅可用于指定商品{}'.format(coid))
+                            if coupon.COdownLine > prid_dict[prid]:
+                                raise StatusError('未达到指定商品满减{}'.format(coid))
+                            order_price = prid_dict[prid] * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                            # 减少金额计算
+                            reduce_price = order_old_price - order_price
+                        else:
+                            order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                            reduce_price = order_old_price - order_price
+                        # 更改优惠券状态
+                        coupon_user.UCalreadyUse = True
+                        model_bean.append(coupon_user)
+                        # 优惠券使用记录
+                        order_coupon_dict = {
+                            'OCid': str(uuid.uuid4()),
+                            'OMid': omid,
+                            'COid': coid,
+                            'OCreduce': reduce_price,
+                        }
+                        order_coupon_instance = OrderCoupon.create(order_coupon_dict)
+                        model_bean.append(order_coupon_instance)
+
                 # 主单
                 order_main_dict = {
                     'OMid': omid,
@@ -183,20 +220,21 @@ class COrder(CPay, CCoupon):
                     'PBid': pbid,
                     'OMclient': omclient,
                     'OMfreight': 0,  # 运费暂时为0
-                    'OMmount': order_price,
+                    'OMmount': order_old_price,
                     'OMmessage': ommessage,
-                    'OMtrueMount': order_price,  # 暂时付费不优惠
+                    'OMtrueMount': order_price,
                     # 收货信息
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
                     'OMrecvAddress': omrecvaddress,
                     'UPperid': user.USsupper1,
                     'UPperid2': user.USsupper2,
+                    'UseCoupon': bool(coupons)
                 }
                 if user.USsupper1:
                     # 主单佣金数据
                     commision = user.USCommission
-                    total_comm = Commsion(order_price, commision).total_comm
+                    total_comm = Commsion(order_price, commision).total_comm  # 佣金使用实付价格计算
                     order_main_dict.setdefault('OMtotalCommision', total_comm)
                 order_main_instance = OrderMain.create(order_main_dict)
                 model_bean.append(order_main_instance)
@@ -239,18 +277,17 @@ class COrder(CPay, CCoupon):
                 order_refund_reply = self.strade.get_orderrefundapply_one({'OPid': opid})
                 order_part.fill('order_refund_apply', order_refund_reply)
         order_main.fill('order_part', order_parts)
-
-
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-        order_main.add('OMstatus_en', 'createtime').hide('OPayno', 'USid', )
+        order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value
+        order_main.add('OMstatus_en', 'createtime', 'OMstatus_zh').hide('OPayno', 'USid', )
         # 付款时间
         if order_main.OMstatus > OrderMainStatus.wait_pay.value:
             order_pay = OrderPay.query.filter_by_({'OPayno': order_main.OPayno}).first()
             order_main.fill('pay_time', order_pay.OPaytime)
         # 发货时间
         if order_main.OMstatus > OrderMainStatus.wait_send.value:
-            order_logistics = OrderLogistics.filter_by_({'OMid': omid}).first()
+            order_logistics = OrderLogistics.query.filter_by_({'OMid': omid}).first()
             order_main.fill('send_time', order_logistics.createtime)
         return Success(data=order_main)
 
@@ -261,15 +298,23 @@ class COrder(CPay, CCoupon):
         omid = data.get('omid')
         usid = request.user.id
         with self.strade.auto_commit() as s:
-            updated = s.query(OrderMain).filter_by_({
+            s_list = []
+            # 主单状态修改
+            order_main = s.query(OrderMain).filter_by_({
                 'OMid': omid,
                 'USid': usid,
                 'OMstatus': OrderMainStatus.wait_pay.value
-            }).update({
-                'OMstatus': OrderMainStatus.cancle.value
-            })
-            if not updated:
-                raise NotFound('指定订单不存在')
+            }).first_('指定订单不存在')
+            order_main.OMstatus = OrderMainStatus.cancle.value
+            s_list.append(order_main)
+            # 优惠券返回
+            if order_main.UseCoupon is True:
+                order_coupon = s.query(OrderCoupon).filter_by_({'OMid': omid}).first()
+                if order_coupon:
+                    pass
+            # 库存修改
+
+            # 销量修改, 暂不改
         return Success('取消成功')
 
     @token_required
