@@ -4,14 +4,13 @@ import re
 
 import datetime
 import uuid
-from decimal import Decimal
 
 from flask import request
 from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus
+from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -572,7 +571,7 @@ class CUser(SUser, BASEAPPROVAL):
         update_params = ['USname', 'UStelphone', 'USgender', 'USheader', 'USpaycode']
 
         for k in update_params:
-            if data.get(k.lower()):
+            if data.get(k.lower()) or data.get(k.lower()) == 0:
                 if k == 'UStelphone':
                     user_check = self.get_user_by_tel(data.get(k.lower()))
                     if user_check and user_check.USid != user.USid:
@@ -734,9 +733,10 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_list = self.session.query(UserIntegral).filter_(UserIntegral.UItype == uifilter).all_with_page()
+        ui_list = self.session.query(UserIntegral).filter_(UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter).all_with_page()
         for ui in ui_list:
-            ui.fields = ['UIintegral', 'UIaction', 'createtime']
+            ui.fields = ['UIintegral', 'createtime']
+            ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
 
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})
 
@@ -760,8 +760,8 @@ class CUser(SUser, BASEAPPROVAL):
             token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel)
             admin.fields = ['ADname', 'ADheader', 'ADlevel']
 
-            admin.fill('adlevel', AdminLevel(admin.ADlevel).name)
-            admin.fill('adstatus', AdminStatus(admin.ADstatus).name)
+            admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
+            admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
 
             return Success('登录成功', data={'token': token, "admin": admin})
         return ParamsError("用户名或密码错误")
@@ -835,7 +835,7 @@ class CUser(SUser, BASEAPPROVAL):
             password = generate_password_hash(password)
             update_admin['ADpassword'] = password
 
-        if admin.ADlevel == AdminLevel.超级管理员.value:
+        if admin.ADlevel == AdminLevel.super_admin.value:
             filter_adid = data.get('adid') or admin.ADid
             if getattr(AdminLevel, data.get('adlevel', ""), ""):
                 update_admin['ADlevel'] = getattr(AdminLevel, data.get('adlevel')).value
