@@ -54,7 +54,7 @@ class OrderPay(Base):
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
-    OPayno = Column(String(64), index=True,comment='交易号, 自己生成')
+    OPayno = Column(String(64), index=True, comment='交易号, 自己生成')
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')
@@ -120,6 +120,33 @@ class OrderRefund(Base):
     OMid = Column(String(64), nullable=False, comment='订单id')
     OPid = Column(String(64), nullable=False, comment='附单id')
     # 其他
+
+
+class OrderEvaluation(Base):
+    """订单评价"""
+    __tablename__ = 'OrderEvaluation'
+    OEid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户')
+    OPid = Column(String(64), nullable=False, comment='订单副单id')
+    OEtext = Column(String(255), nullable=False, default='此用户没有填写评价。', comment='评价内容')
+    OEIid = Column(String(255), comment='评价图片')
+    OEVid = Column(String(255), comment='评价视频')
+    OEscore = Column(Integer, nullable=False, default=5, comment='五星评分')
+
+
+class OrderEvaluationImage(Base):
+    """订单评价图片"""
+    __tablename__ = 'OrderEvaluationImage'
+    OEIid = Column(String(64), primary_key=True)
+    OEImg = Column(String(255), nullable=False, comment='图片url')
+
+
+class OrderEvaluationVideo(Base):
+    """订单评价视频"""
+    __tablename__ = 'OrderEvaluationVideo'
+    OEVid = Column(String(64), primary_key=True)
+    OEVideo = Column(String(255), nullable=False, comment='视频url')
+    OEVthumbnail = Column(String(255), nullable=False, comment='视频缩略图')
 
 
 class OrderLogistics(Base):

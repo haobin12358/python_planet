@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import random
+import re
 import time
 import uuid
 from datetime import datetime
@@ -11,6 +12,7 @@ from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError
+from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
@@ -20,7 +22,7 @@ from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics
+    OrderLogistics, OrderEvaluation
 
 
 class COrder(CPay):
@@ -250,6 +252,37 @@ class COrder(CPay):
             if not updated:
                 raise NotFound('指定订单不存在')
         return Success('取消成功')
+
+    @token_required
+    def create_order_evaluation(self):
+        """创建订单评价"""
+        usid = request.user.id
+        user = User.query.filter(User.USid == usid).first_('token错误，无此用户信息')
+        gennerc_log('user {0} is creating a evaluation'.format(user.USname))
+        data = parameter_required(('data',))
+        evaluation_list = []
+        oeid_list = []
+        with self.strade.auto_commit() as oe:
+            for evaluation in data:
+                oeid = str(uuid.uuid1())
+                evaluation = parameter_required(('opid', 'oescore', 'oetext'), datafrom=evaluation)
+                opid = evaluation.get('opid')
+                oescore = evaluation.get('oescore')
+                OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first_('订单已删除')
+                if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
+                    raise ParamsError('oescore, 参数错误')
+                evaluation = OrderEvaluation.create({
+                    'OEid': oeid,
+                    'USid': usid,
+                    'OPid': opid,
+                    'OEtext': data.get('oetext'),
+                    'OEscore': oescore
+                })
+                evaluation_list.append(evaluation)
+                oeid_list.append(oeid)
+            oe.add_all(evaluation_list)
+
+        return Success('评价成功', data={'oeid': oeid_list})
 
     @token_required
     def get_order_count(self):

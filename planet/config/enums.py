@@ -53,6 +53,15 @@ class OrderMainStatus(Enum):
     cancle = -40, '取消订单'
 
 
+class OrderEvaluationScore(Enum):
+    """订单评分"""
+    fine = 5, '非常好'
+    good = 4, '好'
+    general = 3, '一般'
+    bad = 2, '差'
+    worst = 1, '非常差'
+
+
 class OrderRefundApplyStatus(Enum):
     cancle = -20, '取消'
     reject = -10, '拒绝'

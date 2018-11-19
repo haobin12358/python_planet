@@ -19,6 +19,30 @@ class CFile(object):
         folder = self.allowed_folder(data.get('type'))
         if not file:
             raise ParamsError(u'上传有误')
+        file_data = self._upload_file(file, folder)
+        return Success('上传成功', data=file_data[0]).get_body(video_thum=file_data[1], video_dur=file_data[2], upload_type=file_data[3])
+
+    @token_required
+    def batch_upload(self):
+        files = request.files.to_dict()
+        if len(files) > 9:
+            raise ParamsError('最多可同时上传9张图片')
+        # todo 视频数量限制
+        data = parameter_required()
+        folder = self.allowed_folder(data.get('type'))
+        file_url_list = []
+        for file in files.values():
+            upload_file = self._upload_file(file, folder)
+            file_dict = {
+                'file_url': upload_file[0],
+                'video_thum': upload_file[1],
+                'video_dur': upload_file[2],
+                'upload_type': upload_file[3]
+            }
+            file_url_list.append(file_dict)
+        return Success('上传成功', file_url_list)
+
+    def _upload_file(self, file, folder):
         filename = file.filename
         shuffix = os.path.splitext(filename)[-1]
         if self.allowed_file(shuffix):
@@ -51,8 +75,7 @@ class CFile(object):
                 upload_type = 'image'
                 video_thum = ''
                 video_dur = ''
-            return Success(u'上传成功', data).get_body(video_thum=video_thum, upload_type=upload_type,
-                                                   video_dur=video_dur)
+            return data, video_thum, video_dur, upload_type
         else:
             return SystemError(u'上传有误')
 
