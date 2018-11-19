@@ -38,6 +38,7 @@ class AUser(Resource):
             'get_agent_center': self.user.get_agent_center,
             'get_agent_commission_list': self.user.get_agent_commission_list,
             'get_user_integral': self.user.get_user_integral,
+            'get_admin_list': self.user.get_admin_list,
         }
         return apis
 

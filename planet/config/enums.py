@@ -144,15 +144,28 @@ class UserIntegralType(Enum):
 
 
 class AdminLevel(Enum):
-    超级管理员 = 1
-    普通管理员 = 2
-    代理商 = 3
+    super_admin = 1, '超级管理员'
+    common_admin = 2, '普通管理员'
+    agent = 3, '代理商'
 
 
 class AdminStatus(Enum):
-    正常 = 0
-    已冻结 = 1
-    已删除 = 2
+    normal = 0, '正常'
+    frozen = 1, '已冻结'
+    deleted = 2, '已删除'
+
+
+class UserIntegralAction(Enum):
+    signin = 1, '签到'
+    consumption = 2, '积分消费'
+
+
+class AdminAction(Enum):
+    ADname = '用户名'
+    ADpassword = '密码'
+    ADheader = '头像'
+    ADlevel = '用户等级'
+    ADstatus = '用户状态'
 
 
 if __name__ == '__main__':
