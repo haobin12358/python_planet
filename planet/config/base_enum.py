@@ -23,7 +23,7 @@ class Enum(_Enum):
         """由类变量名找到汉字"""
         res = self._value_
         if isinstance(res, tuple):
-            return res[-1]
+            return res[1]
 
     @classmethod
     def _all_value(cls):
