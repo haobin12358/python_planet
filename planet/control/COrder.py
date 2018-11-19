@@ -310,12 +310,22 @@ class COrder(CPay, CCoupon):
             s_list.append(order_main)
             # 优惠券返回
             if order_main.UseCoupon is True:
-                order_coupon = s.query(OrderCoupon).filter_by_({'OMid': omid}).first()
-                if order_coupon:
-                    pass
+                order_coupons = s.query(OrderCoupon).filter_by_({'OMid': omid}).all()
+                for order_coupon in order_coupons:
+                    coupon_user_update = s.query(CouponUser).filter_by_({
+                        'COid': order_coupon.COid,
+                        'USid': usid,
+                        'UCalreadyUse': True
+                    }).update({'UCalreadyUse': False})
             # 库存修改
-
-            # 销量修改, 暂不改
+            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            for order_part in order_parts:
+                skuid = order_part.SKUid
+                opnum = order_part.OPnum
+                s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                    'SKUstock': ProductSku.SKUstock + opnum
+                })
+            # 销量修改(暂不改)
         return Success('取消成功')
 
     @token_required
