@@ -45,6 +45,7 @@ class OrderMain(Base):
     UPperid = Column(String(64), comment='上级id')
     UPperid2 = Column(String(64), comment='上上级id')
     OMtotalCommision = Column(Float, comment='产生的总佣金')
+    PRcreateId = Column(String(64), comment='发布者id')
 
 
 class OrderPay(Base):
@@ -90,7 +91,6 @@ class OrderPart(Base):
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
-    PRcreateId = Column(String(64), comment='发布者id')
 
 
 class OrderRefundApply(Base):
