@@ -40,7 +40,7 @@ class JSONEncoder(_JSONEncoder):
             return new_res
         if isinstance(o, datetime):
             # 也可以序列化时间类型的对象
-            return o.strftime('%Y.%m.%d %H:%M:%S')
+            return o.strftime('%Y-%m-%d %H:%M:%S')
         if isinstance(o, type):
             raise o()
         if isinstance(o, HTTPException):

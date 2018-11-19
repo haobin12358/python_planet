@@ -43,14 +43,14 @@ class OrderFrom(Enum):
 
 
 class OrderMainStatus(Enum):
-    """主订单状态
-        0待付款,10待发货,20待收货,30完成
+    """买家主订单状态
     """
     wait_pay = 0, '待支付'
     wait_send = 10, '待发货'
-    wait_recv = 20, '代收货'
-    ready = 30, '完成'
-    cancle = -40, '取消订单'
+    wait_recv = 20, '待收货'
+    wait_comment = 35, '待评价',
+    ready = 30, '已完成'
+    cancle = -40, '已取消'
 
 
 class OrderEvaluationScore(Enum):
