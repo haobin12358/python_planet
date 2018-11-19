@@ -292,12 +292,14 @@ class CUser(SUser, BASEAPPROVAL):
         uadefault = data.get('uadefault', 0)
         uaphone = data.get('uaphone')
         uapostalcode = data.get('uapostalcode', '000000')
+        aaid = data.get('aaid')
         if not re.match(r'^[0|1]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
         if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
+        self.get_addressinfo_by_areaid(aaid)
         default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
         if default_address:
             if str(uadefault) == '1':
@@ -316,7 +318,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UAphone': uaphone,
             'UAtext': data.get('uatext'),
             'UApostalcode': uapostalcode,
-            'AAid': data.get('aaid'),
+            'AAid': aaid,
             'UAdefault': uadefault
         })
         self.session.add(address)
@@ -336,11 +338,13 @@ class CUser(SUser, BASEAPPROVAL):
         uaphone = data.get('uaphone')
         uapostalcode = data.get('uapostalcode')
         uaisdelete = data.get('uaisdelete', 0)
+        aaid = data.get('aaid')
         if not re.match(r'^[0|1]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
         usaddress = self.get_useraddress_by_filter({'UAid': uaid})
         if not usaddress:
             raise NotFound('未找到要修改的地址信息')
+        self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
             anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
             if anyone:
@@ -371,7 +375,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UAphone': uaphone,
             'UAtext': data.get('uatext'),
             'UApostalcode': uapostalcode,
-            'AAid': data.get('aaid'),
+            'AAid': aaid,
             'UAdefault': uadefault,
             'updatetime': datetime.datetime.now(),
             'isdelete': uaisdelete
@@ -442,7 +446,13 @@ class CUser(SUser, BASEAPPROVAL):
 
     def _get_addressinfo_by_areaid(self, areaid):
         """通过areaid获取地址具体信息, 返回xx省xx市xx区字符串"""
-        area, city, province = self.get_addressinfo_by_areaid(areaid)
+        try:
+            area, city, province = self.get_addressinfo_by_areaid(areaid)
+        except Exception as e:
+            gennerc_log("NOT FOUND this areaid, ERROR is {}".format(e))
+            province = {"APname": ''}
+            city = {"ACname": ''}
+            area = {"AAname": ''}
         address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
             area, "AAname", '') + ' '
         return address
