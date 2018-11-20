@@ -10,6 +10,13 @@ class ARefund(Resource):
 
     def post(self, refund):
         apis = {
-            'create': self.crefund.create
+            'create': self.crefund.create,
+            'create_dispute_type': self.crefund.create_dispute_type,
+        }
+        return apis
+
+    def get(self, refund):
+        apis = {
+            'list_dispute_type': self.crefund.list_dispute_type,
         }
         return apis

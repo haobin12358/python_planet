@@ -69,6 +69,18 @@ class OrderRefundApplyStatus(Enum):
     agree = 10, '同意'
 
 
+class OrderRefundORAstate(Enum):
+    """售后申请类型"""
+    goods_money = 0, '退货退款'
+    only_money = 10, '仅退款'
+
+
+class DisputeTypeType(Enum):
+    """纠纷类型"""
+    not_recv = 10, '未收到货'
+    ready_recv = 0, '已收到货'
+
+
 class ORAproductStatus(Enum):
     """退货申请时商品状态0已收货, 10 未收货"""
     already_recv = 0, '已收货'
