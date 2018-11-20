@@ -129,6 +129,8 @@ class OrderEvaluation(Base):
     USid = Column(String(64), nullable=False, comment='用户')
     OPid = Column(String(64), nullable=False, comment='订单副单id')
     OMid = Column(String(64), nullable=False, comment='订单主单id')
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    SKUattriteDetail = Column(Text, nullable=False, comment='sku详情[]')
     OEtext = Column(String(255), nullable=False, default='此用户没有填写评价。', comment='评价内容')
     OEscore = Column(Integer, nullable=False, default=5, comment='五星评分')
 
