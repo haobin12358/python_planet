@@ -4,8 +4,6 @@ from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm
 from planet.common.base_model import Base, Column
 
 
-# 疑问, 资讯的分类和商品的一级类目有关系吗
-# ui购物车中的北面南面是什么意思, 品牌
 class Products(Base):
     """
     商品
@@ -85,16 +83,8 @@ class ProductBrand(Base):
     PBbackgroud = Column(String(255), comment='背景图')
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
 
-#
-# class BrandItems(Base):
-#     """品牌标签"""
-#     __tablename__ = 'BrandItems'
-#     BIid = Column(String(64), primary_key=True)
-#     BIname = Column(String(16), nullable=False, comment='品牌标签名字')
-#     BIsort = Column(Integer, comment='顺序')
-#     BIdesc = Column(String(255), comment='品牌标签描述')
 
-#
+
 class BrandWithItems(Base):
     """品牌-标签关联表"""
     __tablename__ = 'BrandwithItems'

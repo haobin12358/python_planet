@@ -98,6 +98,7 @@ class CCoupon(object):
         with self.strade.auto_commit() as s:
             s_list = []
             coid = str(uuid.uuid4())
+            itids = form.itids.data
             coupon_instance = Coupon.create({
                 'COid': coid,
                 'PCid': form.pcid.data,
@@ -118,8 +119,6 @@ class CCoupon(object):
                 'COdesc': form.codesc.data,
             })
             s_list.append(coupon_instance)
-            data = request.json
-            itids = data.get('itids')
             for itid in itids:
                 s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
                 # 优惠券标签中间表

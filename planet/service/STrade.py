@@ -8,7 +8,7 @@ class STrade(SBase):
     def get_card_list(self, args):
         """获取购物车列表"""
         brands = self.session.query(Carts).filter_by_(**args)
-        pbids = brands.group_by(Carts.PBid).all_with_page()
+        pbids = brands.group_by(Carts.PBid).order_by(Carts.createtime.desc()).all_with_page()
         return brands.filter(Carts.PBid.in_([x.PBid for x in pbids])).\
             order_by(Carts.createtime.desc()).all()
 

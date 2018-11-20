@@ -142,3 +142,14 @@ class UserIntegral (Base):
     UIintegral = Column(Integer, comment='该动作产生的积分变化数')
     UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
+
+
+class Supplizer(Base):
+    """供应商"""
+    SUid = Column(String(64), primary_key=True)
+    SUname = Column(String(16), nullable=False, comment='供应商名字')
+    SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
+    # 其他
+
+

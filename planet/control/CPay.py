@@ -213,6 +213,6 @@ class CPay():
             app_notify_url=alipay_notify,  # 默认回调url
             app_private_key_string=open(app_private_path).read(),
             alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA2",  # RSA 或者 RSA2
+            sign_type="RSA",  # RSA 或者 RSA2
         )
 
