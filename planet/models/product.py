@@ -141,3 +141,19 @@ class ProductCategory(Base):
     PCsort = Column(String(64), comment='显示顺序')
     PCpic = Column(String(255), comment='图片', url=True)
 
+
+class WareHouse(Base):
+    """仓库"""
+    __tablename__ = 'WareHouse'
+    WAid = Column(String(64), primary_key=True)
+    # 地址
+    # 其他
+
+
+class WareHouseFlowing(Base):
+    """仓库流水"""
+    __tablename__ = 'WareHouseFlowing'
+    WHFkd = Column(String(64), primary_key=True)
+    # 其他
+
+

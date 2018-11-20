@@ -34,7 +34,7 @@ class OrderMain(Base):
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
-    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成,-40取消交易')
+    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成, 35 待评价, -40取消交易')
     OMinRefund = Column(Boolean, default=False, comment='有商品在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
@@ -99,9 +99,9 @@ class OrderRefundApply(Base):
     ORAid = Column(String(64), primary_key=True)
     ORAsn = Column(String(64), nullable=False, comment='售后申请编号')
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OPid = Column(String(64), nullable=False, comment='副单id')
+    OPid = Column(String(64), comment='副单id')
     USid = Column(String(64), nullable=False, comment='用户id')
-    ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 暂定')
+    ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 仅退款')
     ORAreason = Column(String(255), nullable=False, comment='退款原因')
     ORAmount = Column(Float, nullable=False, comment='退款金额')
     ORAaddtion = Column(String(255), comment='退款说明')
@@ -114,11 +114,16 @@ class OrderRefundApply(Base):
 
 
 class OrderRefund(Base):
-    """订单售后表"""
+    """订单退货表"""
     __tablename__ = 'OrderRefund'
     ORid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
     OPid = Column(String(64), nullable=False, comment='附单id')
+    ORAid = Column(String(64), nullable=False, comment='售后申请id')
+    ORrecvname = Column(String(16), nullable=False, comment='收货人姓名')
+    ORrecvphone = Column(String(11), nullable=False, comment='收货人手机')
+    ORrecvaddress = Column(String(255), nullable=False, comment='收货地址')
+    # 物流信息
     # 其他
 
 

@@ -141,8 +141,8 @@ class CCoupon(object):
         if coupon.PCid:
             category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
             title = '{}类专用'.format(category.PCname)
-        elif coupon.pbid:
-            brand = ProductBrand.query.filter_by_({'PBid': coupon.pbid}).first()
+        elif coupon.PBid:
+            brand = ProductBrand.query.filter_by_({'PBid': coupon.PBid}).first()
             title = '{}品牌专用'.format(brand.PBname)
         else:
             title = '全场通用'
