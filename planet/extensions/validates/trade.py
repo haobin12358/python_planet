@@ -94,6 +94,7 @@ class CouponCreateForm(BaseForm):
     codownline = FloatField('满额可用', default=0, validators=[NumberRange(0)])
     cosubtration = FloatField('减额', default=0, validators=[NumberRange(0)])
     codesc = StringField('描述')
+    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
 
     def valid_data(self):
         if self.pcid.data is not None and self.prid.data is not None and self.pbid.data is not None:

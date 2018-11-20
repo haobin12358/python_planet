@@ -19,7 +19,7 @@ class BrandsCreateForm(BaseForm):
     pbname = StringField(validators=[DataRequired('名字不可为空'), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
-    itids = StringField('品牌标签id', validators=[])
+    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
 
 
 class BrandUpdateForm(BaseForm):
@@ -28,7 +28,7 @@ class BrandUpdateForm(BaseForm):
     pbname = StringField(validators=[Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
-    itids = StringField('品牌标签id', validators=[DataRequired('itids不可为空')])
+    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
 
 
 class ProductOffshelvesForm(BaseForm):
