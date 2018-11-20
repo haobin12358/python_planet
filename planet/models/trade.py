@@ -128,6 +128,7 @@ class OrderEvaluation(Base):
     OEid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='用户')
     OPid = Column(String(64), nullable=False, comment='订单副单id')
+    OMid = Column(String(64), nullable=False, comment='订单主单id')
     OEtext = Column(String(255), nullable=False, default='此用户没有填写评价。', comment='评价内容')
     OEIid = Column(String(255), comment='评价图片')
     OEVid = Column(String(255), comment='评价视频')
