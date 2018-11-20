@@ -334,29 +334,39 @@ class COrder(CPay, CCoupon):
         usid = request.user.id
         user = User.query.filter(User.USid == usid).first_('token错误，无此用户信息')
         gennerc_log('user {0} is creating a evaluation'.format(user.USname))
-        data = parameter_required(('data',))
+        data = parameter_required(('evaluation', 'omid'))
+        omid = data.get('omid')
+        OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
+                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value).first_('无此订单或当前状态不能进行评价')
         evaluation_list = []
         oeid_list = []
         with self.strade.auto_commit() as oe:
-            for evaluation in data:
+            for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore', 'oetext'), datafrom=evaluation)
                 opid = evaluation.get('opid')
-                oescore = evaluation.get('oescore')
-                OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first_('订单已删除')
+                oescore = evaluation.get('oescore', 5)
+                order_part = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first_('无此订单商品信息')
+                if order_part.OMid != omid:
+                    raise StatusError('订单状态错误')
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
                 evaluation = OrderEvaluation.create({
                     'OEid': oeid,
+                    'OMid': omid,
                     'USid': usid,
                     'OPid': opid,
-                    'OEtext': data.get('oetext'),
+                    'OEtext': data.get('oetext', '此用户没有填写评价。'),
                     'OEscore': oescore
                 })
                 evaluation_list.append(evaluation)
                 oeid_list.append(oeid)
+            update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
+                                   OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                                   ).update({'OMstatus': OrderMainStatus.ready.value})
+            if not update_status:
+                raise StatusError('状态错误，服务器繁忙')
             oe.add_all(evaluation_list)
-
         return Success('评价成功', data={'oeid': oeid_list})
 
     @token_required
