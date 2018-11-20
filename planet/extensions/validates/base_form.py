@@ -34,7 +34,7 @@ class BaseForm(Form):
     def valid_data(self):
         valid = super(BaseForm, self).validate()
         if not valid:
-            raise ParamsError(self.errors)
+            raise ParamsError('.'.join([i[0] for i in self.errors.values()]))
         return self
 
 
