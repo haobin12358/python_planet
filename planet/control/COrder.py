@@ -11,7 +11,7 @@ from flask import request
 from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError
+from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
@@ -23,7 +23,7 @@ from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon
+    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo
 
 
 class COrder(CPay, CCoupon):
@@ -337,21 +337,33 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
         OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
-                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value).first_('无此订单或当前状态不能进行评价')
+                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                               ).first_('无此订单或当前状态不能进行评价')
+        order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
+        orderpartid_list = []
+        for op in order_part_with_main:
+            orderpartid_list.append(op.OPid)
         evaluation_list = []
         oeid_list = []
+        get_opid_list = []
         with self.strade.auto_commit() as oe:
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
-                evaluation = parameter_required(('opid', 'oescore', 'oetext'), datafrom=evaluation)
+                evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
                 opid = evaluation.get('opid')
+                if opid in get_opid_list:
+                    raise DumpliError('不能重复评论同一个订单商品')
+                get_opid_list.append(opid)
+                if opid not in orderpartid_list:
+                    raise NotFound('无此订单商品信息')
+                orderpartid_list.remove(opid)
+                exist_evaluation = OrderEvaluation.query.filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
+                if exist_evaluation:
+                    raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
-                order_part = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first_('无此订单商品信息')
-                if order_part.OMid != omid:
-                    raise StatusError('订单状态错误')
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
-                evaluation = OrderEvaluation.create({
+                evaluation_dict = OrderEvaluation.create({
                     'OEid': oeid,
                     'OMid': omid,
                     'USid': usid,
@@ -359,14 +371,55 @@ class COrder(CPay, CCoupon):
                     'OEtext': data.get('oetext', '此用户没有填写评价。'),
                     'OEscore': oescore
                 })
-                evaluation_list.append(evaluation)
+                evaluation_list.append(evaluation_dict)
+
+                import ipdb
+                ipdb.set_trace()
+                image_list = evaluation.get('image')
+                if image_list:
+                    if len(image_list) > 5:
+                        raise ParamsError('评价每次最多上传5张图片')
+                    for image in image_list:
+                        image_evaluation = OrderEvaluationImage.create({
+                            'OEid': oeid,
+                            'OEIid': str(uuid.uuid1()),
+                            'OEImg': image.get('oeimg'),
+                            'OEIsort': image.get('oeisort', 0)
+                        })
+                        evaluation_list.append(image_evaluation)
+                video = evaluation.get('video')
+                if video:
+                    video_evaluation = OrderEvaluationVideo.create({
+                        'OEid': oeid,
+                        'OEVid': str(uuid.uuid1()),
+                        'OEVideo': video.get('oevideo'),
+                        'OEVthumbnail': video.get('oevthumbnail')
+                    })
+                    evaluation_list.append(video_evaluation)
                 oeid_list.append(oeid)
-            update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
-                                   OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                   ).update({'OMstatus': OrderMainStatus.ready.value})
-            if not update_status:
-                raise StatusError('状态错误，服务器繁忙')
             oe.add_all(evaluation_list)
+        update_status = self.strade.update_ordermain_one([OrderMain.OMid == omid, OrderMain.isdelete == False,
+                                                          OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                                                          ], {'OMstatus': OrderMainStatus.ready.value})
+        if not update_status:
+            raise StatusError('状态错误，服务器繁忙')
+
+        if len(orderpartid_list) > 0:
+            other_evaluation_list = []
+            with self.strade.auto_commit() as s:
+                for i in orderpartid_list:
+                    oeid = str(uuid.uuid1())
+                    other_evaluation = OrderEvaluation.create({
+                        'OEid': oeid,
+                        'OMid': omid,
+                        'USid': usid,
+                        'OPid': i,
+                        'OEtext': '此用户没有填写评价。',
+                        'OEscore': 5
+                    })
+                    oeid_list.append(oeid)
+                    other_evaluation_list.append(other_evaluation)
+                s.add_all(other_evaluation_list)
         return Success('评价成功', data={'oeid': oeid_list})
 
     @token_required
