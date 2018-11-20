@@ -2,10 +2,12 @@
 import uuid
 from datetime import datetime
 
+from flask import request
 from sqlalchemy import or_
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required
+from planet.config.enums import ItemType
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm
 from planet.models import Items, User, ProductCategory, ProductBrand
 from planet.models.trade import Coupon, CouponUser, CouponItem
@@ -94,9 +96,10 @@ class CCoupon(object):
     def create(self):
         form = CouponCreateForm().valid_data()
         with self.strade.auto_commit() as s:
+            s_list = []
             coid = str(uuid.uuid4())
             coupon_instance = Coupon.create({
-                'COid': str(uuid.uuid4()),
+                'COid': coid,
                 'PCid': form.pcid.data,
                 'PRid': form.prid.data,
                 'PBid': form.pbid.data,
@@ -114,7 +117,19 @@ class CCoupon(object):
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
             })
-            s.add(coupon_instance)
+            s_list.append(coupon_instance)
+            data = request.json
+            itids = data.get('itids')
+            for itid in itids:
+                s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
+                # 优惠券标签中间表
+                couponitem_instance = CouponItem.create({
+                    'CIid': str(uuid.uuid4()),
+                    'COid': coid,
+                    'ITid': itid
+                })
+                s_list.append(couponitem_instance)
+            s.add_all(s_list)
         return Success('添加成功')
 
 

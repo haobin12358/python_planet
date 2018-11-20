@@ -81,7 +81,7 @@ class CouponCreateForm(BaseForm):
     pcid = StringField()
     prid = StringField()
     pbid = StringField()
-    coname = StringField(validators=[DataRequired(), Length(1, 32)])
+    coname = StringField(validators=[DataRequired('coname不可为空'), Length(1, 32)])
     coisavailable = BooleanField('可用', default=True)
     coiscancollect = BooleanField('可以领取', default=True)
     colimitnum = IntegerField('发放数量', default=0, validators=[NumberRange(0)])

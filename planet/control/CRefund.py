@@ -21,9 +21,36 @@ class CRefund(object):
 
     @token_required
     def create(self):
-        data = parameter_required(('opid', 'orareason', 'oraproductstatus'))
+        data = parameter_required(('orareason', 'oraproductstatus'))
         opid = data.get('opid')
+        omid = data.get('omid')
         usid = request.user.id
+        if opid:
+            # 单个商品售后
+            self._order_part_refund(opid, usid, data)
+        elif omid:
+            # 主单售后
+            pass
+        else:
+            raise ParamsError('须指定主单或副单')
+
+        return Success('申请成功, 等待答复')
+
+    def agree_apply(self):
+        data = parameter_required(('omid', ))
+        omid = data.get()
+
+    def send(self):
+        """买家发货"""
+        pass
+
+    @staticmethod
+    def _generic_no():
+        """生成退款号"""
+        return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
+               str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
+
+    def _order_part_refund(self, opid, usid, data):
         with self.strade.auto_commit() as s:
             s_list = []
             # 副单进入售后状态
@@ -74,11 +101,18 @@ class CRefund(object):
             order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
             s_list.append(order_refund_apply_instance)
             s.add_all(s_list)
-        return Success('申请成功, 等待答复')
 
-    @staticmethod
-    def _generic_no():
-        """生成退款号"""
-        return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
-               str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
-
+    def _order_main_refund(self, omid, usid, data):
+        with self.strade.auto_commit() as s:
+            s_list= []
+            order_main = s.query(OrderMain).filter_(
+                OrderMain.OMid == omid,
+                OrderMain.OMstatus.notin_([
+                    OrderMainStatus.wait_pay.value,
+                    OrderMainStatus.cancle.value,
+                    OrderMainStatus.ready.value,
+                ]),
+                OrderMain.USid == usid
+            ).first_('不存在的订单')
+            order_main.OMinRefund = True  # 主单状态
+            s_list.append(order_main)

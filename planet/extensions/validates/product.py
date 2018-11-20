@@ -15,20 +15,20 @@ class BrandsListForm(BaseForm):
 
 
 class BrandsCreateForm(BaseForm):
-    pblogo = StringField(validators=[DataRequired(), Length(1, 255)])
-    pbname = StringField(validators=[DataRequired(), Length(1, 32)])
+    pblogo = StringField(validators=[DataRequired('logo不可为空'), Length(1, 255)])
+    pbname = StringField(validators=[DataRequired('名字不可为空'), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
     itids = StringField('品牌标签id', validators=[])
 
 
 class BrandUpdateForm(BaseForm):
-    pbid = StringField(validators=[DataRequired(), Length(1, 64)])
+    pbid = StringField(validators=[DataRequired('bpid不可为空'), Length(1, 64)])
     pblogo = StringField(validators=[Length(1, 255)])
     pbname = StringField(validators=[Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField(validators=[Length(1, 255)])
-    itids = StringField('品牌标签id', validators=[DataRequired()])
+    itids = StringField('品牌标签id', validators=[DataRequired('itids不可为空')])
 
 
 class ProductOffshelvesForm(BaseForm):
@@ -47,8 +47,8 @@ class ProductOffshelvesForm(BaseForm):
 
 class SceneCreateForm(BaseForm):
     """场景创建"""
-    pspic = StringField('图片', validators=[DataRequired(), Length(0, 255)])
-    psname = StringField('名字', validators=[DataRequired(), Length(0, 16)])
+    pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])
+    psname = StringField('名字', validators=[DataRequired('名字不可为空'), Length(0, 16)])
     pssort = IntegerField('排序')
 
 
