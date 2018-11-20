@@ -32,8 +32,6 @@ class BaseForm(Form):
         super(BaseForm, self).__init__(formdata)
 
     def valid_data(self):
-        import ipdb
-        ipdb.set_trace()
         valid = super(BaseForm, self).validate()
         if not valid:
             raise ParamsError('.'.join([i[0] for i in self.errors.values()]))
