@@ -25,8 +25,6 @@ class BaseForm(Form):
             self._obj = None
         data = request.json or {}
         args = request.args.to_dict()
-        # data = {k: v for k, v in data.items() if v or v == 0 or v is False}
-        # args = {k: v for k, v in request.args.to_dict().items() if v or v == 0 or v is False}
         data.update(args)
         formdata = MultiDict(_flatten_json(data))
         super(BaseForm, self).__init__(formdata)

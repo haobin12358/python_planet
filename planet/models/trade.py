@@ -113,6 +113,14 @@ class OrderRefundApply(Base):
     ORAnote = Column(String(255), comment='备注')
 
 
+class DisputeType(Base):
+    __tablename__ = 'DisputeType'
+    DIid = Column(String(64), primary_key=True)
+    DIname = Column(String(32), nullable=False, comment='纠纷类型文字')
+    DIsort = Column(Integer, nullable=False, comment='顺序标志')
+    DItype = Column(Integer, default=0, comment='适用的售后类型0: 退货退款 10 仅退款')
+
+
 class OrderRefund(Base):
     """订单退货表"""
     __tablename__ = 'OrderRefund'

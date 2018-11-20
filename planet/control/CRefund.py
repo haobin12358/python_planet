@@ -11,8 +11,8 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate
-from planet.models.trade import OrderRefundApply, OrderMain, OrderPart
+from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, DisputeTypeType
+from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType
 from planet.service.STrade import STrade
 
 
@@ -35,6 +35,37 @@ class CRefund(object):
         else:
             raise ParamsError('须指定主单或副单')
         return Success('申请成功, 等待答复')
+
+    @token_required
+    def create_dispute_type(self):
+        """添加申请理由表"""
+        data = parameter_required(('diname', 'ditype', 'disort'))
+        diname = data.get('diname')
+        ditype = data.get('ditype')
+        try:
+            DisputeTypeType(ditype)
+            disort = int(data.get('disort'))
+        except Exception as e:
+            raise ParamsError('ditype错误')
+        with self.strade.auto_commit() as s:
+            diid = str(uuid.uuid4())
+            dispute_type_dict = {
+                'DIid': diid,
+                'DIname': diname,
+                'DItype': ditype,
+                'DIsort': disort
+            }
+            dispute_type_instance = DisputeType.create(dispute_type_dict)
+            s.add(dispute_type_instance)
+        return Success('创建成功', data={'diid': diid})
+
+    def list_dispute_type(self):
+        """获取纠纷类型"""
+        data = parameter_required()
+        ditype = data.get('type') or None
+        order_refund_types = DisputeType.query.filter_by_({'DItype': ditype}).all()
+        return Success(data=order_refund_types)
+
 
     @token_required
     def agree_apply(self):
