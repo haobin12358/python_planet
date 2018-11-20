@@ -130,8 +130,6 @@ class OrderEvaluation(Base):
     OPid = Column(String(64), nullable=False, comment='订单副单id')
     OMid = Column(String(64), nullable=False, comment='订单主单id')
     OEtext = Column(String(255), nullable=False, default='此用户没有填写评价。', comment='评价内容')
-    OEIid = Column(String(255), comment='评价图片')
-    OEVid = Column(String(255), comment='评价视频')
     OEscore = Column(Integer, nullable=False, default=5, comment='五星评分')
 
 
@@ -139,13 +137,16 @@ class OrderEvaluationImage(Base):
     """订单评价图片"""
     __tablename__ = 'OrderEvaluationImage'
     OEIid = Column(String(64), primary_key=True)
+    OEid = Column(String(64), nullable=False, comment='评价id')
     OEImg = Column(String(255), nullable=False, url=True, comment='图片url')
+    OEIsort = Column(Integer, comment='图片顺序')
 
 
 class OrderEvaluationVideo(Base):
     """订单评价视频"""
     __tablename__ = 'OrderEvaluationVideo'
     OEVid = Column(String(64), primary_key=True)
+    OEid = Column(String(64), nullable=False, comment='评价id')
     OEVideo = Column(String(255), nullable=False, url=True, comment='视频url')
     OEVthumbnail = Column(String(255), nullable=False, url=True, comment='视频缩略图')
 

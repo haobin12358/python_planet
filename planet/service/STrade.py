@@ -29,6 +29,10 @@ class STrade(SBase):
         ).first_(error)
 
     @close_session
+    def update_ordermain_one(self, args, upinfo):
+        return self.session.query(OrderMain).filter(*args).update(upinfo)
+
+    @close_session
     def get_orderpart_list(self, args):
         return self.session.query(OrderPart).filter_by_(
             **args
