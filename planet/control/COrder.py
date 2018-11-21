@@ -11,11 +11,12 @@ from flask import request
 from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError
+from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError, TokenError, \
+    AuthorityError
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin
-from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
+from planet.common.token_handler import token_required, is_admin, is_tourist
+from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderEvaluationScore
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -363,18 +364,19 @@ class COrder(CPay, CCoupon):
                 oescore = evaluation.get('oescore', 5)
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
+                order_part_info = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first()
                 evaluation_dict = OrderEvaluation.create({
                     'OEid': oeid,
                     'OMid': omid,
                     'USid': usid,
                     'OPid': opid,
                     'OEtext': data.get('oetext', '此用户没有填写评价。'),
-                    'OEscore': oescore
+                    'OEscore': oescore,
+                    'PRid': order_part_info.PRid,
+                    'SKUattriteDetail': order_part_info.SKUattriteDetail
                 })
                 evaluation_list.append(evaluation_dict)
 
-                import ipdb
-                ipdb.set_trace()
                 image_list = evaluation.get('image')
                 if image_list:
                     if len(image_list) > 5:
@@ -408,6 +410,9 @@ class COrder(CPay, CCoupon):
             other_evaluation_list = []
             with self.strade.auto_commit() as s:
                 for i in orderpartid_list:
+                    other_order_part_info = OrderPart.query.filter(OrderPart.OPid == i,
+                                                                   OrderPart.isdelete == False
+                                                                   ).first()
                     oeid = str(uuid.uuid1())
                     other_evaluation = OrderEvaluation.create({
                         'OEid': oeid,
@@ -415,12 +420,62 @@ class COrder(CPay, CCoupon):
                         'USid': usid,
                         'OPid': i,
                         'OEtext': '此用户没有填写评价。',
-                        'OEscore': 5
+                        'OEscore': 5,
+                        'PRid': other_order_part_info.PRid,
+                        'SKUattriteDetail': other_order_part_info.SKUattriteDetail
                     })
                     oeid_list.append(oeid)
                     other_evaluation_list.append(other_evaluation)
                 s.add_all(other_evaluation_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    def get_evaluation(self):
+        """获取订单评价"""
+        if not is_tourist():
+            usid = request.user.id
+            User.query.filter(User.USid == usid).first_('用户状态异常')
+            tourist = 0
+        else:
+            tourist = 1
+            usid = None
+        args = parameter_required(('page_num', 'page_size'))
+        prid = args.get('prid')
+        my_post = args.get('my_post')
+        if str(my_post) == '1':
+            if not usid:
+                raise TokenError()
+            filter_args = {'USid': usid}
+        else:
+            parameter_required(('prid',))
+            filter_args = {'PRid': prid}
+        order_evaluation = self.strade.get_order_evaluation(filter_args)
+        for order in order_evaluation:
+            order.SKUattriteDetail = json.loads(order.SKUattriteDetail)
+            image = self.strade.get_order_evaluation_image(order.OEid)
+            video = self.strade.get_order_evaluation_video(order.OEid)
+            zh_oescore = OrderEvaluationScore(order.OEscore).zh_value
+            order.fill('zh_oescore', zh_oescore)
+            order.fill('image', image)
+            order.fill('video', video)
+        return Success(data=order_evaluation).get_body(is_tourist=tourist)
+
+    @token_required
+    def del_evaluation(self):
+        """删除订单评价"""
+        usid = request.user.id
+        user = User.query.filter(User.USid == usid, User.isdelete == False).first_('用户状态异常')
+        gennerc_log('User {} delete order evaluation'.format(user.USname))
+        data = parameter_required(('oeid',))
+        oeid = data.get('oeid')
+        order_eva = OrderEvaluation.query.filter_by_(OEid=oeid).first_('该评价已被删除')
+        if usid != order_eva.USid:
+            raise AuthorityError('只能删除自己发布的评价')
+        del_eva = self.strade.del_order_evaluation(oeid)
+        if not del_eva:
+            raise SystemError('删除评价信息错误')
+        self.strade.del_order_evaluation_image(oeid)
+        self.strade.del_order_evaluation_video(oeid)
+        return Success('删除成功', {'oeid': oeid})
 
     @token_required
     def get_order_count(self):
