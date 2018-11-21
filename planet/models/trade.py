@@ -99,7 +99,7 @@ class OrderRefundApply(Base):
     ORAid = Column(String(64), primary_key=True)
     ORAsn = Column(String(64), nullable=False, comment='售后申请编号')
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OPid = Column(String(64), comment='副单id')
+    OPid = Column(String(64), comment='副单id')  # 如果opid不为空, 则说明是副单售后申请
     USid = Column(String(64), nullable=False, comment='用户id')
     ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 仅退款')
     ORAreason = Column(String(255), nullable=False, comment='退款原因')

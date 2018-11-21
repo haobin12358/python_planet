@@ -390,8 +390,6 @@ class COrder(CPay, CCoupon):
                 })
                 evaluation_list.append(evaluation_dict)
 
-                import ipdb
-                ipdb.set_trace()
                 image_list = evaluation.get('image')
                 if image_list:
                     if len(image_list) > 5:

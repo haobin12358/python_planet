@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import request
 
 from planet.common.error_response import ParamsError
-from planet.common.params_validates import parameter_required
+from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, DisputeTypeType
@@ -37,11 +37,6 @@ class CRefund(object):
         else:
             raise ParamsError('须指定主单或副单')
         return Success('申请成功, 等待答复')
-
-    @token_required
-    def list(self):
-        data = parameter_required()
-
 
     @token_required
     def create_dispute_type(self):
@@ -94,15 +89,15 @@ class CRefund(object):
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 写入退换货表
                     orrecvname = data.get('orrecvname')
-                    orrecvphone = data.get('orrecvphone')
-                    orrecvaddress = data.get('orrecvaddrss')
+                    orrecvphone = validate_arg('^1\d{10}$', data.get('orrecvphone', ''), '输入合法的手机号码')
+                    orrecvaddress = data.get('orrecvaddress')
                     try:
                         assert orrecvname and orrecvphone and orrecvaddress
                     except Exception as e:
                         raise ParamsError('请填写必要的收货信息')
                     order_refund_dict = {
                         'ORid': str(uuid.uuid4()),
-                        'OMId': refund_apply_instance.OMid,
+                        'OMid': refund_apply_instance.OMid,
                         'OPid': refund_apply_instance.OPid,
                         'ORAid': oraid,
                         'ORrecvname': orrecvname,
@@ -121,10 +116,12 @@ class CRefund(object):
                 refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
                 s_list.append(refund_apply_instance)
                 msg = '拒绝成功'
-            return Success(msg)
+            s.add_all(s_list)
+        return Success(msg)
 
     def send(self):
         """买家发货"""
+        # todo
         pass
 
     @staticmethod
