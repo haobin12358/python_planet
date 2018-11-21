@@ -59,7 +59,7 @@ class CouponUserListForm(BaseForm):
     ucalreadyuse = SelectField('是否已经使用', choices=[
         ('true', True), ('false', False), ('all', None)
     ], default='false')
-    can_use = SelectField('是否已经使用', choices=[
+    canuse = SelectField('是否已经使用', choices=[
         ('true', True), ('false', False), ('all', None)
     ], default='all')
 

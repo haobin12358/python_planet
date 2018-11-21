@@ -44,7 +44,7 @@ class CCoupon(object):
         form = CouponUserListForm().valid_data()
         usid = form.usid.data
         itid = form.itid.data
-        can_use = dict(form.can_use.choices).get(form.can_use.data)   # 是否可用
+        can_use = dict(form.canuse.choices).get(form.canuse.data)   # 是否可用
         ucalreadyuse = dict(form.ucalreadyuse.choices).get(form.ucalreadyuse.data)  # 是否已经使用
         user_coupon = CouponUser.query.filter_by_({'USid': usid}).filter_(
             CouponUser.UCalreadyUse == ucalreadyuse
@@ -67,7 +67,7 @@ class CCoupon(object):
                     Coupon.COisAvailable == False,
                     # CouponUser.UCalreadyUse == True,
                     Coupon.COvalidEndTime < time_now,   # 已经结束
-                    Coupon.COvalidStartTime > time_now ,  # 未开始c
+                    # Coupon.COvalidStartTime > time_now ,  # 未开始
                 ),
 
             ).all_with_page()
@@ -82,8 +82,9 @@ class CCoupon(object):
                 user_coupon.fill('user', user)
             # 优惠券
             coupon = Coupon.query.filter(Coupon.COid == user_coupon.COid).first()  # 待优化
-            coupon.subtitles = self._title_subtitle(coupon)
-            coupon.fields = ['subtitles', 'COname', 'COisAvailable', 'COdiscount', 'COdownLine', 'COsubtration']
+            coupon.title_subtitle = self._title_subtitle(coupon)
+            # coupon.fields = ['title_subtitle', 'COname', 'COisAvailable', 'COdiscount', 'COdownLine', 'COsubtration']
+            coupon.add('title_subtitle')
             user_coupon.fill('coupon', coupon)
             user_coupon.fill('can_use', self._isavalible(coupon, user_coupon))
             # 标签
