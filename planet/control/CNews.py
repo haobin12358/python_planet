@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from flask import request
-from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound, AuthorityError
+from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
@@ -169,7 +169,8 @@ class CNews(object):
                 'USid': request.user.id,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                'NEstatus': NewsStatus.auditing.value
+                'NEstatus': NewsStatus.auditing.value,
+                'NEsource': data.get('source')
             })
             session_list.append(news_info)
             if images not in self.empty:
@@ -219,9 +220,13 @@ class CNews(object):
         if not re.match(r'^[0|1]$', str(tftype)):
             raise ParamsError('tftype, 参数异常')
         msg = '取消成功'
+        is_favorite = self.snews.news_is_favorite(neid, usid)
+        is_trample = self.snews.news_is_trample(news.NEid, usid)
+
         if str(tftype) == '1':
-            is_favorite = self.snews.news_is_favorite(neid, usid)
             if not is_favorite:
+                if is_trample:
+                    raise StatusError('请取消踩后再赞')
                 with self.snews.auto_commit() as s:
                     news_favorite = NewsFavorite.create({
                         'NEFid': str(uuid.uuid1()),
@@ -235,8 +240,9 @@ class CNews(object):
                 if not cancel_favorite:
                     raise SystemError('服务器繁忙')
         else:
-            is_trample = self.snews.news_is_trample(news.NEid, usid)
             if not is_trample:
+                if is_favorite:
+                    raise StatusError('请取消赞后再踩')
                 with self.snews.auto_commit() as sn:
                     news_trample = NewsTrample.create({
                         'NETid': str(uuid.uuid1()),
@@ -278,6 +284,9 @@ class CNews(object):
                                                       NewsComment.isdelete == False,
                                                       NewsComment.NCrootid == news_comment.NCid
                                                       ).order_by(NewsComment.createtime.desc()).all()
+            reply_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False,
+                                                   NewsComment.NCrootid == news_comment.NCid).count()
+            favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
             for reply_comment in reply_comments:
                 re_user = self.fill_user_info(reply_comment.USid)
                 reply_comment.fill('commentuser', re_user['USname'])
@@ -291,6 +300,8 @@ class CNews(object):
                 else:
                     is_own = 0
                 reply_comment.fill('is_own', is_own)
+            news_comment.fill('favorite_count', favorite_count)
+            news_comment.fill('reply_count', reply_count)
             news_comment.fill('reply', reply_comments)
             user_info = self.fill_user_info(news_comment.USid)
             news_comment.fill('user', user_info)

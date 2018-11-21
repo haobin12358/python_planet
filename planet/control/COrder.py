@@ -11,11 +11,13 @@ from flask import request
 from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError
+from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError, TokenError, \
+    AuthorityError
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin
-from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus
+from planet.common.token_handler import token_required, is_admin, is_tourist
+from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
+    OrderRefundApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -23,7 +25,8 @@ from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon
+    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
+    OrderRefund
 
 
 class COrder(CPay, CCoupon):
@@ -272,11 +275,26 @@ class COrder(CPay, CCoupon):
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
             order_part.PRattribute = json.loads(order_part.PRattribute)
             # 状态
-            # 售后状态信息
-            if order_part.OPisinORA:
+            # 副单售后状态信息
+            if order_part.OPisinORA is True:
                 opid = order_part.OPId
-                order_refund_reply = self.strade.get_orderrefundapply_one({'OPid': opid})
-                order_part.fill('order_refund_apply', order_refund_reply)
+                order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
+                order_part.fill('order_refund_apply', order_refund_apply_instance)
+                # 售后发货状态
+                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                        order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                    order_part.fill('order_refund', order_refund_instance)
+        # 主单售后状态信息
+        if order_main.OMinRefund is True:
+            omid = order_main.OMid
+            order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
+            order_main.fill('order_refund_apply', order_refund_apply_instance)
+            # 售后发货状态
+            if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                    order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                order_main.fill('order_refund', order_refund_instance)
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -337,37 +355,164 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
         OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
-                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value).first_('无此订单或当前状态不能进行评价')
+                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                               ).first_('无此订单或当前状态不能进行评价')
+        # 主单号包含的所有副单
+        order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
+        orderpartid_list = []
+        for op in order_part_with_main:
+            orderpartid_list.append(op.OPid)
         evaluation_list = []
         oeid_list = []
+        get_opid_list = []  # 从前端获取到的所有opid
         with self.strade.auto_commit() as oe:
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
-                evaluation = parameter_required(('opid', 'oescore', 'oetext'), datafrom=evaluation)
+                evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
                 opid = evaluation.get('opid')
+                if opid in get_opid_list:
+                    raise DumpliError('不能重复评论同一个订单商品')
+                get_opid_list.append(opid)
+                if opid not in orderpartid_list:
+                    raise NotFound('无此订单商品信息')
+                orderpartid_list.remove(opid)
+                exist_evaluation = oe.query(OrderEvaluation).filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
+                if exist_evaluation:
+                    raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
-                order_part = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first_('无此订单商品信息')
-                if order_part.OMid != omid:
-                    raise StatusError('订单状态错误')
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
-                evaluation = OrderEvaluation.create({
+                order_part_info = oe.query(OrderPart).filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first()
+                evaluation_dict = OrderEvaluation.create({
                     'OEid': oeid,
                     'OMid': omid,
                     'USid': usid,
                     'OPid': opid,
                     'OEtext': data.get('oetext', '此用户没有填写评价。'),
-                    'OEscore': oescore
+                    'OEscore': int(oescore),
+                    'PRid': order_part_info.PRid,
+                    'SKUattriteDetail': order_part_info.SKUattriteDetail
                 })
-                evaluation_list.append(evaluation)
+                evaluation_list.append(evaluation_dict)
+                # 商品总体评分变化
+                try:
+                    product_info = oe.query(Products).filter_by_(PRid=order_part_info.PRid).first()
+                    average_score = round((float(product_info.PRaverageScore) + float(oescore) * 2) / 2)
+                    oe.query(Products).filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
+                except Exception as e:
+                    gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
+                image_list = evaluation.get('image')
+                if image_list:
+                    if len(image_list) > 5:
+                        raise ParamsError('评价每次最多上传5张图片')
+                    for image in image_list:
+                        image_evaluation = OrderEvaluationImage.create({
+                            'OEid': oeid,
+                            'OEIid': str(uuid.uuid1()),
+                            'OEImg': image.get('oeimg'),
+                            'OEIsort': image.get('oeisort', 0)
+                        })
+                        evaluation_list.append(image_evaluation)
+                video = evaluation.get('video')
+                if video:
+                    video_evaluation = OrderEvaluationVideo.create({
+                        'OEid': oeid,
+                        'OEVid': str(uuid.uuid1()),
+                        'OEVideo': video.get('oevideo'),
+                        'OEVthumbnail': video.get('oevthumbnail')
+                    })
+                    evaluation_list.append(video_evaluation)
                 oeid_list.append(oeid)
-            update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
-                                   OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                   ).update({'OMstatus': OrderMainStatus.ready.value})
-            if not update_status:
-                raise StatusError('状态错误，服务器繁忙')
             oe.add_all(evaluation_list)
+
+        # 更改订单主单待评价状态为已完成
+        update_status = self.strade.update_ordermain_one([OrderMain.OMid == omid, OrderMain.isdelete == False,
+                                                          OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                                                          ], {'OMstatus': OrderMainStatus.ready.value})
+        if not update_status:
+            raise StatusError('状态错误，服务器繁忙')
+
+        # 如果提交时主单中还有未评价的副单，默认好评
+        if len(orderpartid_list) > 0:
+            other_evaluation_list = []
+            with self.strade.auto_commit() as s:
+                for i in orderpartid_list:
+                    other_order_part_info = OrderPart.query.filter(OrderPart.OPid == i,
+                                                                   OrderPart.isdelete == False
+                                                                   ).first()
+                    oeid = str(uuid.uuid1())
+                    other_evaluation = OrderEvaluation.create({
+                        'OEid': oeid,
+                        'OMid': omid,
+                        'USid': usid,
+                        'OPid': i,
+                        'OEtext': '此用户没有填写评价。',
+                        'OEscore': 5,
+                        'PRid': other_order_part_info.PRid,
+                        'SKUattriteDetail': other_order_part_info.SKUattriteDetail
+                    })
+                    oeid_list.append(oeid)
+                    other_evaluation_list.append(other_evaluation)
+                    try:
+                        # 商品总体评分变化
+                        other_product_info = oe.query(Products).filter_by_(PRid=other_order_part_info.PRid).first()
+                        other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
+                        oe.query(Products).filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
+                    except Exception as e:
+                        gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
+                s.add_all(other_evaluation_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    def get_evaluation(self):
+        """获取订单评价"""
+        if not is_tourist():
+            usid = request.user.id
+            User.query.filter(User.USid == usid).first_('用户状态异常')
+            tourist = 0
+        else:
+            tourist = 1
+            usid = None
+        args = parameter_required(('page_num', 'page_size'))
+        prid = args.get('prid')
+        my_post = args.get('my_post')
+        if str(my_post) == '1':
+            if not usid:
+                raise TokenError()
+            filter_args = {'USid': usid}
+        else:
+            parameter_required(('prid',))
+            filter_args = {'PRid': prid}
+        order_evaluation = self.strade.get_order_evaluation(filter_args)
+        for order in order_evaluation:
+            eva_user = User.query.filter(User.USid == order.USid).first()
+            eva_user.fields = ['USname', 'USheader']
+            order.fill('user', eva_user)
+            order.SKUattriteDetail = json.loads(getattr(order, 'SKUattriteDetail') or '[]')
+            image = self.strade.get_order_evaluation_image(order.OEid)
+            video = self.strade.get_order_evaluation_video(order.OEid)
+            zh_oescore = OrderEvaluationScore(order.OEscore).zh_value
+            order.fill('zh_oescore', zh_oescore)
+            order.fill('image', image)
+            order.fill('video', video)
+        return Success(data=order_evaluation).get_body(is_tourist=tourist)
+
+    @token_required
+    def del_evaluation(self):
+        """删除订单评价"""
+        usid = request.user.id
+        user = User.query.filter(User.USid == usid, User.isdelete == False).first_('用户状态异常')
+        gennerc_log('User {} delete order evaluation'.format(user.USname))
+        data = parameter_required(('oeid',))
+        oeid = data.get('oeid')
+        order_eva = OrderEvaluation.query.filter_by_(OEid=oeid).first_('该评价已被删除')
+        if usid != order_eva.USid:
+            raise AuthorityError('只能删除自己发布的评价')
+        del_eva = self.strade.del_order_evaluation(oeid)
+        if not del_eva:
+            raise SystemError('删除评价信息错误')
+        self.strade.del_order_evaluation_image(oeid)
+        self.strade.del_order_evaluation_video(oeid)
+        return Success('删除成功', {'oeid': oeid})
 
     @token_required
     def get_order_count(self):
@@ -414,5 +559,28 @@ class COrder(CPay, CCoupon):
 
     def _coupon_can_use_in_order(self, coupon, coupon_user, order_price):
         pass
+
+    def _get_refund_apply(self, args):
+        """获取售后申请"""
+        order_refund_apply_instance = self.strade.get_orderrefundapply_one(args)
+        order_refund_apply_instance.orastate_zh = OrderRefundORAstate(
+            order_refund_apply_instance.ORAstate).zh_value  # 售后类型
+        order_refund_apply_instance.ORAstatus_zh = OrderRefundApplyStatus(
+            order_refund_apply_instance.ORAstatus).zh_value  # 审核状态
+
+        order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(
+            order_refund_apply_instance.ORAproductStatus).zh_value  # 是否收到货
+        order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
+        order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime')
+        return order_refund_apply_instance
+
+    def _get_order_refund(self, args):
+        """获取售后发货状态"""
+        order_refund_instance = OrderRefund.query.filter_by_(args).first_()
+        order_refund_instance.ORstatus_zh = OrderRefundOrstatus(order_refund_instance.ORstatus).zh_value
+        order_refund_instance.ORlogisticSignStatus_zh = LogisticsSignStatus(
+            order_refund_instance.ORlogisticSignStatus).zh_value
+        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime')
+        return order_refund_instance
 
 

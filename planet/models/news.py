@@ -12,6 +12,7 @@ class News(Base):
     NEtext = Column(Text, comment='文本内容')
     NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')
+    NEsource = Column(String(64), comment='来源终端')
 
 
 class NewsImage(Base):

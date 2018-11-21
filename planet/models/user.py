@@ -144,3 +144,4 @@ class UserIntegral (Base):
     UIintegral = Column(Integer, comment='该动作产生的积分变化数')
     UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
+

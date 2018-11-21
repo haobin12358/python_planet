@@ -4,7 +4,7 @@ import datetime
 from flask import request
 from werkzeug.datastructures import MultiDict
 from wtforms import *
-from wtforms.validators import *
+from wtforms.validators import *   # 不要删掉这一行
 from wtforms import StringField as _StringField
 import collections
 from planet.common.error_response import ParamsError
@@ -25,15 +25,11 @@ class BaseForm(Form):
             self._obj = None
         data = request.json or {}
         args = request.args.to_dict()
-        # data = {k: v for k, v in data.items() if v or v == 0 or v is False}
-        # args = {k: v for k, v in request.args.to_dict().items() if v or v == 0 or v is False}
         data.update(args)
         formdata = MultiDict(_flatten_json(data))
         super(BaseForm, self).__init__(formdata)
 
     def valid_data(self):
-        import ipdb
-        ipdb.set_trace()
         valid = super(BaseForm, self).validate()
         if not valid:
             raise ParamsError('.'.join([i[0] for i in self.errors.values()]))
