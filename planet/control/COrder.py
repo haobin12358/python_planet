@@ -564,7 +564,7 @@ class COrder(CPay, CCoupon):
         order_refund_instance.ORstatus_zh = OrderRefundOrstatus(order_refund_instance.ORstatus).zh_value
         order_refund_instance.ORlogisticSignStatus_zh = LogisticsSignStatus(
             order_refund_instance.ORlogisticSignStatus).zh_value
-        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'creattime')
+        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime')
         return order_refund_instance
 
 
