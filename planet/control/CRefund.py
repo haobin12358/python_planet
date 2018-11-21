@@ -12,7 +12,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, DisputeTypeType
-from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType
+from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund
 from planet.service.STrade import STrade
 
 
@@ -25,6 +25,8 @@ class CRefund(object):
         data = parameter_required(('orareason', 'oraproductstatus'))
         opid = data.get('opid')
         omid = data.get('omid')
+        if opid and omid:
+            raise ParamsError('omid,opid只能存在一个')
         usid = request.user.id
         if opid:
             # 单个商品售后
@@ -37,8 +39,13 @@ class CRefund(object):
         return Success('申请成功, 等待答复')
 
     @token_required
+    def list(self):
+        data = parameter_required()
+
+
+    @token_required
     def create_dispute_type(self):
-        """添加申请理由表"""
+        """添加内置纠纷类型"""
         data = parameter_required(('diname', 'ditype', 'disort'))
         diname = data.get('diname')
         ditype = data.get('ditype')
@@ -63,9 +70,8 @@ class CRefund(object):
         """获取纠纷类型"""
         data = parameter_required()
         ditype = data.get('type') or None
-        order_refund_types = DisputeType.query.filter_by_({'DItype': ditype}).all()
+        order_refund_types = DisputeType.query.filter_by_({'DItype': ditype}).order_by(DisputeType.DIsort).all()
         return Success(data=order_refund_types)
-
 
     @token_required
     def agree_apply(self):
@@ -73,6 +79,7 @@ class CRefund(object):
         oraid = data.get('oraid')
         agree = data.get('agree')
         with self.strade.auto_commit() as s:
+            s_list = []
             refund_apply_instance = s.query(OrderRefundApply).filter_by_({
                 'ORAid': oraid,
                 'ORAstatus': OrderRefundApplyStatus.wait_check.value
@@ -83,12 +90,38 @@ class CRefund(object):
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.only_money.value:  # 仅退款
                     # todo 退款
                     pass
+                    msg = '已同意, 正在退款'
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 写入退换货表
-                    pass
+                    orrecvname = data.get('orrecvname')
+                    orrecvphone = data.get('orrecvphone')
+                    orrecvaddress = data.get('orrecvaddrss')
+                    try:
+                        assert orrecvname and orrecvphone and orrecvaddress
+                    except Exception as e:
+                        raise ParamsError('请填写必要的收货信息')
+                    order_refund_dict = {
+                        'ORid': str(uuid.uuid4()),
+                        'OMId': refund_apply_instance.OMid,
+                        'OPid': refund_apply_instance.OPid,
+                        'ORAid': oraid,
+                        'ORrecvname': orrecvname,
+                        'ORrecvphone': orrecvphone,
+                        'ORrecvaddress': orrecvaddress,
+                        'ORAcheckReason': request.user.id
+                    }
+                    order_refund_instance = OrderRefund.create(order_refund_dict)
+                    s_list.append(order_refund_instance)
+                    msg = '已同意, 等待买家发货'
+                refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
+                refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
+                s_list.append(refund_apply_instance)
             else:
                 refund_apply_instance.ORAstatus = OrderRefundApplyStatus.reject.value
                 refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
+                s_list.append(refund_apply_instance)
+                msg = '拒绝成功'
+            return Success(msg)
 
     def send(self):
         """买家发货"""
@@ -112,17 +145,18 @@ class CRefund(object):
             s_list.append(order_part)
             # 主单售后状态
             omid = order_part.OMid
-            order_main = s.query(OrderMain).filter_(
-                OrderMain.OMid == omid,
-                OrderMain.OMstatus.notin_([
-                    OrderMainStatus.wait_pay.value,
-                    OrderMainStatus.cancle.value,
-                    OrderMainStatus.ready.value,
-                ]),
-                OrderMain.USid == usid
-            ).first_('不存在的订单')
-            order_main.OMinRefund = True  # 主单状态
-            s_list.append(order_main)
+            # 不改变主单的状态
+            # order_main = s.query(OrderMain).filter_(
+            #     OrderMain.OMid == omid,
+            #     OrderMain.OMstatus.notin_([
+            #         OrderMainStatus.wait_pay.value,
+            #         OrderMainStatus.cancle.value,
+            #         OrderMainStatus.ready.value,
+            #     ]),
+            #     OrderMain.USid == usid
+            # ).first_('不存在的订单')
+            # order_main.OMinRefund = True  # 主单状态
+            # s_list.append(order_main)
             # 申请参数校验
             oraproductstatus = data.get('oraproductstatus')
             ORAproductStatus(oraproductstatus)
@@ -135,6 +169,11 @@ class CRefund(object):
             else:
                 oraddtionvoucher = None
             oraaddtion = data.get('oraaddtion')
+            orastate = data.get('orastate', OrderRefundORAstate.goods_money.value)
+            try:
+                OrderRefundORAstate(orastate)
+            except Exception as e:
+                raise ParamsError('orastate参数错误')
             # 添加申请表
             order_refund_apply_dict = {
                 'ORAid': str(uuid.uuid4()),
@@ -147,6 +186,7 @@ class CRefund(object):
                 'ORAaddtion': oraaddtion,
                 'ORAreason': data.get('orareason'),
                 'ORAproductStatus': oraproductstatus,
+                'ORAstate': orastate,
             }
             order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
             s_list.append(order_refund_apply_instance)
@@ -166,17 +206,24 @@ class CRefund(object):
             ).first_('不存在的订单')
             order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
-            # 副单状态
             # 申请参数校验
-            oraproductstatus = data.get('oraproductstatus')
+            oraproductstatus = data.get('oraproductstatus')  # 是否已经收到货
             ORAproductStatus(oraproductstatus)
             oramount = data.get('oramount')
+
+            orastate = data.get('orastate', OrderRefundORAstate.goods_money.value)
+            try:
+                OrderRefundORAstate(orastate)
+            except Exception as e:
+                raise ParamsError('orastate参数错误')
+
             if not oramount or oramount > order_main.OMtrueMount:
                 raise ParamsError('oramount退款金额不正确')
-            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
-            for order_part in order_parts:
-                order_part.OPisinORA = True  # 附单状态
-                s_list.append(order_part)
+            # 不改变副单的状态
+            # order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            # for order_part in order_parts:
+            #     order_part.OPisinORA = True  # 附单状态
+            #     s_list.append(order_part)
             # 添加申请表
             oraddtionvoucher = data.get('oraddtionvoucher')
             if oraddtionvoucher and isinstance(oraddtionvoucher, list):
@@ -192,6 +239,8 @@ class CRefund(object):
                 'ORAaddtion': oraaddtion,
                 'ORAreason': data.get('orareason'),
                 'ORAproductStatus': oraproductstatus,
+                'ORAstate': orastate,
             }
             order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
             s_list.append(order_refund_apply_instance)
+            s.add_all(s_list)

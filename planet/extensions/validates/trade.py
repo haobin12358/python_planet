@@ -95,6 +95,7 @@ class CouponCreateForm(BaseForm):
     cosubtration = FloatField('减额', default=0, validators=[NumberRange(0)])
     codesc = StringField('描述')
     itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    cousenum = IntegerField('可叠加使用数量', default=1)
 
     def valid_data(self):
         if self.pcid.data is not None and self.prid.data is not None and self.pbid.data is not None:
@@ -111,6 +112,13 @@ class CouponCreateForm(BaseForm):
         """减额或打折必需存在一个"""
         if not raw.data and self.codiscount.data == 10:
             raise ValidationError('减额或打折必需存在一个')
+        if raw.data and self.codiscount.data != 10:
+            raise ValidationError('减额或打折必需存在一个')
+
+    def validate_cousenum(self, raw):
+        if raw.data < 0:
+            raise ValidationError('可叠加数量错误')
+
 
 
 
