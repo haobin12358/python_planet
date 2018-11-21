@@ -554,7 +554,7 @@ class COrder(CPay, CCoupon):
         order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(
             order_refund_apply_instance.ORAproductStatus).zh_value  # 是否收到货
         order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
-        order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh')
+        order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime')
         return order_refund_apply_instance
 
     def _get_order_refund(self, args):
@@ -563,7 +563,7 @@ class COrder(CPay, CCoupon):
         order_refund_instance.ORstatus_zh = OrderRefundOrstatus(order_refund_instance.ORstatus).zh_value
         order_refund_instance.ORlogisticSignStatus_zh = LogisticsSignStatus(
             order_refund_instance.ORlogisticSignStatus).zh_value
-        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh')
+        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'creattime')
         return order_refund_instance
 
 
