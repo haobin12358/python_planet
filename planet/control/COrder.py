@@ -467,6 +467,9 @@ class COrder(CPay, CCoupon):
             filter_args = {'PRid': prid}
         order_evaluation = self.strade.get_order_evaluation(filter_args)
         for order in order_evaluation:
+            eva_user = User.query.filter(User.USid == order.USid).first()
+            eva_user.fields = ['USname', 'USheader']
+            order.fill('user', eva_user)
             order.SKUattriteDetail = json.loads(order.SKUattriteDetail)
             image = self.strade.get_order_evaluation_image(order.OEid)
             video = self.strade.get_order_evaluation_video(order.OEid)
