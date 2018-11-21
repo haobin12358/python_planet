@@ -11,8 +11,11 @@ from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
+from planet.config.secret import PLANET, PLANET_SERVICE, PLANET_SUBSCRIBE, SERVICE_APPID, SERVICE_APPSECRET, \
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
+from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
+    WXLoginError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin
@@ -20,6 +23,7 @@ from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
+from planet.config.timeformat import format_for_db
 
 from planet.models.user import User, UserLoginTime, UserCommission, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes
@@ -27,6 +31,7 @@ from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
 from planet.models.trade import OrderPart
+from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -543,7 +548,6 @@ class CUser(SUser, BASEAPPROVAL):
         if check_result:
             # 资质认证ok，创建审批流
 
-            # todo 审批流创建
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
 
             return Success('申请成功')
@@ -889,3 +893,34 @@ class CUser(SUser, BASEAPPROVAL):
             admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
 
         return Success('获取管理员列表成功', data=admins)
+
+    @get_session
+    @token_required
+    def app_wx_login(self):
+        args = request.args.to_dict()
+        app_from = args.get("app_from")
+        # app from : {IOS Android, web1, web2} ps
+        code = args.get('code')
+        # todo 根据不同的来源处理不同的appid, appsecret
+        APP_ID = SERVICE_APPID
+        APP_SECRET_KEY = SERVICE_APPSECRET
+        wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
+        try:
+            data = wxlogin.access_token(args["code"])
+        except WeixinLoginError as e:
+            gennerc_log(e)
+            raise WXLoginError
+        openid = data.openid
+        access_token = data.access_token
+        gennerc_log('get openid = {0} and access_token = {1}'.format(openid, access_token))
+        # todo 通过app_from 来通过不同的openid 获取用户
+        user = self.session.query(User).filter(User.USopenid1 == openid).first()
+        user_info = wxlogin.userinfo(access_token, openid)
+        upperd = self.suser.get_user_by_openid(args.get("ussupper", ""))
+        upperd_id = upperd.USid if upperd else None
+        if user:
+            user.USheader = user_info.get('headimgurl')
+            user.USname = user_info.get('nickname')
+
+
+        return Success('登录成功', data=user)

@@ -21,8 +21,8 @@ DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
     database,
     charset)
 # 微信
-appid = env.get('DXXAPPID', '')
-appsecret = env.get('DXXAPPSECRET', '')
+appid = env.get('DXXAPPID', 'wxe8e8f6b9351d3587')
+appsecret = env.get('DXXAPPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
 wxtoken = env.get('DXXWXTOKEN', '')
 wxscope = 'snsapi_userinfo'
 mch_id = env.get('MCH_ID')
@@ -47,6 +47,17 @@ ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 # 快递物流查询
 kd_api_code = env.get('KDApiKey', 'guess')
 kd_api_url = 'https://kdwlcxf.market.alicloudapi.com/kdwlcx'
+
+# 域名
+PLANET_SERVICE = 'https://planetservice.daaiti.cn'
+PLANET_SUBSCRIBE = 'https://planetsubscribe.daaiti.cn'
+PLANET = 'https://planet.daaiti.cn'
+
+SERVICE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
+SERVICE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
+
+SUBSCRIBE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
+SUBSCRIBE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
 
 
 class DefaltSettig(object):

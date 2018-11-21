@@ -17,7 +17,7 @@ class User(Base):
     USbirthday = Column(DateTime, comment='出生日期')
     USidentification = Column(String(24), comment='身份证号')
     USheader = Column(Text, default='用户头像', url=True)
-    USopenid1 = Column(Text, comment='公众号1 openid')
+    USopenid1 = Column(Text, comment='服务号 openid')
     USopenid2 = Column(Text, comment='公众号2 openid')
     USsupper1 = Column(String(64), comment='一级代理商id')  # 如果一级代理商为空，表示该用户为平台用户
     USsupper2 = Column(String(64), comment='二级代理商id')  # 如果二级代理商为空，则佣金抽成全归一级
@@ -119,6 +119,7 @@ class UserMedia(Base):
 
 
 class IDCheck(Base):
+    """实名认证查询"""
     __tablename__ = 'IDcheck'
     IDCid = Column(String(64), primary_key=True)
     IDCcode = Column(String(24), nullable=False, comment='查询所用的身份证')
@@ -136,6 +137,7 @@ class IDCheck(Base):
 
 
 class UserIntegral (Base):
+    """用户积分表  ps 表名与类名不同"""
     __tablename__ = 'UserSignIn'
     UIid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
