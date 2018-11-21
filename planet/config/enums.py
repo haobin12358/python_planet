@@ -105,8 +105,15 @@ class ItemType(Enum):
 
 
 class ItemAuthrity(Enum):
-    new_user = 1, '新用户'
+    new_user = 10, '新用户'
     no_limit = 0, '无限制'
+    admin_only = 20, '仅管理员'
+
+
+class ItemPosion(Enum):
+    scene = 0, '场景推荐页'
+    index = 10, '首页'
+    new_user_paga = 20, '新人页'
 
 
 class LogisticsSearchStatus(Enum):

@@ -99,6 +99,9 @@ class CProducts:
         #     pcids.extend(self._sub_category_id(pci) if pcid else [])  # 遍历以下的所有分类
         pcids = list(set(pcids))
         itid = data.get('itid')  # 场景下的标签id
+        if not itid:
+            # 如果不传itid, 则只筛选类型为场景推荐页的标签商品
+            Items.ITposition == ''
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
         prstatus = getattr(ProductStatus, prstatus).value
         product_order = order_enum.get(order)

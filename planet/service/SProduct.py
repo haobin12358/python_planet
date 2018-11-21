@@ -19,7 +19,8 @@ class SProducts(SBase):
             ProductItems, ProductItems.PRid == Products.PRid
         ).outerjoin(
             ProductBrand, ProductBrand.PBid == Products.PBid
-        ).filter_(*args).order_by(*order).all_with_page()
+        ).outerjoin(Items, Items.ITid == ProductItems.ITid).\
+            filter_(*args).order_by(*order).all_with_page()
 
     @close_session
     def get_product_images(self, args):
@@ -82,7 +83,9 @@ class SProducts(SBase):
 
     @close_session
     def get_items(self, args, order=(Items.ITsort, )):
-        return self.session.query(Items).filter_by_(args).order_by(*order).all()
+        return self.session.query(Items).outerjoin(
+            SceneItem, SceneItem.ITid == Items.ITid
+        ).filter_(args).order_by(*order).all()
 
     @close_session
     def get_monthsale_value_one(self, args, error=None):
