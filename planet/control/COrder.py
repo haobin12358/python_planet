@@ -16,7 +16,8 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
-from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderEvaluationScore
+from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
+    OrderRefundApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -24,7 +25,8 @@ from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
-    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo
+    OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
+    OrderRefund
 
 
 class COrder(CPay, CCoupon):
@@ -273,11 +275,26 @@ class COrder(CPay, CCoupon):
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
             order_part.PRattribute = json.loads(order_part.PRattribute)
             # 状态
-            # 售后状态信息
-            if order_part.OPisinORA:
+            # 副单售后状态信息
+            if order_part.OPisinORA is True:
                 opid = order_part.OPId
-                order_refund_reply = self.strade.get_orderrefundapply_one({'OPid': opid})
-                order_part.fill('order_refund_apply', order_refund_reply)
+                order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
+                order_part.fill('order_refund_apply', order_refund_apply_instance)
+                # 售后发货状态
+                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                        order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                    order_part.fill('order_refund', order_refund_instance)
+        # 主单售后状态信息
+        if order_main.OMinRefund is True:
+            omid = order_main.OMid
+            order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
+            order_main.fill('order_refund_apply', order_refund_apply_instance)
+            # 售后发货状态
+            if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                    order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                order_main.fill('order_refund', order_refund_instance)
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -522,5 +539,28 @@ class COrder(CPay, CCoupon):
 
     def _coupon_can_use_in_order(self, coupon, coupon_user, order_price):
         pass
+
+    def _get_refund_apply(self, args):
+        """获取售后申请"""
+        order_refund_apply_instance = self.strade.get_orderrefundapply_one(args)
+        order_refund_apply_instance.orastate_zh = OrderRefundORAstate(
+            order_refund_apply_instance.ORAstate).zh_value  # 售后类型
+        order_refund_apply_instance.ORAstatus_zh = OrderRefundApplyStatus(
+            order_refund_apply_instance.ORAstatus).zh_value  # 审核状态
+
+        order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(
+            order_refund_apply_instance.ORAproductStatus).zh_value  # 是否收到货
+        order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
+        order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh')
+        return order_refund_apply_instance
+
+    def _get_order_refund(self, args):
+        """获取售后发货状态"""
+        order_refund_instance = OrderRefund.query.filter_by_(args).first_()
+        order_refund_instance.ORstatus_zh = OrderRefundOrstatus(order_refund_instance.ORstatus).zh_value
+        order_refund_instance.ORlogisticSignStatus_zh = LogisticsSignStatus(
+            order_refund_instance.ORlogisticSignStatus).zh_value
+        order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh')
+        return order_refund_instance
 
 

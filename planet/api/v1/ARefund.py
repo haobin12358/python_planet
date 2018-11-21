@@ -12,6 +12,7 @@ class ARefund(Resource):
         apis = {
             'create': self.crefund.create,
             'create_dispute_type': self.crefund.create_dispute_type,
+            'agree_apply': self.crefund.agree_apply,  # 同意售后申请
         }
         return apis
 

@@ -117,6 +117,7 @@ class CCoupon(object):
                 'COdownLine': form.codownline.data,
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
+                'COuseNum': form.cousenum.data,
             })
             s_list.append(coupon_instance)
             for itid in itids:

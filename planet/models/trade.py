@@ -35,7 +35,7 @@ class OrderMain(Base):
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
     OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成, 35 待评价, -40取消交易')
-    OMinRefund = Column(Boolean, default=False, comment='有商品在售后状态')
+    OMinRefund = Column(Boolean, default=False, comment='主单是否在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
@@ -99,21 +99,23 @@ class OrderRefundApply(Base):
     ORAid = Column(String(64), primary_key=True)
     ORAsn = Column(String(64), nullable=False, comment='售后申请编号')
     OMid = Column(String(64), nullable=False, comment='主单id')
-    OPid = Column(String(64), comment='副单id')
+    OPid = Column(String(64), comment='副单id')  # 如果opid不为空, 则说明是副单售后申请
     USid = Column(String(64), nullable=False, comment='用户id')
     ORAstate = Column(Integer, default=0, comment='类型: 0 退货退款 10 仅退款')
     ORAreason = Column(String(255), nullable=False, comment='退款原因')
     ORAmount = Column(Float, nullable=False, comment='退款金额')
     ORAaddtion = Column(String(255), comment='退款说明')
     ORaddtionVoucher = Column(Text, comment='退款说明图片')
-    ORAproductStatus = Column(Integer, default=0, comment='0已收货, 1 未收货')
+    ORAproductStatus = Column(Integer, default=0, comment='0已收货, 10 未收货')
     ORAstatus = Column(Integer, default=0, comment='状态-20已取消 -10 拒绝 0 未审核 10审核通过')
     ORAcheckReason = Column(String(255), comment='审核原因')
+    ORAcheckUser = Column(String(64), comment='审核人')
     ORAcheckTime = Column(DateTime, comment='审核时间')
     ORAnote = Column(String(255), comment='备注')
 
 
 class DisputeType(Base):
+    """售后纠纷的一些内置理由"""
     __tablename__ = 'DisputeType'
     DIid = Column(String(64), primary_key=True)
     DIname = Column(String(32), nullable=False, comment='纠纷类型文字')
@@ -131,7 +133,12 @@ class OrderRefund(Base):
     ORrecvname = Column(String(16), nullable=False, comment='收货人姓名')
     ORrecvphone = Column(String(11), nullable=False, comment='收货人手机')
     ORrecvaddress = Column(String(255), nullable=False, comment='收货地址')
+    ORstatus = Column(Integer, default=0, comment='退货状态, 0 等待买家发货 10 等待卖家收货 20 已收货, 30 已退款 -10 已取消')
     # 物流信息
+    ORlogisticCompany = Column(String(32), comment='物流公司')
+    ORlogisticSignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
+    ORlogisticData = Column(Text, comment='查询结果')
+    ORlogisticLostResult = Column(Text, comment='物流最后结果')
     # 其他
 
 

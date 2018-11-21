@@ -69,6 +69,15 @@ class OrderRefundApplyStatus(Enum):
     agree = 10, '同意'
 
 
+class OrderRefundOrstatus(Enum):
+    """订单退货状态"""
+    wait_send = 0, '等待买家发货'
+    wait_recv = 10, '等待卖家收货'
+    ready_recv = 20, '卖家已收货'
+    ready_refund = 30, '已退款'
+    cancle = -10, '已取消'
+
+
 class OrderRefundORAstate(Enum):
     """售后申请类型"""
     goods_money = 0, '退货退款'
