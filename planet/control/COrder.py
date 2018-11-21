@@ -423,6 +423,7 @@ class COrder(CPay, CCoupon):
         if not update_status:
             raise StatusError('状态错误，服务器繁忙')
 
+        # 如果提交时主单中还有未评价的副单，默认好评
         if len(orderpartid_list) > 0:
             other_evaluation_list = []
             with self.strade.auto_commit() as s:
