@@ -9,7 +9,7 @@ from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
-from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType
+from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
@@ -94,14 +94,9 @@ class CProducts:
         pcid = data.get('pcid')  # 分类id
         pcid = pcid.split('|') if pcid else []
         pcids = self._sub_category_id(pcid)
-        # pcids = []
-        # for pci in pcid:
-        #     pcids.extend(self._sub_category_id(pci) if pcid else [])  # 遍历以下的所有分类
         pcids = list(set(pcids))
         itid = data.get('itid')  # 场景下的标签id
-        if not itid:
-            # 如果不传itid, 则只筛选类型为场景推荐页的标签商品
-            Items.ITposition == ''
+
         prstatus = data.get('prstatus') or 'usual'  # 商品状态
         prstatus = getattr(ProductStatus, prstatus).value
         product_order = order_enum.get(order)
@@ -109,15 +104,27 @@ class CProducts:
             order_by = product_order.desc()
         elif desc_asc == 'asc':
             order_by = product_order
-        # 筛选
-        print(pcids)
-        products = self.sproduct.get_product_list([
+
+        filter_args = [
             Products.PBid == pbid,
             or_(and_(*[Products.PRtitle.contains(x) for x in kw]), and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             ProductItems.ITid == itid,
             Products.PRstatus == prstatus,
-        ], [order_by, ])
+        ]
+        # 标签位置和权限筛选
+        if not itid:
+            itposition = data.get('itposition')
+            itauthority = data.get('itauthority')
+            if not itposition:  # 位置 标签的未知
+                filter_args.append(or_(Items.ITposition == ItemPostion.scene.value, Items.ITposition.is_(None)))
+            else:
+                filter_args.append(Items.ITposition == int(itposition))
+            if not itauthority:
+                filter_args.append(or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
+            else:
+                filter_args.append(Items.ITauthority == int(itauthority))
+        products = self.sproduct.get_product_list(filter_args, [order_by, ])
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
@@ -246,7 +253,9 @@ class CProducts:
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
-            prattribute = data.get('prattribute') or []
+            prattribute = data.get('prattribute')
+            if prattribute:
+                prattribute = json.dumps(prattribute)
             product = s.query(Products).filter_by_({'PRid': prid}).first_('商品不存在')
             prmarks = data.get('prmarks')  # 备注
             if prmarks:
@@ -273,7 +282,7 @@ class CProducts:
                 'PCid': pcid,
                 'PBid': pbid,
                 'PRdesc': prdesc,
-                'PRattribute': json.dumps(prattribute),
+                'PRattribute': prattribute,
                 'PRremarks': prmarks,
                 'PRdescription': prdescription
             }

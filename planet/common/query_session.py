@@ -81,11 +81,11 @@ class Query(_Query):
             count = int(count)
         except TypeError as e:
             raise ParamsError(u'分页参数错误')
-        mount = self.count()
+        mount = self.distinct().count()  # 未知的计数错误
         page_all = math.ceil(float(mount) / count)
         request.page_all = page_all
         request.mount = mount
-        return self.offset((page - 1) * count).limit(count).all()
+        return self.distinct().offset((page - 1) * count).limit(count).all()
 
     def all_(self, page=None):
         if page:

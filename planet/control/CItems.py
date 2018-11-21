@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 
+from planet.config.enums import ItemType
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm
 from planet.service.SProduct import SProducts
 from planet.common.success_response import Success
@@ -20,12 +21,13 @@ class CItems:
         recommend = form.recommend.data
         # 如果查询商品对应的标签, 则可以传场景的id
         recommend = True if str(recommend) == '1' else None
-        items = self.sproduct.get_items(
-            {'ITtype': ittype, 'PSid': psid, 'ITrecommend': recommend},
+        items = self.sproduct.get_items([
             Items.ITtype == ittype,
             Items.ITrecommend == recommend,
             SceneItem.PSid == psid
-        )
+        ])
+        for item in items:
+            item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
         return Success('获取成功', data=items)
 
     @token_required

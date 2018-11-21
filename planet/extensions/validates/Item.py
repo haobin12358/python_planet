@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from planet.config.enums import ItemType, ItemAuthrity, ItemPosion, ItemAuthrity
+from planet.config.enums import ItemType, ItemAuthrity, ItemAuthrity, ItemPostion
 from .base_form import *
 
 
@@ -8,7 +8,7 @@ class ItemListForm(BaseForm):
     psid = StringField()
     recommend = IntegerField()
     itauthority = IntegerField(default=ItemAuthrity.no_limit.value)  # 查看权限
-    itposition = IntegerField(default=ItemPosion.scene.value)  # 标签位置
+    itposition = IntegerField(default=ItemPostion.scene.value)  # 标签位置
 
     def validate_psid(self, raw):
         if raw.data and self.ittype.data is not None:

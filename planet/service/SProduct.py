@@ -85,7 +85,7 @@ class SProducts(SBase):
     def get_items(self, args, order=(Items.ITsort, )):
         return self.session.query(Items).outerjoin(
             SceneItem, SceneItem.ITid == Items.ITid
-        ).filter_(args).order_by(*order).all()
+        ).filter_(*args).order_by(*order).all()
 
     @close_session
     def get_monthsale_value_one(self, args, error=None):

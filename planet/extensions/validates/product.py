@@ -24,10 +24,10 @@ class BrandsCreateForm(BaseForm):
 
 class BrandUpdateForm(BaseForm):
     pbid = StringField(validators=[DataRequired('bpid不可为空'), Length(1, 64)])
-    pblogo = StringField(validators=[Length(1, 255)])
-    pbname = StringField(validators=[Length(1, 32)])
-    pbdesc = StringField(validators=[Length(1, 255)])
-    pblinks = StringField(validators=[Length(1, 255)])
+    pblogo = StringField()
+    pbname = StringField()
+    pbdesc = StringField()
+    pblinks = StringField()
     itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
 
 
