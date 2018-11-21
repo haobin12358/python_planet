@@ -26,7 +26,7 @@ class Products(Base):
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
     PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
-
+    PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
 
 class ProductMonthSaleValue(Base):
     """商品月销量"""
