@@ -126,7 +126,7 @@ class Items(Base):
     ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
     ITrecommend = Column(Boolean, default=False, comment='是否推荐(圈子)')
     ITauthority = Column(Integer, default=0, comment='标签权限  0 无限制 10新人可查看 20 管理员可看')
-    ITposition = Column(String(32), default='', comment='位置信息 0 场景推荐页, 10 首页 20 新人页, ')
+    ITposition = Column(Integer, default=0, comment='位置信息 0 场景推荐页, 10 首页 20 新人页, ')
 
 
 class ProductItems(Base):
