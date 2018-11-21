@@ -14,6 +14,7 @@ class AOrder(Resource):
             'alipay_notify': self.corder.alipay_notify,
             'wechat_notify': self.corder.wechat_notify,
             'create_evaluation': self.corder.create_order_evaluation,
+            'del_evaluation': self.corder.del_evaluation,
             'cancle': self.corder.cancle,
         }
         return apis
@@ -23,6 +24,7 @@ class AOrder(Resource):
             'list': self.corder.list,
             'get': self.corder.get,
             'count': self.corder.get_order_count,
+            'evaluation': self.corder.get_evaluation,
         }
         return apis
 
