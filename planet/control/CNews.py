@@ -169,7 +169,8 @@ class CNews(object):
                 'USid': request.user.id,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                'NEstatus': NewsStatus.auditing.value
+                'NEstatus': NewsStatus.auditing.value,
+                'NEsource': data.get('source')
             })
             session_list.append(news_info)
             if images not in self.empty:

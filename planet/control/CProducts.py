@@ -25,6 +25,15 @@ class CProducts:
         product = self.sproduct.get_product_by_prid(prid)
         if not product:
             return NotFound()
+        # 获取商品评价平均分（五颗星：0-10）
+        praveragescore = product.PRaverageScore
+        if float(praveragescore) > 10:
+            praveragescore = 10
+        elif float(praveragescore) < 0:
+            praveragescore = 0
+        else:
+            praveragescore = round(praveragescore)
+        product.PRaverageScore = praveragescore
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
         product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         product.PRattribute = json.loads(product.PRattribute)
