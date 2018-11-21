@@ -4,7 +4,7 @@ import datetime
 from flask import request
 from werkzeug.datastructures import MultiDict
 from wtforms import *
-from wtforms.validators import *
+from wtforms.validators import *   # 不要删掉这一行
 from wtforms import StringField as _StringField
 import collections
 from planet.common.error_response import ParamsError

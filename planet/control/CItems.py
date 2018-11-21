@@ -40,7 +40,7 @@ class CItems:
                 'ITname': itname,
                 'ITsort': itsort,
                 'ITdesc': itdesc,
-                'ITtype': ittype
+                'ITtype': ittype,
             }
             items_instance = Items.create(item_dict)
             s.add(items_instance)
