@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from planet.config.enums import ItemType
+from planet.config.enums import ItemType, ItemAuthrity
 from .base_form import *
 
 
@@ -30,6 +30,8 @@ class ItemCreateForm(BaseForm):
     itsort = IntegerField()
     itdesc = StringField()
     ittype = IntegerField(default=ItemType.product.value)
+    itauthority = IntegerField()
+
 
     def validate_ittype(self, raw):
         try:
@@ -37,8 +39,16 @@ class ItemCreateForm(BaseForm):
         except Exception as e:
             raise ValidationError(message='ittype未找到对应的类型')
         # 如果类型为商品的标签, 则必需传场景id
-        if raw.data == ItemType.product.value and not self.psid.data:
-            raise ValidationError(message='商品标签必需对应场景')
+        # if raw.data == ItemType.product.value and not self.psid.data:
+        #     raise ValidationError(message='商品标签必需对应场景')  # 不再需要对应场景
         if raw.data != ItemType.product.value and self.psid.data:
             raise ValidationError(message='非商品标签无需对应场景')
         self.ittype = raw
+
+    def validate_itauthority(self, raw):
+        if raw.data:
+            try:
+                ItemAuthrity(raw.data)
+            except Exception as e:
+                raise ParamsError('itauthority权限设置不合法')
+

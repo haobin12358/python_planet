@@ -5,6 +5,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.extensions.register_ext import cache
 from planet.extensions.validates.index import IndexListBannerForm
+from planet.models import IndexHotProduct
 from planet.service.SIndex import SIndex
 
 
@@ -49,7 +50,7 @@ class CIndex:
         return Success(data=res)
 
     def list_hot(self):
-        pass
+        index_hot = self.sindex.get_index_hot()
 
     @token_required
     def set_hot(self):

@@ -104,6 +104,11 @@ class ItemType(Enum):
     brand = 40, '品牌'
 
 
+class ItemAuthrity(Enum):
+    new_user = 1, '新用户'
+    no_limit = 0, '无限制'
+
+
 class LogisticsSearchStatus(Enum):
     """物流状态"""
     # :polling: 监控中，shutdown: 结束，abort: 中止，updateall：重新推送, 此
