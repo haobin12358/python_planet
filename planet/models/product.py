@@ -146,14 +146,52 @@ class WareHouse(Base):
     """仓库"""
     __tablename__ = 'WareHouse'
     WAid = Column(String(64), primary_key=True)
-    # 地址
+    WAname = Column(String(32), nullable=False, comment='仓库名字')
+    WAphone = Column(String(11), nullable=False, comment='仓库电话')
+    WAcontact = Column(String(16), nullable=False, comment='仓库联系人')
+    WAaddress = Column(String(64), nullable=False, comment='地址')
+    WAstatus = Column(Integer, default=0, comment='状态, 待用')
+
+
+class WareHouseProduct(Base):
+    """仓库库存表"""
+    __tablename__ = 'WareHouseProduct'
+    WHPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    WAid = Column(String(64), nullable=False, comment='仓库id')
+    PRnum = Column(Integer, default=0, comment='当前商品数量')
+
+
+class WareHouseInFlow(Base):
+    """入库"""
+    __tablename__ = 'WareHouseInFlow'
+    WHIFid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+    PRnum = Column(Integer, nullable=False, comment='数量')
+    # sku?
+
+
+class Supplizer(Base):
+    """供应商"""
+    __tablename__ = 'Supplizer'
+    SUid = Column(String(64), primary_key=True)
+    SUname = Column(String(16), nullable=False, comment='供应商名字')
+    SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
+    SUaddress = Column(String(255), nullable=False, comment='供应商地址')
+    SUstatus = Column(Integer, default=0, comment='状态, 待定')
+    SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
+    SUbank = Column(String(32), comment='卡号')
     # 其他
 
 
-class WareHouseFlowing(Base):
-    """仓库流水"""
-    __tablename__ = 'WareHouseFlowing'
-    WHFkd = Column(String(64), primary_key=True)
-    # 其他
+class SupplizerProduct(Base):
+    """供应商商品表"""
+    __tablename__ = 'SupplizerProduct'
+    SPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, index=True, comment='商品id')
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+
 
 

@@ -128,7 +128,7 @@ class OrderRefund(Base):
     __tablename__ = 'OrderRefund'
     ORid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
-    OPid = Column(String(64), nullable=False, comment='附单id')
+    OPid = Column(String(64), comment='附单id')
     ORAid = Column(String(64), nullable=False, comment='售后申请id')
     ORrecvname = Column(String(16), nullable=False, comment='收货人姓名')
     ORrecvphone = Column(String(11), nullable=False, comment='收货人手机')
