@@ -26,7 +26,7 @@ class Products(Base):
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
     PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
-
+    PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
 
 class ProductMonthSaleValue(Base):
     """商品月销量"""
@@ -104,18 +104,29 @@ class ProductScene(Base):
     PSsort = Column(Integer, comment='顺序标志')
 
 
+class SceneItem(Base):
+    """
+    场景-标签
+    """
+    __tablename__ = 'SceneItem'
+    SIid = Column(String(64), primary_key=True)
+    PSid = Column(String(64), nullable=False, comment='场景id')
+    ITid = Column(String(64), nullable=False, comment='标签id')
+
+
 class Items(Base):
     """
     商品, 资讯, 优惠券,品牌标签
     """
     __tablename__ = 'Items'
     ITid = Column(String(64), primary_key=True)
-    PSid = Column(String(64), comment='关联的场景id')
     ITname = Column(String(16), nullable=False, comment='标签名字')
     ITsort = Column(Integer, comment='顺序')
     ITdesc = Column(String(255), comment='标签描述')
     ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
     ITrecommend = Column(Boolean, default=False, comment='是否推荐(圈子)')
+    ITauthority = Column(Integer, default=0, comment='标签权限  0 无限制 10新人可查看 20 管理员可看')
+    ITposition = Column(Integer, default=0, comment='位置信息 0 场景推荐页, 10 首页 20 新人页, ')
 
 
 class ProductItems(Base):
@@ -146,14 +157,52 @@ class WareHouse(Base):
     """仓库"""
     __tablename__ = 'WareHouse'
     WAid = Column(String(64), primary_key=True)
-    # 地址
+    WAname = Column(String(32), nullable=False, comment='仓库名字')
+    WAphone = Column(String(11), nullable=False, comment='仓库电话')
+    WAcontact = Column(String(16), nullable=False, comment='仓库联系人')
+    WAaddress = Column(String(64), nullable=False, comment='地址')
+    WAstatus = Column(Integer, default=0, comment='状态, 待用')
+
+
+class WareHouseProduct(Base):
+    """仓库库存表"""
+    __tablename__ = 'WareHouseProduct'
+    WHPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    WAid = Column(String(64), nullable=False, comment='仓库id')
+    PRnum = Column(Integer, default=0, comment='当前商品数量')
+
+
+class WareHouseInFlow(Base):
+    """入库"""
+    __tablename__ = 'WareHouseInFlow'
+    WHIFid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+    PRnum = Column(Integer, nullable=False, comment='数量')
+    # sku?
+
+
+class Supplizer(Base):
+    """供应商"""
+    __tablename__ = 'Supplizer'
+    SUid = Column(String(64), primary_key=True)
+    SUname = Column(String(16), nullable=False, comment='供应商名字')
+    SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
+    SUaddress = Column(String(255), nullable=False, comment='供应商地址')
+    SUstatus = Column(Integer, default=0, comment='状态, 待定')
+    SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
+    SUbank = Column(String(32), comment='卡号')
     # 其他
 
 
-class WareHouseFlowing(Base):
-    """仓库流水"""
-    __tablename__ = 'WareHouseFlowing'
-    WHFkd = Column(String(64), primary_key=True)
-    # 其他
+class SupplizerProduct(Base):
+    """供应商商品表"""
+    __tablename__ = 'SupplizerProduct'
+    SPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, index=True, comment='商品id')
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+
 
 

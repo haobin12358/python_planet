@@ -128,14 +128,15 @@ class OrderRefund(Base):
     __tablename__ = 'OrderRefund'
     ORid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
-    OPid = Column(String(64), nullable=False, comment='附单id')
-    ORAid = Column(String(64), nullable=False, comment='售后申请id')
+    OPid = Column(String(64), comment='附单id')
+    ORAid = Column(String(64), nullable=False, index=True, comment='售后申请id')
     ORrecvname = Column(String(16), nullable=False, comment='收货人姓名')
     ORrecvphone = Column(String(11), nullable=False, comment='收货人手机')
     ORrecvaddress = Column(String(255), nullable=False, comment='收货地址')
     ORstatus = Column(Integer, default=0, comment='退货状态, 0 等待买家发货 10 等待卖家收货 20 已收货, 30 已退款 -10 已取消')
     # 物流信息
     ORlogisticCompany = Column(String(32), comment='物流公司')
+    ORlogisticsn = Column(String(64), comment='物流单号')
     ORlogisticSignStatus = Column(Integer, default=0, comment='签收状态 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
     ORlogisticData = Column(Text, comment='查询结果')
     ORlogisticLostResult = Column(Text, comment='物流最后结果')

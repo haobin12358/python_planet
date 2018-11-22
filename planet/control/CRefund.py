@@ -7,12 +7,14 @@ from datetime import datetime
 
 from flask import request
 
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, DisputeTypeType
-from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund
+from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, \
+    DisputeTypeType, OrderRefundOrstatus
+from planet.extensions.validates.trade import RefundSendForm
+from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay
 from planet.service.STrade import STrade
 
 
@@ -103,13 +105,14 @@ class CRefund(object):
                         'ORrecvname': orrecvname,
                         'ORrecvphone': orrecvphone,
                         'ORrecvaddress': orrecvaddress,
-                        'ORAcheckReason': request.user.id
+                        'ORAcheckReason': request.user.id,
                     }
                     order_refund_instance = OrderRefund.create(order_refund_dict)
                     s_list.append(order_refund_instance)
                     msg = '已同意, 等待买家发货'
                 refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
                 refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
+                refund_apply_instance.ORAcheckTime = datetime.now()
                 s_list.append(refund_apply_instance)
             else:
                 refund_apply_instance.ORAstatus = OrderRefundApplyStatus.reject.value
@@ -119,10 +122,27 @@ class CRefund(object):
             s.add_all(s_list)
         return Success(msg)
 
+    @token_required
     def send(self):
         """买家发货"""
-        # todo
-        pass
+        form = RefundSendForm().valid_data()
+        oraid = form.oraid.data
+        orlogisticcompany = form.orlogisticcompany.data
+        orlogisticsn = form.orlogisticsn.data
+        with self.strade.auto_commit() as s:
+            # 判断
+            s.query(LogisticsCompnay).filter_by_({'LCcode': orlogisticcompany}).first_('物流公司不存在')
+            order_refund_instance = s.query(OrderRefund).filter_by_({'ORAid': oraid}).first_('申请未同意或不存在')
+            if order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
+                raise StatusError('重复发货')
+            # 写入退货表
+            order_refund_instance.update({
+                'ORlogisticCompany': orlogisticcompany,
+                'ORlogisticsn': orlogisticsn,
+                'ORstatus': OrderRefundOrstatus.wait_recv.value,
+            })
+            s.add(order_refund_instance)
+        return Success('发货成功')
 
     @staticmethod
     def _generic_no():

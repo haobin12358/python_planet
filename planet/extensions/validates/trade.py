@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from wtforms.ext.sqlalchemy.orm import model_form
 
-from planet.common.error_response import AuthorityError
+from planet.common.error_response import AuthorityError, StatusError
 from planet.common.token_handler import is_admin
-from planet.config.enums import OrderMainStatus
+from planet.config.enums import OrderMainStatus, OrderRefundOrstatus
 from planet.models import Products, ProductBrand, ProductCategory
-from planet.models.trade import OrderMain, Coupon
+from planet.models.trade import OrderMain, Coupon, OrderRefund, LogisticsCompnay
 from .base_form import *
 
 
@@ -59,7 +59,7 @@ class CouponUserListForm(BaseForm):
     ucalreadyuse = SelectField('是否已经使用', choices=[
         ('true', True), ('false', False), ('all', None)
     ], default='false')
-    can_use = SelectField('是否已经使用', choices=[
+    canuse = SelectField('是否已经使用', choices=[
         ('true', True), ('false', False), ('all', None)
     ], default='all')
 
@@ -78,6 +78,7 @@ class CouponListForm(BaseForm):
 
 
 class CouponCreateForm(BaseForm):
+    """创建优惠券"""
     pcid = StringField()
     prid = StringField()
     pbid = StringField()
@@ -118,6 +119,13 @@ class CouponCreateForm(BaseForm):
     def validate_cousenum(self, raw):
         if raw.data < 0:
             raise ValidationError('可叠加数量错误')
+
+
+class RefundSendForm(BaseForm):
+    oraid = StringField('售后申请单id', validators=[DataRequired('申请单id不可为空')])
+    orlogisticcompany = StringField('物流公司编码', validators=[DataRequired('物流公司不可为空')])
+    orlogisticsn = StringField('物流单号', validators=[DataRequired('单号不可为空'), Length(8, 64, message='单号长度不符规范')])
+
 
 
 
