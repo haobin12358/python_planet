@@ -39,6 +39,7 @@ class CIndex:
             product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRfreight', 'PRstocks', 'PRmainpic',
                               'PBid', 'PRlinePrice']
             product.fill('brand', brand)
+            product.fill('pblogo', brand['PBlogo'])
         return products
 
     @token_required
