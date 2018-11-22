@@ -12,16 +12,17 @@ class User(Base):
     USid = Column(String(64), primary_key=True)
     USname = Column(String(255), nullable=False, comment='用户名')
     USrealname = Column(String(255), comment='用户真实姓名')
-    UStelphone = Column(String(13), nullable=False, comment='手机号')
+    UStelphone = Column(String(13), comment='手机号')
     USgender = Column(Integer, default=0, comment='性别 {0: man, 1: woman')
     USbirthday = Column(DateTime, comment='出生日期')
     USidentification = Column(String(24), comment='身份证号')
     USheader = Column(Text, default='用户头像', url=True)
     USopenid1 = Column(Text, comment='服务号 openid')
     USopenid2 = Column(Text, comment='公众号2 openid')
-    USsupper1 = Column(String(64), comment='一级代理商id')  # 如果一级代理商为空，表示该用户为平台用户
-    USsupper2 = Column(String(64), comment='二级代理商id')  # 如果二级代理商为空，则佣金抽成全归一级
-    USCommission = Column(Float, comment='佣金分成')        # 总体佣金分成比例
+    USsupper1 = Column(String(64), comment='一级代理商id')  #
+    USsupper2 = Column(String(64), comment='二级代理商id')  #
+    USCommission1 = Column(Float, comment='佣金分成')       # 一级佣金分成比例
+    USCommission2 = Column(Float, comment='佣金分成')       # 二级佣金分成比例
     USintegral = Column(Integer, comment='积分')
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')

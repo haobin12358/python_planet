@@ -20,6 +20,7 @@ class AUser(Resource):
             'add_admin_by_superadmin': self.user.add_admin_by_superadmin,
             'update_admin': self.user.update_admin,
             'wx_login': self.user.wx_login,
+            'bing_telphone': self.user.bing_telphone,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }

@@ -897,6 +897,17 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取管理员列表成功', data=admins)
 
     @get_session
+    def get_wxconfig(self):
+        url = request.args.get("url", request.url)
+        gennerc_log('get url %s' % url)
+        app_from = request.args.get('app_from', )
+        # todo 根据不同的来源处理不同的mp
+
+        data = mp_server.jsapi_sign(url=url)
+        gennerc_log("get wx config %s" % data)
+        return Success('获取微信参数成功', data=data)
+
+    @get_session
     def wx_login(self):
         # args = request.args.to_dict()
         args = request.json
@@ -919,48 +930,85 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 通过app_from 来通过不同的openid 获取用户
         user = self.session.query(User).filter(User.USopenid1 == openid).first()
         user_info = wxlogin.userinfo(access_token, openid)
+        gennerc_log(user_info)
         try:
             upperd = self.get_user_by_id(args.get('ussupper', ""))
         except Exception:
             upperd = None
         # upperd_id = upperd.USid if upperd else None
+        sex = int(user_info.get('sex')) - 1
+        if sex < 0:
+            sex = 0
         if user:
+            usid = user.USid
             user.USheader = user_info.get('headimgurl')
             user.USname = user_info.get('nickname')
+            user.USgender = sex
         else:
-
+            usid = str(uuid.uuid1())
             user_dict = {
-                'USid': str(uuid.uuid1()),
+                'USid': usid,
                 'USname': user_info.get('nickname'),
-                'USgender': int(user_info.get('sex')),
+                'USgender': sex,
                 'USheader': user_info.get('headimgurl'),
                 'USintegral': 0,
                 'USlevel': 1
             }
+
             # todo 根据app_from 添加不同的openid, 添加不同的usfrom
-            user_dict['USopenid1'] = openid
+            user_dict.setdefault('USopenid1', openid)
             if upperd:
-                user_dict['USsupper1'] = upperd.USid
+                user_dict.setdefault('USsupper1', upperd.USid)
             user = User.create(user_dict)
             self.session.add(user)
+
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+
+        self.session.add(userloggintime)
         user.fields = self.USER_FIELDS
+        gennerc_log('get user = {0}'.format(user.__dict__))
+
         return Success('登录成功', data=user)
 
     @get_session
-    def get_wxconfig(self):
-        url = request.args.get("url", request.url)
-        # url = request.json.get("url", request.url)
-        gennerc_log('get url %s' %url)
-        app_from = request.args.get('app_from', )
-        # todo 根据不同的来源处理不同的appid, appsecret
-        # APP_ID = SERVICE_APPID
-        # APP_SECRET_KEY = SERVICE_APPSECRET
-        #
-        data = mp_server.jsapi_sign(url=url)
-        # data['ticket'] = mp.jsapi_ticket
-        # data = self.get_wx_config_accesstoken(url)
-        # data['ticket'] = data.pop('jsapi_ticket')
-        # data['appId'] = data.pop('appid')
-        gennerc_log("get wx config %s" % data)
-        # response = import_status("SUCCESS_GET_CONFIG", "OK")
-        return Success('获取微信参数成功', data=data)
+    @token_required
+    def bing_telphone(self):
+        user_openid = self.get_user_by_id(request.user.id)
+        if not user_openid:
+            raise ParamsError('token error')
+        data = parameter_required(('ustelphone', 'identifyingcode'))
+        ustelphone = data.get('ustelphone')
+        self.__check_identifyingcode(ustelphone, data.get("identifyingcode"))
+        # 检查手机号是否已经注册
+        user = self.get_user_by_ustelphone(ustelphone)
+        if not user:
+            # 如果没有绑定，给当前用户绑定手机号
+            usid = user_openid.USid
+            uslevel = user_openid.USlevel
+            user_openid.UStelphone = data.get('ustelphone')
+            return_user = user_openid
+        else:
+            # 如果已经绑定，删除当前用户，将信息导入到手机绑定账户
+            usid = user.USid
+            uslevel = user.USlevel
+            user_openid.isdelete = True
+            user.USname = user_openid.USname
+            user.USgender = user_openid.USgender
+            user.USheader = user_openid.USheader
+            user.USsupper1 = user_openid.USsupper1
+            user.USsupper2 = user_openid.USsupper2
+            user.USopenid1 = user_openid.USopenid1
+            user.USopenid2 = user_openid.USopenid2
+            user.USopenid2 = user_openid.USopenid2
+            return_user = user
+
+        return_user.fields = self.USER_FIELDS
+        return_user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        return_user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        token = usid_to_token(usid, model='User', level=uslevel)
+        return Success('登录成功', data={'token': token, 'user': return_user})
