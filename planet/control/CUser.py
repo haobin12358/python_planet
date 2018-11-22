@@ -1,7 +1,8 @@
 import json
 import random
 import re
-
+import time
+import hashlib
 import datetime
 import uuid
 
@@ -32,6 +33,7 @@ from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
 from planet.models.trade import OrderPart
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
+from planet.extensions.register_ext import mp_server, mp_subscribe
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -39,7 +41,7 @@ class CUser(SUser, BASEAPPROVAL):
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', "USpaycode"]
+            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode', 'USid']
 
 
     @staticmethod
@@ -224,8 +226,8 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取验证码成功', data=response)
 
-    def wx_login(self):
-        pass
+    # def wx_login(self):
+    #     pass
 
     @get_session
     @token_required
@@ -895,15 +897,16 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取管理员列表成功', data=admins)
 
     @get_session
-    @token_required
-    def app_wx_login(self):
-        args = request.args.to_dict()
+    def wx_login(self):
+        # args = request.args.to_dict()
+        args = request.json
         app_from = args.get("app_from")
         # app from : {IOS Android, web1, web2} ps
         code = args.get('code')
         # todo 根据不同的来源处理不同的appid, appsecret
         APP_ID = SERVICE_APPID
         APP_SECRET_KEY = SERVICE_APPSECRET
+
         wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
         try:
             data = wxlogin.access_token(args["code"])
@@ -916,11 +919,48 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 通过app_from 来通过不同的openid 获取用户
         user = self.session.query(User).filter(User.USopenid1 == openid).first()
         user_info = wxlogin.userinfo(access_token, openid)
-        upperd = self.suser.get_user_by_openid(args.get("ussupper", ""))
-        upperd_id = upperd.USid if upperd else None
+        try:
+            upperd = self.get_user_by_id(args.get('ussupper', ""))
+        except Exception:
+            upperd = None
+        # upperd_id = upperd.USid if upperd else None
         if user:
             user.USheader = user_info.get('headimgurl')
             user.USname = user_info.get('nickname')
+        else:
 
-
+            user_dict = {
+                'USid': str(uuid.uuid1()),
+                'USname': user_info.get('nickname'),
+                'USgender': int(user_info.get('sex')),
+                'USheader': user_info.get('headimgurl'),
+                'USintegral': 0,
+                'USlevel': 1
+            }
+            # todo 根据app_from 添加不同的openid, 添加不同的usfrom
+            user_dict['USopenid1'] = openid
+            if upperd:
+                user_dict['USsupper1'] = upperd.USid
+            user = User.create(user_dict)
+            self.session.add(user)USpaycode
+        user.fields = self.USER_FIELDS
         return Success('登录成功', data=user)
+
+    @get_session
+    def get_wxconfig(self):
+        url = request.args.get("url", request.url)
+        # url = request.json.get("url", request.url)
+        gennerc_log('get url %s' %url)
+        app_from = request.args.get('app_from', )
+        # todo 根据不同的来源处理不同的appid, appsecret
+        # APP_ID = SERVICE_APPID
+        # APP_SECRET_KEY = SERVICE_APPSECRET
+        #
+        data = mp_server.jsapi_sign(url=url)
+        # data['ticket'] = mp.jsapi_ticket
+        # data = self.get_wx_config_accesstoken(url)
+        # data['ticket'] = data.pop('jsapi_ticket')
+        # data['appId'] = data.pop('appid')
+        gennerc_log("get wx config %s" % data)
+        # response = import_status("SUCCESS_GET_CONFIG", "OK")
+        return Success('获取微信参数成功', data=data)

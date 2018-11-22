@@ -1,10 +1,15 @@
+
 # -*- coding: utf-8 -*-
+import os
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS
 from .loggers import LoggerHandler
+from .weixin.mp import WeixinMP
+from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 
 
 class SQLAlchemy(_SQLAlchemy):
@@ -17,6 +22,21 @@ class SQLAlchemy(_SQLAlchemy):
 
 cache = Cache()
 db = SQLAlchemy(query_class=Query)
+server_dir = '/opt/planet/wxservice'
+subscribe_dir = '/opt/planet/wxsubscribe_dir'
+if not os.path.isdir(server_dir):
+    os.makedirs(server_dir)
+
+if not os.path.isdir(subscribe_dir):
+    os.makedirs(subscribe_dir)
+
+mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,
+                     ac_path=os.path.join(server_dir, ".access_token"),
+                     jt_path=os.path.join(server_dir, ".jsapi_ticket"))
+
+mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
+                     ac_path=os.path.join(server_dir, ".access_token"),
+                     jt_path=os.path.join(server_dir, ".jsapi_ticket"))
 
 
 def register_ext(app):

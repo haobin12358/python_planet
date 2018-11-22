@@ -19,6 +19,7 @@ class AUser(Resource):
             'admin_login': self.user.admin_login,
             'add_admin_by_superadmin': self.user.add_admin_by_superadmin,
             'update_admin': self.user.update_admin,
+            'wx_login': self.user.wx_login,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -39,6 +40,7 @@ class AUser(Resource):
             'get_agent_commission_list': self.user.get_agent_commission_list,
             'get_user_integral': self.user.get_user_integral,
             'get_admin_list': self.user.get_admin_list,
+            'get_wxconfig': self.user.get_wxconfig,
         }
         return apis
 
