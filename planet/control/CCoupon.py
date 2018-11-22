@@ -39,7 +39,7 @@ class CCoupon(object):
             ).all()
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
-            coupon_user = CouponUser.query.filter_by_({'USid': usid}).first()
+            coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first()
             coupon.fill('ready_collected', bool(coupon_user))
         return Success(data=coupons)
 
