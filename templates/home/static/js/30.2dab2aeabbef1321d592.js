@@ -1,2 +1,0 @@
-webpackJsonp([30],{"/bDA":function(e,n,t){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var a=t("CaOM"),c={data:function(){return{name:""}},components:{},methods:{},mounted:function(){a.a.changeTitle("魔法礼盒")}},r={render:function(){var e=this.$createElement;return(this._self._c||e)("div",{staticClass:"m-pandora"},[this._v("\n  魔法礼盒\n")])},staticRenderFns:[]};var s=t("VU/8")(c,r,!1,function(e){t("7PpB")},"data-v-6c32ad1e",null);n.default=s.exports},"7PpB":function(e,n){}});
-//# sourceMappingURL=30.2dab2aeabbef1321d592.js.map
