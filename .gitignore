@@ -125,3 +125,5 @@ test/
 *.pem
 #
 templates/*
+wxservice/*
+wxsubscribe_dir/*

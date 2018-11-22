@@ -350,7 +350,8 @@ class CUser(SUser, BASEAPPROVAL):
         usaddress = self.get_useraddress_by_filter({'UAid': uaid})
         if not usaddress:
             raise NotFound('未找到要修改的地址信息')
-        self.get_addressinfo_by_areaid(aaid)
+        if str(uaisdelete) == '0':
+            self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
             anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
             if anyone:

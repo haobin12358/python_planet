@@ -7,14 +7,16 @@ from datetime import datetime
 
 from flask import request
 
-from planet.common.error_response import ParamsError, StatusError
+from planet.common.error_response import ParamsError, StatusError, ApiError
 from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, \
-    DisputeTypeType, OrderRefundOrstatus
+    DisputeTypeType, OrderRefundOrstatus, PayType
+from planet.extensions.register_ext import wx_pay, alipay
 from planet.extensions.validates.trade import RefundSendForm
-from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay
+from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
+    OrderRefundFlow, OrderPay
 from planet.service.STrade import STrade
 
 
@@ -72,6 +74,7 @@ class CRefund(object):
 
     @token_required
     def agree_apply(self):
+        """同意退款"""
         data = parameter_required(('oraid', 'agree'))
         oraid = data.get('oraid')
         agree = data.get('agree')
@@ -85,8 +88,24 @@ class CRefund(object):
             if agree is True:
                 refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.only_money.value:  # 仅退款
-                    # todo 退款
-                    pass
+                    # 退款流水表
+                    order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
+                    order_pay_instance = s.query(OrderPay).filter
+                    refund_flow_instance = OrderRefundFlow.create({
+                        'ORFid': str(uuid.uuid4()),
+                        'ORAid': oraid,
+                        'ORAmount': refund_apply_instance.ORAmount,
+                        'OPayno': order_main_instance.Opayno,
+                        'OPayType': order_pay_instance.OPayType,
+                    })
+                    s_list.append(refund_flow_instance)
+                    self._refund_to_user(  # 执行退款, 待测试
+                        out_trade_no=order_main_instance.Opayno,
+                        out_request_no=oraid,
+                        mount=refund_apply_instance.ORAmount,
+                        opaytype=order_pay_instance.OPayType,
+                        old_total_fee=order_pay_instance.OPayMount
+                    )
                     msg = '已同意, 正在退款'
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 写入退换货表
@@ -144,6 +163,10 @@ class CRefund(object):
             s.add(order_refund_instance)
         return Success('发货成功')
 
+    @token_required
+    def refund_query(self):
+        """查询退款结果"""
+
     @staticmethod
     def _generic_no():
         """生成退款号"""
@@ -162,16 +185,16 @@ class CRefund(object):
             s_list.append(order_part)
             # 主单售后状态
             omid = order_part.OMid
+            order_main = s.query(OrderMain).filter_(
+                OrderMain.OMid == omid,
+                OrderMain.OMstatus.notin_([
+                    OrderMainStatus.wait_pay.value,
+                    OrderMainStatus.cancle.value,
+                    OrderMainStatus.ready.value,
+                ]),
+                OrderMain.USid == usid
+            ).first_('不存在的订单')
             # 不改变主单的状态
-            # order_main = s.query(OrderMain).filter_(
-            #     OrderMain.OMid == omid,
-            #     OrderMain.OMstatus.notin_([
-            #         OrderMainStatus.wait_pay.value,
-            #         OrderMainStatus.cancle.value,
-            #         OrderMainStatus.ready.value,
-            #     ]),
-            #     OrderMain.USid == usid
-            # ).first_('不存在的订单')
             # order_main.OMinRefund = True  # 主单状态
             # s_list.append(order_main)
             # 申请参数校验
@@ -261,3 +284,29 @@ class CRefund(object):
             order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
             s_list.append(order_refund_apply_instance)
             s.add_all(s_list)
+
+    def _refund_to_user(self, out_trade_no, out_request_no, mount, opaytype, old_total_fee=None):
+        """
+        执行退款
+        mount 单位元
+        old_total_fee 单位元
+        out_request_no
+        :return:
+        """
+        if opaytype == PayType.wechat_pay.value:  # 微信
+            mount = int(mount * 100)
+            result = wx_pay.refund(
+                out_trade_no=out_trade_no,
+                out_refund_no=out_request_no,
+                total_fee=int(old_total_fee),  # 原支付的金额
+                refund_fee=mount  # 退款的金额
+            )
+        else:  # 支付宝
+            result = alipay.api_alipay_trade_refund(
+                out_trade_no=out_trade_no,
+                out_request_no=out_request_no,
+                refund_amount=mount
+            )
+            if result["code"] != "10000":
+                raise ApiError('退款错误')
+        return result

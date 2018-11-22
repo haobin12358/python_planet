@@ -520,6 +520,7 @@ class COrder(CPay, CCoupon):
         form = OrderListForm().valid_data()
         usid = form.usid.data
         issaler = form.issaler.data  # 是否是卖家
+        extentions = form.extentions.data  # 是些扩展的查询
         if not issaler:
             filter_args = OrderMain.USid == usid
         else:
@@ -541,6 +542,14 @@ class COrder(CPay, CCoupon):
                 'status': None
             }
         )
+        if extentions:
+            data.append(  #
+                {
+                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True).count(),
+                    'name': '售后中',
+                    'status': 'refund'
+                }
+            )
         return Success(data=data)
 
     @staticmethod

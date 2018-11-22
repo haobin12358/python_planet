@@ -5,10 +5,12 @@ from datetime import datetime
 from flask import request
 from sqlalchemy import or_
 
+from planet.common.error_response import StatusError
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
-from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm
+from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm
 from planet.models import Items, User, ProductCategory, ProductBrand
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
@@ -24,11 +26,12 @@ class CCoupon(object):
         form = CouponListForm().valid_data()
         itid = form.itid.data
         coupons = Coupon.query
+        usid = request.user.id
         if itid:
             coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter_(
                 CouponItem.ITid == itid
             )
-        coupons = coupons.all_with_page()
+        coupons = coupons.order_by(Coupon.createtime.desc(), Coupon.COid).all_with_page()
         for coupon in coupons:
             # 标签
             items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
@@ -36,6 +39,8 @@ class CCoupon(object):
             ).all()
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
+            coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first()
+            coupon.fill('ready_collected', bool(coupon_user))
         return Success(data=coupons)
 
     @token_required
@@ -133,6 +138,43 @@ class CCoupon(object):
             s.add_all(s_list)
         return Success('添加成功')
 
+    @token_required
+    def fetch(self):
+        """领取优惠券"""
+        form = CouponFetchForm().valid_data()
+        coid = form.coid.data
+        usid = request.user.id
+        with self.strade.auto_commit() as s:
+            s_list = []
+            # 优惠券状态是否可领取
+            coupon = s.query(Coupon).filter_by_({'COid': coid, 'COcanCollect': True}).first_('优惠券不存在或不可领取')
+            coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
+            # 领取过多
+            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+                raise StatusError('已经领取过')
+            # 发放完毕或抢空
+            if coupon.COlimitNum:
+                # 共领取的数量
+                if not coupon.COremainNum:
+                    raise StatusError('来晚了')
+                coupon.COremainNum = coupon.COremainNum - 1  # 剩余数量减1
+                s_list.append(coupon)
+            if coupon.COsendStarttime and coupon.COsendStarttime > datetime.now():
+                raise StatusError('未开抢')
+            if coupon.COsendEndtime and coupon.COsendEndtime < datetime.now():
+                raise StatusError('来晚了')
+            # 写入couponuser
+            coupon_user_dict = {
+                'UCid': str(uuid.uuid4()),
+                'COid': coid,
+                'USid': usid,
+            }
+            coupon_user_instance = CouponUser.create(coupon_user_dict)
+            # 优惠券减1
+            s_list.append(coupon_user_instance)
+            s.add_all(s_list)
+        return Success('领取成功')
+
 
     def update(self):
         pass
@@ -143,11 +185,18 @@ class CCoupon(object):
         if coupon.PCid:
             category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
             title = '{}类专用'.format(category.PCname)
+            left_logo = category['PCpic']
+            left_text = category.PCname
         elif coupon.PBid:
             brand = ProductBrand.query.filter_by_({'PBid': coupon.PBid}).first()
             title = '{}品牌专用'.format(brand.PBname)
+            left_logo = brand['PBlogo']
+            left_text = brand.PBname
         else:
             title = '全场通用'
+            cfg = ConfigSettings()
+            left_logo = cfg.get_item('planet', 'logo')
+            left_text = cfg.get_item('planet', 'title')
         # 使用下限
         if coupon.COdownLine:
             subtitle = '满{:g}元'.format(coupon.COdownLine)
@@ -162,6 +211,8 @@ class CCoupon(object):
         return {
             'title': title,
             'subtitle': subtitle,
+            'left_logo': left_logo,
+            'left_text': left_text
         }
 
     def _isavalible(self, coupon, user_coupon=None):

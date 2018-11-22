@@ -34,6 +34,7 @@ class CProducts:
         else:
             praveragescore = round(praveragescore)
         product.PRaverageScore = praveragescore
+        product.fill('fiveaveragescore', praveragescore/2)
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
         # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         product.PRattribute = json.loads(product.PRattribute)

@@ -13,6 +13,7 @@ class OrderListForm(BaseForm):
     omstatus = Field('状态')
     issaler = BooleanField('卖家版', default=False)
     usid = StringField('用户id')
+    extentions = StringField('一些扩展的查询')
 
     def validate_omstatus(self, raw):
         try:
@@ -75,6 +76,11 @@ class CouponUserListForm(BaseForm):
 class CouponListForm(BaseForm):
     """优惠券"""
     itid = StringField('标签id')
+
+
+class CouponFetchForm(BaseForm):
+    coid = StringField('优惠券id', validators=[DataRequired('coid不可为空')])
+
 
 
 class CouponCreateForm(BaseForm):

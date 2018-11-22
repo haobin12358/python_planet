@@ -186,6 +186,10 @@ class CNews(object):
                     session_list.append(news_image_info)
             if video not in self.empty:
                 parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
+                duration_time = video.get('nvdur') or "10"
+                second = int(duration_time[-2:])
+                if second < 3:
+                    raise ParamsError('上传视频时间不能少于3秒')
                 news_video_info = NewsVideo.create({
                     'NVid': str(uuid.uuid1()),
                     'NEid': neid,

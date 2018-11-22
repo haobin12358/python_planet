@@ -54,7 +54,7 @@ class OrderPay(Base):
     """
     __tablename__ = 'OrderPay'
     OPayid = Column(String(64), primary_key=True)
-    OPayno = Column(String(64), index=True, comment='交易号, 自己生成')
+    OPayno = Column(String(64), index=True, comment='交易号, 自己生成')  # 即out_trade_no
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
     OPayMount = Column(Integer, comment='付款金额')
@@ -64,12 +64,14 @@ class OrderPay(Base):
 
 
 class OrderCoupon(Base):
+    """
+    订单-优惠券使用表
+    """
     __tablename__ = 'OrderRaward'
     OCid = Column(String(64), primary_key=True)
     COid = Column(String(64), nullable=False, comment='优惠券id')
     OMid = Column(String(64), nullable=False, comment='主单id')
     OCreduce = Column(Float, nullable=False, comment='减额')
-    # 其他
 
 
 class OrderPart(Base):
@@ -143,6 +145,17 @@ class OrderRefund(Base):
     # 其他
 
 
+class OrderRefundFlow(Base):
+    """退款流水记录表"""
+    __tablename__ = 'OrderRefundFlow'
+    ORFid = Column(String(64), primary_key=True)
+    ORAid = Column(String(64), nullable=False, comment='售后申请id')
+    ORAmount = Column(Float, nullable=False, comment='退款金额, 一般与退款申请中的金额相同')
+    OPayno = Column(String(64), nullable=False, comment='付款时时候的外部单号')
+    OPayType = Column(String(64), default=0, comment='类型: 支付方式 0 微信 10 支付宝')
+    ORFoutRequestNo = Column(String(64), default=ORFid, comment='标识一次退款请求，同一笔交易多次退款需要保证唯一')
+
+
 class OrderEvaluation(Base):
     """订单评价"""
     __tablename__ = 'OrderEvaluation'
@@ -206,7 +219,6 @@ class Coupon(Base):
     COname = Column(String(32), nullable=False, comment='优惠券名字, 比如满100减50')
     COisAvailable = Column(Boolean, default=True, comment='是否有效')
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
-    COlimitNum = Column(Integer, default=0, comment='发放数量')
     COcollectNum = Column(Integer, default=0, comment='领取数量')
     COuseNum = Column(Integer, default=0, comment='可使用叠加数量, 0 表示无限制')
     COsendStarttime = Column(DateTime, comment='抢券时间起')
@@ -217,7 +229,8 @@ class Coupon(Base):
     COdownLine = Column(Float, default=0, comment='使用最低金额限制,0 为无限制')
     COsubtration = Column(Float, default=0, comment='优惠价格')
     COdesc = Column(String(255), comment='描述')
-
+    COlimitNum = Column(Integer, default=0, comment='发放数量')
+    COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
 
 class CouponItem(Base):
     """优惠券标签中间表"""
