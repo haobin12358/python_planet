@@ -104,20 +104,29 @@ class ProductScene(Base):
     PSsort = Column(Integer, comment='顺序标志')
 
 
+class SceneItem(Base):
+    """
+    场景-标签
+    """
+    __tablename__ = 'SceneItem'
+    SIid = Column(String(64), primary_key=True)
+    PSid = Column(String(64), nullable=False, comment='场景id')
+    ITid = Column(String(64), nullable=False, comment='标签id')
+
+
 class Items(Base):
     """
     商品, 资讯, 优惠券,品牌标签
     """
     __tablename__ = 'Items'
     ITid = Column(String(64), primary_key=True)
-    PSid = Column(String(64), comment='关联的场景id')
     ITname = Column(String(16), nullable=False, comment='标签名字')
     ITsort = Column(Integer, comment='顺序')
     ITdesc = Column(String(255), comment='标签描述')
     ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
     ITrecommend = Column(Boolean, default=False, comment='是否推荐(圈子)')
-    ITauthority = Column(Integer, default=0, comment='标签权限 -1 新人可查看 0 无限制')
-    ITposition = Column(String(32), default='', comment='位置信息 -1 首页 0 其他')
+    ITauthority = Column(Integer, default=0, comment='标签权限  0 无限制 10新人可查看 20 管理员可看')
+    ITposition = Column(Integer, default=0, comment='位置信息 0 场景推荐页, 10 首页 20 新人页, ')
 
 
 class ProductItems(Base):

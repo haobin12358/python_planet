@@ -9,7 +9,7 @@ class AIndex(Resource):
 
     def get(self, index):
         apis = {
-            'list_brand': self.cindex.list_brand,
+            # 'list_brand': self.cindex.list_brand,
             'list_banner': self.cindex.list_banner,
             'list_product': self.cindex.list_product,
             'brand_recommend': self.cindex.brand_recommend,

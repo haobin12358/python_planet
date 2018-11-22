@@ -1,6 +1,7 @@
-
 # -*- coding: utf-8 -*-
 import os
+from contextlib import contextmanager
+
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
@@ -8,8 +9,7 @@ from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
-from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
+from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 
 
 class SQLAlchemy(_SQLAlchemy):
@@ -18,6 +18,16 @@ class SQLAlchemy(_SQLAlchemy):
         app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
         # app.config.setdefault('SQLALCHEMY_ECHO', True)  # 开启sql日志
         super(SQLAlchemy, self).init_app(app)
+
+    @contextmanager
+    def auto_commit(self):
+        try:
+            yield
+            self.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise e
+
 
 
 cache = Cache()

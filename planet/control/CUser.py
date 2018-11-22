@@ -942,7 +942,7 @@ class CUser(SUser, BASEAPPROVAL):
             if upperd:
                 user_dict['USsupper1'] = upperd.USid
             user = User.create(user_dict)
-            self.session.add(user)USpaycode
+            self.session.add(user)
         user.fields = self.USER_FIELDS
         return Success('登录成功', data=user)
 

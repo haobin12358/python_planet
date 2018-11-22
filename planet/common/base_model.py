@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 from datetime import datetime
 
 from sqlalchemy import orm, Column as _Column, Boolean, DateTime
@@ -53,6 +54,7 @@ class Base(db.Model):
             if isinstance(res, str) and not res.startswith('http'):
                 res = HTTP_HOST + res
         elif is_url_list:
+            res = json.loads(res)
             res = [HTTP_HOST + r for r in res if isinstance(r, str) and not r.startswith('http')]
         return res
 

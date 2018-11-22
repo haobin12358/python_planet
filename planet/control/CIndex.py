@@ -5,7 +5,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.extensions.register_ext import cache
 from planet.extensions.validates.index import IndexListBannerForm
-from planet.models import IndexHotProduct
+from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems
 from planet.service.SIndex import SIndex
 
 
@@ -14,22 +14,15 @@ class CIndex:
         self.sindex = SIndex()
 
     def brand_recommend(self):
+        # todo 删除首页的几个数据表
         data = {
-            'brands': self.list_brand().data,
-            'product': self.list_product().data,
-            'hot': []
+            'brands': ProductBrand.query.join(
+                BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid
+            ).filter_(BrandWithItems.ITid == 'index_brand').all(),
+            'product': self.list_product('index_brand_product'),
+            'hot': self.list_product('index_hot'),
         }
         return Success(data=data)
-
-    # @cache.cached(timeout=50, key_prefix='index')
-    def list_brand(self):
-        """首页的品牌"""
-        index_brands = self.sindex.get_index_brand()
-        res = []
-        for index_brand, brand in index_brands:
-            index_brand.fill('brand', brand)
-            res.append(index_brand)
-        return Success(data=res)
 
     def list_banner(self):
         form = IndexListBannerForm().valid_data()
@@ -37,20 +30,17 @@ class CIndex:
         index_banners = self.sindex.get_index_banner({'IBshow': ibshow})
         return Success(data=index_banners)
 
-    def list_product(self):
-        index_products = self.sindex.get_index_product()
-        res = []
-        for index_product, product, brand in index_products:
-            index_product.fill('PRmainpic', product['PRmainpic'])
-            index_product.fill('PRlinePrice', product.PRlinePrice)
-            index_product.fill('PRprice', product.PRprice)
-            index_product.fill('PRtitle', product.PRtitle)
-            index_product.fill('brand', brand)
-            res.append(index_product)
-        return Success(data=res)
-
-    def list_hot(self):
-        index_hot = self.sindex.get_index_hot()
+    def list_product(self, itid):
+        products = Products.query.join(
+            ProductItems, Products.PRid == ProductItems.PRid
+        ).filter_(ProductItems.ITid == itid).all()
+        for product in products:
+            brand = ProductBrand.query.filter_by_({'PBid': product.PBid}).first()
+            product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRfreight', 'PRstocks', 'PRmainpic',
+                              'PBid', 'PRlinePrice']
+            product.fill('brand', brand)
+            product.fill('pblogo', brand['PBlogo'])
+        return products
 
     @token_required
     def set_hot(self):
