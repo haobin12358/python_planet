@@ -57,10 +57,9 @@ class CBrands(object):
         itid = form.itid.data
         itid = itid.split('|') if itid else []
         print(itid)
-
         brands = ProductBrand.query.join(
-            BrandWithItems, ProductBrand.PBid == BrandWithItems.PBid, ProductBrand.PBstatus == pbstatus
-        ).all_with_page()
+            BrandWithItems, ProductBrand.PBid == BrandWithItems.PBid
+        ).filter_(ProductBrand.PBstatus == pbstatus).all_with_page()
         for brand in brands:
             brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
             brand.fill('PBstatus_zh', ProductBrandStatus(brand.PBstatus).zh_value)
@@ -85,7 +84,9 @@ class CBrands(object):
         time_order = dict(form.time_order.choices).get(form.time_order.data)
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
         itid = form.itid.data
-
+        if not itid:
+            # todo 默认不会展示首页标签
+            pass
         itid = itid.split('|') if itid else []
         print(itid)
         with self.sproduct.auto_commit() as s:
