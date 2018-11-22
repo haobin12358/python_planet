@@ -17,7 +17,7 @@ class User(Base):
     USbirthday = Column(DateTime, comment='出生日期')
     USidentification = Column(String(24), comment='身份证号')
     USheader = Column(Text, default='用户头像', url=True)
-    USopenid1 = Column(Text, comment='公众号1 openid')
+    USopenid1 = Column(Text, comment='服务号 openid')
     USopenid2 = Column(Text, comment='公众号2 openid')
     USsupper1 = Column(String(64), comment='一级代理商id')  # 如果一级代理商为空，表示该用户为平台用户
     USsupper2 = Column(String(64), comment='二级代理商id')  # 如果二级代理商为空，则佣金抽成全归一级
@@ -119,6 +119,7 @@ class UserMedia(Base):
 
 
 class IDCheck(Base):
+    """实名认证查询"""
     __tablename__ = 'IDcheck'
     IDCid = Column(String(64), primary_key=True)
     IDCcode = Column(String(24), nullable=False, comment='查询所用的身份证')
@@ -136,6 +137,7 @@ class IDCheck(Base):
 
 
 class UserIntegral (Base):
+    """用户积分表  ps 表名与类名不同"""
     __tablename__ = 'UserSignIn'
     UIid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
@@ -143,3 +145,38 @@ class UserIntegral (Base):
     UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
 
+
+class Supplizer(Base):
+    """供应商"""
+    __tablename__ = 'supplizer'
+    SUid = Column(String(64), primary_key=True)
+    SUname = Column(String(16), nullable=False, comment='供应商名字')
+    SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
+    SUaddress = Column(String(255), nullable=False, comment='供应商地址')
+    SUstatus = Column(Integer, default=0, comment='状态, 待定')
+    # SUbank = Column(String(16))
+    # 其他
+
+
+class AddressProvince(Base):
+    """省"""
+    __tablename__ = 'AddressProvince'
+    APid = Column(String(8), primary_key=True, comment='省id')
+    APname = Column(String(20), nullable=False, comment='省名')
+
+
+class AddressCity(Base):
+    """市"""
+    __tablename__ = 'AddressCity'
+    ACid = Column(String(8), primary_key=True, comment='市id')
+    ACname = Column(String(20), nullable=False, comment='市名')
+    APid = Column(String(8), nullable=False, comment='省id')
+
+
+class AddressArea(Base):
+    """区县"""
+    __tablename__ = 'AddressArea'
+    AAid = Column(String(8), primary_key=True, comment='区县id')
+    AAname = Column(String(32), nullable=False, comment='区县名')
+    ACid = Column(String(8), nullable=False, comment='市名')

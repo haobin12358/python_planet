@@ -104,3 +104,9 @@ class StatusError(BaseError):
     status = 405
     status_code = 405011
     message = '状态不正确'
+
+
+class WXLoginError(BaseError):
+    status = 405
+    status_code = 405012
+    message = '微信登录失败'

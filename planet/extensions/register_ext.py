@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 from contextlib import contextmanager
 
 from alipay import AliPay
@@ -10,6 +11,8 @@ from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_pri
     appid, mch_id, mch_key, wxpay_notify_url
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
+from .weixin.mp import WeixinMP
+from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 
 
 class SQLAlchemy(_SQLAlchemy):
@@ -39,6 +42,21 @@ alipay = AliPay(
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)
 cache = Cache()
 db = SQLAlchemy(query_class=Query)
+server_dir = '/opt/planet/wxservice'
+subscribe_dir = '/opt/planet/wxsubscribe_dir'
+if not os.path.isdir(server_dir):
+    os.makedirs(server_dir)
+
+if not os.path.isdir(subscribe_dir):
+    os.makedirs(subscribe_dir)
+
+mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,
+                     ac_path=os.path.join(server_dir, ".access_token"),
+                     jt_path=os.path.join(server_dir, ".jsapi_ticket"))
+
+mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
+                     ac_path=os.path.join(server_dir, ".access_token"),
+                     jt_path=os.path.join(server_dir, ".jsapi_ticket"))
 
 
 def register_ext(app):
