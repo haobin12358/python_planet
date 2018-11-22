@@ -219,7 +219,6 @@ class Coupon(Base):
     COname = Column(String(32), nullable=False, comment='优惠券名字, 比如满100减50')
     COisAvailable = Column(Boolean, default=True, comment='是否有效')
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
-    COlimitNum = Column(Integer, default=0, comment='发放数量')
     COcollectNum = Column(Integer, default=0, comment='领取数量')
     COuseNum = Column(Integer, default=0, comment='可使用叠加数量, 0 表示无限制')
     COsendStarttime = Column(DateTime, comment='抢券时间起')
@@ -230,7 +229,8 @@ class Coupon(Base):
     COdownLine = Column(Float, default=0, comment='使用最低金额限制,0 为无限制')
     COsubtration = Column(Float, default=0, comment='优惠价格')
     COdesc = Column(String(255), comment='描述')
-
+    COlimitNum = Column(Integer, default=0, comment='发放数量')
+    COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
 
 class CouponItem(Base):
     """优惠券标签中间表"""

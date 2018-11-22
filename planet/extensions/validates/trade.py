@@ -78,6 +78,11 @@ class CouponListForm(BaseForm):
     itid = StringField('标签id')
 
 
+class CouponFetchForm(BaseForm):
+    coid = StringField('优惠券id', validators=[DataRequired('coid不可为空')])
+
+
+
 class CouponCreateForm(BaseForm):
     """创建优惠券"""
     pcid = StringField()
