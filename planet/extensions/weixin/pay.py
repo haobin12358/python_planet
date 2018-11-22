@@ -191,11 +191,11 @@ class WeixinPay(object):
         if "out_trade_no" not in data and "transaction_id" not in data:
             raise WeixinPayError("退款申请接口中，out_trade_no、transaction_id至少填一个")
         if "out_refund_no" not in data:
-            raise WeixinPayError("退款申请接口中，缺少必填参数out_refund_no");
+            raise WeixinPayError("退款申请接口中，缺少必填参数out_refund_no")
         if "total_fee" not in data:
-            raise WeixinPayError("退款申请接口中，缺少必填参数total_fee");
+            raise WeixinPayError("退款申请接口中，缺少必填参数total_fee")
         if "refund_fee" not in data:
-            raise WeixinPayError("退款申请接口中，缺少必填参数refund_fee");
+            raise WeixinPayError("退款申请接口中，缺少必填参数refund_fee")
 
         return self._fetch(url, data, True)
 

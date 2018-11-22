@@ -2,18 +2,15 @@
 import json
 import uuid
 
-from alipay import AliPay
 from flask import request
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError
+from planet.common.error_response import ParamsError, SystemError, ApiError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import PayType, Client, OrderMainStatus
-from planet.config.secret import appid, mch_id, mch_key, wxpay_notify_url, alipay_appid, app_private_path, \
-    alipay_public_key_path, alipay_notify
 from planet.control.BaseControl import Commsion
-from planet.extensions.weixin import WeixinPay
+from planet.extensions.register_ext import alipay, wx_pay
 from planet.models import User, UserCommission
 from planet.models.trade import OrderMain, OrderPart, OrderPay
 from planet.service.STrade import STrade
@@ -24,6 +21,8 @@ class CPay():
     def __init__(self):
         self.strade = STrade()
         self.suser = SUser()
+        self.alipay = alipay
+        self.wx_pay = wx_pay
 
     @token_required
     def pay(self):
@@ -175,6 +174,7 @@ class CPay():
         if omclient == 'test':
             return self.test_pay(out_trade_no=opayno, mount_price=mount_price)
         ####
+        # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             body = body[:110] + '...'
             wechat_pay_dict = dict(
@@ -202,17 +202,35 @@ class CPay():
             raise SystemError('请选用其他支付方式')
         return raw
 
-    @property
-    def wx_pay(self):
-        return WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)  # 后两个参数可选
+    def _pay_to_user(self, opaytype):
+        """
+        向用户提现
+        :return:
+        """
+        pass
 
-    @property
-    def alipay(self):
-        return AliPay(
-            appid=alipay_appid,
-            app_notify_url=alipay_notify,  # 默认回调url
-            app_private_key_string=open(app_private_path).read(),
-            alipay_public_key_string=open(alipay_public_key_path).read(),
-            sign_type="RSA",  # RSA 或者 RSA2
-        )
+    def _refund_to_user(self, out_trade_no, out_request_no, mount, opaytype):
+        """
+        退款
+        mount 单位元
+        out_request_no
+        :return:
+        """
+        if opaytype == PayType.wechat_pay.value:  # 微信
+            mount = int(mount * 100)
+            result = self.wx_pay.refund(
+                out_trade_no=out_trade_no,
+                out_refund_no=out_request_no,
+                total_fee='',  # 原支付的金额
+                refund_fee=mount  # 退款的金额
+            )
+        else:  # 支付宝
+            result = self.alipay.api_alipay_trade_refund(
+                out_trade_no=out_trade_no,
+                out_request_no=out_request_no,
+                refund_amount=mount
+            )
+            if result["code"] != "10000":
+                raise ApiError('退款错误')
+
 

@@ -13,6 +13,7 @@ class OrderListForm(BaseForm):
     omstatus = Field('状态')
     issaler = BooleanField('卖家版', default=False)
     usid = StringField('用户id')
+    extentions = StringField('一些扩展的查询')
 
     def validate_omstatus(self, raw):
         try:

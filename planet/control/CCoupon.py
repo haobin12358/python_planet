@@ -36,6 +36,7 @@ class CCoupon(object):
             ).all()
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
+
         return Success(data=coupons)
 
     @token_required
@@ -146,6 +147,8 @@ class CCoupon(object):
         elif coupon.PBid:
             brand = ProductBrand.query.filter_by_({'PBid': coupon.PBid}).first()
             title = '{}品牌专用'.format(brand.PBname)
+            left_logo = brand.PBlogo
+            left
         else:
             title = '全场通用'
         # 使用下限

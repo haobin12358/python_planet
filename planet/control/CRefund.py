@@ -14,7 +14,8 @@ from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus
 from planet.extensions.validates.trade import RefundSendForm
-from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay
+from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
+    OrderRefundFlow, OrderPay
 from planet.service.STrade import STrade
 
 
@@ -85,8 +86,18 @@ class CRefund(object):
             if agree is True:
                 refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.only_money.value:  # 仅退款
+                    # 退款流水表
+                    order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
+                    order_pay_instance = s.query(OrderPay).filter
+                    refund_flow_instance = OrderRefundFlow.create({
+                        'ORFid': str(uuid.uuid4()),
+                        'ORAid': oraid,
+                        'ORAmount': refund_apply_instance.ORAmount,
+                        'OPayno': order_main_instance.Opayno,
+                        'OPayType': order_pay_instance.OPayType,
+                    })
+                    s_list.append(refund_flow_instance)
                     # todo 退款
-                    pass
                     msg = '已同意, 正在退款'
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 写入退换货表
@@ -144,6 +155,10 @@ class CRefund(object):
             s.add(order_refund_instance)
         return Success('发货成功')
 
+    @token_required
+    def refund_query(self):
+        """查询退款结果"""
+
     @staticmethod
     def _generic_no():
         """生成退款号"""
@@ -162,16 +177,16 @@ class CRefund(object):
             s_list.append(order_part)
             # 主单售后状态
             omid = order_part.OMid
+            order_main = s.query(OrderMain).filter_(
+                OrderMain.OMid == omid,
+                OrderMain.OMstatus.notin_([
+                    OrderMainStatus.wait_pay.value,
+                    OrderMainStatus.cancle.value,
+                    OrderMainStatus.ready.value,
+                ]),
+                OrderMain.USid == usid
+            ).first_('不存在的订单')
             # 不改变主单的状态
-            # order_main = s.query(OrderMain).filter_(
-            #     OrderMain.OMid == omid,
-            #     OrderMain.OMstatus.notin_([
-            #         OrderMainStatus.wait_pay.value,
-            #         OrderMainStatus.cancle.value,
-            #         OrderMainStatus.ready.value,
-            #     ]),
-            #     OrderMain.USid == usid
-            # ).first_('不存在的订单')
             # order_main.OMinRefund = True  # 主单状态
             # s_list.append(order_main)
             # 申请参数校验
