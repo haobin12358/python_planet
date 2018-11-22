@@ -25,7 +25,7 @@ class CItems:
             Items.ITtype == ittype,
             Items.ITrecommend == recommend,
             SceneItem.PSid == psid
-        ])
+        ], (Items.ITsort, Items.ITid))
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
         return Success('获取成功', data=items)
