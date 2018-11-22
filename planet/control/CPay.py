@@ -209,28 +209,5 @@ class CPay():
         """
         pass
 
-    def _refund_to_user(self, out_trade_no, out_request_no, mount, opaytype):
-        """
-        退款
-        mount 单位元
-        out_request_no
-        :return:
-        """
-        if opaytype == PayType.wechat_pay.value:  # 微信
-            mount = int(mount * 100)
-            result = self.wx_pay.refund(
-                out_trade_no=out_trade_no,
-                out_refund_no=out_request_no,
-                total_fee='',  # 原支付的金额
-                refund_fee=mount  # 退款的金额
-            )
-        else:  # 支付宝
-            result = self.alipay.api_alipay_trade_refund(
-                out_trade_no=out_trade_no,
-                out_request_no=out_request_no,
-                refund_amount=mount
-            )
-            if result["code"] != "10000":
-                raise ApiError('退款错误')
 
 

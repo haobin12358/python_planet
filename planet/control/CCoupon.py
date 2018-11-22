@@ -25,6 +25,7 @@ class CCoupon(object):
         form = CouponListForm().valid_data()
         itid = form.itid.data
         coupons = Coupon.query
+        usid = request.user.id
         if itid:
             coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter_(
                 CouponItem.ITid == itid
@@ -37,7 +38,8 @@ class CCoupon(object):
             ).all()
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
-
+            coupon_user = CouponUser.query.filter_by_({'USid': usid}).first()
+            coupon.fill('ready_collected', bool(coupon_user))
         return Success(data=coupons)
 
     @token_required
