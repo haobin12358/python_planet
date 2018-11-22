@@ -8,7 +8,7 @@ from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
-    appid, mch_id, mch_key, wxpay_notify_url
+    appid, mch_id, mch_key, wxpay_notify_url, BASEDIR
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -42,8 +42,9 @@ alipay = AliPay(
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)
 cache = Cache()
 db = SQLAlchemy(query_class=Query)
-server_dir = '/opt/planet/wxservice'
-subscribe_dir = '/opt/planet/wxsubscribe_dir'
+server_dir = os.path.join(BASEDIR, 'wxservice')
+subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
+print(server_dir)
 if not os.path.isdir(server_dir):
     os.makedirs(server_dir)
 

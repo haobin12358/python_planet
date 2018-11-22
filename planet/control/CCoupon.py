@@ -7,6 +7,7 @@ from sqlalchemy import or_
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm
 from planet.models import Items, User, ProductCategory, ProductBrand
@@ -144,13 +145,18 @@ class CCoupon(object):
         if coupon.PCid:
             category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
             title = '{}类专用'.format(category.PCname)
+            left_logo = category['PCpic']
+            left_text = category.PCname
         elif coupon.PBid:
             brand = ProductBrand.query.filter_by_({'PBid': coupon.PBid}).first()
             title = '{}品牌专用'.format(brand.PBname)
-            left_logo = brand.PBlogo
-            left
+            left_logo = brand['PBlogo']
+            left_text = brand.PBname
         else:
             title = '全场通用'
+            cfg = ConfigSettings()
+            left_logo = cfg.get_item('planet', 'logo')
+            left_text = cfg.get_item('planet', 'title')
         # 使用下限
         if coupon.COdownLine:
             subtitle = '满{:g}元'.format(coupon.COdownLine)
@@ -165,6 +171,8 @@ class CCoupon(object):
         return {
             'title': title,
             'subtitle': subtitle,
+            'left_logo': left_logo,
+            'left_text': left_text
         }
 
     def _isavalible(self, coupon, user_coupon=None):
