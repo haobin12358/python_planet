@@ -1,8 +1,6 @@
 import json
 import random
 import re
-import time
-import hashlib
 import datetime
 import uuid
 
