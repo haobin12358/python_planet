@@ -123,3 +123,5 @@ img/*
 test/
 # pay pem
 *.pem
+#
+templates/*

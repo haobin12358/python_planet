@@ -1,0 +1,2 @@
+webpackJsonp([27],{iIl1:function(t,e){},kC26:function(t,e,n){"use strict";Object.defineProperty(e,"__esModule",{value:!0});var a=n("CaOM"),i={data:function(){return{name:""}},components:{},methods:{},mounted:function(){a.a.changeTitle("活动商品详情")}},c={render:function(){var t=this.$createElement;return(this._self._c||t)("div",{staticClass:"m-activity-product-detail"},[this._v("\n  活动商品详情\n")])},staticRenderFns:[]};var r=n("VU/8")(i,c,!1,function(t){n("iIl1")},"data-v-77bfa0d0",null);e.default=r.exports}});
+//# sourceMappingURL=27.0af69e7cbae8ee1ff10f.js.map

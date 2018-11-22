@@ -1,0 +1,2 @@
+webpackJsonp([14],{IWnK:function(e,n,t){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var a=t("CaOM"),s={data:function(){return{name:""}},components:{},methods:{},mounted:function(){a.a.changeTitle("每日竞猜")}},c={render:function(){var e=this.$createElement;return(this._self._c||e)("div",{staticClass:"m-dailyGuess"},[this._v("\n  每日竞猜\n")])},staticRenderFns:[]};var i=t("VU/8")(s,c,!1,function(e){t("Vh31")},"data-v-d1cc2626",null);n.default=i.exports},Vh31:function(e,n){}});
+//# sourceMappingURL=14.bc9aa86371019605c372.js.map
