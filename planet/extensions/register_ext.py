@@ -44,7 +44,6 @@ cache = Cache()
 db = SQLAlchemy(query_class=Query)
 server_dir = os.path.join(BASEDIR, 'wxservice')
 subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
-print(server_dir)
 if not os.path.isdir(server_dir):
     os.makedirs(server_dir)
 
@@ -64,3 +63,5 @@ def register_ext(app):
     db.init_app(app)
     cache.init_app(app, config={'CACHE_TYPE': 'simple'})
     LoggerHandler(app, file='/tmp/planet/').error_handler()
+    from planet.extensions.tasks import celery
+    celery.init_app(app)

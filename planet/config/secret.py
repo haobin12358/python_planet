@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
+from datetime import timedelta
+
+from celery.schedules import crontab
 
 from planet.config.http_config import API_HOST
 
@@ -30,8 +33,8 @@ mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/wechat_notify'
 # 支付宝
 alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
-app_private_path = os.path.join(BASEDIR, 'pem2', 'app_private_key.pem')
-alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'public.pem')
+app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
+alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'oldtest_public.pem')
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
 # 阿里云短信
 # ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
@@ -72,6 +75,13 @@ class DefaltSettig(object):
     CELERY_BROKER_URL = 'redis://localhost:6379',
     CELERY_RESULT_BACKEND = 'redis://localhost:6379'
     CELERY_TIMEZONE = 'Asia/Shanghai'
+    CELERYBEAT_SCHEDULE = {
+        'fetch_share_deal': {
+            'task': 'fetch_share_deal',
+            # 'schedule': crontab(hour=0, minute=1)
+            'schedule': timedelta(hours=6)
+        },
+    }
 
 
 class TestSetting(object):

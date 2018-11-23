@@ -127,3 +127,4 @@ test/
 templates/*
 wxservice/*
 wxsubscribe_dir/*
+*.db
