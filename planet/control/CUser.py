@@ -1,3 +1,4 @@
+import base64
 import json
 import random
 import re
@@ -5,6 +6,7 @@ import datetime
 import uuid
 
 from flask import request
+from flask import current_app
 from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
@@ -39,7 +41,7 @@ class CUser(SUser, BASEAPPROVAL):
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode', 'USid']
+            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
 
 
     @staticmethod
@@ -906,6 +908,15 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("get wx config %s" % data)
         return Success('获取微信参数成功', data=data)
 
+    def __decode_token(self, s):
+        """解析token 的 string 为 dict"""
+        if not isinstance(s, str):
+            raise TypeError('参数异常')
+        model_str = s.split('.')[1]
+        model_str = model_str.encode()
+        model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
+        return json.loads(model_byte.decode('utf-8'))
+
     @get_session
     def wx_login(self):
         # args = request.args.to_dict()
@@ -930,10 +941,13 @@ class CUser(SUser, BASEAPPROVAL):
         user = self.session.query(User).filter(User.USopenid1 == openid).first()
         user_info = wxlogin.userinfo(access_token, openid)
         gennerc_log(user_info)
-        try:
-            upperd = self.get_user_by_id(args.get('ussupper', ""))
-        except Exception:
-            upperd = None
+
+        if args.get('ussupper'):
+            try:
+                tokenmodel = self.__decode_token(args.get('ussupper'))
+                upperd = self.get_user_by_id(tokenmodel['id'])
+            except:
+                upperd = None
         # upperd_id = upperd.USid if upperd else None
         sex = int(user_info.get('sex')) - 1
         if sex < 0:
