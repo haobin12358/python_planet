@@ -43,7 +43,9 @@ def video2frames(pathin,  # 视频的路径
     # 提取特定时间点图片
     elif extract_time_points is not None:
         if max(extract_time_points) > dur:  # 判断时间点是否符合要求
-            raise NameError('the max time point is larger than the video duration....')
+            # raise NameError('the max time point is larger than the video duration....')
+            print('the max time point is larger than the video duration....')
+            extract_time_points = (0.1,)
         try:
             os.mkdir(pathout)
         except OSError:
