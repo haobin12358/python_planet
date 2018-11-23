@@ -32,6 +32,7 @@ kombu==4.2.1
 lxml==4.2.5
 Mako==1.0.7
 MarkupSafe==1.0
+meld3==1.0.2
 numpy==1.15.2
 opencv-python==3.4.3.18
 parso==0.3.1
