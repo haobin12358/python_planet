@@ -259,13 +259,25 @@ class CUser(SUser, BASEAPPROVAL):
         if umfront:
             user.fill('umfront', umfront.UMurl)
         else:
-            user.fill('umfront',None)
+            user.fill('umfront', None)
         umback = self.get_usermedia(user.USid, 2)
         if umback:
             user.fill('umback', umback.UMurl)
         else:
             user.fill('umback', None)
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        try:
+            admin_info = self.get_admin_by_id(user.USid)
+        except:
+            admin_info = None
+
+        if admin_info and user.USlevel == 2:
+            user.fill('adlevel', AdminLevel(admin_info.ADlevel).zh_value)
+            user.fill('adstatus', AdminStatus(admin_info.ADstatus).zh_value)
+            user.fill('adname', admin_info.ADfirstname)
+            user.fill('adpassword', str(admin_info.ADfirstpwd))
+            user.fill('manager_address', PLANET_SERVICE)
+
         return Success('获取身份证详情成功', data=user)
 
     @get_session
@@ -464,11 +476,11 @@ class CUser(SUser, BASEAPPROVAL):
             area, "AAname", '') + ' '
         return address
 
-    @get_session
-    @token_required
-    def check_idcode(self):
+    # @get_session
+    # @token_required
+    def check_idcode(self, data, user):
         """验证用户身份姓名是否正确"""
-        data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
+
         name = data.get("usrealname")
         idcode = data.get("usidentification")
         if not (name and idcode):
@@ -505,12 +517,14 @@ class CUser(SUser, BASEAPPROVAL):
 
         if check_result:
             # 如果验证成功，更新用户信息
-            update_result = self.update_user_by_filter(us_and_filter=[User.USid == request.user.id], us_or_filter=[],
-                                       usinfo={"USrealname": name, "USidentification": idcode})
-            if not update_result:
-                gennerc_log('update user error usid = {0}, name = {1}, identification = {2}'.format(
-                    request.user.id, name, idcode), info='error')
-                raise SystemError('服务器异常')
+            # update_result = self.update_user_by_filter(us_and_filter=[User.USid == request.user.id], us_or_filter=[],
+            #                            usinfo={"USrealname": name, "USidentification": idcode})
+            # if not update_result:
+            #     gennerc_log('update user error usid = {0}, name = {1}, identification = {2}'.format(
+            #         request.user.id, name, idcode), info='error')
+            #     raise SystemError('服务器异常')
+            user.USrealname = name
+            user.USidentification = idcode
             self.delete_usemedia_by_usid(request.user.id)
             um_front = UserMedia.create({
                 "UMid": str(uuid.uuid1()),
@@ -526,13 +540,15 @@ class CUser(SUser, BASEAPPROVAL):
             })
             self.session.add(um_front)
             self.session.add(um_back)
-        return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
+            return
+        raise ParamsError('实名认证失败：{0}'.format(check_message))
+        # return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
 
     @get_session
     @token_required
     def upgrade_agent(self):
         """申请成为店主"""
-        data = request.json or {}
+        data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
         user = self.get_user_by_id(request.user.id)
         if user.USlevel == self.AGENT_TYPE:
             raise AuthorityError('已经是店主了！！！')
@@ -541,18 +557,38 @@ class CUser(SUser, BASEAPPROVAL):
         # 如果需要可以在此更新自己联系方式以及性别。
         if data.get('ustelphone'):
             user.UStelphone = data.get("ustelphone")
-        if data.get('usrealname') and user.USrealname != data.get("usrealname"):
-            raise ParamsError("当前姓名与验证姓名不符")
+
         if data.get("usgender"):
             user.USgender = data.get("usgender")
         user.USlevel = 3
         # 资质认证
+        self.check_idcode(data, user)
         check_result, check_reason = self.__check_qualifications(user)
         if check_result:
             # 资质认证ok，创建审批流
 
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
-
+            # 创建后台账号用其手机号作为账号
+            # adid = str(uuid.uuid1())
+            adinstance = Admin.create({
+                'ADid': user.USid,
+                'ADname': str(user.UStelphone),
+                'ADtelphone': str(user.UStelphone),
+                'ADfirstname': str(user.UStelphone),
+                'ADpassword': generate_password_hash(str(user.UStelphone[-6:])),
+                'ADfirstpwd': str(user.UStelphone[-6:]),
+                'ADheader': user.USheader,
+                'ADlevel': 3,
+                'ADstatus': 0,
+            })
+            an_instance = AdminNotes.create({
+                'ANid': str(uuid.uuid1()),
+                'ADid': user.USid,
+                'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
+                "ANdoneid": request.user.id
+            })
+            self.session.add(adinstance)
+            self.session.add(an_instance)
             return Success('申请成功')
         else:
             raise ParamsError(','.join(check_reason))
@@ -788,7 +824,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         data = request.json
         gennerc_log("add admin data is %s" % data)
-        parameter_required(('adname', 'adpassword'))
+        parameter_required(('adname', 'adpassword', 'adtelphone'))
         adid = str(uuid.uuid1())
         password = data.get('adpassword')
         # 密码校验
@@ -809,6 +845,9 @@ class CUser(SUser, BASEAPPROVAL):
         adinstance = Admin.create({
             'ADid': adid,
             'ADname': adname,
+            'ADtelphone': data.get('adtelphone'),
+            'ADfirstpwd': adname,
+            'ADfirstname': password,
             'ADpassword': generate_password_hash(password),
             'ADheader': header,
             'ADlevel': adlevel,
