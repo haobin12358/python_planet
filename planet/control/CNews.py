@@ -59,6 +59,7 @@ class CNews(object):
             news.fill('is_favorite', favorite)
             if userid:
                 news_status = news.NEstatus
+                news.fill('zh_nestatus', NewsStatus(news_status).zh_value)
                 news.fill('nestatus', NewsStatus(news_status).name)
                 if str(news_status) == '0':
                     news.fill('refuse_info', '因内容不符合规定，审核未通过，建议修改后重新发布')
@@ -126,6 +127,9 @@ class CNews(object):
             trample = 0
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
+        news_author = self.snews.get_user_by_id(news.USid)
+        news_author.fields = ['USname', 'USheader']
+        news.fill('author', news_author)
         commentnumber = self.snews.get_news_comment_count(news.NEid)
         news.fill('commentnumber', commentnumber)
         favoritnumber = self.snews.get_news_favorite_count(news.NEid)
@@ -169,7 +173,8 @@ class CNews(object):
                 'USid': request.user.id,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                'NEstatus': NewsStatus.auditing.value,
+                # 'NEstatus': NewsStatus.auditing.value,
+                'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
                 'NEsource': data.get('source')
             })
             session_list.append(news_info)
@@ -190,6 +195,8 @@ class CNews(object):
                 second = int(duration_time[-2:])
                 if second < 3:
                     raise ParamsError('上传视频时间不能少于3秒')
+                elif second > 59:
+                    raise ParamsError('上传视频时间不能大于1分钟')
                 news_video_info = NewsVideo.create({
                     'NVid': str(uuid.uuid1()),
                     'NEid': neid,

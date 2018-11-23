@@ -158,9 +158,9 @@ class PermissionType(Enum):
 
 class NewsStatus(Enum):
     """资讯状态"""
-    usual = (1, '上架中')  # 上架
-    auditing = 2  # 审核中
-    refuse = 0  # 下架
+    usual = (1, '审核通过')  # 上架
+    auditing = (2, '审核中')  # 审核中
+    refuse = (0, '审核未通过')  # 下架
 
 
 # user
