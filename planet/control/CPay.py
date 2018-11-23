@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
+from decimal import Decimal
 
 from flask import request
 
@@ -8,6 +9,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, ApiError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
@@ -139,22 +141,22 @@ class CPay():
         up2 = order_main.UPperid2
         if not up1:
             return []
-        user = s.query(User).filter_by_({'USid': order_main.USid}).first()
-        usccommsion = User.USCommission if user else None
-        commsion = Commsion(total_comm=order_main.OMtotalCommision, commision=usccommsion)
-        up1_comm = commsion.caculate_up_comm(up2)  # 记录一级应该得到的佣金
+        user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户
+        cfg = ConfigSettings()
+        level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
         user_commision_dict = {
             'UCid': str(uuid.uuid4()),
             'OMid': order_main.OMid,
-            'UCcommission': up1_comm,
+            'UCcommission': Decimal(str(level1commision * order_main.OMtrueMount)),
             'USid': up1
         }
         s_list.append(UserCommission.create(user_commision_dict))
         if up2:
+            level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
             users_commision_dict = {
                 'UCid': str(uuid.uuid4()),
                 'OMid': order_main.OMid,
-                'UCcommission': up1_comm,
+                'UCcommission': Decimal(str(level2commision * order_main.OMtrueMount)),
                 'USid': up2
             }
             s_list.append(UserCommission.create(users_commision_dict))

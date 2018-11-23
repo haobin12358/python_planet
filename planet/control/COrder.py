@@ -237,9 +237,10 @@ class COrder(CPay, CCoupon):
                 }
                 if user.USsupper1:
                     # 主单佣金数据
-                    commision = user.USCommission
-                    total_comm = Commsion(order_price, commision).total_comm  # 佣金使用实付价格计算
-                    order_main_dict.setdefault('OMtotalCommision', total_comm)
+                    # commision = user.USCommission
+                    # total_comm = Commsion(order_price, commision).total_comm  # 佣金使用实付价格计算
+                    # order_main_dict.setdefault('OMtotalCommision', total_comm)
+                    pass  # 佣金计算已修改
                 order_main_instance = OrderMain.create(order_main_dict)
                 model_bean.append(order_main_instance)
                 # 总价格累加
