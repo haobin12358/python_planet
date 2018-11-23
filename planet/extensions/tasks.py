@@ -2,6 +2,7 @@
 import uuid
 from datetime import date, timedelta
 
+from flask import current_app
 from flask_celery import Celery
 from sqlalchemy import cast, Date
 
@@ -22,9 +23,10 @@ def fetch_share_deal():
         yesterday_result = share_stock.new_result()
         yesterday = date.today() - timedelta(days=1)
         db_yesterday = CorrectNum.query.filter(
-            cast(CorrectNum.createtime, Date) == yesterday
+            cast(CorrectNum.CNdate, Date) == yesterday
         ).first()
         if not db_yesterday:  # 昨日
+            current_app.logger.info('写入昨日数据')
             correct_instance = CorrectNum.create({
                 'CNid': str(uuid.uuid4()),
                 'CNnum': yesterday_result,
@@ -32,6 +34,7 @@ def fetch_share_deal():
             })
             s_list.append(correct_instance)
         if hasattr(share_stock, 'today_result'):  # 今日
+            current_app.logger.info('写入今日数据')
             correct_instance = CorrectNum.create({
                 'CNid': str(uuid.uuid4()),
                 'CNnum': share_stock.today_result,
@@ -41,5 +44,9 @@ def fetch_share_deal():
         if s_list:
             db.session.add_all(s_list)
 
+if __name__ == '__main__':
+    app = create_app()
+    with app.app_context():
+        fetch_share_deal()
 
 
