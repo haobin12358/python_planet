@@ -42,9 +42,9 @@ class OrderMain(Base):
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
     # 上级信息
-    UPperid = Column(String(64), comment='上级id')
+    UPperid = Column(String(64), comment='上级id')  # 方便查询下级
     UPperid2 = Column(String(64), comment='上上级id')
-    OMtotalCommision = Column(Float, comment='产生的总佣金')
+    OMtotalCommision = Column(Float, comment='产生的总佣金')  # 不用
     PRcreateId = Column(String(64), comment='发布者id')
 
 

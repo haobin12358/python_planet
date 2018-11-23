@@ -37,45 +37,33 @@ class BASEAPPROVAL():
 
 
 class Commsion:
-    def __init__(self, total_price=None, total_comm=None, commision=None, one_level_commission=None):
+    def __init__(self, user, total_price=None):
         """
-        :param total_price: 总价
-        :param total_comm: 总佣金
-        :param commision: 配置文件或用户中的佣金比例
-        :param one_level_commission: 一级佣金比例
+        :param total_price: 总价(元)
+        :param user 用户
         """
         self.total_price = total_price
-        self.commision = str(commision or self.default_commision())
-        self.total_comm = total_comm or self.catulate_total_comm()
-        self.one_level_commission = str(one_level_commission)
+        self.user = user
 
-    def default_commision(self):
+    def default_commision(self, level=1):
         """
         :return: string
         """
-        return ConfigSettings().get_item('commission', 'planetcommision')
+        cfg = ConfigSettings()
+        if level == 1:
+            return cfg.get_item('commission', 'level1commision')
+        elif level == 2:
+            return cfg.get_item('commission', 'level2commision')
 
-    def caculate_up_comm(self, up2=None):
-        """计算佣金"""
-        if not isinstance(self.total_comm, Decimal):
-            self.total_comm = Decimal(self.total_comm)
-        self.up2_comm = 0
-        if up2:
-            self.up1_comm = self.total_comm * (Decimal(self.one_level_commission) / 100)
-            self.up2_comm = self.total_comm - self.up1_comm
-        else:
-            self.up1_comm = self.total_comm
-        return self.up1_comm
+    @property
+    def level1commision(self):
+        return self.user.USCommission1 or self.default_commision(1)
 
-    def insert_into_order_main(self, omid):
-        pass
-        # 佣金
-        # 添加预计到帐佣金(两级)
-        # 佣金写入主单
+    @property
+    def level2commision(self):
+        return self.user.USCommission2 or self.default_commision(2)
 
-    def catulate_total_comm(self):
-        """计算总佣金"""
-        return Decimal(str(self.total_price)) * (Decimal(self.commision) / 100)
+
 
 
 
