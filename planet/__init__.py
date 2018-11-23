@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
-from datetime import datetime
+from datetime import datetime, date
 
 from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
 from werkzeug.exceptions import HTTPException
@@ -11,6 +11,7 @@ from planet.api.v1.ABrands import ABrands
 from planet.api.v1.ACart import ACart
 from planet.api.v1.ACategory import ACategory
 from planet.api.v1.ACoupon import ACoupon
+from planet.api.v1.AGuessNum import AGuessNum
 from planet.api.v1.AIndex import AIndex
 from planet.api.v1.AItems import AItems
 from planet.api.v1.AAuth import AAuthTest, APayTest
@@ -41,6 +42,8 @@ class JSONEncoder(_JSONEncoder):
         if isinstance(o, datetime):
             # 也可以序列化时间类型的对象
             return o.strftime('%Y-%m-%d %H:%M:%S')
+        if isinstance(o, date):
+            return o.strftime('%Y-%m-%d')
         if isinstance(o, type):
             raise o()
         if isinstance(o, HTTPException):
@@ -120,6 +123,7 @@ def register_v1(app):
     v1.add_url_rule('/logistic/<string:logistic>', view_func=ALogistic.as_view('logistic'))
     v1.add_url_rule('/coupon/<string:coupon>', view_func=ACoupon.as_view('coupon'))
     v1.add_url_rule('/approval/<string:approval>', view_func=Aapproval.as_view('approval'))
+    v1.add_url_rule('/guess_num/<string:guess_num>', view_func=AGuessNum.as_view('guess_num'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
