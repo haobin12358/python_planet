@@ -54,8 +54,11 @@ class Base(db.Model):
             if isinstance(res, str) and not res.startswith('http'):
                 res = HTTP_HOST + res
         elif is_url_list:
-            res = json.loads(res)
-            res = [HTTP_HOST + r for r in res if isinstance(r, str) and not r.startswith('http')]
+            if res:
+                res = json.loads(res)
+                res = [HTTP_HOST + r for r in res if isinstance(r, str) and not r.startswith('http')]
+            else:
+                res = []
         return res
 
     def __setattr__(self, key, value):

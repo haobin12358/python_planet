@@ -134,7 +134,7 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
-            product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
+            # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw != [''] and not is_tourist():
             with self.sproduct.auto_commit() as s:
