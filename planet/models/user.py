@@ -74,7 +74,10 @@ class Admin(Base):
     __tablename__ = 'Admin'
     ADid = Column(String(64), primary_key=True)
     ADname = Column(String(255), comment='管理员名')
+    ADtelphone = Column(String(13), comment='管理员联系电话')
     ADpassword = Column(Text, nullable=False, comment='密码')
+    ADfirstpwd = Column(Text, comment=' 初始密码 明文保存')
+    ADfirstname = Column(Text, comment=' 初始用户名')
     ADheader = Column(Text, comment='头像', url=True)
     ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
