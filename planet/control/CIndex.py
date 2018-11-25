@@ -21,6 +21,7 @@ class CIndex:
             ).filter_(BrandWithItems.ITid == 'index_brand').all(),
             'product': self.list_product('index_brand_product'),
             'hot': self.list_product('index_hot'),
+            'recommend_for_you': self.list_product('index_recommend_product_for_you'),
         }
         return Success(data=data)
 

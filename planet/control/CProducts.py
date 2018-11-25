@@ -339,7 +339,7 @@ class CProducts:
             if items:
                 for item in items:
                     itid = item.get('itid')
-                    item_instance = s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在')
+                    item_instance = s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在{}'.format(itid))
                     product_item_instance = s.query(ProductItems).join(Items, ProductItems.ITid == Items.ITid).filter_by_({'ITid': itid}).first_()
                     if product_item_instance:
                         piid = product_item_instance.PIid

@@ -17,7 +17,7 @@ with app.app_context():
             'ITauthority': ItemAuthrity.no_limit.value,
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_hot_items)
+        # s_list.append(index_hot_items)
         new_user_items = Items.create({  # 新人推荐标签
             'ITid': 'new_user',
             'ITname': '新人商品',
@@ -26,7 +26,7 @@ with app.app_context():
             'ITauthority': ItemAuthrity.new_user.value,
             'ITposition': ItemPostion.new_user_paga.value
         })
-        s_list.append(new_user_items)
+        # s_list.append(new_user_items)
         index_brands_items = Items.create({
             'ITid': 'index_brand',
             'ITname': '品牌推荐',
@@ -34,15 +34,23 @@ with app.app_context():
             'ITtype': ItemType.brand.value,
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_brands_items)
+        # s_list.append(index_brands_items)
         index_brands_product_items = Items.create({
             'ITid': 'index_brand_product',
             'ITname': '品牌推荐商品',
             'ITdesc': '这是首页才会出现的品牌商品',
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_brands_product_items)
+        # s_list.append(index_brands_product_items)
 
+        index_recommend_product_for_you_items = Items.create({
+            'ITid': 'index_recommend_product_for_you',
+            'ITname': '首页为您推荐',
+            'ITdesc': '首页的为您推荐的商品',
+            'ITposition': ItemPostion.index.value
+        })
+
+        s_list.append(index_recommend_product_for_you_items)
         db.session.add_all(s_list)
 
 
