@@ -40,7 +40,7 @@ class OrderFrom(Enum):
     """订单商品来源"""
     carts = 0, '购物车'
     product_info = 10, '商品详情'
-    guess_num_award = 30, '参数字奖品'
+    guess_num_award = 30, '猜数字奖品'
 
 
 class OrderMainStatus(Enum):
@@ -202,6 +202,13 @@ class AdminAction(Enum):
     ADheader = '头像'
     ADlevel = '用户等级'
     ADstatus = '用户状态'
+
+
+class GuessAwardFlowStatus(Enum):
+    """猜数字领奖状态"""
+    wait_recv = 0, '待领取'
+    ready_recv = 10, '已领取'
+    expired = 20, '已过期'
 
 
 if __name__ == '__main__':

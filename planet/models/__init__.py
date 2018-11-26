@@ -4,3 +4,5 @@ from .index import *
 from .user import *
 from .news import *
 from .approval import *
+from .activity import *
+from .trade import *
