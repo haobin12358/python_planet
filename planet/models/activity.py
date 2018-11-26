@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import Integer, String, Date
 from planet.common.base_model import Base, Column
@@ -12,7 +12,7 @@ class TrialCommodity(Base):
 
 
 class GuessNum(Base):
-    """猜数字"""
+    """猜数字 参与记录"""
     __tablename__ = 'GuessNum'
     GNid = Column(String(64), primary_key=True)
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
@@ -26,3 +26,10 @@ class CorrectNum(Base):
     CNid = Column(String(64), primary_key=True)
     CNnum = Column(String(16), nullable=False, comment='正确的数字')
     CNdate = Column(Date, nullable=False, comment='日期')
+
+
+class GuessAwardFlow(Base):
+    """猜数字中奖和领奖记录"""
+    GAFid = Column(String(64), primary_key=True)
+    GNid = Column(String(64), nullable=False, unique=True, comment='个人参与记录')
+    GAFstatus = Column(Integer, default=0, comment='领奖状态 0 待领奖, 10 已领取 20 过期')

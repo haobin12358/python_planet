@@ -28,6 +28,7 @@ class Products(Base):
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
 
+
 class ProductMonthSaleValue(Base):
     """商品月销量"""
     __tablename__ = 'ProductMonthSaleValue'
@@ -125,8 +126,8 @@ class Items(Base):
     ITdesc = Column(String(255), comment='标签描述')
     ITtype = Column(Integer, index=True, default=0, comment='标签类型 {0: 商品, 10:资讯, 20:优惠券, 40: 品牌}')
     ITrecommend = Column(Boolean, default=False, comment='是否推荐(圈子)')
-    ITauthority = Column(Integer, default=0, comment='标签权限  0 无限制 10新人可查看 20 管理员可看')
-    ITposition = Column(Integer, default=0, comment='位置信息 0 场景推荐页, 10 首页 20 新人页, ')
+    ITauthority = Column(Integer, default=0, comment='标签权限  0 无限制 10新人可查看 20 管理员可看, 30 其他特殊')
+    ITposition = Column(Integer, default=0, comment='位置信息 0 场景推荐页, 10 首页 20 新人页, 30 其他特殊')
 
 
 class ProductItems(Base):
