@@ -13,6 +13,8 @@ class News(Base):
     NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')
     NEsource = Column(String(64), comment='来源终端')
+    COid = Column(Text, comment='优惠券id [coid1, coid2, coid3]')
+    PRid = Column(Text, comment='商品id [prid1, prid2, prid3]')
 
 
 class NewsImage(Base):
