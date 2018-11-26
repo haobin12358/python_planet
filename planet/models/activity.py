@@ -30,6 +30,7 @@ class CorrectNum(Base):
 
 class GuessAwardFlow(Base):
     """猜数字中奖和领奖记录"""
+    __tablename__ = 'GuessAwardFlow'
     GAFid = Column(String(64), primary_key=True)
     GNid = Column(String(64), nullable=False, unique=True, comment='个人参与记录')
     GAFstatus = Column(Integer, default=0, comment='领奖状态 0 待领奖, 10 已领取 20 过期')
