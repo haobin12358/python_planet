@@ -467,7 +467,7 @@ class CNews(object):
     @admin_required
     def news_shelves(self):
         """资讯上下架"""
-        # todo 关联到审批流
+        # todo 关联到审批流(拒绝理由)
         data = parameter_required(('neid', 'nestatus'))
         neid = data.get('neid')
         nestatus = data.get('nestatus')
