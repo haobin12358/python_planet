@@ -254,7 +254,7 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender']
+        user.fields = self.USER_FIELDS
         umfront = self.get_usermedia(user.USid, 1)
         if umfront:
             user.fill('umfront', umfront.UMurl)
