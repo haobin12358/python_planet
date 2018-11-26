@@ -80,7 +80,7 @@ class CGuessNum:
                 result = 'not_open'
             else:
                 correct_num.hide('CNid')
-                if correct_num.CNnum == GuessNum.GNnum:
+                if correct_num.CNnum == join_history.GNnum:
                     result = 'correct'
                 else:
                     result = 'uncorrect'
