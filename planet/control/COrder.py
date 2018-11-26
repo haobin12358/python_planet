@@ -145,9 +145,11 @@ class COrder(CPay, CCoupon):
                     order_old_price += small_total
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
+                    # 判断来源
                     # 删除购物车
                     if omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+                    # 来源为
                     # body 信息
                     body.add(product_instance.PRtitle)
                     # 对应商品销量 + num sku库存 -num

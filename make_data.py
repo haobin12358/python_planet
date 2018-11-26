@@ -24,7 +24,7 @@ with app.app_context():
             'ITdesc': '这是新人才可享受的商品标签',
             'ITtype': ItemType.product.value,
             'ITauthority': ItemAuthrity.new_user.value,
-            'ITposition': ItemPostion.new_user_paga.value
+            'ITposition': ItemPostion.new_user_page.value
         })
         # s_list.append(new_user_items)
         index_brands_items = Items.create({
@@ -49,8 +49,16 @@ with app.app_context():
             'ITdesc': '首页的为您推荐的商品',
             'ITposition': ItemPostion.index.value
         })
+        # s_list.append(index_recommend_product_for_you_items)
 
-        s_list.append(index_recommend_product_for_you_items)
+        guess_num_award = Items.create({
+            'ITid': 'guess_num_award_product',
+            'ITname': '数字竞猜活动奖励',
+            'ITdesc': '数字竞猜活动奖励商品',
+            'ITposition': ItemPostion.other.value,
+            'ITauthority': ItemPostion.other.value,
+        })
+        s_list.append(guess_num_award)
         db.session.add_all(s_list)
 
 
