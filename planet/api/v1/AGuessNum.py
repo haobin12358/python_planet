@@ -9,7 +9,8 @@ class AGuessNum(Resource):
 
     def post(self, guess_num):
         apis = {
-            'create': self.cguessnum.creat
+            'create': self.cguessnum.creat,
+            'recv_award': self.cguessnum.recv_award,
         }
         return apis
 

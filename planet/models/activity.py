@@ -18,6 +18,7 @@ class GuessNum(Base):
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
+    PRid = Column(String(64), comment='奖励商品')
 
 
 class CorrectNum(Base):
