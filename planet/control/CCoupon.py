@@ -200,7 +200,6 @@ class CCoupon(object):
         # 使用下限
         if coupon.COdownLine:
             subtitle = '满{:g}元'.format(coupon.COdownLine)
-            print(subtitle)
         else:
             subtitle = '无限制'
         # 叠加方式

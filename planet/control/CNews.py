@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import re
 import uuid
 from datetime import datetime
@@ -8,10 +9,13 @@ from planet.common.error_response import TokenError, ParamsError, SystemError, N
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_tourist
+from planet.common.token_handler import token_required, is_tourist, admin_required
 from planet.config.enums import ItemType, NewsStatus
-from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample
+from planet.control.CCoupon import CCoupon
+from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
+    Products
 from planet.models import NewsComment, NewsCommentFavorite
+from planet.models.trade import Coupon
 from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
 
@@ -81,6 +85,7 @@ class CNews(object):
                 image_list = self.snews.get_news_images(news.NEid)
                 if image_list:
                     mainpic = image_list[0]['NIimage']
+                    # todo 已添加主图字段，后台页面添加时使用
                     showtype = 'picture'
                     news.fill('mainpic', mainpic)
                 else:
@@ -107,15 +112,13 @@ class CNews(object):
             if usid:
                 user = self.snews.get_user_by_id(usid)
                 gennerc_log('get user is {0}'.format(user.USname))
-                if not user:
-                    raise TokenError('token error')
                 tourist = 0
         else:
             usid = None
             tourist = 1
         args = parameter_required(('neid',))
         news = self.snews.get_news_content({'NEid': args.get('neid')})
-        news.fields = ['NEtitle', 'NEpageviews']
+        news.fields = ['NEtitle', 'NEpageviews', 'NEtext']
         self.snews.update_pageviews(news.NEid)
         if usid:
             is_favorite = self.snews.news_is_favorite(news.NEid, usid)
@@ -129,6 +132,7 @@ class CNews(object):
         news.fill('is_trample', trample)
         news_author = self.snews.get_user_by_id(news.USid)
         news_author.fields = ['USname', 'USheader']
+        # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
         commentnumber = self.snews.get_news_comment_count(news.NEid)
         news.fill('commentnumber', commentnumber)
@@ -148,8 +152,28 @@ class CNews(object):
         if tags:
             [tag.hide('PSid') for tag in tags]
         news.fill('items', tags)
-        netext = news.NEtext
-        news.fill('netext', netext)
+        # 关联的优惠券
+        coids = news.COid
+        if coids:
+            coupon_info = []
+            coid_list = json.loads(coids)
+            for coid in coid_list:
+                coupon = Coupon.query.filter_by_(COid=coid).first()
+                coupon_detail = CCoupon()._title_subtitle(coupon)
+                coupon.fill('title_subtitle', coupon_detail)
+                coupon_info.append(coupon)
+            news.fill('coupon', coupon_info)
+        # 关联的商品
+        prids = news.PRid
+        if prids:
+            prid_info = []
+            prid_list = json.loads(prids)
+            for prid in prid_list:
+                product = Products.query.filter_by_(PRid=prid).first()
+                product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRmainpic']
+                prid_info.append(product)
+            news.fill('product', prid_info)
+
         return Success(data=news).get_body(istourist=tourist)
 
     @token_required
@@ -439,3 +463,20 @@ class CNews(object):
             return user_dict
         usinfo.fields = ['USname', 'USheader']
         return usinfo
+
+    @admin_required
+    def news_shelves(self):
+        """资讯上下架"""
+        # todo 关联到审批流
+        data = parameter_required(('neid', 'nestatus'))
+        neid = data.get('neid')
+        nestatus = data.get('nestatus')
+        if not re.match(r'^[0|1|2]$', str(nestatus)):
+            raise ParamsError('nestatus, 参数异常')
+        with self.snews.auto_commit() as s:
+            s.query(News).filter_by(NEid=neid).first_('没有找到该资讯')
+            update_info = s.query(News).filter_by(NEid=neid).update({'NEstatus': nestatus})
+            if not update_info:
+                raise SystemError('修改失败, 服务器繁忙')
+        operation = {"0": "下架成功", "1": "上架成功", "2": "已将状态改为审核中"}
+        return Success(operation[str(nestatus)], {'neid': neid})
