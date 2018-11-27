@@ -358,6 +358,8 @@ class CUser(SUser, BASEAPPROVAL):
         if not re.match(r'^[0|1]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
         usaddress = self.get_useraddress_by_filter({'UAid': uaid})
+        if not usaddress:
+            raise NotFound('未找到要修改的地址信息')
         if aaid:
             self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
