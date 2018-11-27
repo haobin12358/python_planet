@@ -84,7 +84,7 @@ class CUser(SUser, BASEAPPROVAL):
         """账户名校验"""
         if not adname or adid:
             return True
-        suexist = Admin.query.filter(Admin.ADname == adname).first()
+        suexist = self.get_admin_by_name(adname)
         if suexist and suexist.ADid != adid:
             raise ParamsError('用户名已存在')
         return True
@@ -135,21 +135,20 @@ class CUser(SUser, BASEAPPROVAL):
             "USTip": request.remote_addr
         })
         self.session.add(userloggintime)
-        user.fields = self.USER_FIELDS
+        user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': user})
 
-    # @get_session
+    @get_session
     def login_test(self):
         """获取token"""
         data = parameter_required(('ustelphone',))
         ustelphone = data.get('ustelphone')
 
-        # user = self.get_user_by_ustelphone(ustelphone)
-        user = User.query.filter(User.UStelphone == ustelphone, User.isdelete == False).first_()
+        user = self.get_user_by_ustelphone(ustelphone)
         if not user:
             usid = str(uuid.uuid1())
             uslevel = 1
@@ -174,20 +173,13 @@ class CUser(SUser, BASEAPPROVAL):
             "USTip": request.remote_addr
         })
         db.session.add(userloggintime)
-        try:
-            db.session.commit()
-        except:
-            db.session.rollback()
-            raise SystemError('数据库操作异常')
 
-        user.fields = self.USER_FIELDS
+        user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
 
         token = usid_to_token(usid, model='User', level=uslevel)
-
-
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -222,7 +214,7 @@ class CUser(SUser, BASEAPPROVAL):
             "ICcode": code,
             "ICid": str(uuid.uuid1())
         })
-        self.session.add(newidcode)
+        db.session.add(newidcode)
 
         params = {"code": code}
         response_send_message = SendSMS(Utel, params)
@@ -249,21 +241,21 @@ class CUser(SUser, BASEAPPROVAL):
         # todo 插入 优惠券信息
         # user.add('优惠券')
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
-        user.fields = self.USER_FIELDS
+        user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         return Success('获取首页用户信息成功', data=user)
 
-    # @get_session
+    @get_session
     @token_required
     def get_identifyinginfo(self):
         """获取个人身份证详情"""
-        user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first_('用户不存在')
+        user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        user.fields = self.USER_FIELDS
+        user.fields = self.USER_FIELDS[:]
         umfront = self.get_usermedia(user.USid, 1)
         if umfront:
             user.fill('umfront', umfront.UMurl)
@@ -348,7 +340,7 @@ class CUser(SUser, BASEAPPROVAL):
             'AAid': aaid,
             'UAdefault': uadefault
         })
-        self.session.add(address)
+        db.session.add(address)
         return Success('创建地址成功', {'uaid': uaid})
 
     @get_session
@@ -513,7 +505,7 @@ class CUser(SUser, BASEAPPROVAL):
             newidcheck = IDCheck.create(newidcheck_dict)
             check_result = idcheck.result
             check_message = idcheck.check_response.get('reason')
-            self.session.add(newidcheck)
+            db.session.add(newidcheck)
         else:
             check_message = idcheck.IDCreason
             check_result = idcheck.IDCresult
@@ -541,8 +533,8 @@ class CUser(SUser, BASEAPPROVAL):
                 "UMurl": data.get("umback"),
                 "UMtype": 2
             })
-            self.session.add(um_front)
-            self.session.add(um_back)
+            db.session.add(um_front)
+            db.session.add(um_back)
             return
         raise ParamsError('实名认证失败：{0}'.format(check_message))
         # return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
@@ -590,8 +582,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
                 "ANdoneid": request.user.id
             })
-            self.session.add(adinstance)
-            self.session.add(an_instance)
+            db.session.add(adinstance)
+            db.session.add(an_instance)
             return Success('申请成功')
         else:
             raise ParamsError(','.join(check_reason))
@@ -648,17 +640,11 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('token error')
 
         today = datetime.datetime.now()
-        usercommission_model_month_list = UserCommission.query.filter(
-            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
-            extract('month', UserCommission.createtime) == today.month,
-            extract('year', UserCommission.createtime) == today.year,
-        ).all()
+        usercommission_model_month_list = self.get_ucmonth_by_usid(request.user.id, today)
         mounth_count = sum(usercommission_model_month.UCcommission for usercommission_model_month in usercommission_model_month_list)
         # for usercommission_model_month in usercommission_model_month_list:
         #     mounth_count += float(usercommission_model_month.UCcommission)
-        usercommission_model_list = UserCommission.query.filter(
-            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1
-        ).all()
+        usercommission_model_list = self.get_ucall_by_usid(request.user.id)
         uc_count = sum(usercommission_model.UCcommission for usercommission_model in usercommission_model_list)
         fens_sql = User.query.filter(
             or_(User.USsupper1 == request.user.id, User.USsupper2 ==request.user.id))
@@ -707,11 +693,7 @@ class CUser(SUser, BASEAPPROVAL):
                 raise ParamsError("时间格式不对")
         else:
             date_filter = datetime.datetime.now()
-        uc_model_list = UserCommission.query.filter(
-            UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
-            extract('month', UserCommission.createtime) == date_filter.month,
-            extract('year', UserCommission.createtime) == date_filter.year,
-        ).all()
+        uc_model_list = self.get_ucmonth_by_usid(request.user.id, date_filter)
         uc_mount = 0
         common_list = []
         popular_list = []
@@ -752,7 +734,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_model = UserIntegral.query.filter(UserIntegral.USid == request.user.id).order_by(UserIntegral.createtime.desc()).first()
+        ui_model = self.get_ui_by_id(request.user.id)
         today = datetime.datetime.now()
         if ui_model:
             gennerc_log('ui model time %s , today date %s' % (ui_model.createtime.date(), today.date()))
@@ -766,7 +748,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UIaction': 1,
             'UItype': 1
         })
-        self.session.add(ui)
+        db.session.add(ui)
         user.USintegral += int(ui.UIintegral)
         return Success('签到成功')
 
@@ -805,7 +787,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "USTip": request.remote_addr,
                 "ULtype": 2
             })
-            self.session.add(ul_instance)
+            db.session.add(ul_instance)
             token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel)
             admin.fields = ['ADname', 'ADheader', 'ADlevel']
 
@@ -819,7 +801,6 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def add_admin_by_superadmin(self):
         """超级管理员添加普通管理"""
-        # todo 待测试
 
         superadmin = self.get_admin_by_id(request.user.id)
         if not is_hign_level_admin() or superadmin.ADlevel != 1:
@@ -856,7 +837,7 @@ class CUser(SUser, BASEAPPROVAL):
             'ADlevel': adlevel,
             'ADstatus': 0,
         })
-        self.session.add(adinstance)
+        db.session.add(adinstance)
 
         # 创建管理员变更记录
         an_instance = AdminNotes.create({
@@ -866,7 +847,7 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
 
-        self.session.add(an_instance)
+        db.session.add(an_instance)
         return Success('创建管理员成功')
 
     @get_session
@@ -922,7 +903,7 @@ class CUser(SUser, BASEAPPROVAL):
             'ANaction': action_str,
             "ANdoneid": request.user.id
         })
-        self.session.add(an_instance)
+        db.session.add(an_instance)
         return Success("操作成功")
 
     @get_session
@@ -1015,7 +996,7 @@ class CUser(SUser, BASEAPPROVAL):
             if upperd:
                 user_dict.setdefault('USsupper1', upperd.USid)
             user = User.create(user_dict)
-            self.session.add(user)
+            db.session.add(user)
 
         userloggintime = UserLoginTime.create({
             "ULTid": str(uuid.uuid1()),
@@ -1023,8 +1004,8 @@ class CUser(SUser, BASEAPPROVAL):
             "USTip": request.remote_addr
         })
 
-        self.session.add(userloggintime)
-        user.fields = self.USER_FIELDS
+        db.session.add(userloggintime)
+        user.fields = self.USER_FIELDS[:]
         gennerc_log('get user = {0}'.format(user.__dict__))
 
         return Success('登录成功', data=user)
@@ -1061,7 +1042,7 @@ class CUser(SUser, BASEAPPROVAL):
             user.USopenid2 = user_openid.USopenid2
             return_user = user
 
-        return_user.fields = self.USER_FIELDS
+        return_user.fields = self.USER_FIELDS[:]
         return_user.fill('usidentification', self.__conver_idcode(user.USidentification))
         return_user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")

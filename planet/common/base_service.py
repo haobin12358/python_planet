@@ -14,17 +14,16 @@ db_session = sessionmaker(bind=mysql_engine, class_=Session, expire_on_commit=Fa
 
 
 def get_session(fn):
-    def inner(self, *args, **kwargs):
+    def inner(*args, **kwargs):
         try:
-            self.session = db.session
-            result = fn(self, *args, **kwargs)
-            self.session.commit()
+            result = fn(*args, **kwargs)
+            db.session.commit()
             return result
         except Exception as e:
-            self.session.rollback()
+            db.session.rollback()
             raise e
         finally:
-            self.session.close()
+            db.session.close()
     return inner
 
 

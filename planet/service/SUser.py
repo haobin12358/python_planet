@@ -1,10 +1,25 @@
 from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes
-from sqlalchemy import or_, and_
+    AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes, UserIntegral
+from sqlalchemy import or_, and_, extract
 
 
 class SUser(SBase):
+    def get_ui_by_id(self, usid):
+        return UserIntegral.query.filter(UserIntegral.USid == usid).order_by(UserIntegral.createtime.desc()).first()
+
+    def get_ucmonth_by_usid(self, usid, today):
+        UserCommission.query.filter(
+            UserCommission.USid == usid, UserCommission.UCstatus == 1,
+            extract('month', UserCommission.createtime) == today.month,
+            extract('year', UserCommission.createtime) == today.year,
+        ).all()
+
+    def get_ucall_by_usid(self, usid):
+        UserCommission.query.filter(
+            UserCommission.USid == usid, UserCommission.UCstatus == 1
+        ).all()
+
     def get_identifyingcode_by_ustelphone(self, utel):
         return IdentifyingCode.query.filter(
             IdentifyingCode.ICtelphone == utel, IdentifyingCode.isdelete == False).order_by(
