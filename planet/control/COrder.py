@@ -547,7 +547,7 @@ class COrder(CPay, CCoupon):
         if extentions:
             data.append(  #
                 {
-                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid).count(),
+                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True).count(),
                     'name': '售后中',
                     'status': 'refund'
                 }
