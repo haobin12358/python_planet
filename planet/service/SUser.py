@@ -9,14 +9,14 @@ class SUser(SBase):
         return UserIntegral.query.filter(UserIntegral.USid == usid).order_by(UserIntegral.createtime.desc()).first()
 
     def get_ucmonth_by_usid(self, usid, today):
-        UserCommission.query.filter(
+        return UserCommission.query.filter(
             UserCommission.USid == usid, UserCommission.UCstatus == 1,
             extract('month', UserCommission.createtime) == today.month,
             extract('year', UserCommission.createtime) == today.year,
         ).all()
 
     def get_ucall_by_usid(self, usid):
-        UserCommission.query.filter(
+        return UserCommission.query.filter(
             UserCommission.USid == usid, UserCommission.UCstatus == 1
         ).all()
 
