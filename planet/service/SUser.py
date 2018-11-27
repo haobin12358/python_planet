@@ -25,7 +25,7 @@ class SUser():
 
     def get_useraddress_by_filter(self, uafilter):
         """根据条件获取地址"""
-        return self.session.query(UserAddress).filter_by(**uafilter).first()
+        return self.session.query(UserAddress).filter_by(**uafilter).first_('未找到要修改的地址信息')
 
     def get_province(self):
         """获取所有省份"""
