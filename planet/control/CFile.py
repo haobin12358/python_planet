@@ -48,7 +48,7 @@ class CFile(object):
         filename = file.filename
         shuffix = os.path.splitext(filename)[-1]
         if self.allowed_file(shuffix):
-            img_name = self.new_name(shuffix, file)
+            img_name = self.new_name(shuffix)
             time_now = datetime.now()
             year = str(time_now.year)
             month = str(time_now.month)
@@ -62,8 +62,6 @@ class CFile(object):
             data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
                                                                           month=month, day=day,
                                                                           img_name=img_name)
-            import ipdb
-            ipdb.set_trace()
             if shuffix in ['.mp4', '.avi', '.wmv']:
                 upload_type = 'video'
                 # 生成视频缩略图
@@ -78,11 +76,16 @@ class CFile(object):
                 second_str = '0' + str(second) if second < 10 else str(second)
                 video_dur = minute_str + ':' + second_str
             else:
-
                 upload_type = 'image'
                 video_thum = ''
                 video_dur = ''
-
+                # 读取
+                img = Image.open(newFile)
+                img_size = '_' + 'x'.join(map(str, img.size))
+                path_with_size = newFile + img_size + shuffix
+                data += (img_size + shuffix)
+                img.save(path_with_size)
+                os.remove(newFile)
             return data, video_thum, video_dur, upload_type
         else:
             return SystemError(u'上传有误')
@@ -94,7 +97,7 @@ class CFile(object):
             dirs = img_url.split('/')[-6:]
             name_shuffer = dirs[-1]
             name = name_shuffer.split('.')[0]
-            if not name.endswith('anonymous') and not name.endswith(request.user.id):
+            if not 'anonymous' in name and request.user.id not in name:
                 raise NotFound()
             path = os.path.join(current_app.config['BASEDIR'], '/'.join(dirs))
             os.remove(path)
@@ -110,18 +113,14 @@ class CFile(object):
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar'] else 'temp'
 
-    def new_name(self, shuffix, file):
+    def new_name(self, shuffix):
         import string, random  # import random
         myStr = string.ascii_letters + '12345678'
         try:
             usid = request.user.id
         except AttributeError as e:
             usid = 'anonymous'
-        res = ''.join(random.choice(myStr) for _ in range(20)) + usid
-        if shuffix in ['.mp4', '.avi', '.wmv']:
-            res += shuffix
-        else:
-            res += self.get_img_size(file) + shuffix
+        res = ''.join(random.choice(myStr) for _ in range(20)) + usid + shuffix
         return res
 
     @staticmethod
