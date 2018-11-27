@@ -84,7 +84,7 @@ class CUser(SUser, BASEAPPROVAL):
         """账户名校验"""
         if not adname or adid:
             return True
-        suexist = self.session.query(Admin).filter(Admin.ADname == adname).first()
+        suexist = Admin.query.filter(Admin.ADname == adname).first()
         if suexist and suexist.ADid != adid:
             raise ParamsError('用户名已存在')
         return True
@@ -645,7 +645,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('token error')
 
         today = datetime.datetime.now()
-        usercommission_model_month_list = self.session.query(UserCommission).filter(
+        usercommission_model_month_list = UserCommission.query.filter(
             UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
             extract('month', UserCommission.createtime) == today.month,
             extract('year', UserCommission.createtime) == today.year,
@@ -653,11 +653,11 @@ class CUser(SUser, BASEAPPROVAL):
         mounth_count = sum(usercommission_model_month.UCcommission for usercommission_model_month in usercommission_model_month_list)
         # for usercommission_model_month in usercommission_model_month_list:
         #     mounth_count += float(usercommission_model_month.UCcommission)
-        usercommission_model_list = self.session.query(UserCommission).filter(
+        usercommission_model_list = UserCommission.query.filter(
             UserCommission.USid == request.user.id, UserCommission.UCstatus == 1
         ).all()
         uc_count = sum(usercommission_model.UCcommission for usercommission_model in usercommission_model_list)
-        fens_sql = self.session.query(User).filter(
+        fens_sql = User.query.filter(
             or_(User.USsupper1 == request.user.id, User.USsupper2 ==request.user.id))
         fens_count = fens_sql.count()
         fens_mouth_count = fens_sql.filter(
@@ -668,7 +668,7 @@ class CUser(SUser, BASEAPPROVAL):
         activity_count = 2
         # 佣金比例
         # commisision_profit = agent.USCommission or ConfigSettings().get_item('commission', "planetcommision")
-        product_sql = self.session.query(Products).filter_by_(CreaterId=request.user.id, PRstatus=0)
+        product_sql = Products.query.filter_by_(CreaterId=request.user.id, PRstatus=0)
         # 最新
         newest_product = product_sql.order_by(Products.createtime.desc()).first()
         if newest_product:
@@ -704,7 +704,7 @@ class CUser(SUser, BASEAPPROVAL):
                 raise ParamsError("时间格式不对")
         else:
             date_filter = datetime.datetime.now()
-        uc_model_list = self.session.query(UserCommission).filter(
+        uc_model_list = UserCommission.query.filter(
             UserCommission.USid == request.user.id, UserCommission.UCstatus == 1,
             extract('month', UserCommission.createtime) == date_filter.month,
             extract('year', UserCommission.createtime) == date_filter.year,
@@ -716,7 +716,7 @@ class CUser(SUser, BASEAPPROVAL):
             uc_model.fields = ['OMid', 'createtime']
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_mount += float(uc_model.UCcommission)
-            op_list = self.session.query(OrderPart).filter(OrderPart.OMid == uc_model.OMid).all()
+            op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid).all()
 
             if not op_list:
                 gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
@@ -725,7 +725,7 @@ class CUser(SUser, BASEAPPROVAL):
             om_name = []
             for op in op_list:
                 om_name.append(str(op.PRtitle))
-                itemes = self.session.query(Items).filter(
+                itemes = Items.query.filter(
                     Items.ITid == ProductItems.ITid, ProductItems.PRid == op.PRid).first()
                 if itemes and itemes.ITname == self.POPULAR_NAME:
                     is_popular = True
@@ -749,7 +749,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_model = self.session.query(UserIntegral).filter(UserIntegral.USid == request.user.id).order_by(UserIntegral.createtime.desc()).first()
+        ui_model = UserIntegral.query.filter(UserIntegral.USid == request.user.id).order_by(UserIntegral.createtime.desc()).first()
         today = datetime.datetime.now()
         if ui_model:
             gennerc_log('ui model time %s , today date %s' % (ui_model.createtime.date(), today.date()))
@@ -779,7 +779,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_list = self.session.query(UserIntegral).filter_(UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter).all_with_page()
+        ui_list = UserIntegral.query.filter_(UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter).all_with_page()
         for ui in ui_list:
             ui.fields = ['UIintegral', 'createtime']
             ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
@@ -977,7 +977,7 @@ class CUser(SUser, BASEAPPROVAL):
         access_token = data.access_token
         gennerc_log('get openid = {0} and access_token = {1}'.format(openid, access_token))
         # todo 通过app_from 来通过不同的openid 获取用户
-        user = self.session.query(User).filter(User.USopenid1 == openid).first()
+        user = User.query.filter(User.USopenid1 == openid).first()
         user_info = wxlogin.userinfo(access_token, openid)
         gennerc_log(user_info)
 
