@@ -56,7 +56,10 @@ class Base(db.Model):
         elif is_url_list:
             if res:
                 res = json.loads(res)
-                res = [HTTP_HOST + r for r in res if isinstance(r, str) and not r.startswith('http')]
+                rs = []
+                for r in res:
+                    rs.append(HTTP_HOST + r  if isinstance(r, str) and not r.startswith('http') else r)
+                res = rs
             else:
                 res = []
         return res

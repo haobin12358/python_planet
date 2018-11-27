@@ -55,6 +55,7 @@ class COrder(CPay, CCoupon):
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
             order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
             order_main.add('OMstatus_en', 'OMstatus_zh').hide('OPayno', 'USid', )
+            order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
             # 用户
             # todo 卖家订单
             if is_admin():
@@ -113,7 +114,7 @@ class COrder(CPay, CCoupon):
                     # 订单副单
                     opid = str(uuid.uuid4())
                     skuid = sku.get('skuid')
-                    opnum = int(sku.get('opnum', 1))
+                    opnum = int(sku.get('nums', 1))
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
@@ -145,11 +146,9 @@ class COrder(CPay, CCoupon):
                     order_old_price += small_total
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
-                    # 判断来源
                     # 删除购物车
                     if omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
-                    # 来源为
                     # body 信息
                     body.add(product_instance.PRtitle)
                     # 对应商品销量 + num sku库存 -num

@@ -9,7 +9,7 @@ from sqlalchemy import cast, Date
 from planet import create_app
 from planet.common.share_stock import ShareStock
 from planet.extensions.register_ext import db
-from planet.models.activity import CorrectNum, GuessNum, GuessAwardFlow
+from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems
 
 celery = Celery()
 
