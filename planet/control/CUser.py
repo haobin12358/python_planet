@@ -348,8 +348,6 @@ class CUser(SUser, BASEAPPROVAL):
         """修改收货地址"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
         data = parameter_required(('uaid',))
         uaid = data.get('uaid')
         uadefault = data.get('uadefault')
@@ -360,9 +358,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not re.match(r'^[0|1]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
         usaddress = self.get_useraddress_by_filter({'UAid': uaid})
-        if not usaddress:
-            raise NotFound('未找到要修改的地址信息')
-        if str(uaisdelete) == '0':
+        if aaid:
             self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
             anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
@@ -411,8 +407,6 @@ class CUser(SUser, BASEAPPROVAL):
         """获取单条地址信息详情"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
         args = request.args.to_dict()
         uaid = args.get('uaid')
         if uaid:

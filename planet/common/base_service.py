@@ -50,7 +50,7 @@ def close_session(fn):
 class SBase(object):
     def __init__(self):
         try:
-            self.session = db_session()
+            self.session = db.session
         except Exception as e:
             # raise e
             print(e.args)
