@@ -1,10 +1,10 @@
-# from planet.common.base_service import SBase
+from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
     AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes
 from sqlalchemy import or_, and_
 
 
-class SUser():
+class SUser(SBase):
     def get_identifyingcode_by_ustelphone(self, utel):
         return IdentifyingCode.query.filter(
             IdentifyingCode.ICtelphone == utel, IdentifyingCode.isdelete == False).order_by(

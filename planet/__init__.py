@@ -35,7 +35,9 @@ from planet.extensions.loggers import LoggerHandler
 class JSONEncoder(_JSONEncoder):
     """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
     def default(self, o):
+        print(dir(o))
         if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
+            print(o.keys())
             res = dict(o)
             new_res = {k.lower(): v for k, v in res.items()}
             return new_res

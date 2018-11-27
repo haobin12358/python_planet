@@ -34,7 +34,7 @@ from planet.models.product import Products, Items, ProductItems
 from planet.models.trade import OrderPart
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe
-
+from planet.extensions.register_ext import db
 
 class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
@@ -142,13 +142,14 @@ class CUser(SUser, BASEAPPROVAL):
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': user})
 
-    @get_session
+    # @get_session
     def login_test(self):
         """获取token"""
         data = parameter_required(('ustelphone',))
         ustelphone = data.get('ustelphone')
 
-        user = self.get_user_by_ustelphone(ustelphone)
+        # user = self.get_user_by_ustelphone(ustelphone)
+        user = User.query.filter(User.UStelphone == ustelphone, User.isdelete == False).first_()
         if not user:
             usid = str(uuid.uuid1())
             uslevel = 1
@@ -161,7 +162,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "USintegral": 0,
                 "USlevel": uslevel
             })
-            self.session.add(user)
+            db.session.add(user)
         else:
             usid = user.USid
             uslevel = user.USlevel
@@ -172,13 +173,21 @@ class CUser(SUser, BASEAPPROVAL):
             "USid": usid,
             "USTip": request.remote_addr
         })
+        db.session.add(userloggintime)
+        try:
+            db.session.commit()
+        except:
+            db.session.rollback()
+            raise SystemError('数据库操作异常')
+
         user.fields = self.USER_FIELDS
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
-        self.session.add(userloggintime)
+
         token = usid_to_token(usid, model='User', level=uslevel)
-        print(token, type(token))
+
+
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -246,11 +255,11 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         return Success('获取首页用户信息成功', data=user)
 
-    @get_session
+    # @get_session
     @token_required
     def get_identifyinginfo(self):
         """获取个人身份证详情"""
-        user = self.get_user_by_id(request.user.id)
+        user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first_('用户不存在')
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
