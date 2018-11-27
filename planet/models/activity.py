@@ -13,7 +13,7 @@ class TrialCommodity(Base):
     TCdescription = Column(Text, comment='商品描述')
     TCdeposit = Column(Float, nullable=False, comment='押金')
     TCdeadline = Column(Integer, nullable=False, default=30, comment='押金期限{单位:天}')
-    PRfreight = Column(Float, default=0, comment='运费')
+    TCfreight = Column(Float, default=0, comment='运费')
     TCstocks = Column(Integer, comment='库存')
     TCsalesValue = Column(Integer, default=0, comment='销量')
     TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10下架')
