@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 from flask import request, current_app
 
+from PIL import Image
+
 from planet.common.error_response import NotFound, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -12,7 +14,7 @@ from planet.config.http_config import API_HOST
 
 
 class CFile(object):
-    @token_required
+    # @token_required
     def upload_img(self):
         file = request.files.get('file')
         data = parameter_required()
@@ -46,8 +48,7 @@ class CFile(object):
         filename = file.filename
         shuffix = os.path.splitext(filename)[-1]
         if self.allowed_file(shuffix):
-            newName = self.new_name(shuffix)
-            img_name = newName
+            img_name = self.new_name(shuffix)
             time_now = datetime.now()
             year = str(time_now.year)
             month = str(time_now.month)
@@ -55,9 +56,12 @@ class CFile(object):
             newPath = os.path.join(current_app.config['BASEDIR'], 'img', folder, year, month, day)
             if not os.path.isdir(newPath):
                 os.makedirs(newPath)
-            newFile = os.path.join(newPath, newName)
+            newFile = os.path.join(newPath, img_name)
             file.save(newFile)  # 保存图片
-            data = '/img/{}/{}/{}/{}/{}'.format(folder, year, month, day, img_name)
+
+            data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
+                                                                          month=month, day=day,
+                                                                          img_name=img_name)
             if shuffix in ['.mp4', '.avi', '.wmv']:
                 upload_type = 'video'
                 # 生成视频缩略图
@@ -75,6 +79,13 @@ class CFile(object):
                 upload_type = 'image'
                 video_thum = ''
                 video_dur = ''
+                # 读取
+                img = Image.open(newFile)
+                img_size = '_' + 'x'.join(map(str, img.size))
+                path_with_size = newFile + img_size + shuffix
+                data += (img_size + shuffix)
+                img.save(path_with_size)
+                os.remove(newFile)
             return data, video_thum, video_dur, upload_type
         else:
             return SystemError(u'上传有误')
@@ -86,7 +97,7 @@ class CFile(object):
             dirs = img_url.split('/')[-6:]
             name_shuffer = dirs[-1]
             name = name_shuffer.split('.')[0]
-            if not name.endswith('anonymous') and not name.endswith(request.user.id):
+            if not 'anonymous' in name and request.user.id not in name:
                 raise NotFound()
             path = os.path.join(current_app.config['BASEDIR'], '/'.join(dirs))
             os.remove(path)
@@ -102,13 +113,21 @@ class CFile(object):
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar'] else 'temp'
 
-    @staticmethod
-    def new_name(shuffix):
+    def new_name(self, shuffix):
         import string, random  # import random
         myStr = string.ascii_letters + '12345678'
         try:
             usid = request.user.id
         except AttributeError as e:
             usid = 'anonymous'
-        return ''.join(random.choice(myStr) for i in range(20)) + usid + shuffix
+        res = ''.join(random.choice(myStr) for _ in range(20)) + usid + shuffix
+        return res
+
+    @staticmethod
+    def get_img_size(file):
+        try:
+            img = Image.open(file)
+            return '_' + 'x'.join(map(str, img.size))
+        except Exception as e:
+            return ''
 
