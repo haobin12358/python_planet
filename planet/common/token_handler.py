@@ -57,6 +57,7 @@ def admin_required(func):
 def token_required(func):
     def inner(self, *args, **kwargs):
         if not is_tourist():
+            current_app.logger.info('current_user is {}'.format(request.user.id))
             return func(self, *args, **kwargs)
         raise TokenError()
         # state_url = request.environ.get('HTTP_X_URL', request.url)
