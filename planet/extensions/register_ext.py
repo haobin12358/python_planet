@@ -41,7 +41,7 @@ alipay = AliPay(
      )
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)
 cache = Cache()
-db = SQLAlchemy(query_class=Query)
+db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False})
 server_dir = os.path.join(BASEDIR, 'wxservice')
 subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
 if not os.path.isdir(server_dir):

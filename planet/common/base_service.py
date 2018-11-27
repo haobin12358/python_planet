@@ -4,6 +4,7 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import sessionmaker
 
+from planet.extensions.register_ext import db
 from .error_response import SystemError
 from .. import models
 from .base_model import mysql_engine
@@ -15,7 +16,7 @@ db_session = sessionmaker(bind=mysql_engine, class_=Session, expire_on_commit=Fa
 def get_session(fn):
     def inner(self, *args, **kwargs):
         try:
-            self.session = db_session()
+            self.session = db.session
             result = fn(self, *args, **kwargs)
             self.session.commit()
             return result
