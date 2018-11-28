@@ -63,7 +63,7 @@ class OrderEvaluationScore(Enum):
     worst = 1, '非常差'
 
 
-class OrderRefundApplyStatus(Enum):
+class ApplyStatus(Enum):
     cancle = -20, '取消'
     reject = -10, '拒绝'
     wait_check = 0, '未审核'
