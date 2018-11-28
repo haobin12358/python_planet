@@ -11,7 +11,7 @@ from planet.common.error_response import ParamsError, StatusError, ApiError
 from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import OrderMainStatus, ORAproductStatus, OrderRefundApplyStatus, OrderRefundORAstate, \
+from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType
 from planet.extensions.register_ext import wx_pay, alipay
 from planet.extensions.validates.trade import RefundSendForm
@@ -82,11 +82,11 @@ class CRefund(object):
             s_list = []
             refund_apply_instance = s.query(OrderRefundApply).filter_by_({
                 'ORAid': oraid,
-                'ORAstatus': OrderRefundApplyStatus.wait_check.value
+                'ORAstatus': ApplyStatus.wait_check.value
             }).first_('申请已处理或不存在')
             refund_apply_instance.ORAcheckTime = datetime.now()
             if agree is True:
-                refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
+                refund_apply_instance.ORAstatus = ApplyStatus.agree.value
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.only_money.value:  # 仅退款
                     # 退款流水表
                     order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
@@ -129,12 +129,12 @@ class CRefund(object):
                     order_refund_instance = OrderRefund.create(order_refund_dict)
                     s_list.append(order_refund_instance)
                     msg = '已同意, 等待买家发货'
-                refund_apply_instance.ORAstatus = OrderRefundApplyStatus.agree.value
+                refund_apply_instance.ORAstatus = ApplyStatus.agree.value
                 refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
                 refund_apply_instance.ORAcheckTime = datetime.now()
                 s_list.append(refund_apply_instance)
             else:
-                refund_apply_instance.ORAstatus = OrderRefundApplyStatus.reject.value
+                refund_apply_instance.ORAstatus = ApplyStatus.reject.value
                 refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
                 s_list.append(refund_apply_instance)
                 msg = '拒绝成功'
