@@ -13,8 +13,9 @@ from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
-from planet.config.secret import PLANET, PLANET_SERVICE, PLANET_SUBSCRIBE, SERVICE_APPID, SERVICE_APPSECRET, \
+from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
+from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
     WXLoginError
@@ -564,8 +565,8 @@ class CUser(SUser, BASEAPPROVAL):
         if user.USlevel == 3:
             raise AuthorityError("已经提交了审批！！！")
         # 如果需要可以在此更新自己联系方式以及性别。
-        if data.get('ustelphone'):
-            user.UStelphone = data.get("ustelphone")
+        # if data.get('ustelphone'):
+        #     user.UStelphone = data.get("ustelphone")
 
         if data.get("usgender"):
             user.USgender = data.get("usgender")
