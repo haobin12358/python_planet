@@ -22,7 +22,6 @@ def fetch_share_deal():
         share_stock = ShareStock()
         yesterday_result = share_stock.new_result()
         yesterday = date.today() - timedelta(days=1)
-
         # 昨日结果
         db_yesterday = CorrectNum.query.filter(
             cast(CorrectNum.CNdate, Date) == yesterday
@@ -45,7 +44,16 @@ def fetch_share_deal():
                         'GNid': guess_num.GNid,
                     })
                     s_list.append(guess_award_flow_instance)
-        # # 今日结果
+        if s_list:
+            db.session.add_all(s_list)
+
+
+if __name__ == '__main__':
+    app = create_app()
+    with app.app_context():
+        fetch_share_deal()
+
+ # # 今日结果
         # db_today = CorrectNum.query.filter(
         #     cast(CorrectNum.CNdate, Date) == date.today()
         # ).first()
@@ -72,13 +80,3 @@ def fetch_share_deal():
         # db_today = CorrectNum.query.filter(
         #     cast(CorrectNum.CNdate, Date) == date.today()
         # ).first()
-        if s_list:
-            db.session.add_all(s_list)
-
-
-if __name__ == '__main__':
-    app = create_app()
-    with app.app_context():
-        fetch_share_deal()
-
-
