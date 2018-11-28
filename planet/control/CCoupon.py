@@ -11,7 +11,7 @@ from planet.common.token_handler import is_admin, token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm
-from planet.models import Items, User, ProductCategory, ProductBrand
+from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
 
@@ -182,16 +182,49 @@ class CCoupon(object):
     @staticmethod
     def _title_subtitle(coupon):
         # 使用对象限制
-        if coupon.PCid:
-            category = ProductCategory.query.filter_by_({'PCid': coupon.PCid}).first()
-            title = '{}类专用'.format(category.PCname)
-            left_logo = category['PCpic']
-            left_text = category.PCname
-        elif coupon.PBid:
-            brand = ProductBrand.query.filter_by_({'PBid': coupon.PBid}).first()
-            title = '{}品牌专用'.format(brand.PBname)
-            left_logo = brand['PBlogo']
-            left_text = brand.PBname
+        coupon_fors = CouponFor.query.filter_by_({'COid': coupon.COid}).all()
+        if len(coupon_fors) == 1:
+            if coupon_fors[0].PCid:
+                category = ProductCategory.query.filter_by_({'PCid': coupon_fors[0].PCid}).first()
+                title = '{}类专用'.format(category.PCname)
+                left_logo = category['PCpic']
+                left_text = category.PCname
+            elif coupon_fors[0].PBid:
+                brand = ProductBrand.query.filter_by_({'PBid': coupon_fors[0].PBid}).first()
+                title = '{}品牌专用'.format(brand.PBname)
+                left_logo = brand['PBlogo']
+                left_text = brand.PBname
+            elif coupon_fors[0].PRid:
+                product = Products.query.filter_by_({'PRid': coupon_fors[0].PRid}).first()
+                title = '{}专用'.format(product.PRtitle)
+                left_logo = product['PRmainpic']
+                left_text = product.PRtitle
+        elif coupon_fors:
+            # 多品牌
+            cfg = ConfigSettings()
+            pbids = [x.PBid for x in coupon_fors if x.PBid]
+            left_logo = cfg.get_item('planet', 'logo')
+            if pbids:
+                title = '多品牌专用'
+                for_brand = []
+                for pbid in pbids:
+                    brand = ProductBrand.query.filter(ProductBrand.PBid == pbid).first()
+                    if brand:
+                        for_brand.append(brand.PBname)
+                left_text = '{}通用'.format('/'.join(for_brand))
+            # 多商品
+            else:
+                prids = [x.PRid for x in coupon_fors if x.PRid]
+                left_logo = cfg.get_item('planet', 'logo')
+                title = '多商品专用'
+                for_product = []
+                for prid in prids:
+                    product = Products.query.filter_by_({'PRid': prid}).first()
+                    if product:
+                        for_product.append(product.PRtitle)
+                left_text = '{}通用'.format('/'.join(for_product))
+            # 多类目 暂时没有多类目优惠券
+            pass
         else:
             title = '全场通用'
             cfg = ConfigSettings()

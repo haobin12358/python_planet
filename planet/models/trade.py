@@ -213,9 +213,7 @@ class Coupon(Base):
     """优惠券"""
     __tablename__ = 'Coupon'
     COid = Column(String(64), primary_key=True)
-    PCid = Column(String(64), comment='限制使用商品分类')
-    PRid = Column(String(64), comment='限制使用商品')
-    PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
+
     COname = Column(String(32), nullable=False, comment='优惠券名字, 比如满100减50')
     COisAvailable = Column(Boolean, default=True, comment='是否有效')
     COcanCollect = Column(Boolean, default=True, comment='是否可以领取')
@@ -231,6 +229,7 @@ class Coupon(Base):
     COdesc = Column(String(255), comment='描述')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
+
 
 class CouponItem(Base):
     """优惠券标签中间表"""
@@ -248,3 +247,13 @@ class CouponUser(Base):
     USid = Column(String(64), nullable=False, comment='用户id')
     UCalreadyUse = Column(Boolean, default=False, comment='是否已经使用')
     UCstatus = Column(Integer, default=0, comment='状态: 10 禁用')
+
+
+class CouponFor(Base):
+    """优惠券的使用对象"""
+    __tablename__ = 'CouponFor'
+    CFid = Column(String(64), primary_key=True)
+    PCid = Column(String(64), comment='限制使用商品分类')
+    PRid = Column(String(64), comment='限制使用商品')
+    PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
+    COid = Column(String(64), comment='优惠券id')
