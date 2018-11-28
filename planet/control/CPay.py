@@ -13,6 +13,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
+from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission
 from planet.models.trade import OrderMain, OrderPart, OrderPay
 from planet.service.STrade import STrade
@@ -178,28 +179,35 @@ class CPay():
         ####
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
-            body = body[:110] + '...'
-            wechat_pay_dict = dict(
-                body=body,
-                out_trade_no=opayno,
-                total_fee=int(mount_price * 100), attach='attach',
-                spbill_create_ip=request.remote_addr
-            )
-            if omclient == Client.wechat.value:  # 微信客户端
-                wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
-                raw = self.wx_pay.jsapi(**wechat_pay_dict)
-            else:
-                wechat_pay_dict.update(dict(trade_type="APP"))
-                raw = self.wx_pay.unified_order(**wechat_pay_dict)
+            try:
+                body = body[:110] + '...'
+                wechat_pay_dict = dict(
+                    body=body,
+                    out_trade_no=opayno,
+                    total_fee=int(mount_price * 100), attach='attach',
+                    spbill_create_ip=request.remote_addr
+                )
+                if omclient == Client.wechat.value:  # 微信客户端
+                    wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+                    raw = self.wx_pay.jsapi(**wechat_pay_dict)
+                else:
+                    wechat_pay_dict.update(dict(trade_type="APP"))
+                    raw = self.wx_pay.unified_order(**wechat_pay_dict)
+            except WeixinPayError as e:
+                raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
+
         elif opaytype == PayType.alipay.value:
             if omclient == Client.wechat.value:
                 raise SystemError('请选用其他支付方式')
             else:
-                raw = self.alipay.api_alipay_trade_app_pay(
-                    out_trade_no=opayno,
-                    total_amount=mount_price,
-                    subject=body[:200] + '...',
-                )
+                try:
+                    raw = self.alipay.api_alipay_trade_app_pay(
+                        out_trade_no=opayno,
+                        total_amount=mount_price,
+                        subject=body[:200] + '...',
+                    )
+                except Exception as e:
+                    raise SystemError('支付宝参数异常')
         else:
             raise SystemError('请选用其他支付方式')
         return raw

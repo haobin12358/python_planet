@@ -211,6 +211,13 @@ class GuessAwardFlowStatus(Enum):
     expired = 20, '已过期'
 
 
+class TrialCommodityStatus(Enum):
+    """使用商品状态"""
+    upper = (0, '上架')
+    off_shelves = (10, '下架')
+    all = None
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
