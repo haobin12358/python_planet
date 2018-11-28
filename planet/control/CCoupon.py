@@ -196,7 +196,7 @@ class CCoupon(object):
                 left_text = brand.PBname
             elif coupon_fors[0].PRid:
                 product = Products.query.filter_by_({'PRid': coupon_fors[0].PRid}).first()
-                title = '{}专用'.format(product.PRtitle)
+                title = '单品专用'.format(product.PRtitle)
                 left_logo = product['PRmainpic']
                 left_text = product.PRtitle
         elif coupon_fors:
