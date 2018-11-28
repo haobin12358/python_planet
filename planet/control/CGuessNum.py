@@ -40,7 +40,7 @@ class CGuessNum(COrder):
                 'GNid': str(uuid.uuid4()),
                 'GNnum': gnnum,
                 'USid': usid,
-                'PRid': product_in_awarditems.first(),
+                'PRid': product_in_awarditems,
                 # 'GNdate': gndate
             })
             db.session.add(guess_instance)
