@@ -24,6 +24,7 @@ class ConfigSettings(object):
         self.cf.read(self.config_file_path)
 
     def get_item(self, section, option):
+        print(type(self.cf.get(section, option)))
         return self.cf.get(section, option)
 
     def set_item(self, section, option, value):
