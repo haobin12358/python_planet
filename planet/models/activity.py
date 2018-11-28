@@ -59,6 +59,7 @@ class GuessNum(Base):
     GNdate = Column(Date, default=date.today, comment='参与的日期')
     SKUid = Column(String(64), nullable=False, comment='当日奖品')
     PRid = Column(String(64), nullable=False, comment='当日奖品')
+    Price = Column(Float, nullable=False, comment='当日价格')
 
 
 class CorrectNum(Base):
@@ -86,7 +87,7 @@ class GuessNumAwardApply(Base):
     PRid = Column(String(64), nullable=False, comment='商品id')
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
-    SKUprice = Column(Float, nullable=False, comment='参与价格')
+    SKUprice = Column(Float, default=0.01, comment='参与价格')
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
