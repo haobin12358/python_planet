@@ -5,8 +5,6 @@ from sqlalchemy import or_, and_, extract
 
 
 class SUser(SBase):
-    def get_ui_by_id(self, usid):
-        return UserIntegral.query.filter(UserIntegral.USid == usid).order_by(UserIntegral.createtime.desc()).first()
 
     def get_ucmonth_by_usid(self, usid, today):
         return UserCommission.query.filter(

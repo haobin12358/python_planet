@@ -11,7 +11,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
-from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay
+from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
+    UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply
 from planet.config.enums import GuessAwardFlowStatus, OrderFrom, Client, PayType
 from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
@@ -35,12 +36,21 @@ class CGuessNum(COrder):
         #     gndate = date.today()
 
         with db.auto_commit():
-            product_in_awarditems = ProductItems.query.filter_by_({'ITid': 'guess_num_award_product'}).first()
+            today = date.today()
+
+            today_raward = GuessNumAwardApply.query.filter_by_().filter_(
+                GuessNumAwardApply.AgreeStartime <= today,
+                GuessNumAwardApply.AgreeEndtime >= today,
+                GuessNumAwardApply.GNAAstatus == 10
+            ).first_('今日活动不开放')
+
             guess_instance = GuessNum.create({
                 'GNid': str(uuid.uuid4()),
                 'GNnum': gnnum,
                 'USid': usid,
-                'PRid': product_in_awarditems.first(),
+                'PRid': today_raward.PRid,
+                'SKUid': today_raward.SKUid,
+                'Price': today_raward.SKUprice,
                 # 'GNdate': gndate
             })
             db.session.add(guess_instance)
@@ -116,17 +126,21 @@ class CGuessNum(COrder):
 
         with db.auto_commit():
             s_list = []
-            sku_instance = ProductSku.query.filter_by_({"SKUid": skuid}).first_('sku: {}不存在'.format(skuid))
+
+            # 参与记录
+            guess_num = GuessNum.query.filter_by_().filter_by_({
+                'SKUid': skuid,
+                'USid': usid,
+                'GNid': gnid
+            }).first_('未参与')
+            price = guess_num.Price
+
             # 领奖流水
             guess_award_flow_instance = GuessAwardFlow.query.filter_by_({
                 'GNid': gnid,
                 'GAFstatus': GuessAwardFlowStatus.wait_recv.value,
             }).first_('未中奖或已领奖')
-
-            guess_num_instance = GuessNum.query.filter_by_(GNid=gnid).first_('参与记录不存在')
-            if sku_instance.PRid != guess_num_instance.PRid:
-                raise ParamsError('指定sku非奖品')
-
+            sku_instance = ProductSku.query.filter_by_({"SKUid": skuid}).first_('sku: {}不存在'.format(skuid))
             product_instance = Products.query.filter_by_({"PRid": sku_instance.PRid}).first_('商品已下架')
             pbid = product_instance.PBid
             product_brand_instance = ProductBrand.query.filter_by({'PBid': pbid}).first_()
@@ -145,8 +159,6 @@ class CGuessNum(COrder):
                 area, "AAname", '')
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
-            opayno = self.wx_pay.nonce_str
-            price = 0.01
 
             # 创建订单
             omid = str(uuid.uuid4())

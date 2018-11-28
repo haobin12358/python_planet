@@ -17,7 +17,7 @@ from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
-    OrderRefundApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
+    ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -284,7 +284,7 @@ class COrder(CPay, CCoupon):
                 order_part.fill('order_refund_apply', order_refund_apply_instance)
                 # 售后发货状态
                 if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
-                        order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                        order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
                     order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
                     order_part.fill('order_refund', order_refund_instance)
         # 主单售后状态信息
@@ -294,7 +294,7 @@ class COrder(CPay, CCoupon):
             order_main.fill('order_refund_apply', order_refund_apply_instance)
             # 售后发货状态
             if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
-                    order_refund_apply_instance.ORAstatus == OrderRefundApplyStatus.agree.value:
+                    order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
                 order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
                 order_main.fill('order_refund', order_refund_instance)
         order_main.fill('order_part', order_parts)
@@ -576,7 +576,7 @@ class COrder(CPay, CCoupon):
         order_refund_apply_instance = self.strade.get_orderrefundapply_one(args)
         order_refund_apply_instance.orastate_zh = OrderRefundORAstate(
             order_refund_apply_instance.ORAstate).zh_value  # 售后类型
-        order_refund_apply_instance.ORAstatus_zh = OrderRefundApplyStatus(
+        order_refund_apply_instance.ORAstatus_zh = ApplyStatus(
             order_refund_apply_instance.ORAstatus).zh_value  # 审核状态
 
         order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(

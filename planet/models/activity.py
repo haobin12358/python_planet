@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import date
 
-from sqlalchemy import Integer, String, Date, Float, Text
+from sqlalchemy import Integer, String, Date, Float, Text, DateTime
 from planet.common.base_model import Base, Column
 
 
@@ -59,15 +59,17 @@ class GuessNum(Base):
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
+    SKUid = Column(String(64), nullable=False, comment='当日奖品')
+    PRid = Column(String(64), nullable=False, comment='当日奖品')
+    Price = Column(Float, nullable=False, comment='当日价格')
 
 
 class CorrectNum(Base):
-    """奖品和正确数字"""
+    """正确数字"""
     __tablename__ = 'CorrectNum'
     CNid = Column(String(64), primary_key=True)
     CNnum = Column(String(16), nullable=False, comment='正确的数字')
     CNdate = Column(Date, nullable=False, comment='日期')
-    SKUid = Column(String(64), nullable=False, comment='奖励sku')
 
 
 class GuessAwardFlow(Base):
@@ -76,6 +78,21 @@ class GuessAwardFlow(Base):
     GAFid = Column(String(64), primary_key=True)
     GNid = Column(String(64), nullable=False, unique=True, comment='个人参与记录')
     GAFstatus = Column(Integer, default=0, comment='领奖状态 0 待领奖, 10 已领取 20 过期')
+
+
+class GuessNumAwardApply(Base):
+    """申请参与"""
+    __tablename__ = 'GuessNumAward'
+    GNAAid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+    SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
+    GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
+    SKUprice = Column(Float, default=0.01, comment='参与价格')
+    GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
 
 # 魔术礼盒

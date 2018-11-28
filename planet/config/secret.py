@@ -51,10 +51,6 @@ ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 kd_api_code = env.get('KDApiKey', 'guess')
 kd_api_url = 'https://kdwlcxf.market.alicloudapi.com/kdwlcx'
 
-# 域名
-PLANET_SERVICE = 'https://planetservice.daaiti.cn'
-PLANET_SUBSCRIBE = 'https://planetsubscribe.daaiti.cn'
-PLANET = 'https://planet.daaiti.cn'
 
 SERVICE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SERVICE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')

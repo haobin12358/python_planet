@@ -7,13 +7,15 @@ import uuid
 
 from flask import request
 from flask import current_app
+from flask import make_response
 from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
-from planet.config.secret import PLANET, PLANET_SERVICE, PLANET_SUBSCRIBE, SERVICE_APPID, SERVICE_APPSECRET, \
+from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
+from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
     WXLoginError
@@ -26,15 +28,15 @@ from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.config.timeformat import format_for_db
 
-from planet.models.user import User, UserLoginTime, UserCommission, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes
+from planet.models import User, UserLoginTime, UserCommission, \
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
 from planet.models.trade import OrderPart
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import mp_server, mp_subscribe, db
+
 
 class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 1
@@ -105,6 +107,15 @@ class CUser(SUser, BASEAPPROVAL):
             gennerc_log('get timenow ={0}, sendtime = {1}'.format(timenow, idcode.createtime))
             raise ParamsError('验证码已经过期')
         return True
+
+    def __decode_token(self, s):
+        """解析token 的 string 为 dict"""
+        if not isinstance(s, str):
+            raise TypeError('参数异常')
+        model_str = s.split('.')[1]
+        model_str = model_str.encode()
+        model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
+        return json.loads(model_byte.decode('utf-8'))
 
     @get_session
     def login(self):
@@ -240,11 +251,13 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('token error')
         # todo 插入 优惠券信息
         # user.add('优惠券')
+        uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('uscoupon', uscoupon or 0)
         return Success('获取首页用户信息成功', data=user)
 
     @get_session
@@ -258,12 +271,12 @@ class CUser(SUser, BASEAPPROVAL):
         user.fields = self.USER_FIELDS[:]
         umfront = self.get_usermedia(user.USid, 1)
         if umfront:
-            user.fill('umfront', umfront.UMurl)
+            user.fill('umfront', umfront['UMurl'])
         else:
             user.fill('umfront', None)
         umback = self.get_usermedia(user.USid, 2)
         if umback:
-            user.fill('umback', umback.UMurl)
+            user.fill('umback', umback['UMurl'])
         else:
             user.fill('umback', None)
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
@@ -552,8 +565,8 @@ class CUser(SUser, BASEAPPROVAL):
         if user.USlevel == 3:
             raise AuthorityError("已经提交了审批！！！")
         # 如果需要可以在此更新自己联系方式以及性别。
-        if data.get('ustelphone'):
-            user.UStelphone = data.get("ustelphone")
+        # if data.get('ustelphone'):
+        #     user.UStelphone = data.get("ustelphone")
 
         if data.get("usgender"):
             user.USgender = data.get("usgender")
@@ -732,24 +745,40 @@ class CUser(SUser, BASEAPPROVAL):
     def user_sign_in(self):
         """用户签到"""
         user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
+
         if not user:
             raise ParamsError('token error')
 
-        ui_model = self.get_ui_by_id(request.user.id)
+        ui_model = UserIntegral.query.filter_by_(USid=request.user.id, UIaction=UserIntegralAction.signin.value)\
+            .order_by(UserIntegral.createtime.desc()).first()
+
         today = datetime.datetime.now()
+
+        yesterday = today - datetime.timedelta(days=1)
         if ui_model:
             gennerc_log('ui model time %s , today date %s' % (ui_model.createtime.date(), today.date()))
 
-        if ui_model and ui_model.createtime.date() == today.date():
-            raise TimeError('今天已经签到')
+            if ui_model.createtime.date() == today.date():
+                raise TimeError('今天已经签到')
+            elif ui_model.createtime.date() == yesterday.date():
+                gennerc_log('连续签到增加天数 原来是 %s' % user.UScontinuous)
+                user.UScontinuous = (user.UScontinuous or 0) + 1
+                gennerc_log('更新后为 uscontinuous %s' %user.UScontinuous)
+            else:
+                user.UScontinuous = 1
+                gennerc_log('今天开始重新签到 uscontinuous %s' % user.UScontinuous)
+        else:
+            user.UScontinuous = 1
+            gennerc_log('今天是第一次签到 uscontinuous %s' % user.UScontinuous)
+
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': request.user.id,
             'UIintegral': ConfigSettings().get_item('integralbase', 'integral'),
-            'UIaction': 1,
-            'UItype': 1
+            'UIaction': UserIntegralAction.signin.value,
+            'UItype': UserIntegralType.income.value
         })
+
         db.session.add(ui)
         user.USintegral += int(ui.UIintegral)
         return Success('签到成功')
@@ -924,6 +953,7 @@ class CUser(SUser, BASEAPPROVAL):
 
     @get_session
     def get_wxconfig(self):
+        """获取微信参数"""
         url = request.args.get("url", request.url)
         gennerc_log('get url %s' % url)
         app_from = request.args.get('app_from', )
@@ -933,17 +963,9 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("get wx config %s" % data)
         return Success('获取微信参数成功', data=data)
 
-    def __decode_token(self, s):
-        """解析token 的 string 为 dict"""
-        if not isinstance(s, str):
-            raise TypeError('参数异常')
-        model_str = s.split('.')[1]
-        model_str = model_str.encode()
-        model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
-        return json.loads(model_byte.decode('utf-8'))
-
     @get_session
     def wx_login(self):
+        """微信登录"""
         # args = request.args.to_dict()
         args = request.json
         app_from = args.get("app_from")
@@ -1015,6 +1037,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def bing_telphone(self):
+        """微信绑定后手机号绑定"""
         user_openid = self.get_user_by_id(request.user.id)
         if not user_openid:
             raise ParamsError('token error')
@@ -1050,3 +1073,33 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': return_user})
+
+
+    @get_session
+    @token_required
+    def get_discount(self):
+        user = self.get_user_by_id(request.user.id)
+        gennerc_log('get user is {0}'.format(user))
+        if not user:
+            raise ParamsError('token error')
+        today = datetime.datetime.now().date()
+        yesterday = today - datetime.timedelta(days=1)
+        signintime = UserIntegral.query.filter_by_(USid=request.user.id, UIaction=UserIntegralAction.signin.value). \
+            order_by(UserIntegral.createtime.desc()).first()
+        if signintime:
+            signin_today = bool(today == signintime.createtime.date())
+            if yesterday == signintime.createtime.date():
+                user.UScontinuous = 0
+        else:
+            signin_today = False
+        cfg = ConfigSettings()
+        rule = cfg.get_item('integralrule', 'rule')
+
+        dis_dict = {
+            'usintegral': user.USintegral,
+            'uscontinuous': user.UScontinuous or 0,
+            'signin_today': signin_today,
+            'integralrule': rule
+        }
+        return Success('获取优惠中心成功', data=dis_dict)
+
