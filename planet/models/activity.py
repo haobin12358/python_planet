@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import Integer, String, Date, Float, Text
 from planet.common.base_model import Base, Column
@@ -12,7 +12,7 @@ class TrialCommodity(Base):
     TCtitle = Column(String(255), nullable=False, comment='标题')
     TCdescription = Column(Text, comment='商品描述')
     TCdeposit = Column(Float, nullable=False, comment='押金')
-    TCdeadline = Column(Integer, nullable=False, default=30, comment='押金期限{单位:天}')
+    TCdeadline = Column(Integer, nullable=False, default=31, comment='押金期限{单位:天}')
     TCfreight = Column(Float, default=0, comment='运费')
     TCstocks = Column(Integer, comment='库存')
     TCsalesValue = Column(Integer, default=0, comment='销量')
@@ -22,6 +22,7 @@ class TrialCommodity(Base):
     TCdesc = Column(Text, comment='商品详细介绍', url_list=True)
     TCremarks = Column(String(255), comment='备注')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
+    PBid = Column(String(64), comment='品牌id')
 
 
 class TrialCommodityImage(Base):
@@ -40,6 +41,7 @@ class TrialCommoditySku(Base):
     TCid = Column(String(64), nullable=False, comment='试用商品id')
     SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
+    SKUprice = Column(Float, nullable=False, comment='价格')
     SKUstock = Column(Integer, comment='库存')
 
 

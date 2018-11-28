@@ -10,5 +10,6 @@ class ATrialCommodity(Resource):
     def get(self, commodity):
         apis = {
             'get': self.ctrialcommodity.get_commodity_list,
+            'get_commodity': self.ctrialcommodity.get_commodity,
         }
         return apis
