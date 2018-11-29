@@ -78,7 +78,7 @@ class SBase(object):
         return model_bean_dict
 
     @contextmanager
-    def auto_commit(self, func=None, args=[]):
+    def auto_commit(self, func=None, args=()):
         try:
             yield self.session
             self.session.commit()
