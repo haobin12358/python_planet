@@ -218,6 +218,15 @@ class TrialCommodityStatus(Enum):
     all = None
 
 
+class ActivityType(Enum):
+    """活动类型"""
+    fresh_man = 0, '新人'
+    guess_num = 1, '猜数字'
+    magic_box = 2, '魔术礼盒'
+    free_use = 3, '免费试用'
+
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

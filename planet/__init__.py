@@ -7,6 +7,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v1.AActivity import AActivity
 from planet.api.v1.ATrialCommodity import ATrialCommodity
 from planet.api.v1.ABrands import ABrands
 from planet.api.v1.ACart import ACart
@@ -127,6 +128,7 @@ def register_v1(app):
     v1.add_url_rule('/approval/<string:approval>', view_func=Aapproval.as_view('approval'))
     v1.add_url_rule('/guess_num/<string:guess_num>', view_func=AGuessNum.as_view('guess_num'))
     v1.add_url_rule('/commodity/<string:commodity>', view_func=ATrialCommodity.as_view('commodity'))
+    v1.add_url_rule('/activity/<string:activity>', view_func=AActivity.as_view('activity'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

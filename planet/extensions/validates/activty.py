@@ -8,6 +8,11 @@ from planet.models.activity import GuessNum
 from .base_form import *
 
 
+class ActivityUpdateForm(BaseForm):
+    acid = StringField(validators=[DataRequired('请输入活动id')])
+
+
+
 class GuessNumCreateForm(BaseForm):
     gnnum = StringField('猜测的数字', validators=[DataRequired('请输入数字')])
 
