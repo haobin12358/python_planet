@@ -291,7 +291,7 @@ class COrder(CPay, CCoupon):
             # 状态
             # 副单售后状态信息
             if order_part.OPisinORA is True:
-                opid = order_part.OPId
+                opid = order_part.OPid
                 order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
                 order_part.fill('order_refund_apply', order_refund_apply_instance)
                 # 售后发货状态
