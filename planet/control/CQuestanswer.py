@@ -137,11 +137,11 @@ class CQuestanswer():
             raise AuthorityError('权限不足')
 
         qo_list = QuestOutline.query.filter_(
-            QuestOutline.isdelete == False).order_by(QuestOutline.createtime).all()
+            QuestOutline.isdelete == False).order_by(QuestOutline.createtime.desc()).all()
         for qo in qo_list:
             qo.fields = self.QuestOutlineFields[:]
             question_list = Quest.query.filter_(
-                Quest.isdelete == False, Quest.QOid == qo.QOid).order_by(Quest.createtime).all()
+                Quest.isdelete == False, Quest.QOid == qo.QOid).order_by(Quest.createtime.desc()).all()
             for question in question_list:
                 question.fields = self.QuestFields[:]
                 answer = Answer.query.filter_(Answer.QUid == question.QUid, Answer.isdelete == False).first_('问题答案遗失')

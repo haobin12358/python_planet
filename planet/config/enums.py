@@ -182,7 +182,7 @@ class UserIntegralType(Enum):
 class AdminLevel(Enum):
     super_admin = 1, '超级管理员'
     common_admin = 2, '普通管理员'
-    agent = 3, '代理商'
+    agent = 3, '供应商'
 
 
 class AdminStatus(Enum):

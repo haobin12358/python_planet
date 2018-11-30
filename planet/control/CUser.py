@@ -45,7 +45,6 @@ class CUser(SUser, BASEAPPROVAL):
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
 
-
     @staticmethod
     def __conver_idcode(idcode):
         """掩盖部分身份证号码"""
@@ -1115,3 +1114,6 @@ class CUser(SUser, BASEAPPROVAL):
         user = self.get_user_by_id(request.user.id)
 
         return self.check_idcode(data, user)
+
+    def get_admin_all_type(self):
+        return [level.zh_value for level in AdminLevel]

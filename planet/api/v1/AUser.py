@@ -43,6 +43,7 @@ class AUser(Resource):
             'get_admin_list': self.user.get_admin_list,
             'get_wxconfig': self.user.get_wxconfig,
             'get_discount': self.user.get_discount,
+            'get_admin_all_type': self.user.get_admin_all_type,
         }
         return apis
 
