@@ -23,6 +23,13 @@ class ActivityUpdateForm(BaseForm):
         self.activity = activiy
 
 
+class ActivityGetForm(BaseForm):
+    actype = IntegerField(validators=[InputRequired('请输入活动类型')])
+
+    def validate_actype(self, raw):
+        activiy = Activity.query.filter_by_({'ACtype': raw.data}).first_('活动不存在')
+        self.activity = activiy
+
 
 
 class GuessNumCreateForm(BaseForm):
