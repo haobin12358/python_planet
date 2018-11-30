@@ -1,8 +1,22 @@
 # -*- coding: utf-8 -*-
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import Integer, String, Date, Float, Text, DateTime
+from sqlalchemy import Integer, String, Date, Float, Text, DateTime, Boolean
 from planet.common.base_model import Base, Column
+
+
+class Activity(Base):
+    """活动列表控制"""
+    __tablename__ = 'Activity'
+    ACid = Column(Integer, primary_key=True)
+    ACbackGround = Column(String(255), nullable=False, url=True, comment='列表页背景图')
+    ACtopPic = Column(String(255), nullable=False, url=True, comment='顶部图 ')
+    ACbutton = Column(String(16), default='立即参与', comment='按钮文字')
+    ACtype = Column(Integer, default=0, unique=True, index=True, comment='类型 0: 新人 1 猜数字 2 魔术礼盒 3 免费试用')
+    ACshow = Column(Boolean, default=True, comment='是否开放')
+    ACdesc = Column(String(255), comment='活动描述')
+    ACname = Column(String(16), nullable=False, comment='名字')
+    ACsort = Column(Integer, comment='顺序标志')
 
 
 class TrialCommodity(Base):
@@ -12,7 +26,7 @@ class TrialCommodity(Base):
     TCtitle = Column(String(255), nullable=False, comment='标题')
     TCdescription = Column(Text, comment='商品描述')
     TCdeposit = Column(Float, nullable=False, comment='押金')
-    TCdeadline = Column(Integer, nullable=False, default=30, comment='押金期限{单位:天}')
+    TCdeadline = Column(Integer, nullable=False, default=31, comment='押金期限{单位:天}')
     TCfreight = Column(Float, default=0, comment='运费')
     TCstocks = Column(Integer, comment='库存')
     TCsalesValue = Column(Integer, default=0, comment='销量')
@@ -22,6 +36,7 @@ class TrialCommodity(Base):
     TCdesc = Column(Text, comment='商品详细介绍', url_list=True)
     TCremarks = Column(String(255), comment='备注')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
+    PBid = Column(String(64), comment='品牌id')
 
 
 class TrialCommodityImage(Base):
@@ -40,6 +55,7 @@ class TrialCommoditySku(Base):
     TCid = Column(String(64), nullable=False, comment='试用商品id')
     SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
+    SKUprice = Column(Float, nullable=False, comment='价格')
     SKUstock = Column(Integer, comment='库存')
 
 

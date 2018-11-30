@@ -4,8 +4,25 @@ from datetime import date
 from sqlalchemy import cast, Date
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.models.activity import GuessNum
+from planet.models.activity import GuessNum, Activity
 from .base_form import *
+
+
+class ActivityUpdateForm(BaseForm):
+    actype = IntegerField(validators=[InputRequired('请输入活动类型')])
+    acbackground = StringField('背景图')
+    actoppic = StringField('顶部图')
+    acbutton = StringField('按钮')
+    acdesc = StringField('活动')
+    acname = StringField('名字')
+    acsort = IntegerField('顺序标志')
+    acshow = BooleanField('是否显示')
+
+    def validate_actype(self, raw):
+        activiy = Activity.query.filter_by_({'ACtype': raw.data}).first_('活动不存在')
+        self.activity = activiy
+
+
 
 
 class GuessNumCreateForm(BaseForm):

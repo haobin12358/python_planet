@@ -23,7 +23,7 @@ from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince
+    AddressArea, AddressProvince, CouponFor
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund
@@ -99,6 +99,7 @@ class COrder(CPay, CCoupon):
             opayno = self.wx_pay.nonce_str
             model_bean = []
             mount_price = Decimal()  # 总价
+            # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
@@ -186,16 +187,27 @@ class COrder(CPay, CCoupon):
                         # 是否可以在本订单使用
                         if coupon.COuseNum and coupons.count(coid) > coupon.COuseNum:
                             raise StatusError('叠加超出限制{}'.format(coid))
-                        if coupon.PBid and coupon.PBid != pbid:
-                            raise StatusError('仅可使用指定品牌{}'.format(coid))
+
+
                         if coupon.COdownLine > order_old_price:
-                            raise StatusError('未达到满减条件{}'.format(coid))
-                        if coupon.PRid:
-                            if coupon.PRid not in prid_dict:
-                                raise StatusError('仅可用于指定商品{}'.format(coid))
-                            if coupon.COdownLine > prid_dict[prid]:
-                                raise StatusError('未达到指定商品满减{}'.format(coid))
-                            order_price = prid_dict[prid] * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                            raise StatusError('未达到满减条件: {}'.format(coid))
+
+                        # 优惠券使用对象
+                        coupon_fors = self._coupon_for(coid)
+                        coupon_for_pbids = self._coupon_for_pbids(coupon_fors)
+                        if coupon_for_pbids:  # 品牌金额限制
+                            if pbid not in coupon_for_pbids:
+                                raise StatusError('优惠券{}仅可使用指定品牌'.format(coid))
+                        coupon_for_prids = self._coupon_for_prids(coupon_fors)
+                        if coupon_for_prids:
+                            if not set(coupon_for_prids).intersection(set(prid_dict)):
+                                raise StatusError('优惠券{}仅可用于指定商品'.format(coid))
+                            coupon_for_sum = sum([Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
+                            if coupon.COdownLine > coupon_for_sum:
+                                raise StatusError('优惠券{}未达到指定商品满减'.format(coid))
+                            # order_price = prid_dict[prid] * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                            reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
+                            order_price = order_old_price - reduce_price
                             # 减少金额计算
                             reduce_price = order_old_price - order_price
                         else:
@@ -279,7 +291,7 @@ class COrder(CPay, CCoupon):
             # 状态
             # 副单售后状态信息
             if order_part.OPisinORA is True:
-                opid = order_part.OPId
+                opid = order_part.OPid
                 order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
                 order_part.fill('order_refund_apply', order_refund_apply_instance)
                 # 售后发货状态
@@ -547,7 +559,7 @@ class COrder(CPay, CCoupon):
         if extentions:
             data.append(  #
                 {
-                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True).count(),
+                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid).count(),
                     'name': '售后中',
                     'status': 'refund'
                 }
@@ -594,4 +606,14 @@ class COrder(CPay, CCoupon):
         order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime')
         return order_refund_instance
 
+    def _coupon_for(self, coid):
+        return CouponFor.query.filter_by({'COid': coid}).all()
+
+    @staticmethod
+    def _coupon_for_pbids(coupon_for):
+        return [x.PBid for x in coupon_for if x.PBid]
+
+    @staticmethod
+    def _coupon_for_prids(coupon_for):
+        return [x.PRid for x in coupon_for if x.PRid]
 
