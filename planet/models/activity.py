@@ -128,7 +128,7 @@ class MagicBoxApply(Base):
     Gearsone = Column(String(64), nullable=False, comment='第一档 [2-1, 230-3]')
     Gearstwo = Column(String(64), nullable=False, comment='第二档 [2-1, 230-3]')
     Gearsthree = Column(String(64), nullable=False, comment='第三档 [2-1, 230-3]')
-    MBAstatus = Column(Integer, autoincrement=0, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    MBAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
