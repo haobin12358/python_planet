@@ -11,3 +11,9 @@ class AActivity(Resource):
             'list': self.cactivity.list,
         }
         return apis
+
+    def post(self, activity):
+        apis = {
+            'update': self.cactivity.update,
+        }
+        return apis
