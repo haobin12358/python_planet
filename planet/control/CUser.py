@@ -1133,3 +1133,7 @@ class CUser(SUser, BASEAPPROVAL):
     def get_admin_all_status(self):
         """获取后台管理员所有状态"""
         return {status.name: status.zh_value for status in AdminStatus}
+
+    # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
+    # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
+    # todo 佣金配置文件修改接口
