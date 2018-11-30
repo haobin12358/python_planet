@@ -9,5 +9,12 @@ class AActivity(Resource):
     def get(self, activity):
         apis = {
             'list': self.cactivity.list,
+            'get': self.cactivity.get,
+        }
+        return apis
+
+    def post(self, activity):
+        apis = {
+            'update': self.cactivity.update,
         }
         return apis

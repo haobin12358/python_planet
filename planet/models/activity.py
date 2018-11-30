@@ -95,7 +95,7 @@ class GuessAwardFlow(Base):
 
 
 class GuessNumAwardApply(Base):
-    """申请参与"""
+    """申请参与猜数字"""
     __tablename__ = 'GuessNumAward'
     GNAAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), nullable=False, comment='供应商id')
@@ -110,7 +110,29 @@ class GuessNumAwardApply(Base):
 
 
 # 魔术礼盒
-class MagicBox(Base):
-    __tablename__ = 'MagicBox'
-    MBid = Column(String(64), primary_key=True)
+# class MagicBox(Base):
+#     __tablename__ = 'MagicBox'
+#     MBid = Column(String(64), primary_key=True)
+#
+
+class MagicBoxApply(Base):
+    __tablename__ = 'MagicBoxApply'
+    MBAid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), nullable=False, comment='供应商id')
+    SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    MBAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
+    MBAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
+    SKUprice = Column(Float, nullable=False, comment='原价')
+    SKUminPrice = Column(Float, nullable=False, comment='最低价')
+    Gearsone = Column(String(64), nullable=False, comment='第一档 [2-1, 230-3]')
+    Gearstwo = Column(String(64), nullable=False, comment='第二档 [2-1, 230-3]')
+    Gearsthree = Column(String(64), nullable=False, comment='第三档 [2-1, 230-3]')
+    MBAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, comment='最终确认结束时间')
+
+
+
+
 

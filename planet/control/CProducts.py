@@ -125,7 +125,18 @@ class CProducts:
                 filter_args.append(or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
             else:
                 filter_args.append(Items.ITauthority == int(itauthority))
-        products = self.sproduct.get_product_list(filter_args, [order_by, ])
+        # products = self.sproduct.get_product_list(filter_args, [order_by, ])
+        query = Products.query.filter(Products.isdelete == False). \
+            outerjoin(
+            ProductItems, ProductItems.PRid == Products.PRid
+        ).outerjoin(
+            ProductBrand, ProductBrand.PBid == Products.PBid
+        ).outerjoin(Items, Items.ITid == ProductItems.ITid). \
+            filter_(*filter_args)
+        # 后台的一些筛选条件
+        # todo 增加筛选条件
+
+        products = query.order_by(order_by).all_with_page()
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
