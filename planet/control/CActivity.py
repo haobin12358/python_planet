@@ -36,7 +36,16 @@ class CActivity:
     def update(self):
         """设置活动的基本信息"""
         form = ActivityUpdateForm().valid_data()
-        acid = form.acid.data
         with db.auto_commit():
-            act = Activity.query.filter_by_({'ACid': acid}).first_('活动不存在')
-
+            act = form.activity
+            act.update({
+                'ACbackGround': form.acbackground.data,
+                'ACtopPic': form.actoppic.data,
+                'ACbutton': form.acbutton.data,
+                'ACshow': form.acshow.data,
+                'ACdesc': form.acdesc.data,
+                'ACname': form.acname.data,
+                'ACsort': form.acsort.data,
+            })
+            db.session.add(act)
+        return Success('修改成功')

@@ -29,9 +29,7 @@ class CNews(object):
         if not is_tourist():
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('get user is {0}'.format(user.USname))
-            if not user:
-                raise TokenError('token error')
+            gennerc_log('User {0} is get all news'.format(user.USname))
             tourist = 0
         else:
             usid = None
@@ -111,7 +109,7 @@ class CNews(object):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                gennerc_log('get user is {0}'.format(user.USname))
+                gennerc_log('User {0} is get news content'.format(user.USname))
                 tourist = 0
         else:
             usid = None
@@ -182,9 +180,7 @@ class CNews(object):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('get user is {0}'.format(user.USname))
-            if not user:
-                raise TokenError('token error')
+            gennerc_log('User {0} is create news'.format(user.USname))
         data = parameter_required(('netitle', 'netext', 'items', 'source'))
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
@@ -247,21 +243,22 @@ class CNews(object):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('get user is {0}'.format(user.USname))
+            gennerc_log('User {0} is favorite news'.format(user.USname))
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
         tftype = data.get('tftype')  # {1:点赞, 0:点踩}
         if not re.match(r'^[0|1]$', str(tftype)):
             raise ParamsError('tftype, 参数异常')
-        msg = '取消成功'
+        msg = '已取消'
         is_favorite = self.snews.news_is_favorite(neid, usid)
         is_trample = self.snews.news_is_trample(news.NEid, usid)
 
         if str(tftype) == '1':
             if not is_favorite:
                 if is_trample:
-                    raise StatusError('请取消踩后再赞')
+                    # raise StatusError('请取消踩后再赞')
+                    self.snews.cancel_trample(neid, usid)  # 改为自动取消
                 with self.snews.auto_commit() as s:
                     news_favorite = NewsFavorite.create({
                         'NEFid': str(uuid.uuid1()),
@@ -269,7 +266,7 @@ class CNews(object):
                         'USid': usid
                     })
                     s.add(news_favorite)
-                msg = '点赞成功'
+                msg = '已赞同'
             else:
                 cancel_favorite = self.snews.cancel_favorite(neid, usid)
                 if not cancel_favorite:
@@ -277,7 +274,8 @@ class CNews(object):
         else:
             if not is_trample:
                 if is_favorite:
-                    raise StatusError('请取消赞后再踩')
+                    # raise StatusError('请取消赞后再踩')
+                    self.snews.cancel_favorite(neid, usid)
                 with self.snews.auto_commit() as sn:
                     news_trample = NewsTrample.create({
                         'NETid': str(uuid.uuid1()),
@@ -285,16 +283,20 @@ class CNews(object):
                         'USid': usid
                     })
                     sn.add(news_trample)
-                msg = '踩了一下'
+                msg = '已反对'
             else:
                 cancel_trample = self.snews.cancel_trample(neid, usid)
                 if not cancel_trample:
                     raise SystemError('服务器繁忙')
         favorite = self.snews.news_is_favorite(neid, usid)
         favorite = 1 if favorite else 0
-        trample = self.snews.news_is_trample(news.NEid, usid)
+        favorite_count = self.snews.get_news_favorite_count(neid)
+        trample = self.snews.news_is_trample(neid, usid)
         trample = 1 if trample else 0
-        return Success(message=msg, data={'neid': neid, 'is_favorite': favorite, 'is_trample': trample})
+        trample_count = self.snews.get_news_trample_count(neid)
+        return Success(message=msg, data={'neid': neid, 'is_favorite': favorite, 'is_trample': trample,
+                                          'favorite_count': favorite_count, 'trample_count': trample_count
+                                          })
 
     def get_news_comment(self):
         """获取资讯评论"""
@@ -302,9 +304,7 @@ class CNews(object):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                gennerc_log('get user is {0}'.format(user.USname))
-                if not user:
-                    raise TokenError('token error')
+                gennerc_log('User {0} is get news comment'.format(user.USname))
                 tourist = 0
         else:
             usid = None
@@ -315,52 +315,55 @@ class CNews(object):
                                                      NewsComment.NCparentid.is_(None), NewsComment.NCrootid.is_(None)))
         comment_total_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False).count()
         for news_comment in news_comments:
-            reply_comments = NewsComment.query.filter(NewsComment.NEid == neid,
-                                                      NewsComment.isdelete == False,
-                                                      NewsComment.NCrootid == news_comment.NCid
-                                                      ).order_by(NewsComment.createtime.desc()).all()
-            reply_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False,
-                                                   NewsComment.NCrootid == news_comment.NCid).count()
-            favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
-            for reply_comment in reply_comments:
-                re_user = self.fill_user_info(reply_comment.USid)
-                reply_comment.fill('commentuser', re_user['USname'])
-                replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid,))
-                repliedusername = replied_user.USname if replied_user else '匿名用户'
-                if repliedusername == re_user['USname']:
-                    repliedusername = ''
-                reply_comment.fill('replieduser', repliedusername)
-                if usid:
-                    is_own = 1 if usid == reply_comment.USid else 0
-                else:
-                    is_own = 0
-                reply_comment.fill('is_own', is_own)
-            news_comment.fill('favorite_count', favorite_count)
-            news_comment.fill('reply_count', reply_count)
-            news_comment.fill('reply', reply_comments)
-            user_info = self.fill_user_info(news_comment.USid)
-            news_comment.fill('user', user_info)
-            if usid:
-                is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
-                favorite = 1 if is_favorite else 0
-                is_own = 1 if usid == news_comment.USid else 0
-            else:
-                favorite = 0
-                is_own = 0
-            news_comment.fill('is_own', is_own)
-            news_comment.fill('is_favorite', favorite)
-            createtime = news_comment.createtime or datetime.now()
-            createtime = str(createtime).replace('-', '/')[:19]
-            news_comment.fill('createtime', createtime)
+            self._get_one_comment(news_comment, neid, usid)
         return Success(data=news_comments).get_body(comment_count=comment_total_count, istourist=tourist)
+
+    def _get_one_comment(self, news_comment, neid, usid=None):
+        reply_comments = NewsComment.query.filter(NewsComment.NEid == neid,
+                                                  NewsComment.isdelete == False,
+                                                  NewsComment.NCrootid == news_comment.NCid
+                                                  ).order_by(NewsComment.createtime.desc()).all()
+        reply_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False,
+                                               NewsComment.NCrootid == news_comment.NCid).count()
+        favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
+        for reply_comment in reply_comments:
+            re_user = self.fill_user_info(reply_comment.USid)
+            reply_comment.fill('commentuser', re_user['USname'])
+            replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid,))
+            repliedusername = replied_user.USname if replied_user else '匿名用户'
+            if repliedusername == re_user['USname']:
+                repliedusername = ''
+            reply_comment.fill('replieduser', repliedusername)
+            if usid:
+                is_own = 1 if usid == reply_comment.USid else 0
+            else:
+                is_own = 0
+            reply_comment.fill('is_own', is_own)
+        news_comment.fill('favorite_count', favorite_count)
+        news_comment.fill('reply_count', reply_count)
+        news_comment.fill('reply', reply_comments)
+        user_info = self.fill_user_info(news_comment.USid)
+        news_comment.fill('user', user_info)
+        if usid:
+            is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
+            favorite = 1 if is_favorite else 0
+            is_own = 1 if usid == news_comment.USid else 0
+        else:
+            favorite = 0
+            is_own = 0
+        news_comment.fill('is_own', is_own)
+        news_comment.fill('is_favorite', favorite)
+        createtime = news_comment.createtime or datetime.now()
+        # createtime = str(createtime).replace('-', '/')[:19]
+        createtime = str(createtime)[:19]
+        news_comment.fill('createtime', createtime)
+        return news_comment
 
     @token_required
     def create_comment(self):
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        gennerc_log('get user is {0}'.format(user.USname))
-        if not user:
-            raise TokenError('token error')
+        gennerc_log('User {0} is create comment'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
         self.snews.get_news_content({'NEid': neid, 'isdelete': False})
@@ -376,12 +379,14 @@ class CNews(object):
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
-            re_data = comment_ncid
+            # 评论后返回刷新结果
+            news_comment = NewsComment.query.filter_by_(NCid=comment_ncid).first()
+            self._get_one_comment(news_comment, neid, usid)
         else:
-            news_comment = NewsComment.query.filter(NewsComment.NCid == ncid, NewsComment.isdelete == False).first()
-            if not news_comment:
+            ori_news_comment = NewsComment.query.filter(NewsComment.NCid == ncid, NewsComment.isdelete == False).first()
+            if not ori_news_comment:
                 raise NotFound('该评论已删除')
-            ncrootid = news_comment.NCrootid
+            ncrootid = ori_news_comment.NCrootid
             if not ncrootid:
                 ncrootid = ncid
             with self.snews.auto_commit() as r:
@@ -394,8 +399,10 @@ class CNews(object):
                     'NCrootid': ncrootid,
                 })
                 r.add(reply)
-            re_data = reply_ncid
-        return Success('评论成功', data={'ncid': re_data})
+            # 评论后返回刷新结果
+            news_comment = NewsComment.query.filter_by_(NCid=ncrootid).first()
+            self._get_one_comment(news_comment, neid, usid)
+        return Success('评论成功', data=news_comment)
 
     @token_required
     def comment_favorite(self):
