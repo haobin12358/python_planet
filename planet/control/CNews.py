@@ -13,7 +13,7 @@ from planet.common.token_handler import token_required, is_tourist, admin_requir
 from planet.config.enums import ItemType, NewsStatus
 from planet.control.CCoupon import CCoupon
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products
+    Products, CouponUser
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -159,6 +159,8 @@ class CNews(object):
                 coupon = Coupon.query.filter_by_(COid=coid).first()
                 coupon_detail = CCoupon()._title_subtitle(coupon)
                 coupon.fill('title_subtitle', coupon_detail)
+                coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first() if usid else False
+                coupon.fill('ready_collected', bool(coupon_user))
                 coupon_info.append(coupon)
             news.fill('coupon', coupon_info)
         # 关联的商品
@@ -451,9 +453,7 @@ class CNews(object):
                                            ).first_('未找到该评论或已被删除')
         if usid == comment.USid:
             if comment.NCrootid is None:
-                del_reply = self.snews.del_comment(NewsComment.NCrootid == ncid)
-                if not del_reply:
-                    raise SystemError('服务器繁忙')
+                self.snews.del_comment(NewsComment.NCrootid == ncid)  # 删除评论下的回复
             del_comment = self.snews.del_comment(NewsComment.NCid == ncid)
             if not del_comment:
                 raise SystemError('服务器繁忙')

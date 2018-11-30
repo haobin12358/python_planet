@@ -212,9 +212,10 @@ class GuessAwardFlowStatus(Enum):
 
 
 class TrialCommodityStatus(Enum):
-    """使用商品状态"""
+    """试用商品状态"""
     upper = (0, '上架')
     off_shelves = (10, '下架')
+    auditing = (20, '审核中')
     all = None
 
 
