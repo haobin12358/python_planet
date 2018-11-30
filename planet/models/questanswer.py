@@ -37,3 +37,13 @@ class AnswerUser(Base):
     QAUid = Column(String(64), primary_key=True)
     QAid = Column(String(64), comment='答案')
     USid = Column(String(64), comment='查看人')
+
+
+class QuestAnswerNote(Base):
+    """问题修改记录表"""
+    __tablename__ = 'QuestAnswerNote'
+    QANid = Column(String(64), primary_key=True)
+    QANcontent = Column(Text, comment='操作记录')
+    QANcreateid = Column(String(64), comment='操作人di')
+    QANtargetId = Column(String(64), comment='修改的id')
+    QANtype = Column(Integer, default=0, comment='修改的类型 0: 问题分类, 1: 问题, 2: 回答')

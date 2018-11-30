@@ -10,13 +10,15 @@ class AQuestanswer(Resource):
 
     def post(self, qa):
         apis = {
-            'add_questoutline': self.qa.add_questoutline
+            'add_questoutline': self.qa.add_questoutline,
+            'add_questanswer': self.qa.add_questanswer,
         }
         return apis
 
     def get(self, qa):
         apis = {
-            'get_all': self.qa.get_all,
+            'get_all_quest': self.qa.get_all_quest,
             'get_answer': self.qa.get_answer,
+            'get_all': self.qa.get_all,
         }
         return apis

@@ -227,6 +227,11 @@ class ActivityType(Enum):
     free_use = 3, '免费试用'
 
 
+class QuestAnswerNoteType(Enum):
+    qo = 0, '问题分类'
+    qu = 1, '问题'
+    qa = 2, '回答'
+
 
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
