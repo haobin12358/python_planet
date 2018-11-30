@@ -58,6 +58,14 @@ with app.app_context():
             'ITposition': ItemPostion.other.value,
             'ITauthority': ItemPostion.other.value,
         })
+        upgrade_product = Items.create({
+            'ITid': 'upgrade_product',
+            'ITname': '开店大礼包',
+            'ITdesc': '开店大礼包',
+            'ITposition': ItemPostion.other.value,
+            'ITauthority': ItemPostion.other.value,
+        })
+
         s_list.append(guess_num_award)
         db.session.add_all(s_list)
 

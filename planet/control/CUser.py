@@ -550,7 +550,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
             db.session.add(um_front)
             db.session.add(um_back)
-            return
+            return Success('实名认证成功', data=check_message)
         raise ParamsError('实名认证失败：{0}'.format(check_message))
         # return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
 
@@ -570,6 +570,9 @@ class CUser(SUser, BASEAPPROVAL):
 
         if data.get("usgender"):
             user.USgender = data.get("usgender")
+
+        # todo 查看是否购买了大礼包
+
         user.USlevel = 3
         # 资质认证
         self.check_idcode(data, user)
@@ -1078,6 +1081,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_discount(self):
+        """获取优惠中心"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
@@ -1103,3 +1107,11 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取优惠中心成功', data=dis_dict)
 
+    @get_session
+    @token_required
+    def authentication_real_name(self):
+        """实名认证"""
+        data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
+        user = self.get_user_by_id(request.user.id)
+
+        return self.check_idcode(data, user)
