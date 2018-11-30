@@ -30,7 +30,7 @@ class TrialCommodity(Base):
     TCfreight = Column(Float, default=0, comment='运费')
     TCstocks = Column(Integer, comment='库存')
     TCsalesValue = Column(Integer, default=0, comment='销量')
-    TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10下架')
+    TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10 下架, 20 审核中')
     TCmainpic = Column(String(255), comment='主图', url=True)
     TCattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     TCdesc = Column(Text, comment='商品详细介绍', url_list=True)

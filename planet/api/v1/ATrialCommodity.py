@@ -13,3 +13,9 @@ class ATrialCommodity(Resource):
             'get_commodity': self.ctrialcommodity.get_commodity,
         }
         return apis
+
+    def post(self, commodity):
+        apis = {
+            'add': self.ctrialcommodity.add_commodity,
+        }
+        return apis
