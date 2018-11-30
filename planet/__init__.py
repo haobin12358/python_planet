@@ -28,6 +28,7 @@ from planet.api.v1.AUser import AUser
 from planet.api.v1.ANews import ANews
 from planet.api.v1.AAddress import AAddress
 from planet.api.v1.AApproval import Aapproval
+from planet.api.v1.AQuestanswer import AQuestanswer
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -129,6 +130,7 @@ def register_v1(app):
     v1.add_url_rule('/guess_num/<string:guess_num>', view_func=AGuessNum.as_view('guess_num'))
     v1.add_url_rule('/commodity/<string:commodity>', view_func=ATrialCommodity.as_view('commodity'))
     v1.add_url_rule('/activity/<string:activity>', view_func=AActivity.as_view('activity'))
+    v1.add_url_rule('/qa/<string:qa>', view_func=AQuestanswer.as_view('qa'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

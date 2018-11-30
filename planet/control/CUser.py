@@ -583,25 +583,25 @@ class CUser(SUser, BASEAPPROVAL):
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
             # 创建后台账号用其手机号作为账号
             # adid = str(uuid.uuid1())
-            adinstance = Admin.create({
-                'ADid': user.USid,
-                'ADname': str(user.UStelphone),
-                'ADtelphone': str(user.UStelphone),
-                'ADfirstname': str(user.UStelphone),
-                'ADpassword': generate_password_hash(str(user.UStelphone[-6:])),
-                'ADfirstpwd': str(user.UStelphone[-6:]),
-                'ADheader': user.USheader,
-                'ADlevel': 3,
-                'ADstatus': 0,
-            })
-            an_instance = AdminNotes.create({
-                'ANid': str(uuid.uuid1()),
-                'ADid': user.USid,
-                'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
-                "ANdoneid": request.user.id
-            })
-            db.session.add(adinstance)
-            db.session.add(an_instance)
+            # adinstance = Admin.create({
+            #     'ADid': user.USid,
+            #     'ADname': str(user.UStelphone),
+            #     'ADtelphone': str(user.UStelphone),
+            #     'ADfirstname': str(user.UStelphone),
+            #     'ADpassword': generate_password_hash(str(user.UStelphone[-6:])),
+            #     'ADfirstpwd': str(user.UStelphone[-6:]),
+            #     'ADheader': user.USheader,
+            #     'ADlevel': 3,
+            #     'ADstatus': 0,
+            # })
+            # an_instance = AdminNotes.create({
+            #     'ANid': str(uuid.uuid1()),
+            #     'ADid': user.USid,
+            #     'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
+            #     "ANdoneid": request.user.id
+            # })
+            # db.session.add(adinstance)
+            # db.session.add(an_instance)
             return Success('申请成功')
         else:
             raise ParamsError(','.join(check_reason))
