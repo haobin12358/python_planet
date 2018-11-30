@@ -202,6 +202,7 @@ class AdminAction(Enum):
     ADheader = '头像'
     ADlevel = '用户等级'
     ADstatus = '用户状态'
+    ADtelphone = '手机号码'
 
 
 class GuessAwardFlowStatus(Enum):
@@ -231,6 +232,11 @@ class QuestAnswerNoteType(Enum):
     qo = 0, '问题分类'
     qu = 1, '问题'
     qa = 2, '回答'
+
+
+class UserLoginTimetype(Enum):
+    user = 1, '用户'
+    admin = 2, '管理员'
 
 
 if __name__ == '__main__':

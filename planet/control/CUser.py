@@ -12,7 +12,8 @@ from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
+from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
+    UserLoginTimetype
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -900,7 +901,10 @@ class CUser(SUser, BASEAPPROVAL):
         if data.get('adheader'):
             update_admin['ADheader'] = data.get("adheader")
             action_list.append(str(AdminAction.ADheader.value) + '\n')
-
+        if data.get('adtelphone'):
+            self.__check_identifyingcode(data.get('adtelphone'), data.get('identifyingcode'))
+            update_admin['ADtelphone'] = data.get('adtelphone')
+            action_list.append(str(AdminAction.ADtelphone.value) + '为' + str(data.get("adtelphone")) + '\n')
         password = data.get('adpassword')
         if password:
             self.__check_password(password)
@@ -947,9 +951,15 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError('权限不足')
         admins = self.get_admins()
         for admin in admins:
-            admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime']
+            admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
             admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
+            admin_login = UserLoginTime.query.filter_by_(
+                USid=admin.ADid, ULtype=UserLoginTimetype.admin.value).order_by(UserLoginTime.createtime.desc()).first()
+            logintime = None
+            if admin_login:
+                logintime = admin_login.createtime
+            admin.fill('logintime', logintime)
 
         return Success('获取管理员列表成功', data=admins)
 
@@ -1116,4 +1126,10 @@ class CUser(SUser, BASEAPPROVAL):
         return self.check_idcode(data, user)
 
     def get_admin_all_type(self):
-        return [level.zh_value for level in AdminLevel]
+
+        """获取后台管理员所有身份"""
+        return {level.name: level.zh_value for level in AdminLevel}
+
+    def get_admin_all_status(self):
+        """获取后台管理员所有状态"""
+        return {status.name: status.zh_value for status in AdminStatus}
