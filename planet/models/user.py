@@ -186,3 +186,18 @@ class AddressArea(Base):
     AAid = Column(String(8), primary_key=True, comment='区县id')
     AAname = Column(String(32), nullable=False, comment='区县名')
     ACid = Column(String(8), nullable=False, comment='市名')
+
+
+class UserSalesVolume(Base):
+    """用户销售额 按月统计，需要总额需要累加"""
+    __tablename__ = 'UserSalesvolume'
+    USVid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    USVamount = Column(DECIMAL(precision=28, scale=2), comment='月度总额')
+
+
+class UserInvitation(Base):
+    """用户邀请记录表"""
+    __tablename__ = 'UserInvitation'
+    UINid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='邀请人')

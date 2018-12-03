@@ -21,6 +21,7 @@ class AUser(Resource):
             'update_admin': self.user.update_admin,
             'wx_login': self.user.wx_login,
             'bing_telphone': self.user.bing_telphone,
+            'update_admin_password': self.user.update_admin_password,
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
