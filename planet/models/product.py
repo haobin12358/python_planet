@@ -194,7 +194,8 @@ class Supplizer(Base):
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 待定')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
-    SUbank = Column(String(32), comment='卡号')
+    SUbanksn = Column(String(32), comment='卡号')
+    SUbankname = Column(String(64), comment='银行')
     # 其他
 
 
@@ -204,3 +205,10 @@ class SupplizerProduct(Base):
     SPid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, index=True, comment='商品id')
     SUid = Column(String(64), nullable=False, comment='供应商id')
+
+
+# class SupplizerBrand(Base):
+#     """供应商品牌表"""
+#     SUBid = Column(String(64), primary_key=True)
+#     PBid = Column(String(64), nullable=False, comment='品牌id')
+#     SUid = Column(String(64), nullable=False, comment='供应商id')
