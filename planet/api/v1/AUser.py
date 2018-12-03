@@ -32,7 +32,7 @@ class AUser(Resource):
             'get_home': self.user.get_home,
             'get_all_address': self.user.get_useraddress,
             'get_one_address': self.user.get_one_address,
-            # 'check_idcode': self.user.check_idcode,
+            'check_idcode': self.user.authentication_real_name,
             # 'get_profile': self.user.get_profile,
             # 'get_safecenter': self.user.get_safecenter,
             'get_identifyinginfo': self.user.get_identifyinginfo,
@@ -43,6 +43,8 @@ class AUser(Resource):
             'get_admin_list': self.user.get_admin_list,
             'get_wxconfig': self.user.get_wxconfig,
             'get_discount': self.user.get_discount,
+            'get_admin_all_type': self.user.get_admin_all_type,
+            'get_admin_all_status': self.user.get_admin_all_status,
         }
         return apis
 

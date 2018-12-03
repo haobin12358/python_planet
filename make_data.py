@@ -17,7 +17,7 @@ def make_items():
             'ITauthority': ItemAuthrity.no_limit.value,
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_hot_items)
+        # s_list.append(index_hot_items)
         new_user_items = Items.create({  # 新人推荐标签
             'ITid': 'new_user',
             'ITname': '新人商品',
@@ -26,7 +26,7 @@ def make_items():
             'ITauthority': ItemAuthrity.new_user.value,
             'ITposition': ItemPostion.new_user_page.value
         })
-        s_list.append(new_user_items)
+        # s_list.append(new_user_items)
         index_brands_items = Items.create({
             'ITid': 'index_brand',
             'ITname': '品牌推荐',
@@ -34,14 +34,14 @@ def make_items():
             'ITtype': ItemType.brand.value,
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_brands_items)
+        # s_list.append(index_brands_items)
         index_brands_product_items = Items.create({
             'ITid': 'index_brand_product',
             'ITname': '品牌推荐商品',
             'ITdesc': '这是首页才会出现的品牌商品',
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_brands_product_items)
+        # s_list.append(index_brands_product_items)
 
         index_recommend_product_for_you_items = Items.create({
             'ITid': 'index_recommend_product_for_you',
@@ -49,7 +49,18 @@ def make_items():
             'ITdesc': '首页的为您推荐的商品',
             'ITposition': ItemPostion.index.value
         })
-        s_list.append(index_recommend_product_for_you_items)
+
+        upgrade_product = Items.create({
+            'ITid': 'upgrade_product',
+            'ITname': '开店大礼包',
+            'ITdesc': '开店大礼包',
+            'ITposition': ItemPostion.other.value,
+            'ITauthority': ItemPostion.other.value,
+        })
+
+        # s_list.append(guess_num_award)
+        # db.session.add_all(s_list)
+        s_list.append(upgrade_product)
         db.session.add_all(s_list)
 
 
@@ -65,6 +76,8 @@ def make_acvitity():
             'ACname': '新人首单',
             'ACsort': 0
         })
+
+
         db.session.add(fresh)
         guess = Activity.create({
             'ACid': 1,
@@ -103,6 +116,7 @@ def make_acvitity():
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        make_acvitity()
+        make_items()
+
 
 

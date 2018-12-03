@@ -74,6 +74,7 @@ class Admin(Base):
     """
     __tablename__ = 'Admin'
     ADid = Column(String(64), primary_key=True)
+    ADnum = Column(Integer, autoincrement=True)
     ADname = Column(String(255), comment='管理员名')
     ADtelphone = Column(String(13), comment='管理员联系电话')
     ADpassword = Column(Text, nullable=False, comment='密码')

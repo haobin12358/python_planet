@@ -12,7 +12,8 @@ from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction
+from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
+    UserLoginTimetype
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -44,7 +45,6 @@ class CUser(SUser, BASEAPPROVAL):
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
-
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -550,7 +550,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
             db.session.add(um_front)
             db.session.add(um_back)
-            return
+            return Success('实名认证成功', data=check_message)
         raise ParamsError('实名认证失败：{0}'.format(check_message))
         # return Success('获取验证信息成功', data={'result': check_result, 'reason': check_message})
 
@@ -570,6 +570,9 @@ class CUser(SUser, BASEAPPROVAL):
 
         if data.get("usgender"):
             user.USgender = data.get("usgender")
+
+        # todo 查看是否购买了大礼包
+
         user.USlevel = 3
         # 资质认证
         self.check_idcode(data, user)
@@ -580,25 +583,25 @@ class CUser(SUser, BASEAPPROVAL):
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
             # 创建后台账号用其手机号作为账号
             # adid = str(uuid.uuid1())
-            adinstance = Admin.create({
-                'ADid': user.USid,
-                'ADname': str(user.UStelphone),
-                'ADtelphone': str(user.UStelphone),
-                'ADfirstname': str(user.UStelphone),
-                'ADpassword': generate_password_hash(str(user.UStelphone[-6:])),
-                'ADfirstpwd': str(user.UStelphone[-6:]),
-                'ADheader': user.USheader,
-                'ADlevel': 3,
-                'ADstatus': 0,
-            })
-            an_instance = AdminNotes.create({
-                'ANid': str(uuid.uuid1()),
-                'ADid': user.USid,
-                'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
-                "ANdoneid": request.user.id
-            })
-            db.session.add(adinstance)
-            db.session.add(an_instance)
+            # adinstance = Admin.create({
+            #     'ADid': user.USid,
+            #     'ADname': str(user.UStelphone),
+            #     'ADtelphone': str(user.UStelphone),
+            #     'ADfirstname': str(user.UStelphone),
+            #     'ADpassword': generate_password_hash(str(user.UStelphone[-6:])),
+            #     'ADfirstpwd': str(user.UStelphone[-6:]),
+            #     'ADheader': user.USheader,
+            #     'ADlevel': 3,
+            #     'ADstatus': 0,
+            # })
+            # an_instance = AdminNotes.create({
+            #     'ANid': str(uuid.uuid1()),
+            #     'ADid': user.USid,
+            #     'ANaction': '{0}申请代理商创建管理员{1} 等级{2}'.format(user.USname, adinstance.ADname, adinstance.ADlevel),
+            #     "ANdoneid": request.user.id
+            # })
+            # db.session.add(adinstance)
+            # db.session.add(an_instance)
             return Success('申请成功')
         else:
             raise ParamsError(','.join(check_reason))
@@ -898,7 +901,10 @@ class CUser(SUser, BASEAPPROVAL):
         if data.get('adheader'):
             update_admin['ADheader'] = data.get("adheader")
             action_list.append(str(AdminAction.ADheader.value) + '\n')
-
+        if data.get('adtelphone'):
+            self.__check_identifyingcode(data.get('adtelphone'), data.get('identifyingcode'))
+            update_admin['ADtelphone'] = data.get('adtelphone')
+            action_list.append(str(AdminAction.ADtelphone.value) + '为' + str(data.get("adtelphone")) + '\n')
         password = data.get('adpassword')
         if password:
             self.__check_password(password)
@@ -945,9 +951,15 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError('权限不足')
         admins = self.get_admins()
         for admin in admins:
-            admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime']
+            admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
             admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
+            admin_login = UserLoginTime.query.filter_by_(
+                USid=admin.ADid, ULtype=UserLoginTimetype.admin.value).order_by(UserLoginTime.createtime.desc()).first()
+            logintime = None
+            if admin_login:
+                logintime = admin_login.createtime
+            admin.fill('logintime', logintime)
 
         return Success('获取管理员列表成功', data=admins)
 
@@ -1078,6 +1090,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_discount(self):
+        """获取优惠中心"""
         user = self.get_user_by_id(request.user.id)
         gennerc_log('get user is {0}'.format(user))
         if not user:
@@ -1103,3 +1116,24 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取优惠中心成功', data=dis_dict)
 
+    @get_session
+    @token_required
+    def authentication_real_name(self):
+        """实名认证"""
+        data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
+        user = self.get_user_by_id(request.user.id)
+
+        return self.check_idcode(data, user)
+
+    def get_admin_all_type(self):
+
+        """获取后台管理员所有身份"""
+        return {level.name: level.zh_value for level in AdminLevel}
+
+    def get_admin_all_status(self):
+        """获取后台管理员所有状态"""
+        return {status.name: status.zh_value for status in AdminStatus}
+
+    # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
+    # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
+    # todo 佣金配置文件修改接口

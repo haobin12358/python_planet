@@ -211,7 +211,7 @@ class CProducts:
             # sku
             for sku in skus:
                 skuattritedetail = sku.get('skuattritedetail')
-                if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
+                if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
                 skuprice = sku.get('skuprice')
                 skustock = sku.get('skustock')

@@ -182,7 +182,7 @@ class UserIntegralType(Enum):
 class AdminLevel(Enum):
     super_admin = 1, '超级管理员'
     common_admin = 2, '普通管理员'
-    agent = 3, '代理商'
+    agent = 3, '供应商'
 
 
 class AdminStatus(Enum):
@@ -202,6 +202,7 @@ class AdminAction(Enum):
     ADheader = '头像'
     ADlevel = '用户等级'
     ADstatus = '用户状态'
+    ADtelphone = '手机号码'
 
 
 class GuessAwardFlowStatus(Enum):
@@ -212,9 +213,10 @@ class GuessAwardFlowStatus(Enum):
 
 
 class TrialCommodityStatus(Enum):
-    """使用商品状态"""
+    """试用商品状态"""
     upper = (0, '上架')
     off_shelves = (10, '下架')
+    auditing = (20, '审核中')
     all = None
 
 
@@ -225,6 +227,16 @@ class ActivityType(Enum):
     magic_box = 2, '魔术礼盒'
     free_use = 3, '免费试用'
 
+
+class QuestAnswerNoteType(Enum):
+    qo = 0, '问题分类'
+    qu = 1, '问题'
+    qa = 2, '回答'
+
+
+class UserLoginTimetype(Enum):
+    user = 1, '用户'
+    admin = 2, '管理员'
 
 
 if __name__ == '__main__':
