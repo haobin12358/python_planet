@@ -41,6 +41,8 @@ class OrderFrom(Enum):
     carts = 0, '购物车'
     product_info = 10, '商品详情'
     guess_num_award = 30, '猜数字奖品'
+    fresh_man = 40, '新人商品'
+    magic_box = 50, '帮拆礼盒'
 
 
 class OrderMainStatus(Enum):

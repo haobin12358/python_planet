@@ -37,10 +37,20 @@ class COrder(CPay, CCoupon):
         usid = form.usid.data
         issaler = form.issaler.data  # 是否是卖家
         filter_args = form.omstatus.data  # 过滤参数
+        omfrom = form.omfrom.data  # 来源
         if issaler:  # 卖家
             filter_args.append(OrderMain.PRcreateId == usid)  # todo
         else:
             filter_args.append(OrderMain.USid == usid)
+        # 过滤下活动产生的订单
+        if not omfrom:
+            filter_args.append(
+                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+            )
+        else:
+            filter_args.append(
+                OrderMain.OMfrom == omfrom
+            )
         order_mains = self.strade.get_ordermain_list(filter_args)
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
