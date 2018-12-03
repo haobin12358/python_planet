@@ -954,6 +954,7 @@ class CUser(SUser, BASEAPPROVAL):
             admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
             admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
+            admin.fill('ADpassword', '*' * 6)
             admin_login = UserLoginTime.query.filter_by_(
                 USid=admin.ADid, ULtype=UserLoginTimetype.admin.value).order_by(UserLoginTime.createtime.desc()).first()
             logintime = None
@@ -1128,11 +1129,13 @@ class CUser(SUser, BASEAPPROVAL):
     def get_admin_all_type(self):
 
         """获取后台管理员所有身份"""
-        return {level.name: level.zh_value for level in AdminLevel}
+        data = {level.name: level.zh_value for level in AdminLevel}
+        return Success('获取所有身份成功', data=data)
 
     def get_admin_all_status(self):
         """获取后台管理员所有状态"""
-        return {status.name: status.zh_value for status in AdminStatus}
+        data = {status.name: status.zh_value for status in AdminStatus}
+        return Success('获取所有状态成功', data=data)
 
     # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
     # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
