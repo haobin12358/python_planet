@@ -43,7 +43,7 @@ class COrder(CPay, CCoupon):
         else:
             filter_args.append(OrderMain.USid == usid)
         # 过滤下活动产生的订单
-        if not omfrom:
+        if omfrom is None:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
