@@ -12,13 +12,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype
+    UserLoginTimetype, UserStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
-    WXLoginError
+    WXLoginError, StatusError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin
@@ -27,9 +27,10 @@ from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.config.timeformat import format_for_db
+from planet.extensions.validates.user import SupplizerLoginForm
 
 from planet.models import User, UserLoginTime, UserCommission, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, Supplizer
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems
@@ -1133,6 +1134,25 @@ class CUser(SUser, BASEAPPROVAL):
         user = self.get_user_by_id(request.user.id)
 
         return self.check_idcode(data, user)
+
+    def supplizer_login(self):
+        """供应商登录"""
+        # 手机号登录
+        form = SupplizerLoginForm().valid_data()
+        sulinkphone = form.mobile.data
+        password = form.password.data
+        supplizer = Supplizer.query.filter_by_({'SUlinkPhone': sulinkphone}).first_()
+        if not supplizer or supplizer.SUpassword != password:
+            raise NotFound('手机号或密码错误')
+        if supplizer.SUstatus == UserStatus.forbidden.value:
+            raise StatusError('账户禁用')
+        jwt = usid_to_token(supplizer.SUid, 'Supplizer')  # 供应商jwt
+        supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
+        return Success('登录成功', data={
+            'token': jwt,
+            'supplizer': supplizer
+        })
+
 
     def get_admin_all_type(self):
 

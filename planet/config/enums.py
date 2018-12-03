@@ -2,6 +2,12 @@
 from .base_enum import Enum
 
 
+class UserStatus(Enum):
+    """user状态,供应商状态"""
+    usual = 0, '正常'
+    forbidden = 10, '禁用'
+
+
 class ProductStatus(Enum):
     """商品状态"""
     usual = (0, '正常')
@@ -43,6 +49,7 @@ class OrderFrom(Enum):
     guess_num_award = 30, '猜数字奖品'
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
+    trial_commodity = 60, '试用商品'
 
 
 class OrderMainStatus(Enum):

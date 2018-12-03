@@ -3,14 +3,15 @@ import json
 import uuid
 
 from flask import request
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, not_
 
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
-from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory
+from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
+    SupplizerProduct, ProductScene, Supplizer
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
 
@@ -131,12 +132,22 @@ class CProducts:
             ProductItems, ProductItems.PRid == Products.PRid
         ).outerjoin(
             ProductBrand, ProductBrand.PBid == Products.PBid
-        ).outerjoin(Items, Items.ITid == ProductItems.ITid). \
-            filter_(*filter_args)
+        ).outerjoin(Items, Items.ITid == ProductItems.ITid)
         # 后台的一些筛选条件
-        # todo 增加筛选条件
-
-        products = query.order_by(order_by).all_with_page()
+        # 供应源筛选
+        suid = data.get('suid')
+        if suid and suid != 'planet':
+            query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid)
+            filter_args.append(
+                SupplizerProduct.SUid == suid
+            )
+        elif suid:
+            query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
+                SupplizerProduct.SUid.is_(None)
+            )
+        products = query. \
+            filter_(*filter_args).\
+              order_by(order_by).all_with_page()
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
@@ -145,6 +156,16 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+            # 供应商
+            supplizer = Supplizer.query.join(
+                SupplizerProduct, SupplizerProduct.SUid == Supplizer.SUid
+            ).filter_(
+                SupplizerProduct.PRid == product.PRid
+            ).first()
+            if not supplizer:
+                product.fill('supplizer', '平台')
+            else:
+                product.fill('supplizer', supplizer.SUname)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw != [''] and not is_tourist():

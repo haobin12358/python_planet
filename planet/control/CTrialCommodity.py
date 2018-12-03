@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
+from decimal import Decimal
 from flask import request, current_app
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import is_tourist, admin_required
-from planet.config.enums import TrialCommodityStatus, ActivityType
+from planet.common.token_handler import is_tourist, admin_required, token_required
+from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType
+from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
-from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity
+from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
+    UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay
 
 
-class CTrialCommodity(object):
+class CTrialCommodity(COrder):
 
     def get_commodity_list(self):
         if not is_tourist():
@@ -156,15 +159,119 @@ class CTrialCommodity(object):
             db.session.add_all(session_list)
         return Success("添加成功", {'tcid': tcid})
 
+    @token_required
+    def create_order(self):
+        data = parameter_required(('tcid', 'pbid', 'skuid', 'nums', 'omclient', 'uaid', 'opaytype'))
+        usid = request.user.id
+        user = self._verify_user(usid)
+        current_app.logger.info('User {} is buying a trialcommodity'.format(user.USname))
+        uaid = data.get('uaid')
+        tcid = data.get('tcid')
+        opaytype = data.get('opaytype')  # 支付方式
+        try:
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            Client(omclient)
+        except Exception:
+            raise ParamsError('客户端来源错误')
+        with db.auto_commit():
+            # 用户的地址信息
+            user_address_instance = db.session.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            omrecvphone = user_address_instance.UAphone
+            areaid = user_address_instance.AAid
+            # 地址拼接
+            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
+            opayno = self.wx_pay.nonce_str
+            model_bean = []
 
+            omid = str(uuid.uuid1())
+            pbid = data.get('pbid')
+            ommessage = data.get('ommessage')
+            product_brand_instance = db.session.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
 
+            opid = str(uuid.uuid1())
+            skuid = data.get('skuid')
+            opnum = int(data.get('nums', 1))
+            assert opnum > 0, 'nums <= 0, 参数错误'
+            sku_instance = db.session.query(TrialCommoditySku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+            if sku_instance.TCid != tcid:
+                raise ParamsError('skuid 与 tcid, 商品不对应')
+            product_instance = db.session.query(TrialCommodity).filter_by_({'TCid': tcid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+            if product_instance.PBid != pbid:
+                raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+            small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+            order_part_dict = {
+                'OMid': omid,
+                'OPid': opid,
+                'PRid': product_instance.TCid,
+                'SKUid': skuid,
+                'PRattribute': product_instance.TCattribute,
+                'SKUattriteDetail': sku_instance.SKUattriteDetail,
+                'PRtitle': product_instance.TCtitle,
+                'SKUprice': sku_instance.SKUprice,
+                'PRmainpic': product_instance.TCmainpic,
+                'OPnum': opnum,
+                'OPsubTotal': small_total,
+            }
+            order_part_instance = OrderPart.create(order_part_dict)
+            model_bean.append(order_part_instance)
 
+            # 对应商品销量 + num sku库存 -num
+            db.session.query(TrialCommodity).filter_by_(TCid=tcid).update({
+                'TCsalesValue': TrialCommodity.TCsalesValue + opnum, 'TCstocks': TrialCommodity.TCstocks - opnum
+            })
+            db.session.query(TrialCommoditySku).filter_by_(SKUid=skuid).update({
+                'SKUstock': TrialCommoditySku.SKUstock - opnum
+            })
+            # 主单
+            order_main_dict = {
+                'OMid': omid,
+                'OMno': self._generic_omno(),
+                'OPayno': opayno,
+                'USid': usid,
+                'OMfrom': OrderFrom.trial_commodity.value,
+                'PBname': product_brand_instance.PBname,
+                'PBid': pbid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0 / product_instance.TCfreight
+                'OMmount': small_total,
+                'OMmessage': ommessage,
+                'OMtrueMount': small_total,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                'UseCoupon': False  # 使用商品不能试用优惠券
+            }
+            order_main_instance = OrderMain.create(order_main_dict)
+            model_bean.append(order_main_instance)
 
-
-
-
-
-
+            # 支付数据表
+            order_pay_dict = {
+                'OPayid': str(uuid.uuid4()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': small_total,
+            }
+            order_pay_instance = OrderPay.create(order_pay_dict)
+            model_bean.append(order_pay_instance)
+            db.session.add_all(model_bean)
+        # 生成支付信息
+        body = product_instance.TCtitle
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建成功', data=response)
 
     @staticmethod
     def _verify_user(usid):
