@@ -2,6 +2,12 @@
 from .base_enum import Enum
 
 
+class UserStatus(Enum):
+    """user状态,供应商状态"""
+    usual = 0, '正常'
+    forbidden = 10, '禁用'
+
+
 class ProductStatus(Enum):
     """商品状态"""
     usual = (0, '正常')

@@ -187,15 +187,17 @@ class ProductCategory(Base):
 class Supplizer(Base):
     """供应商"""
     __tablename__ = 'Supplizer'
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话,登录使用')
     SUid = Column(String(64), primary_key=True)
     SUname = Column(String(16), nullable=False, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
-    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
-    SUstatus = Column(Integer, default=0, comment='状态, 待定')
+    SUstatus = Column(Integer, default=0, comment='状态, 0 正常 10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
+    SUpassword = Column(String(255), comment='供应商密码密文')
+    SUheader = Column(String(255), comment='头像', url=True)
     # 其他
 
 
