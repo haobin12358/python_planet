@@ -204,6 +204,3 @@ class SupplizerProduct(Base):
     SPid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, index=True, comment='商品id')
     SUid = Column(String(64), nullable=False, comment='供应商id')
-
-
-

@@ -109,6 +109,7 @@ class CActivity:
                 GuessNumAwardApply.AgreeEndtime >= today,
                 MagicBoxApply.isdelete == False,
             ).first_('活动未在进行')
+            act_instance.ACdesc = act_instance.ACdesc.split('|')
             act_instance.fill('prpic', apply.PRmainpic)
         return Success(data=act_instance)
 

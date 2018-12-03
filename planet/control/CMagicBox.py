@@ -6,3 +6,6 @@ class CMagixBox:
         """好友帮拆"""
         pass
 
+    def create(self):
+        """参与活动"""
+        pass
