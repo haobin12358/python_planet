@@ -198,6 +198,7 @@ class Supplizer(Base):
     SUbankname = Column(String(64), comment='银行')
     SUpassword = Column(String(255), comment='供应商密码密文')
     SUheader = Column(String(255), comment='头像', url=True)
+    SUcontract = Column(Text, url_list=True, comment='合同列表')
     # 其他
 
 
