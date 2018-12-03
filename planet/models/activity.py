@@ -147,7 +147,7 @@ class MagixBoxOpen(Base):
     USid = Column(String(64), nullable=False, comment='拆盒子之人')
     MBJid = Column(String(64), nullable=False, comment='参与记录')
     MBOgear = Column(Integer, nullable=False, comment='选择档位')
-    MBOresult = Column(Float, nullable=Float, comment='结果, 如 -0.25')
-    MBOprice = Column(Float, nullable=Float, comment='此时价格')
+    MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
+    MBOprice = Column(Float, nullable=False, comment='此时价格')
     MBOhasShare = Column(Boolean, default=False, comment='')
 
