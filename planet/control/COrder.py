@@ -148,7 +148,7 @@ class COrder(CPay, CCoupon):
                         'OPsubTotal': small_total,
                         # 副单商品来源
                         'PRfrom': product_instance.PRfrom,
-                        'PRcreateId': product_instance.CreaterId
+                        # 'PRcreateId': product_instance.CreaterId
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
                     model_bean.append(order_part_instance)

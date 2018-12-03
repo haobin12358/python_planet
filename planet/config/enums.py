@@ -43,6 +43,7 @@ class OrderFrom(Enum):
     guess_num_award = 30, '猜数字奖品'
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
+    trial_commodity = 60, '试用商品'
 
 
 class OrderMainStatus(Enum):
