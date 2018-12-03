@@ -1,4 +1,5 @@
 # 活动总控制
+import json
 from datetime import date
 
 from flask import request
@@ -91,14 +92,13 @@ class CActivity:
                     MagicBoxApply.isdelete == False,
                 ).first_('活动未在进行')
                 act_instance.fill('prpic', product.PRmainpic)
-                act_instance.fill('rule', {
-                    'gearsone': ['1-2'],
-                    'gearstwo': ['3-8', '5-10'],
-                    'gearsthree': ['50-60', '1000-2000']
-                })
                 magic_apply.fileds = [
-                    ''
+                    'SKUprice', 'SKUminPrice', 'Gearsone', 'Gearstwo', 'Gearsthree', 'AgreeStartime', 'AgreeEndtime'
                 ]
+                magic_apply.Gearsone = json.loads(magic_apply.Gearsone or '[]')
+                magic_apply.Gearstwo = json.loads(magic_apply.Gearstwo or '[]')
+                magic_apply.Gearsthree = json.loads(magic_apply.Gearsthree or '[]')
+                act_instance.fill('infos', magic_apply)
         elif ac_type == 'guess_num':
             apply = Products.query.join(
                 GuessNumAwardApply, GuessNumAwardApply.SKUid
