@@ -546,10 +546,17 @@ class COrder(CPay, CCoupon):
         issaler = form.issaler.data  # 是否是卖家
         extentions = form.extentions.data  # 是些扩展的查询
         if not issaler:
-            filter_args = OrderMain.USid == usid
+            filter_args = [OrderMain.USid == usid]
         else:
             # 是卖家, 卖家订单显示有问题..
-            filter_args = OrderMain.PRcreateId == usid
+            filter_args = [OrderMain.PRcreateId == usid]
+
+        # 去除一些活动订单数量
+        omfrom = form.omfrom.data
+        if omfrom is None:
+            filter_args.append(
+                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+            )
         data = [  # 获取个状态的数量, '已完成'和'已取消'除外
             {'count': self._get_order_count(filter_args, k),
              'name': getattr(OrderMainStatus, k).zh_value,
@@ -561,7 +568,7 @@ class COrder(CPay, CCoupon):
         data.insert(  #
             0,
             {
-                'count': OrderMain.query.filter_(filter_args).count(),
+                'count': OrderMain.query.filter_(*filter_args).count(),
                 'name': '全部',
                 'status': None
             }
@@ -579,7 +586,7 @@ class COrder(CPay, CCoupon):
     @staticmethod
     def _get_order_count(arg, k):
         return OrderMain.query.filter_(
-                arg,
+                *arg,
                 OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
                 OrderMain.OMinRefund == False
             ).count()

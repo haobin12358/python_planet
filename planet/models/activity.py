@@ -133,6 +133,21 @@ class MagicBoxApply(Base):
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
 
+class MagicBoxJoin(Base):
+    """参与活动"""
+    MBJid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='参与用户')
+    MABid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
+    MBJprice = Column(Float, nullable=False, comment='当前价格')
 
 
+class MagixBoxOpen(Base):
+    """拆盒记录"""
+    MBOid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='拆盒子之人')
+    MBJid = Column(String(64), nullable=False, comment='参与记录')
+    MBOgear = Column(Integer, nullable=False, comment='选择档位')
+    MBOresult = Column(Float, nullable=Float, comment='结果, 如 -0.25')
+    MBOprice = Column(Float, nullable=Float, comment='此时价格')
+    MBOhasShare = Column(Boolean, default=False, comment='')
 

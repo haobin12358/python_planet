@@ -5,3 +5,4 @@ class CMagixBox:
     def open(self):
         """好友帮拆"""
         pass
+
