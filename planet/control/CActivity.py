@@ -101,9 +101,9 @@ class CActivity:
                 act_instance.fill('infos', magic_apply)
         elif ac_type == 'guess_num':
             apply = Products.query.join(
-                GuessNumAwardApply, GuessNumAwardApply.SKUid
+                ProductSku, Products.PRid == ProductSku.PRid
             ).join(
-                ProductSku, ProductSku.SKUid == GuessNumAwardApply.SKUid
+                GuessNumAwardApply, GuessNumAwardApply.SKUid == ProductSku.SKUid
             ).filter_(
                 GuessNumAwardApply.AgreeStartime <= today,
                 GuessNumAwardApply.AgreeEndtime >= today,
