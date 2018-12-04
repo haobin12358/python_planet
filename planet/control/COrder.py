@@ -17,7 +17,8 @@ from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
-    ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
+    ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
+    ActivityOrderNavigation
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -49,9 +50,8 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
         else:
-            filter_args.append(
-                OrderMain.OMfrom == omfrom
-            )
+            filter_args.append(OrderMain.OMfrom == omfrom)
+            filter_args.append(OrderMain.OMinRefund == False)
         order_mains = self.strade.get_ordermain_list(filter_args)
 
         for order_main in order_mains:
@@ -559,43 +559,56 @@ class COrder(CPay, CCoupon):
         form = OrderListForm().valid_data()
         usid = form.usid.data
         issaler = form.issaler.data  # 是否是卖家
-        extentions = form.extentions.data  # 是些扩展的查询
+        extentions = form.extentions.data  # 是否扩展的查询
+        ordertype = form.ordertype.data  # 区分活动订单
         if not issaler:
             filter_args = [OrderMain.USid == usid]
         else:
             # 是卖家, 卖家订单显示有问题..
             filter_args = [OrderMain.PRcreateId == usid]
 
-        # 去除一些活动订单数量
-        omfrom = form.omfrom.data
-        if omfrom is None:
+        # 获取各类活动下的订单数量
+        if ordertype == 'act':
+            data = [
+                {'count': self._get_act_order_count(filter_args, k),
+                 'name': getattr(ActivityOrderNavigation, k).zh_value,
+                 'omfrom': getattr(ActivityOrderNavigation, k).value}
+                for k in ActivityOrderNavigation.all_member()
+            ]
+        else:
+            # 去除一些活动订单数量
+            # omfrom = form.omfrom.data
+            # if omfrom is None:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
-        data = [  # 获取个状态的数量, '已完成'和'已取消'除外
-            {'count': self._get_order_count(filter_args, k),
-             'name': getattr(OrderMainStatus, k).zh_value,
-             'status': getattr(OrderMainStatus, k).value}
-            for k in OrderMainStatus.all_member() if k not in [
-                OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+            data = [  # 获取各状态的数量, '已完成'和'已取消'除外
+                {'count': self._get_order_count(filter_args, k),
+                 'name': getattr(OrderMainStatus, k).zh_value,
+                 'status': getattr(OrderMainStatus, k).value}
+                for k in OrderMainStatus.all_member() if k not in [
+                    OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+                ]
             ]
-        ]
-        data.insert(  #
-            0,
-            {
-                'count': OrderMain.query.filter_(*filter_args).count(),
-                'name': '全部',
-                'status': None
-            }
-        )
-        if extentions:
-            data.append(  #
+            data.insert(  #
+                0,
                 {
-                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid).count(),
-                    'name': '售后中',
-                    'status': 'refund'
+                    'count': OrderMain.query.filter_(*filter_args).count(),
+                    'name': '全部',
+                    'status': None
                 }
             )
+            if extentions == 'refund':
+                data.append(  #
+                    {
+                        'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid,
+                                                         OrderMain.OMfrom.in_(
+                                                             [OrderFrom.carts.value, OrderFrom.product_info.value]
+                                                         )).count(),
+                        'name': '售后中',
+                        'status': 'refund'
+                    }
+                )
         return Success(data=data)
 
     @token_required
@@ -681,8 +694,6 @@ class COrder(CPay, CCoupon):
 
         return Success(data=res)
 
-
-
     @staticmethod
     def _get_order_count(arg, k):
         return OrderMain.query.filter_(
@@ -690,6 +701,14 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
                 OrderMain.OMinRefund == False
             ).count()
+
+    @staticmethod
+    def _get_act_order_count(arg, k):
+        return OrderMain.query.filter_(
+                *arg,
+                OrderMain.OMfrom == getattr(ActivityOrderNavigation, k).value,
+                OrderMain.OMinRefund == False
+        ).count()
 
     @staticmethod
     def _generic_omno():

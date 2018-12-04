@@ -14,7 +14,7 @@ from planet.config.enums import ItemType, NewsStatus
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin
+    Products, CouponUser, Admin, ProductBrand
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -173,6 +173,8 @@ class CNews(object):
             for prid in prid_list:
                 product = Products.query.filter_by_(PRid=prid).first()
                 product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRmainpic']
+                brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+                product.fill('brand', brand)
                 prid_info.append(product)
             news.fill('product', prid_info)
 
