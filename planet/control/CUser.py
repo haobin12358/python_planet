@@ -6,8 +6,6 @@ import datetime
 import uuid
 
 from flask import request
-from flask import current_app
-from flask import make_response
 from sqlalchemy import extract, or_
 from werkzeug.security import generate_password_hash
 
@@ -31,10 +29,10 @@ from planet.config.timeformat import format_for_db
 from planet.extensions.validates.user import SupplizerLoginForm
 
 from planet.models import User, UserLoginTime, UserCommission, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, Supplizer
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
-from planet.models.product import Products, Items, ProductItems
+from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db

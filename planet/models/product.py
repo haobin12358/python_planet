@@ -187,9 +187,9 @@ class ProductCategory(Base):
 class Supplizer(Base):
     """供应商"""
     __tablename__ = 'Supplizer'
-    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话,登录使用')
     SUid = Column(String(64), primary_key=True)
-    SUname = Column(String(16), nullable=False, comment='供应商名字')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话,登录使用')
+    SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 10 禁用')

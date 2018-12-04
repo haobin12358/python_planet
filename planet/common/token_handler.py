@@ -26,6 +26,10 @@ def is_admin():
     return hasattr(request, 'user') and request.user.model == 'Admin'
 
 
+def is_supplizer():
+    return hasattr(request, 'user') and request.user.model == 'Supplizer'
+
+
 def is_tourist():
     """是否是游客"""
     return not hasattr(request, 'user')
