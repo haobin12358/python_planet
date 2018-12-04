@@ -52,6 +52,7 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMfrom == omfrom
             )
         order_mains = self.strade.get_ordermain_list(filter_args)
+
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
@@ -73,6 +74,19 @@ class COrder(CPay, CCoupon):
                 if user:
                     user.fields = ['USname', 'USheader', 'USgender']
                     order_main.fill('user', user)
+                # 主单售后状态信息
+            if order_main.OMinRefund is True:
+                omid = order_main.OMid
+                order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
+                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate', 'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime']
+                order_main.fill('order_refund_apply', order_refund_apply_instance)
+                # 售后发货状态
+                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                        order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
+                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                    order_refund_instance.fields = ['ORstatus', 'ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime']
+                    order_main.fill('order_refund', order_refund_instance)
+
         return Success(data=order_mains)
 
     @token_required
@@ -85,7 +99,7 @@ class COrder(CPay, CCoupon):
         opaytype = data.get('opaytype')
         try:
             omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
-            omfrom = int(data.get('omfrom', OrderFrom.carts.value))  # 商品来源
+            omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
             Client(omclient)
             OrderFrom(omfrom)
         except Exception as e:
@@ -583,6 +597,96 @@ class COrder(CPay, CCoupon):
             )
         return Success(data=data)
 
+    @token_required
+    def get_can_use_coupon(self):
+        """获取可以使用的个人优惠券"""
+        """
+        
+       "pbid": "pbid1",
+        "skus": [
+            {
+                "skuid": "d64799ef-4477-4adb-a0de-b350cb2bc302",
+                "nums": 6
+            }
+        ]
+    }
+        """
+        # 分订单
+        order_price = Decimal()  # 订单实际价格
+        order_old_price = Decimal()  # 原价格
+        omid = str(uuid.uuid4())  # 主单id
+        info = parameter_required(('pbid', 'skus',), datafrom=info)
+        pbid = info.get('pbid')
+        skus = info.get('skus')
+        product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+        prid_dict = {}  # 一个临时的prid字典
+        for sku in skus:
+            # 订单副单
+            opid = str(uuid.uuid4())
+            skuid = sku.get('skuid')
+            opnum = int(sku.get('nums', 1))
+            assert opnum > 0
+            sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+            prid = sku_instance.PRid
+
+            product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
+                'skuid: {}对应的商品不存在'.format(skuid))
+            if product_instance.PBid != pbid:
+                raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+            small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+            order_part_dict = {
+                'OMid': omid,
+                'OPid': opid,
+                'SKUid': skuid,
+                'PRattribute': product_instance.PRattribute,
+                'SKUattriteDetail': sku_instance.SKUattriteDetail,
+                'PRtitle': product_instance.PRtitle,
+                'SKUprice': sku_instance.SKUprice,
+                'PRmainpic': product_instance.PRmainpic,
+                'OPnum': opnum,
+                'PRid': product_instance.PRid,
+                'OPsubTotal': small_total,
+                # 副单商品来源
+                'PRfrom': product_instance.PRfrom,
+                # 'PRcreateId': product_instance.CreaterId
+            }
+            order_part_instance = OrderPart.create(order_part_dict)
+            model_bean.append(order_part_instance)
+            # 订单价格计算
+            order_price += small_total
+            order_old_price += small_total
+            # 临时记录单品价格
+            prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
+            # 删除购物车
+            if omfrom == OrderFrom.carts.value:
+                s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+            # body 信息
+            body.add(product_instance.PRtitle)
+            # 对应商品销量 + num sku库存 -num
+            s.query(Products).filter_by_(PRid=prid).update({
+                'PRsalesValue': Products.PRsalesValue + opnum,
+            })
+            s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                'SKUstock': ProductSku.SKUstock - opnum
+            })
+            # 月销量 修改或新增
+            today = datetime.now()
+            month_sale_updated = s.query(ProductMonthSaleValue).filter_(
+                ProductMonthSaleValue.PRid == prid,
+                extract('month', ProductMonthSaleValue.createtime) == today.month,
+                extract('year', ProductMonthSaleValue.createtime) == today.year
+            ).update({
+                'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+            }, synchronize_session=False)
+            if not month_sale_updated:
+                month_sale_instance = ProductMonthSaleValue.create({
+                    'PMSVid': str(uuid.uuid4()),
+                    'PRid': prid,
+                    'PMSVnum': opnum
+                })
+                model_bean.append(month_sale_instance)
+
+
     @staticmethod
     def _get_order_count(arg, k):
         return OrderMain.query.filter_(
@@ -610,7 +714,7 @@ class COrder(CPay, CCoupon):
 
         order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(
             order_refund_apply_instance.ORAproductStatus).zh_value  # 是否收到货
-        order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
+        # order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
         order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime')
         return order_refund_apply_instance
 

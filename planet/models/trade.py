@@ -107,7 +107,7 @@ class OrderRefundApply(Base):
     ORAreason = Column(String(255), nullable=False, comment='退款原因')
     ORAmount = Column(Float, nullable=False, comment='退款金额')
     ORAaddtion = Column(String(255), comment='退款说明')
-    ORaddtionVoucher = Column(Text, comment='退款说明图片')
+    ORaddtionVoucher = Column(Text, comment='退款说明图片', url_list=True)
     ORAproductStatus = Column(Integer, default=0, comment='0已收货, 10 未收货')
     ORAstatus = Column(Integer, default=0, comment='状态-20已取消 -10 拒绝 0 未审核 10审核通过')
     ORAcheckReason = Column(String(255), comment='审核原因')
