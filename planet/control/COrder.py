@@ -21,6 +21,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
+from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor
@@ -611,80 +612,77 @@ class COrder(CPay, CCoupon):
         ]
     }
         """
-        # 分订单
-        order_price = Decimal()  # 订单实际价格
-        order_old_price = Decimal()  # 原价格
-        omid = str(uuid.uuid4())  # 主单id
-        info = parameter_required(('pbid', 'skus',), datafrom=info)
-        pbid = info.get('pbid')
-        skus = info.get('skus')
-        product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
-        prid_dict = {}  # 一个临时的prid字典
-        for sku in skus:
-            # 订单副单
-            opid = str(uuid.uuid4())
-            skuid = sku.get('skuid')
-            opnum = int(sku.get('nums', 1))
-            assert opnum > 0
-            sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
-            prid = sku_instance.PRid
+        usid = request.user.id
+        with self.strade.auto_commit() as s:
+            order_price = Decimal()  # 订单实际价格
+            order_old_price = Decimal()  # 原价格
+            info = parameter_required(('pbid', 'skus',))
+            pbid = info.get('pbid')
+            skus = info.get('skus')
+            s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+            prid_dict = {}  # 一个临时的prid字典
+            for sku in skus:
+                # 订单副单
+                skuid = sku.get('skuid')
+                opnum = int(sku.get('nums', 1))
+                assert opnum > 0
+                sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+                prid = sku_instance.PRid
 
-            product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
-                'skuid: {}对应的商品不存在'.format(skuid))
-            if product_instance.PBid != pbid:
-                raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
-            small_total = Decimal(str(sku_instance.SKUprice)) * opnum
-            order_part_dict = {
-                'OMid': omid,
-                'OPid': opid,
-                'SKUid': skuid,
-                'PRattribute': product_instance.PRattribute,
-                'SKUattriteDetail': sku_instance.SKUattriteDetail,
-                'PRtitle': product_instance.PRtitle,
-                'SKUprice': sku_instance.SKUprice,
-                'PRmainpic': product_instance.PRmainpic,
-                'OPnum': opnum,
-                'PRid': product_instance.PRid,
-                'OPsubTotal': small_total,
-                # 副单商品来源
-                'PRfrom': product_instance.PRfrom,
-                # 'PRcreateId': product_instance.CreaterId
-            }
-            order_part_instance = OrderPart.create(order_part_dict)
-            model_bean.append(order_part_instance)
-            # 订单价格计算
-            order_price += small_total
-            order_old_price += small_total
-            # 临时记录单品价格
-            prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
-            # 删除购物车
-            if omfrom == OrderFrom.carts.value:
-                s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
-            # body 信息
-            body.add(product_instance.PRtitle)
-            # 对应商品销量 + num sku库存 -num
-            s.query(Products).filter_by_(PRid=prid).update({
-                'PRsalesValue': Products.PRsalesValue + opnum,
-            })
-            s.query(ProductSku).filter_by_(SKUid=skuid).update({
-                'SKUstock': ProductSku.SKUstock - opnum
-            })
-            # 月销量 修改或新增
-            today = datetime.now()
-            month_sale_updated = s.query(ProductMonthSaleValue).filter_(
-                ProductMonthSaleValue.PRid == prid,
-                extract('month', ProductMonthSaleValue.createtime) == today.month,
-                extract('year', ProductMonthSaleValue.createtime) == today.year
-            ).update({
-                'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
-            }, synchronize_session=False)
-            if not month_sale_updated:
-                month_sale_instance = ProductMonthSaleValue.create({
-                    'PMSVid': str(uuid.uuid4()),
-                    'PRid': prid,
-                    'PMSVnum': opnum
+                product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
+                    'skuid: {}对应的商品不存在'.format(skuid))
+                if product_instance.PBid != pbid:
+                    raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+                small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                # 订单价格计算
+                order_price += small_total
+                order_old_price += small_total
+                # 临时记录单品价格
+                prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
+
+            res = []
+            coupon_users = s.query(CouponUser).filter_by_({'USid': usid, 'UCalreadyUse': False}).all()
+            for coupon_user in coupon_users:
+                coid = coupon_user.COid
+                coupon = s.query(Coupon).filter_by_({"COid": coid}).first_()
+                if not coupon:
+                    continue
+                # 是否过期或者已使用过
+                can_use = self._isavalible(coupon, coupon_user)
+                if not can_use:
+                    continue
+                if coupon.COdownLine > order_old_price:
+                    continue
+                # 优惠券使用对象
+                coupon_fors = self._coupon_for(coid)
+                coupon_for_pbids = self._coupon_for_pbids(coupon_fors)
+                if coupon_for_pbids:  # 品牌金额限制
+                    if pbid not in coupon_for_pbids:
+                        continue
+                coupon_for_prids = self._coupon_for_prids(coupon_fors)
+                if coupon_for_prids:
+                    if not set(coupon_for_prids).intersection(set(prid_dict)):
+                        continue
+                    coupon_for_sum = sum(
+                        [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
+                    if coupon.COdownLine > coupon_for_sum:
+                        continue
+                    reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
+
+                else:
+                    order_price = order_old_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                    reduce_price = order_old_price - order_price
+                    import ipdb
+                    ipdb.set_trace()
+                title_sub_title = self._title_subtitle(coupon)
+                coupon.fill('title_subtitle', title_sub_title)
+                res.append({
+                    'coupon': coupon,
+                    'reduce': float(reduce_price),
                 })
-                model_bean.append(month_sale_instance)
+
+        return Success(data=res)
+
 
 
     @staticmethod
