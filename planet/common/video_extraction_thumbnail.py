@@ -34,7 +34,11 @@ def video2frames(pathin,  # 视频的路径
     dur = n_frames / fps  # 视频的时间
     thumbnail_name_list = []
     if int(dur) > 60:
+        os.remove(pathin)
         raise ValueError('视频时长不能超过60秒')
+    if int(dur) < 3:
+        os.remove(pathin)
+        raise ValueError('视频时长不能少于3秒')
     # 如果only_output_video_info=True, 只输出视频信息，不提取图片
     if only_output_video_info:
         print('only output the video information (without extract frames)::::::')

@@ -15,6 +15,8 @@ class ANews(Resource):
             'favorite_comment': self.cnews.comment_favorite,
             'del_comment': self.cnews.del_comment,
             'news_shelves': self.cnews.news_shelves,
+            'update_news': self.cnews.update_news,
+            'del_news': self.cnews.del_news,
         }
         return apis
 

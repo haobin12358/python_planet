@@ -12,8 +12,9 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required
 from planet.config.enums import ItemType, NewsStatus
 from planet.control.CCoupon import CCoupon
+from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser
+    Products, CouponUser, Admin, ProductBrand
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -29,7 +30,7 @@ class CNews(object):
         if not is_tourist():
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} is get all news'.format(user.USname))
+            gennerc_log('User {0} is geting all news'.format(user.USname))
             tourist = 0
         else:
             usid = None
@@ -109,19 +110,20 @@ class CNews(object):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                gennerc_log('User {0} is get news content'.format(user.USname))
+                gennerc_log('User {0} get news content'.format(user.USname))
                 tourist = 0
         else:
             usid = None
             tourist = 1
         args = parameter_required(('neid',))
-        news = self.snews.get_news_content({'NEid': args.get('neid')})
+        neid = args.get('neid')
+        news = self.snews.get_news_content({'NEid': neid})
         news.fields = ['NEtitle', 'NEpageviews', 'NEtext']
         self.snews.update_pageviews(news.NEid)
         if usid:
-            is_favorite = self.snews.news_is_favorite(news.NEid, usid)
+            is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
-            is_trample = self.snews.news_is_trample(news.NEid, usid)
+            is_trample = self.snews.news_is_trample(neid, usid)
             trample = 1 if is_trample else 0
         else:
             favorite = 0
@@ -132,21 +134,21 @@ class CNews(object):
         news_author.fields = ['USname', 'USheader']
         # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
-        commentnumber = self.snews.get_news_comment_count(news.NEid)
+        commentnumber = self.snews.get_news_comment_count(neid)
         news.fill('commentnumber', commentnumber)
-        favoritnumber = self.snews.get_news_favorite_count(news.NEid)
+        favoritnumber = self.snews.get_news_favorite_count(neid)
         news.fill('favoritnumber', favoritnumber)
-        tramplenumber = self.snews.get_news_trample_count(news.NEid)
+        tramplenumber = self.snews.get_news_trample_count(neid)
         news.fill('tramplenumber', tramplenumber)
-        image_list = self.snews.get_news_images(news.NEid)
+        image_list = self.snews.get_news_images(neid)
         if image_list:
             [image.hide('NEid') for image in image_list]
         news.fill('image', image_list)
-        video = self.snews.get_news_video(news.NEid)
+        video = self.snews.get_news_video(neid)
         if video:
             video.hide('NEid')
             news.fill('video', video)
-        tags = self.snews.get_item_list((NewsTag.NEid == news.NEid,))
+        tags = self.snews.get_item_list((NewsTag.NEid == neid,))
         if tags:
             [tag.hide('PSid') for tag in tags]
         news.fill('items', tags)
@@ -171,6 +173,8 @@ class CNews(object):
             for prid in prid_list:
                 product = Products.query.filter_by_(PRid=prid).first()
                 product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRmainpic']
+                brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+                product.fill('brand', brand)
                 prid_info.append(product)
             news.fill('product', prid_info)
 
@@ -180,14 +184,17 @@ class CNews(object):
     def create_news(self):
         """创建资讯"""
         usid = request.user.id
-        if usid:
-            user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} is create news'.format(user.USname))
+        user = self.snews.get_user_by_id(usid)
+        gennerc_log('User {0} create a news'.format(user.USname))
         data = parameter_required(('netitle', 'netext', 'items', 'source'))
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
-        items = data.get('items')  # ['item1', 'item2',]
+        items = data.get('items')  # ['item1', 'item2']
         video = data.get('video')  # {nvurl:'url', nvthum:'url'}
+        coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
+        product = data.get('product')  # ['prid1', 'prid2']
+        coupon = json.dumps(coupon) if coupon not in self.empty else None
+        product = json.dumps(product) if product not in self.empty else None
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = News.create({
@@ -197,7 +204,9 @@ class CNews(object):
                 'NEtext': data.get('netext'),
                 # 'NEstatus': NewsStatus.auditing.value,
                 'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
-                'NEsource': data.get('source')
+                'NEsource': data.get('source'),
+                'COid': coupon,
+                'PRid': product
             })
             session_list.append(news_info)
             if images not in self.empty:
@@ -238,6 +247,98 @@ class CNews(object):
                     session_list.append(news_item_info)
             s.add_all(session_list)
         return Success('添加成功', {'neid': neid})
+
+    @admin_required
+    def update_news(self):
+        """修改资讯"""
+        # todo 管理是否只能修改自己发布的 待确认
+        usid = request.user.id
+        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
+        gennerc_log("Admin {} update news".format(user.ADname))
+        data = parameter_required(('neid',))
+        neid = data.get('neid')
+        images = data.get('images')  # [{niimg:'url', nisort:1},]
+        items = data.get('items')  # ['item1', 'item2']
+        video = data.get('video')  # {nvurl:'url', nvthum:'url'}
+        coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
+        product = data.get('product')  # ['prid1', 'prid2']
+        coupon = json.dumps(coupon) if coupon not in self.empty else None
+        product = json.dumps(product) if product not in self.empty else None
+        with self.snews.auto_commit() as s:
+            session_list = []
+            news_info = {
+                'NEtitle': data.get('netitle'),
+                'NEtext': data.get('netext'),
+                'NEstatus': NewsStatus.auditing.value,
+                # 'NEstatus': NewsStatus.usual.value,
+                'NEsource': 'web',
+                'COid': coupon,
+                'PRid': product
+            }
+            news_info = {k: v for k, v in news_info.items() if v is not None}
+            s.query(News).filter_by_(NEid=neid).update(news_info)
+            if images not in self.empty:
+                if len(images) > 4:
+                    raise ParamsError('最多只能上传四张图片')
+                s.query(NewsImage).filter_by_(NEid=neid).delete_()  # 删除原来的图片
+                for image in images:
+                    news_image_info = NewsImage.create({
+                        'NIid': str(uuid.uuid1()),
+                        'NEid': neid,
+                        'NIimage': image.get('niimg'),
+                        'NIsort': image.get('nisort')
+                    })
+                    session_list.append(news_image_info)
+            if video not in self.empty:
+                parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
+                duration_time = video.get('nvdur') or "10"
+                second = int(duration_time[-2:])
+                if second < 3:
+                    raise ParamsError('上传视频时间不能少于3秒')
+                elif second > 59:
+                    raise ParamsError('上传视频时间不能大于1分钟')
+                s.query(NewsVideo).filter_by_(NEid=neid).delete_()  # 删除原有的视频
+                news_video_info = NewsVideo.create({
+                    'NVid': str(uuid.uuid1()),
+                    'NEid': neid,
+                    'NVvideo': video.get('nvurl'),
+                    'NVthumbnail': video.get('nvthum'),
+                    'NVduration': video.get('nvdur')
+                })
+                session_list.append(news_video_info)
+            if items not in self.empty:
+                s.query(NewsTag).filter_by(NEid=neid).delete_()  # 删除原有的标题
+                for item in items:
+                    s.query(Items).filter_by_({'ITid': item, 'ITtype': ItemType.news.value}).first_('指定标签不存在')
+                    news_item_info = NewsTag.create({
+                        'NTid': str(uuid.uuid1()),
+                        'NEid': neid,
+                        'ITid': item
+                    })
+                    session_list.append(news_item_info)
+            s.add_all(session_list)
+        return Success('修改成功', {'neid': neid})
+
+    @admin_required
+    def del_news(self):
+        """删除资讯"""
+        usid = request.user.id
+        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
+        gennerc_log("Admin {} del news".format(user.ADname))
+        data = parameter_required(('neid',))
+        neid = data.get('neid')
+        News.query.filter_by_(NEid=neid).first_('没有该资讯或已被删除')
+        del_info = News.query.filter_by_(NEid=neid).delete_()
+        if not del_info:
+            raise StatusError('服务器繁忙')
+        NewsImage.query.filter_by_(NEid=neid).delete_()  # 删除图片
+        NewsVideo.query.filter_by_(NEid=neid).delete_()  # 删除视频
+        NewsTag.query.filter_by_(NEid=neid).delete_()  # 删除标签关联
+        NewsComment.query.filter_by_(NEid=neid).delete_()  # 删除评论
+        NewsFavorite.query.filter_by_(NEid=neid).delete_()  # 删除点赞
+        NewsTrample.query.filter_by_(NEid=neid).delete_()  # 删除点踩
+        db.session.commit()
+        return Success('删除成功', {'neid': neid})
 
     @token_required
     def news_favorite(self):
@@ -372,6 +473,7 @@ class CNews(object):
         ncid = data.get('ncid')
         comment_ncid = str(uuid.uuid1())
         reply_ncid = str(uuid.uuid1())
+        # 直接评论资讯
         if ncid in self.empty:
             with self.snews.auto_commit() as nc:
                 comment = NewsComment.create({
@@ -385,6 +487,7 @@ class CNews(object):
             news_comment = NewsComment.query.filter_by_(NCid=comment_ncid).first()
             self._get_one_comment(news_comment, neid, usid)
         else:
+            # 回复资讯评论
             ori_news_comment = NewsComment.query.filter(NewsComment.NCid == ncid, NewsComment.isdelete == False).first()
             if not ori_news_comment:
                 raise NotFound('该评论已删除')
@@ -475,6 +578,9 @@ class CNews(object):
     def news_shelves(self):
         """资讯上下架"""
         # todo 关联到审批流(拒绝理由)
+        usid = request.user.id
+        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
+        gennerc_log("Admin {} audit news".format(user.ADname))
         data = parameter_required(('neid', 'nestatus'))
         neid = data.get('neid')
         nestatus = data.get('nestatus')

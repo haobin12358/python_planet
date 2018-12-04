@@ -17,10 +17,12 @@ from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
-    ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore
+    ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
+    ActivityOrderNavigation
 from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
+from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor
@@ -48,10 +50,10 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
         else:
-            filter_args.append(
-                OrderMain.OMfrom == omfrom
-            )
+            filter_args.append(OrderMain.OMfrom == omfrom)
+            filter_args.append(OrderMain.OMinRefund == False)
         order_mains = self.strade.get_ordermain_list(filter_args)
+
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
@@ -73,6 +75,19 @@ class COrder(CPay, CCoupon):
                 if user:
                     user.fields = ['USname', 'USheader', 'USgender']
                     order_main.fill('user', user)
+                # 主单售后状态信息
+            if order_main.OMinRefund is True:
+                omid = order_main.OMid
+                order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
+                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate', 'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime']
+                order_main.fill('order_refund_apply', order_refund_apply_instance)
+                # 售后发货状态
+                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
+                        order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
+                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
+                    order_refund_instance.fields = ['ORstatus', 'ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime']
+                    order_main.fill('order_refund', order_refund_instance)
+
         return Success(data=order_mains)
 
     @token_required
@@ -85,7 +100,7 @@ class COrder(CPay, CCoupon):
         opaytype = data.get('opaytype')
         try:
             omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
-            omfrom = int(data.get('omfrom', OrderFrom.carts.value))  # 商品来源
+            omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
             Client(omclient)
             OrderFrom(omfrom)
         except Exception as e:
@@ -544,44 +559,140 @@ class COrder(CPay, CCoupon):
         form = OrderListForm().valid_data()
         usid = form.usid.data
         issaler = form.issaler.data  # 是否是卖家
-        extentions = form.extentions.data  # 是些扩展的查询
+        extentions = form.extentions.data  # 是否扩展的查询
+        ordertype = form.ordertype.data  # 区分活动订单
         if not issaler:
             filter_args = [OrderMain.USid == usid]
         else:
             # 是卖家, 卖家订单显示有问题..
             filter_args = [OrderMain.PRcreateId == usid]
 
-        # 去除一些活动订单数量
-        omfrom = form.omfrom.data
-        if omfrom is None:
+        # 获取各类活动下的订单数量
+        if ordertype == 'act':
+            data = [
+                {'count': self._get_act_order_count(filter_args, k),
+                 'name': getattr(ActivityOrderNavigation, k).zh_value,
+                 'omfrom': getattr(ActivityOrderNavigation, k).value}
+                for k in ActivityOrderNavigation.all_member()
+            ]
+        else:
+            # 去除一些活动订单数量
+            # omfrom = form.omfrom.data
+            # if omfrom is None:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
-        data = [  # 获取个状态的数量, '已完成'和'已取消'除外
-            {'count': self._get_order_count(filter_args, k),
-             'name': getattr(OrderMainStatus, k).zh_value,
-             'status': getattr(OrderMainStatus, k).value}
-            for k in OrderMainStatus.all_member() if k not in [
-                OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+            data = [  # 获取各状态的数量, '已完成'和'已取消'除外
+                {'count': self._get_order_count(filter_args, k),
+                 'name': getattr(OrderMainStatus, k).zh_value,
+                 'status': getattr(OrderMainStatus, k).value}
+                for k in OrderMainStatus.all_member() if k not in [
+                    OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+                ]
             ]
-        ]
-        data.insert(  #
-            0,
-            {
-                'count': OrderMain.query.filter_(*filter_args).count(),
-                'name': '全部',
-                'status': None
-            }
-        )
-        if extentions:
-            data.append(  #
+            data.insert(  #
+                0,
                 {
-                    'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid).count(),
-                    'name': '售后中',
-                    'status': 'refund'
+                    'count': OrderMain.query.filter_(*filter_args).count(),
+                    'name': '全部',
+                    'status': None
                 }
             )
+            if extentions == 'refund':
+                data.append(  #
+                    {
+                        'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid,
+                                                         OrderMain.OMfrom.in_(
+                                                             [OrderFrom.carts.value, OrderFrom.product_info.value]
+                                                         )).count(),
+                        'name': '售后中',
+                        'status': 'refund'
+                    }
+                )
         return Success(data=data)
+
+    @token_required
+    def get_can_use_coupon(self):
+        """获取可以使用的个人优惠券"""
+        """
+        
+       "pbid": "pbid1",
+        "skus": [
+            {
+                "skuid": "d64799ef-4477-4adb-a0de-b350cb2bc302",
+                "nums": 6
+            }
+        ]
+    }
+        """
+        usid = request.user.id
+        with self.strade.auto_commit() as s:
+            order_price = Decimal()  # 订单实际价格
+            order_old_price = Decimal()  # 原价格
+            info = parameter_required(('pbid', 'skus',))
+            pbid = info.get('pbid')
+            skus = info.get('skus')
+            s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+            prid_dict = {}  # 一个临时的prid字典
+            for sku in skus:
+                # 订单副单
+                skuid = sku.get('skuid')
+                opnum = int(sku.get('nums', 1))
+                assert opnum > 0
+                sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+                prid = sku_instance.PRid
+
+                product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
+                    'skuid: {}对应的商品不存在'.format(skuid))
+                if product_instance.PBid != pbid:
+                    raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+                small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                # 订单价格计算
+                order_price += small_total
+                order_old_price += small_total
+                # 临时记录单品价格
+                prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
+
+            res = []
+            coupon_users = s.query(CouponUser).filter_by_({'USid': usid, 'UCalreadyUse': False}).all()
+            for coupon_user in coupon_users:
+                coid = coupon_user.COid
+                coupon = s.query(Coupon).filter_by_({"COid": coid}).first_()
+                if not coupon:
+                    continue
+                # 是否过期或者已使用过
+                can_use = self._isavalible(coupon, coupon_user)
+                if not can_use:
+                    continue
+                if coupon.COdownLine > order_old_price:
+                    continue
+                # 优惠券使用对象
+                coupon_fors = self._coupon_for(coid)
+                coupon_for_pbids = self._coupon_for_pbids(coupon_fors)
+                if coupon_for_pbids:  # 品牌金额限制
+                    if pbid not in coupon_for_pbids:
+                        continue
+                coupon_for_prids = self._coupon_for_prids(coupon_fors)
+                if coupon_for_prids:
+                    if not set(coupon_for_prids).intersection(set(prid_dict)):
+                        continue
+                    coupon_for_sum = sum(
+                        [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
+                    if coupon.COdownLine > coupon_for_sum:
+                        continue
+                    reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
+
+                else:
+                    order_price = order_old_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                    reduce_price = order_old_price - order_price
+                title_sub_title = self._title_subtitle(coupon)
+                coupon.fill('title_subtitle', title_sub_title)
+                res.append({
+                    'coupon': coupon,
+                    'reduce': float(reduce_price),
+                })
+
+        return Success(data=res)
 
     @staticmethod
     def _get_order_count(arg, k):
@@ -590,6 +701,14 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
                 OrderMain.OMinRefund == False
             ).count()
+
+    @staticmethod
+    def _get_act_order_count(arg, k):
+        return OrderMain.query.filter_(
+                *arg,
+                OrderMain.OMfrom == getattr(ActivityOrderNavigation, k).value,
+                OrderMain.OMinRefund == False
+        ).count()
 
     @staticmethod
     def _generic_omno():
@@ -610,7 +729,7 @@ class COrder(CPay, CCoupon):
 
         order_refund_apply_instance.ORAproductStatus_zh = DisputeTypeType(
             order_refund_apply_instance.ORAproductStatus).zh_value  # 是否收到货
-        order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
+        # order_refund_apply_instance.ORaddtionVoucher = json.loads(order_refund_apply_instance.ORaddtionVoucher)
         order_refund_apply_instance.add('orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime')
         return order_refund_apply_instance
 

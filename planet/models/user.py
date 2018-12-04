@@ -187,4 +187,6 @@ class UserInvitation(Base):
     """用户邀请记录表"""
     __tablename__ = 'UserInvitation'
     UINid = Column(String(64), primary_key=True)
-    USid = Column(String(64), comment='邀请人')
+    USInviter = Column(String(64), comment='邀请人')
+    USInvited = Column(String(64), comment='被邀请人')
+

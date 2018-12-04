@@ -151,6 +151,7 @@ class CProducts:
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
+            product.fill('prstatus_zh', ProductStatus(product.PRstatus).zh_value)
             # 品牌
             brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
             product.fill('brand', brand)
