@@ -672,8 +672,6 @@ class COrder(CPay, CCoupon):
                 else:
                     order_price = order_old_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
                     reduce_price = order_old_price - order_price
-                    import ipdb
-                    ipdb.set_trace()
                 title_sub_title = self._title_subtitle(coupon)
                 coupon.fill('title_subtitle', title_sub_title)
                 res.append({
