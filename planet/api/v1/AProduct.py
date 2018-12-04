@@ -21,6 +21,7 @@ class AProduct(Resource):
             'create': self.cproduct.add_product,
             'update': self.cproduct.update_product,
             'delete': self.cproduct.delete,
+            'delete_list': self.cproduct.delete_list,
             'off_shelves': self.cproduct.off_shelves,  # 上下架
             'del_search_history': self.cproduct.del_search_history,
         }
