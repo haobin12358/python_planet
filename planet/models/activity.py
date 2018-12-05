@@ -135,19 +135,34 @@ class MagicBoxApply(Base):
 
 class MagicBoxJoin(Base):
     """参与活动"""
+    __tablename__ = 'MagicBoxJoin'
     MBJid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='参与用户')
-    MABid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
-    MBJprice = Column(Float, nullable=False, comment='当前价格')
+    MBAid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
+    MBJprice = Column(Float, nullable=False, comment='原价格')
+    MBJcurrentPrice = Column(Float, default=MBJprice, comment='当前价格')
 
 
-class MagixBoxOpen(Base):
+class MagicBoxOpen(Base):
     """拆盒记录"""
+    __tablename__ = 'MagixBoxOpen'
     MBOid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='拆盒子之人')
-    MBJid = Column(String(64), nullable=False, comment='参与记录')
+    MBJid = Column(String(64), nullable=False, comment='来源参与')
     MBOgear = Column(Integer, nullable=False, comment='选择档位')
     MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
     MBOprice = Column(Float, nullable=False, comment='此时价格')
     MBOhasShare = Column(Boolean, default=False, comment='')
 
+
+class FreshManFirstApply(Base):
+    """新人首单申请"""
+    __tablename__ = 'FreshManFirst'
+    FMFAid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), primary_key=True, comment='供应商')
+    PRid = Column(String(64), nullable=False, comment='商品id')
+    FMFAstartTime = Column(DateTime, nullable=False, comment='申请开始时间')
+    FMFAendTime = Column(DateTime, nullable=False, comment='申请结束时间')
+    FMFAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, comment='最终确认结束时间')
