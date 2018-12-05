@@ -8,7 +8,7 @@ class QuestOutline(Base):
     """问题大纲"""
     __tablename__ = 'QuestOutline'
     QOid = Column(String(64), primary_key=True)
-    QOicon = Column(Text, comment='问题大纲icon')
+    QOicon = Column(Text, url=True, comment='问题大纲icon')
     QOname = Column(Text, comment='问题大纲名称')
     QOcreateId = Column(String(64), comment='创建人id')
 

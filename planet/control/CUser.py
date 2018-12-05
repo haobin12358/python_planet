@@ -111,11 +111,14 @@ class CUser(SUser, BASEAPPROVAL):
 
     def __decode_token(self, model_str):
         """解析token 的 string 为 dict"""
-        if not isinstance(model_str, str):
-            raise TypeError('参数异常')
+        # if not isinstance(model_str, str):
+        #     raise TypeError('参数异常')
         # model_str = s.split('.')[1]
         # model_str = model_str.encode()
-        model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
+        try:
+            model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
+        except:
+            raise ParamsError('邀请人参数异常')
         return json.loads(model_byte.decode('utf-8'))
 
     @get_session
@@ -1012,7 +1015,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         if args.get('ussupper'):
             try:
-                tokenmodel = self.__decode_token(args.get('ussupper'))
+                tokenmodel = self._base_decode(args.get('ussupper'))
                 upperd = self.get_user_by_id(tokenmodel['id'])
             except:
                 upperd = None
@@ -1163,10 +1166,9 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_secret_usid(self):
         """获取base64编码后的usid"""
-        import base64
         usid = request.user.id
-        raw = usid.encode()
-        secret_usid = base64.b64encode(raw).decode()
+
+        secret_usid = self._base_encode(usid)
         return Success(data={
             'secret_usid': secret_usid,
         })
@@ -1208,3 +1210,13 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('旧密码有误')
 
         raise AuthorityError('账号已被回收')
+
+    def _base_decode(self, raw):
+        import base64
+        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+
+    def _base_encode(self, raw):
+        import base64
+        raw = raw.encode()
+        return base64.b64encode(raw).decode()
+
