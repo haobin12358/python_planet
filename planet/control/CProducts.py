@@ -10,6 +10,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
+from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer
 from planet.service.SProduct import SProducts
@@ -397,6 +398,17 @@ class CProducts:
         prid = data.get('prid')
         with self.sproduct.auto_commit() as s:
             s.query(Products).filter_by_(PRid=prid).delete_()
+        return Success('删除成功')
+
+    @token_required
+    def delete_list(self):
+        data = parameter_required(('prids', ))
+        prids = data.get('prids') or []
+        with db.auto_commit():
+            deleted = Products.query.filter(
+                Products.PRid.in_(prids)
+            ).delete_(synchronize_session=False)
+
         return Success('删除成功')
 
     @token_required

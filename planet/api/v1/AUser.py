@@ -48,6 +48,7 @@ class AUser(Resource):
             'get_discount': self.user.get_discount,
             'get_admin_all_type': self.user.get_admin_all_type,
             'get_admin_all_status': self.user.get_admin_all_status,
+            'secret_usid': self.user.get_secret_usid,  # base64编码后的usid
         }
         return apis
 
