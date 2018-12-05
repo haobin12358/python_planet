@@ -223,3 +223,62 @@ class CQuestanswer():
                 'QANtype': QuestAnswerNoteType.qu.value
             })
             db.session.add(qan_instance)
+
+    @get_session
+    @token_required
+    def delete_questoutline(self):
+        """后台管理员删除问题分类"""
+        if not is_admin():
+            raise AuthorityError('权限不足')
+        admin = Admin.query.filter_by_(Admin).first_('权限已被回收')
+        data = parameter_required(('qolist'))
+        qolist = data.get('qolist')
+        for qoid in qolist:
+            qomodel = QuestOutline.query.filter_by_(QOid=qoid).first()
+            if not qomodel:
+                continue
+            qomodel.isdelete = True
+            qulist = Quest.query.filter_by_(QOid=qoid).all()
+            for qu in qulist:
+                qu.isdelete = True
+                qalist = Answer.query.filter_by_(QUid=qu.QUid).all()
+                for qa in qalist:
+                    qa.isdelete = True
+
+            qan = QuestAnswerNote.create({
+                'QANid': str(uuid.uuid1()),
+                'QANcontent': '删除问题分类',
+                'QANcreateid': admin.ADid,
+                'QANtargetId': qoid
+            })
+            db.session.add(qan)
+        return Success('删除完成')
+
+    @get_session
+    @token_required
+    def delete_question(self):
+        """后台管理员删除问题"""
+        if not is_admin():
+            raise AuthorityError('权限不足')
+        admin = Admin.query.filter_by_(Admin).first_('权限已被回收')
+
+        data = parameter_required(('qulist'))
+        qulist = data.get('qulist')
+        for quid in qulist:
+            qu = Quest.query.filter_by_(QUid=quid).first()
+            if not qu:
+                continue
+            qu.isdelete = True
+            qalist = Answer.query.filter_by_(QUid=qu.QUid).all()
+            for qa in qalist:
+                qa.isdelete = True
+            qan = QuestAnswerNote.create({
+                'QANid': str(uuid.uuid1()),
+                'QANcontent': '删除问题',
+                'QANcreateid': admin.ADid,
+                'QANtargetId': quid,
+                'QANtype': QuestAnswerNoteType.qu.value,
+            })
+            db.session.add(qan)
+
+        return Success('删除完成')

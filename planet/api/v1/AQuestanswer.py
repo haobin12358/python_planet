@@ -12,6 +12,8 @@ class AQuestanswer(Resource):
         apis = {
             'add_questoutline': self.qa.add_questoutline,
             'add_questanswer': self.qa.add_questanswer,
+            'delete_questoutline': self.qa.delete_questoutline,
+            'delete_question': self.qa.delete_question,
         }
         return apis
 
