@@ -30,7 +30,7 @@ from planet.common.id_check import DOIDCheck
 from planet.config.timeformat import format_for_db
 from planet.extensions.validates.user import SupplizerLoginForm
 
-from planet.models import User, UserLoginTime, UserCommission, \
+from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
@@ -109,12 +109,12 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('验证码已经过期')
         return True
 
-    def __decode_token(self, s):
+    def __decode_token(self, model_str):
         """解析token 的 string 为 dict"""
-        if not isinstance(s, str):
+        if not isinstance(model_str, str):
             raise TypeError('参数异常')
-        model_str = s.split('.')[1]
-        model_str = model_str.encode()
+        # model_str = s.split('.')[1]
+        # model_str = model_str.encode()
         model_byte = base64.urlsafe_b64decode(model_str + b'=' * (-len(model_str) % 4))
         return json.loads(model_byte.decode('utf-8'))
 
@@ -1041,7 +1041,13 @@ class CUser(SUser, BASEAPPROVAL):
             # todo 根据app_from 添加不同的openid, 添加不同的usfrom
             user_dict.setdefault('USopenid1', openid)
             if upperd:
-                user_dict.setdefault('USsupper1', upperd.USid)
+                # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
+                if upperd.USlevel == self.AGENT_TYPE:
+                    user_dict.setdefault('USsupper1', upperd.USid)
+                else:
+                    uin = UserInvitation.create({
+                        'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': user.USid})
+                    db.session.add(uin)
             user = User.create(user_dict)
             db.session.add(user)
 
