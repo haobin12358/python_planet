@@ -25,6 +25,8 @@ class ActivityUpdateForm(BaseForm):
 
 class ActivityGetForm(BaseForm):
     actype = IntegerField(validators=[InputRequired('请输入活动类型')])
+    mbaid = StringField()
+    usid_base = StringField()
 
     def validate_actype(self, raw):
         activiy = Activity.query.filter_by_({'ACtype': raw.data}).first_('活动不存在')
@@ -73,6 +75,20 @@ class GuessNumHistoryForm(BaseForm):
     def validate_month(self, raw):
         if not raw.data:
             raw.data = str(date.today().month)
+
+
+class MagicBoxOpenForm(BaseForm):
+    level = SelectField(choices=[("1", 'Gearsone'),
+                                 ('2', 'Gearstwo'),
+                                 ('3', 'Gearsthree')])
+
+    usid_base = StringField()
+    mbaid = StringField('进行中的活动')
+
+
+class MagicBoxCreateForm(BaseForm):
+    mbaid = StringField('当前活动的唯一标志', validators=[DataRequired('需要传入 mbaid')])
+
 
 
 
