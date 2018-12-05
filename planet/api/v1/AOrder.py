@@ -16,6 +16,7 @@ class AOrder(Resource):
             'create_evaluation': self.corder.create_order_evaluation,
             'del_evaluation': self.corder.del_evaluation,
             'cancle': self.corder.cancle,
+            'delete': self.corder.delete,
             'order_coupons': self.corder.get_can_use_coupon,  # 创建订单时可以使用的优惠券
         }
         return apis
