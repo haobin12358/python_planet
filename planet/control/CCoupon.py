@@ -7,7 +7,7 @@ from sqlalchemy import or_
 
 from planet.common.error_response import StatusError
 from planet.common.success_response import Success
-from planet.common.token_handler import is_admin, token_required
+from planet.common.token_handler import is_admin, token_required, is_tourist
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm
@@ -20,13 +20,12 @@ class CCoupon(object):
     def __init__(self):
         self.strade = STrade()
 
-    @token_required
     def list(self):
         """获取优惠券列表"""
         form = CouponListForm().valid_data()
         itid = form.itid.data
         coupons = Coupon.query
-        usid = request.user.id
+        usid = 'tourist' if is_tourist() else request.user.id
         if itid:
             coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter_(
                 CouponItem.ITid == itid

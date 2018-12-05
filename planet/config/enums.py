@@ -133,6 +133,7 @@ class ItemPostion(Enum):
     index = 10, '首页'
     new_user_page = 20, '新人页'
     other = 30, '其他特殊'
+    news_bind = 40, '可供资讯绑定'
 
 
 class LogisticsSearchStatus(Enum):

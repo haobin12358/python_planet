@@ -54,12 +54,14 @@ class CNews(object):
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews']
             self.snews.update_pageviews(news.NEid)
+            # 显示点赞状态
             if usid:
                 is_favorite = self.snews.news_is_favorite(news.NEid, usid)
                 favorite = 1 if is_favorite else 0
             else:
                 favorite = 0
             news.fill('is_favorite', favorite)
+            # 显示审核状态
             if userid:
                 news_status = news.NEstatus
                 news.fill('zh_nestatus', NewsStatus(news_status).zh_value)
@@ -108,10 +110,9 @@ class CNews(object):
         """资讯详情"""
         if not is_tourist():
             usid = request.user.id
-            if usid:
-                user = self.snews.get_user_by_id(usid)
-                gennerc_log('User {0} get news content'.format(user.USname))
-                tourist = 0
+            user = self.snews.get_user_by_id(usid)
+            gennerc_log('User {0} get news content'.format(user.USname))
+            tourist = 0
         else:
             usid = None
             tourist = 1

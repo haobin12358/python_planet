@@ -18,6 +18,27 @@ def make_items():
             'ITposition': ItemPostion.index.value
         })
         # s_list.append(index_hot_items)
+
+        news_bind_product = Items.create({
+            'ITid': 'news_bind_product',
+            'ITname': '资讯关联商品',
+            'ITdesc': '用于在资讯中进行关联的',
+            'ITtype': ItemType.product.value,
+            'ITauthority': ItemAuthrity.other.value,
+            'ITposition': ItemPostion.news_bind.value
+        })
+        # s_list.append(news_bind_product)
+
+        news_bind_coupon = Items.create({
+            'ITid': 'news_bind_coupon',
+            'ITname': '资讯关联优惠券',
+            'ITdesc': '用于在资讯中进行关联的',
+            'ITtype': ItemType.coupon.value,
+            'ITauthority': ItemAuthrity.other.value,
+            'ITposition': ItemPostion.news_bind.value
+        })
+        # s_list.append(news_bind_coupon)
+
         new_user_items = Items.create({  # 新人推荐标签
             'ITid': 'new_user',
             'ITname': '新人商品',

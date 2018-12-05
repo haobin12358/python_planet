@@ -386,6 +386,19 @@ class COrder(CPay, CCoupon):
         return Success('取消成功')
 
     @token_required
+    def delete(self):
+        """删除已取消的订单"""
+        data = parameter_required(('omid', ))
+        omid = data.get('omid')
+        usid = request.user.id
+        User.query.filter_by_(USid=usid).first_('用户不存在')
+        order = OrderMain.query.filter_by_(OMid=omid).first_('订单不存在')
+        assert order.OMstatus == -40, '只有已取消的订单可以删除'
+        order.isdelete = True
+        db.session.commit()
+        return Success('删除成功', {'omid': omid})
+
+    @token_required
     def create_order_evaluation(self):
         """创建订单评价"""
         usid = request.user.id
