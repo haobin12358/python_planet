@@ -606,7 +606,7 @@ class COrder(CPay, CCoupon):
             data.insert(  #
                 0,
                 {
-                    'count': OrderMain.query.filter_(*filter_args).count(),
+                    'count': OrderMain.query.filter_(OrderMain.isdelete == False, *filter_args).count(),
                     'name': '全部',
                     'status': None
                 }
@@ -709,19 +709,19 @@ class COrder(CPay, CCoupon):
 
     @staticmethod
     def _get_order_count(arg, k):
-        return OrderMain.query.filter_(
-                *arg,
-                OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
-                OrderMain.OMinRefund == False
-            ).count()
+        return OrderMain.query.filter_(OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
+                                       OrderMain.OMinRefund == False,
+                                       OrderMain.isdelete == False,
+                                       *arg
+                                       ).count()
 
     @staticmethod
     def _get_act_order_count(arg, k):
-        return OrderMain.query.filter_(
-                *arg,
-                OrderMain.OMfrom == getattr(ActivityOrderNavigation, k).value,
-                OrderMain.OMinRefund == False
-        ).count()
+        return OrderMain.query.filter_(OrderMain.OMfrom == getattr(ActivityOrderNavigation, k).value,
+                                       OrderMain.OMinRefund == False,
+                                       OrderMain.isdelete == False,
+                                       *arg
+                                       ).count()
 
     @staticmethod
     def _generic_omno():

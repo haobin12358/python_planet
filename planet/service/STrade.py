@@ -19,9 +19,8 @@ class STrade(SBase):
 
     @close_session
     def get_ordermain_list(self, args):
-        return self.session.query(OrderMain).filter_(
-            *args
-        ).order_by(OrderMain.createtime.desc()).all_with_page()
+        return self.session.query(OrderMain).filter_(*args, OrderMain.isdelete == False
+                                                     ).order_by(OrderMain.createtime.desc()).all_with_page()
 
     @close_session
     def get_ordermain_one(self, args, error=None):
