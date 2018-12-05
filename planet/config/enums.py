@@ -53,14 +53,21 @@ class OrderFrom(Enum):
 
 
 class OrderMainStatus(Enum):
-    """买家主订单状态
-    """
+    """买家主订单状态"""
     wait_pay = 0, '待支付'
     wait_send = 10, '待发货'
     wait_recv = 20, '待收货'
     wait_comment = 35, '待评价',
     ready = 30, '已完成'
     cancle = -40, '已取消'
+
+
+class ActivityOrderNavigation(Enum):
+    """活动订单导航标题"""
+    fresh_man = 40, '新人首单'
+    guess_num_award = 30, '每日竞猜'
+    magic_box = 50, '好友魔盒'
+    trial_commodity = 60, '免费试用'
 
 
 class OrderEvaluationScore(Enum):

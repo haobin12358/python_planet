@@ -161,7 +161,7 @@ class CTrialCommodity(COrder):
 
     @token_required
     def create_order(self):
-        data = parameter_required(('tcid', 'pbid', 'skuid', 'nums', 'omclient', 'uaid', 'opaytype'))
+        data = parameter_required(('tcid', 'pbid', 'skuid', 'omclient', 'uaid', 'opaytype'))
         usid = request.user.id
         user = self._verify_user(usid)
         current_app.logger.info('User {} is buying a trialcommodity'.format(user.USname))
@@ -201,6 +201,7 @@ class CTrialCommodity(COrder):
             sku_instance = db.session.query(TrialCommoditySku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
             if sku_instance.TCid != tcid:
                 raise ParamsError('skuid 与 tcid, 商品不对应')
+            assert int(sku_instance.SKUstock) - int(opnum) >= 0, '商品库存不足'
             product_instance = db.session.query(TrialCommodity).filter_by_({'TCid': tcid}).first_('skuid: {}对应的商品不存在'.format(skuid))
             if product_instance.PBid != pbid:
                 raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
@@ -248,7 +249,7 @@ class CTrialCommodity(COrder):
                 'OMrecvAddress': omrecvaddress,
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
-                'UseCoupon': False  # 使用商品不能试用优惠券
+                'UseCoupon': False  # 试用商品不能试用优惠券
             }
             order_main_instance = OrderMain.create(order_main_dict)
             model_bean.append(order_main_instance)
