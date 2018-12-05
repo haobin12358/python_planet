@@ -12,9 +12,10 @@ from planet.config.enums import ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxCreateForm, request
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen
+from .CUser import CUser
 
 
-class CMagicBox:
+class CMagicBox(CUser):
     def __init__(self):
         pass
 
@@ -128,12 +129,3 @@ class CMagicBox:
             'usid_base': self._base_encode(usid),
             'mbaid': mbaid,
         })
-
-    def _base_decode(self, raw):
-        import base64
-        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
-
-    def _base_encode(self, raw):
-        import base64
-        raw = raw.encode()
-        return base64.b64encode(raw).decode()

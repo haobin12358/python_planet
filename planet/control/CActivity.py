@@ -10,10 +10,10 @@ from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin
-from .CMagicBox import CMagicBox
+from .CUser import CUser
 
 
-class CActivity(CMagicBox):
+class CActivity(CUser):
     def list(self):
         """获取正在进行中的活动"""
         # 判断是否是新人, 没有已付款的订单则为新人
