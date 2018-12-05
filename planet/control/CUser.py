@@ -1171,7 +1171,6 @@ class CUser(SUser, BASEAPPROVAL):
             'secret_usid': secret_usid,
         })
 
-
     def get_admin_all_type(self):
 
         """获取后台管理员所有身份"""
