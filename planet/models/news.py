@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import String, Text, Integer
+from sqlalchemy import String, Text, Integer, Boolean
 from planet.common.base_model import Base, Column
 
 
@@ -15,6 +15,8 @@ class News(Base):
     NEsource = Column(String(64), comment='来源终端')
     COid = Column(Text, comment='优惠券id [coid1, coid2, coid3]')
     PRid = Column(Text, comment='商品id [prid1, prid2, prid3]')
+    NEmainpic = Column(String(255), url=True, comment='封面图')
+    NEisrecommend = Column(Boolean, default=False, comment='是否推荐到圈子首页轮播')
 
 
 class NewsImage(Base):
@@ -24,7 +26,7 @@ class NewsImage(Base):
     NEid = Column(String(64), nullable=False, comment='资讯id')
     NIimage = Column(String(255), nullable=False, url=True, comment='图片url')
     NIsort = Column(Integer, comment='图片顺序')
-    NIthumbnail = Column(String(255), url=True, comment='预览图')
+    NIthumbnail = Column(String(255), url=True, comment='压缩图')
 
 
 class NewsVideo(Base):
