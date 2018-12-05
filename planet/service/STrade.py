@@ -62,7 +62,7 @@ class STrade(SBase):
     @close_session
     def del_order_evaluation(self, oeid):
         """删除订单评价"""
-        return self.session.query(OrderEvaluation).filter_by_(OEid=oeid).delete_()
+        return self.session.query(OrderEvaluation).filter_by(OEid=oeid).delete_()
 
     @close_session
     def get_order_evaluation_image(self, oeid):
@@ -82,4 +82,4 @@ class STrade(SBase):
     @close_session
     def del_order_evaluation_video(self, oeid):
         """删除订单评价视频"""
-        return self.session.query(OrderEvaluationVideo).filter_by_(OEid=oeid).delete_()
+        return self.session.query(OrderEvaluationVideo).filter_by(OEid=oeid).delete_()

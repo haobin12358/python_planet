@@ -11,7 +11,7 @@ from planet.common.token_handler import token_required
 from planet.config.enums import ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxCreateForm, request
-from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User
+from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity
 from .CUser import CUser
 
 
@@ -22,6 +22,7 @@ class CMagicBox(CUser):
     @token_required
     def open(self):
         """好友帮拆"""
+        # todo activity中的actype判斷活動是否進行
         form = MagicBoxOpenForm().valid_data()
         usid_base = form.usid_base.data  # 用以标志来源用户
         level = form.level.data
@@ -102,8 +103,9 @@ class CMagicBox(CUser):
 
     @token_required
     def join(self):
-        """参与活动, 分享前(或分享后调用), 用来代表用户参与了此活动
+        """参与活动, 分享前(或分享后调用), 创建用户的参与记录
         """
+        # todo activity中的actype判斷活動是否進行
         form = MagicBoxCreateForm().valid_data()
         mbaid = form.mbaid.data
         usid = request.user.id
@@ -114,6 +116,10 @@ class CMagicBox(CUser):
                 MagicBoxApply.AgreeEndtime >= today,
                 MagicBoxApply.MBAid == mbaid
             ).first_('活动结束')
+            Activity.query.filter_by_({
+
+            })
+
             # 已参与则不再新建记录
             already_join = MagicBoxJoin.query.filter_by_({
                 'USid': usid,

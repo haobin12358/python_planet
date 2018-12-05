@@ -52,7 +52,7 @@ class CPay():
                 'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value
             }).first_('不存在的订单')
             # 原支付流水删除
-            s.query(OrderPay).filter_by_({'OPayno': order_main.OPayno}).delete_()
+            s.query(OrderPay).filter_by({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
             order_main.OPayno = opayno
             session_list.append(order_main)

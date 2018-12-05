@@ -87,11 +87,11 @@ class CCart(object):
         with self.scart.auto_commit() as session:
             # 数量为0执行删除
             if num == 0:
-                session.query(Carts).filter_by_({'CAid': caid}).delete_()
+                session.query(Carts).filter_by({'CAid': caid}).delete_()
                 msg = '删除成功'
             else:
                 session.query(ProductSku).filter_by_({'SKUid': skuid}).first_('商品sku不存在')
-                session.query(Carts).filter_by_({'CAid': caid}).update({
+                session.query(Carts).filter_by({'CAid': caid}).update({
                     'SKUid': skuid,
                     'CAnums': num
                 })

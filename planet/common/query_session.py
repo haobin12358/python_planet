@@ -47,7 +47,7 @@ class Query(_Query):
     def filter_by(self, *args, **kwargs):
         for arg in args:
             kwargs.update(arg)
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        kwargs = {k: v for k, v in kwargs.items()}
         return super(Query, self).filter_by(**kwargs)
 
     def first_(self, error=None):
@@ -58,6 +58,7 @@ class Query(_Query):
         raise NotFound(error)
 
     def delete_(self, synchronize_session='evaluate', update_args=None):
+        """执行delete操作的时候不要使用"""
         return self.update({'isdelete': True}, synchronize_session=synchronize_session, update_args=update_args)
 
     def delete(self, synchronize_session='evaluate'):

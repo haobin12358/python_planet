@@ -397,7 +397,7 @@ class CProducts:
         data = parameter_required(('prid', ))
         prid = data.get('prid')
         with self.sproduct.auto_commit() as s:
-            s.query(Products).filter_by_(PRid=prid).delete_()
+            s.query(Products).filter_by(PRid=prid).delete_()
         return Success('删除成功')
 
     @token_required
@@ -456,7 +456,7 @@ class CProducts:
             shtype = getattr(UserSearchHistoryType, shtype, 'product').value
             usid = request.user.id
             with self.sproduct.auto_commit() as s:
-                s.query(UserSearchHistory).filter_by_({'USid': usid, 'USHtype': shtype}).delete_()
+                s.query(UserSearchHistory).filter_by({'USid': usid, 'USHtype': shtype}).delete_()
         return Success('删除成功')
 
     def guess_search(self):
