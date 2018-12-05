@@ -11,7 +11,7 @@ from planet.common.token_handler import token_required
 from planet.config.enums import ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxCreateForm, request
-from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen
+from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User
 from .CUser import CUser
 
 
@@ -82,6 +82,7 @@ class CMagicBox(CUser):
                 final_price = magic_box_apply.SKUminPrice
             final_price = round(final_price, 2)
             # 帮拆记录
+            user = User.query.filter_by_({'USid': usid}).first()
             mb_open = MagicBoxOpen.create({
                 'MBOid': str(uuid.uuid1()),
                 'USid': request.user.id,
@@ -89,6 +90,7 @@ class CMagicBox(CUser):
                 'MBOgear': int(level),
                 'MBOresult': float(final_reduce),
                 'MBOprice': float(final_price),
+                'USname': user.USname
             })
             # 源参与价格修改
             magic_box_join.MBJcurrentPrice = float(final_price)

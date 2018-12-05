@@ -9,7 +9,8 @@ from planet.common.token_handler import is_tourist
 from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
-from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin
+from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
+    MagicBoxOpen
 from .CUser import CUser
 
 
@@ -126,8 +127,13 @@ class CActivity(CUser):
                     'MBAid': mbaid,
                     'USid': usid
                 }).first()
+
                 if magic_box_join:
                     magic_apply.fill('current_price', magic_box_join.MBJcurrentPrice)
+                    # 拆盒记录
+                    mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).limit(4).all()
+                    magic_apply.fill('open_history', mbp_history)
+
         elif ac_type == 'guess_num':
             apply = Products.query.join(
                 ProductSku, Products.PRid == ProductSku.PRid
