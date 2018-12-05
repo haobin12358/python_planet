@@ -1143,6 +1143,17 @@ class CUser(SUser, BASEAPPROVAL):
             'supplizer': supplizer
         })
 
+    @token_required
+    def get_secret_usid(self):
+        """获取base64编码后的usid"""
+        import base64
+        usid = request.user.id
+        raw = usid.encode()
+        secret_usid = base64.b64encode(raw).decode()
+        return Success(data={
+            'secret_usid': secret_usid,
+        })
+
 
     def get_admin_all_type(self):
 
