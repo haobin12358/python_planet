@@ -174,7 +174,7 @@ class COrder(CPay, CCoupon):
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
                     if omfrom == OrderFrom.carts.value:
-                        s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+                        s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
                     # 对应商品销量 + num sku库存 -num
