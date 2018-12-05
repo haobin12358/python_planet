@@ -6,8 +6,10 @@ import datetime
 import uuid
 
 from flask import request
+
+from flask import current_app
 from sqlalchemy import extract, or_
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
@@ -809,7 +811,7 @@ class CUser(SUser, BASEAPPROVAL):
         """管理员登录"""
         data = parameter_required(('adname', 'adpassword'))
         admin = self.get_admin_by_name(data.get('adname'))
-        from werkzeug.security import check_password_hash
+
         # 密码验证
         if admin and check_password_hash(admin.ADpassword, data.get("adpassword")):
             gennerc_log('管理员登录成功 %s' % admin.ADname)
@@ -836,7 +838,9 @@ class CUser(SUser, BASEAPPROVAL):
         """超级管理员添加普通管理"""
 
         superadmin = self.get_admin_by_id(request.user.id)
-        if not is_hign_level_admin() or superadmin.ADlevel != 1:
+        if not is_hign_level_admin() or \
+                superadmin.ADlevel != AdminLevel.super_admin.value or\
+                superadmin.ADstatus != AdminStatus.normal.value:
             raise AuthorityError('当前非超管权限')
 
         data = request.json
@@ -891,6 +895,8 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError('权限不足')
         data = request.json or {}
         admin = self.get_admin_by_id(request.user.id)
+        if admin.ADstatus != AdminStatus.normal.value:
+            raise AuthorityError('权限不足')
         update_admin = {}
         action_list = []
         if data.get("adname"):
@@ -901,11 +907,11 @@ class CUser(SUser, BASEAPPROVAL):
             update_admin['ADheader'] = data.get("adheader")
             action_list.append(str(AdminAction.ADheader.value) + '\n')
         if data.get('adtelphone'):
-            self.__check_identifyingcode(data.get('adtelphone'), data.get('identifyingcode'))
+            # self.__check_identifyingcode(data.get('adtelphone'), data.get('identifyingcode'))
             update_admin['ADtelphone'] = data.get('adtelphone')
             action_list.append(str(AdminAction.ADtelphone.value) + '为' + str(data.get("adtelphone")) + '\n')
         password = data.get('adpassword')
-        if password:
+        if password and password != '*' * 6:
             self.__check_password(password)
             password = generate_password_hash(password)
             update_admin['ADpassword'] = password
@@ -946,14 +952,17 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_admin_list(self):
         """获取管理员列表"""
-        if not is_hign_level_admin():
-            raise AuthorityError('权限不足')
+        superadmin = self.get_admin_by_id(request.user.id)
+        if not is_hign_level_admin() or \
+                superadmin.ADlevel != AdminLevel.super_admin.value or\
+                superadmin.ADstatus != AdminStatus.normal.value:
+            raise AuthorityError('当前非超管权限')
         admins = self.get_admins()
         for admin in admins:
             admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
             admin.fill('adstatus', AdminStatus(admin.ADstatus).zh_value)
-            admin.fill('ADpassword', '*' * 6)
+            admin.fill('adpassword', '*' * 6)
             admin_login = UserLoginTime.query.filter_by_(
                 USid=admin.ADid, ULtype=UserLoginTimetype.admin.value).order_by(UserLoginTime.createtime.desc()).first()
             logintime = None
@@ -1007,6 +1016,8 @@ class CUser(SUser, BASEAPPROVAL):
                 upperd = self.get_user_by_id(tokenmodel['id'])
             except:
                 upperd = None
+        else:
+            upperd = None
         # upperd_id = upperd.USid if upperd else None
         sex = int(user_info.get('sex')) - 1
         if sex < 0:
@@ -1168,3 +1179,26 @@ class CUser(SUser, BASEAPPROVAL):
     # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
     # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
     # todo 佣金配置文件修改接口
+
+    @get_session
+    @token_required
+    def update_admin_password(self):
+        if not is_admin():
+            raise AuthorityError('权限不足')
+
+        data = parameter_required(('password_old', 'password_new', 'password_repeat'))
+        admin = self.get_admin_by_id(request.user.id)
+        pwd_new = data.get('password_new')
+        pwd_old = data.get('password_old')
+        pwd_repeat = data.get('password_repeat')
+        if pwd_new != pwd_repeat:
+            raise ParamsError('两次输入的面膜不同')
+        if admin:
+            if check_password_hash(admin.ADpassword, pwd_old):
+                self.__check_password(pwd_new)
+                admin.ADpassword = generate_password_hash(pwd_new)
+                return Success('更新密码成功')
+            gennerc_log('{0} update pwd failed'.format(admin.ADname))
+            raise ParamsError('旧密码有误')
+
+        raise AuthorityError('账号已被回收')
