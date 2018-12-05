@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL
 
 from planet.common.base_model import Base, Column
@@ -44,11 +45,15 @@ class UserCommission(Base):
     """用户佣金"""
     __tablename__ = 'UserCommission'
     UCid = Column(String(64), primary_key=True)
-    OMid = Column(String(64), comment='佣金来源订单')
     UCcommission = Column(DECIMAL(precision=28, scale=2), comment='获取佣金')
     USid = Column(String(64), comment='用户id')
-    UCstatus = Column(Integer, default=0, comment='佣金状态{0：预期到账, 1: 已到账, 2: 已提现}')
-    # UCcreateTime = Column(DateTime, default=datetime.now(), comment='佣金创建时间')
+    UCstatus = Column(Integer, default=0, comment='佣金状态{-1: 异常, 0：预期到账, 1: 已到账, 2: 已提现}')
+    UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金')
+    UCendTime = Column(DateTime, comment='预期到账时间')
+    PRtitle = Column(String(255), comment='商品标题')
+    SKUpic = Column(Text, comment='商品sku主图')
+    OMid = Column(String(64), comment='佣金来源订单')
+    OPid = Column(String(64), comment='分单id')
 
 
 class IdentifyingCode(Base):
@@ -190,3 +195,11 @@ class UserInvitation(Base):
     USInviter = Column(String(64), comment='邀请人')
     USInvited = Column(String(64), comment='被邀请人')
 
+
+class UserWallet(Base):
+    """用户钱包"""
+    __tablename__ = 'UserWallet'
+    UWid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    UWbalance = Column(DECIMAL(precision=28, scale=2), comment='用户账户余额')
+    UWtotal = Column(DECIMAL(precision=28, scale=2), comment='用户账户总额')

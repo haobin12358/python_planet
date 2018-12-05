@@ -121,6 +121,16 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('邀请人参数异常')
         return json.loads(model_byte.decode('utf-8'))
 
+    def _base_decode(self, raw):
+        import base64
+        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+
+    def _base_encode(self, raw):
+        import base64
+        raw = raw.encode()
+        return base64.b64encode(raw).decode()
+
+
     @get_session
     def login(self):
         """手机验证码登录"""
@@ -1210,13 +1220,3 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('旧密码有误')
 
         raise AuthorityError('账号已被回收')
-
-    def _base_decode(self, raw):
-        import base64
-        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
-
-    def _base_encode(self, raw):
-        import base64
-        raw = raw.encode()
-        return base64.b64encode(raw).decode()
-

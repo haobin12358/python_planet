@@ -14,19 +14,23 @@ from planet.common.base_service import get_session, db
 
 class CQuestanswer():
     AnswerFields = ['QAcontent', 'QUid', 'QAid']
-    QuestFields = ['QUid', 'QOid', 'QUquest']
-    QuestOutlineFields = ['QOid', 'QOicon', 'QOname']
+    QuestFields = ['QUid', 'QOid', 'QUquest', 'QUstatus']
+    QuestOutlineFields = ['QOid', 'QOicon', 'QOname', 'QOstatus']
 
     def get_all_quest(self):
         """用户客服页获取所有的问题列表之后通过问题id获取答案"""
         qo_list = QuestOutline.query.filter_(QuestOutline.isdelete == False).all()
+        qo_return_list = []
         for qo in qo_list:
             qo.fields = self.QuestOutlineFields[:]
             question_list = Quest.query.filter_(Quest.isdelete == False, Quest.QOid == qo.QOid).all()
+            if not question_list:
+                continue
             for question in question_list:
                 question.fields = self.QuestFields[:]
             qo.fill('question', question_list)
-        return Success('获取客服问题列表成功', data=qo_list)
+            qo_return_list.append(qo)
+        return Success('获取客服问题列表成功', data=qo_return_list)
 
     @get_session
     @token_required
@@ -282,3 +286,13 @@ class CQuestanswer():
             db.session.add(qan)
 
         return Success('删除完成')
+    #
+    # @get_session
+    # @token_required
+    # def online_questoutline(self):
+    #     if not is_admin():
+    #         raise AuthorityError('权限不足')
+    #     admin = Admin.query.filter_by_(ADid=request.user.id).first_('权限已被回收')
+    #     data = parameter_required(('qoid',))
+    #     qo = QuestOutline.query.filter_by_(QOid=data.get('qoid'))
+    #  todo 问题和问题分类是否上线状态增加编辑接口
