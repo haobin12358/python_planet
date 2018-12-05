@@ -21,6 +21,8 @@ class AUser(Resource):
             'update_admin': self.user.update_admin,
             'wx_login': self.user.wx_login,
             'bing_telphone': self.user.bing_telphone,
+
+            'update_admin_password': self.user.update_admin_password,
             'supplizer_login': self.user.supplizer_login,  # 供应商登录
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
@@ -46,6 +48,7 @@ class AUser(Resource):
             'get_discount': self.user.get_discount,
             'get_admin_all_type': self.user.get_admin_all_type,
             'get_admin_all_status': self.user.get_admin_all_status,
+            'secret_usid': self.user.get_secret_usid,  # base64编码后的usid
         }
         return apis
 
