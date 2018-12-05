@@ -230,8 +230,8 @@ class CQuestanswer():
         """后台管理员删除问题分类"""
         if not is_admin():
             raise AuthorityError('权限不足')
-        admin = Admin.query.filter_by_(Admin).first_('权限已被回收')
-        data = parameter_required(('qolist'))
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_('权限已被回收')
+        data = parameter_required(('qolist',))
         qolist = data.get('qolist')
         for qoid in qolist:
             qomodel = QuestOutline.query.filter_by_(QOid=qoid).first()
@@ -260,9 +260,9 @@ class CQuestanswer():
         """后台管理员删除问题"""
         if not is_admin():
             raise AuthorityError('权限不足')
-        admin = Admin.query.filter_by_(Admin).first_('权限已被回收')
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_('权限已被回收')
 
-        data = parameter_required(('qulist'))
+        data = parameter_required(('qulist',))
         qulist = data.get('qulist')
         for quid in qulist:
             qu = Quest.query.filter_by_(QUid=quid).first()

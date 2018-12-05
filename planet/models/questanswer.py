@@ -10,6 +10,7 @@ class QuestOutline(Base):
     QOid = Column(String(64), primary_key=True)
     QOicon = Column(Text, url=True, comment='问题大纲icon')
     QOname = Column(Text, comment='问题大纲名称')
+    QOstatus = Column(Integer, default=0, comment='问题大纲状态 0 草稿 1 上线 2 失效')
     QOcreateId = Column(String(64), comment='创建人id')
 
 
@@ -19,6 +20,7 @@ class Quest(Base):
     QUid = Column(String(64), primary_key=True)
     QOid = Column(String(64), comment='问题所属大纲')
     QUquest = Column(Text, comment='问题描述')
+    QUstatus = Column(Integer, default=0, comment='问题大纲状态 0 草稿 1 上线 2 失效')
     QUcreateId = Column(String(64), comment='创建人id')
 
 
