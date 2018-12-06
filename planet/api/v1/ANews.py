@@ -25,6 +25,7 @@ class ANews(Resource):
             'get_all_news': self.cnews.get_all_news,
             'get_news_content': self.cnews.get_news_content,
             'get_news_comment': self.cnews.get_news_comment,
+            'banner': self.cnews.get_news_banner,
 
         }
         return apis
