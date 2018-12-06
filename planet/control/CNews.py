@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from flask import request
-from planet.common.error_response import TokenError, ParamsError, SystemError, NotFound, AuthorityError, StatusError
+from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
@@ -82,11 +82,13 @@ class CNews(object):
                 news.fill('video', video_source)
                 news.fill('videothumbnail', video_thumbnail)
                 news.fill('videoduration', dur_time)
+            elif news.NEmainpic:
+                showtype = 'picture'
+                news.fill('mainpic', news['NEmainpic'])
             else:
                 image_list = self.snews.get_news_images(news.NEid)
                 if image_list:
                     mainpic = image_list[0]['NIimage']
-                    # todo 已添加主图字段，后台页面添加时使用
                     showtype = 'picture'
                     news.fill('mainpic', mainpic)
                 else:
@@ -181,6 +183,26 @@ class CNews(object):
 
         return Success(data=news).get_body(istourist=tourist)
 
+    def get_news_banner(self):
+        """获取资讯图轮播"""
+        banner_list = []
+        recommend_news = self.snews.get_news_list_by_filter({'NEisrecommend': True})
+        for news in recommend_news:
+            if news.NEmainpic:
+                banner = news['NEmainpic']
+            else:
+                img_list = self.snews.get_news_images(news.NEid)
+                if img_list:
+                    banner = img_list[0]['NIimage']
+                else:
+                    continue
+            data = {
+                'neid': news.NEid,
+                'mainpic': banner
+            }
+            banner_list.append(data)
+        return Success(data=banner_list)
+
     @token_required
     def create_news(self):
         """创建资讯"""
@@ -196,6 +218,8 @@ class CNews(object):
         product = data.get('product')  # ['prid1', 'prid2']
         coupon = json.dumps(coupon) if coupon not in self.empty else None
         product = json.dumps(product) if product not in self.empty else None
+        isrecommend = data.get('neisrecommend', 0)
+        isrecommend = True if str(isrecommend) == '1' else False
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = News.create({
@@ -206,6 +230,8 @@ class CNews(object):
                 # 'NEstatus': NewsStatus.auditing.value,
                 'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
                 'NEsource': data.get('source'),
+                'NEmainpic': data.get('nemainpic'),
+                'NEisrecommend': isrecommend,  # todo 管理员后台添加时设置/验证权限
                 'COid': coupon,
                 'PRid': product
             })
@@ -265,6 +291,8 @@ class CNews(object):
         product = data.get('product')  # ['prid1', 'prid2']
         coupon = json.dumps(coupon) if coupon not in self.empty else None
         product = json.dumps(product) if product not in self.empty else None
+        isrecommend = data.get('neisrecommend')
+        isrecommend = True if str(isrecommend) == '1' else False
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = {
@@ -274,14 +302,16 @@ class CNews(object):
                 # 'NEstatus': NewsStatus.usual.value,
                 'NEsource': 'web',
                 'COid': coupon,
-                'PRid': product
+                'PRid': product,
+                'NEmainpic': data.get('nemainpic'),
+                'NEisrecommend': isrecommend,
             }
             news_info = {k: v for k, v in news_info.items() if v is not None}
             s.query(News).filter_by_(NEid=neid).update(news_info)
             if images not in self.empty:
                 if len(images) > 4:
                     raise ParamsError('最多只能上传四张图片')
-                s.query(NewsImage).filter_by_(NEid=neid).delete_()  # 删除原来的图片
+                s.query(NewsImage).filter_by(NEid=neid).delete_()  # 删除原来的图片
                 for image in images:
                     news_image_info = NewsImage.create({
                         'NIid': str(uuid.uuid1()),
@@ -298,7 +328,7 @@ class CNews(object):
                     raise ParamsError('上传视频时间不能少于3秒')
                 elif second > 59:
                     raise ParamsError('上传视频时间不能大于1分钟')
-                s.query(NewsVideo).filter_by_(NEid=neid).delete_()  # 删除原有的视频
+                s.query(NewsVideo).filter_by(NEid=neid).delete_()  # 删除原有的视频
                 news_video_info = NewsVideo.create({
                     'NVid': str(uuid.uuid1()),
                     'NEid': neid,
@@ -329,15 +359,15 @@ class CNews(object):
         data = parameter_required(('neid',))
         neid = data.get('neid')
         News.query.filter_by_(NEid=neid).first_('没有该资讯或已被删除')
-        del_info = News.query.filter_by_(NEid=neid).delete_()
+        del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
         if not del_info:
             raise StatusError('服务器繁忙')
-        NewsImage.query.filter_by_(NEid=neid).delete_()  # 删除图片
-        NewsVideo.query.filter_by_(NEid=neid).delete_()  # 删除视频
-        NewsTag.query.filter_by_(NEid=neid).delete_()  # 删除标签关联
-        NewsComment.query.filter_by_(NEid=neid).delete_()  # 删除评论
-        NewsFavorite.query.filter_by_(NEid=neid).delete_()  # 删除点赞
-        NewsTrample.query.filter_by_(NEid=neid).delete_()  # 删除点踩
+        NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
+        NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
+        NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
+        NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
+        NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
+        NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
         db.session.commit()
         return Success('删除成功', {'neid': neid})
 

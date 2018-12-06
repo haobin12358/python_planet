@@ -14,6 +14,11 @@ class SNews(SBase):
             News.createtime.desc()).all_with_page()
 
     @close_session
+    def get_news_list_by_filter(self, args):
+        """获取推荐到圈子首页的资讯"""
+        return self.session.query(News).filter_by_(**args).all()
+
+    @close_session
     def get_news_content(self, nfilter):
         """获取资讯详情"""
         return self.session.query(News).filter_by_(**nfilter).first_('没有找到该资讯')

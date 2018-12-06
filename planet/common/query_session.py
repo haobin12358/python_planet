@@ -74,7 +74,7 @@ class Query(_Query):
         args = request.args.to_dict()
         page = args.get('page_num') or 1
         count = args.get('page_size') or 15
-        count = 20 if int(count) > 20 else count
+        assert int(count) <= 20, 'page_size建议不超过20'
         if not page and not count:
             return self.all()
         try:
