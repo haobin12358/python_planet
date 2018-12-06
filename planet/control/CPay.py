@@ -90,13 +90,13 @@ class CPay():
         with self.strade.auto_commit() as s:
             s_list = []
             # 更改付款流水
-            order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
+            order_pay_instance = s.query(OrderPay).filter_by({'OPayno': out_trade_no}).first_('异常支付')
             order_pay_instance.OPaytime = data.get('gmt_payment')
             order_pay_instance.OPaysn = data.get('trade_no')  # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
             s_list.append(order_pay_instance)
             # 更改主单
-            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            order_mains = s.query(OrderMain).filter_by({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value

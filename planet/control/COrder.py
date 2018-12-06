@@ -710,6 +710,7 @@ class COrder(CPay, CCoupon):
 
         return Success(data=res)
 
+
     @staticmethod
     def _get_order_count(arg, k):
         return OrderMain.query.filter_(OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
@@ -768,4 +769,65 @@ class COrder(CPay, CCoupon):
     @staticmethod
     def _coupon_for_prids(coupon_for):
         return [x.PRid for x in coupon_for if x.PRid]
+
+    def test_to_pay(self):
+        """"""
+        data = parameter_required(('phone',))
+        phone = data.get('phone')
+        with db.auto_commit():
+            user = User.query.filter(
+                User.UStelphone == phone
+            ).first()
+            order_mains = OrderMain.query.filter_by({
+                'USid': user.USid,
+                "OMstatus": 0
+            }).all()
+            for order_main in order_mains:
+                order_main.update({
+                    'OMstatus': OrderMainStatus.wait_send.value
+                })
+                db.session.add(order_main)
+                # 添加支付数据
+                out_trade_no = order_main.OPayno
+                order_pay_instance = OrderPay.query.filter_by({'OPayno': out_trade_no}).update({
+                    'OPaytime': datetime.now(),
+                    'OPaysn': self._generic_omno(),
+                    'OPayJson': '{"hello": 1}'
+                })
+
+        return Success('success')
+
+    def test_to_send(self):
+        data = parameter_required(('phone',))
+        phone = data.get('phone')
+        olcompany = 'YTO'
+        olexpressno = '802725584022945412'
+        user = User.query.filter(
+            User.UStelphone == phone
+        ).first()
+        with self.strade.auto_commit() as s:
+            order_mains = OrderMain.query.filter_by({
+                'USid': user.UStelphone,
+                'OMstatus': OrderMainStatus.wait_send.value
+            }).all()
+            s_list = []
+            for order_main_instance in order_mains:
+                omid = order_main_instance.OMid
+                if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
+                    raise StatusError('订单状态不正确')
+                if order_main_instance.OMinRefund is True:
+                    raise StatusError('商品在售后状态')
+                # 添加物流记录
+                order_logistics_instance = OrderLogistics.create({
+                    'OLid': str(uuid.uuid4()),
+                    'OMid': omid,
+                    'OLcompany': olcompany,
+                    'OLexpressNo': olexpressno,
+                })
+                s_list.append(order_logistics_instance)
+                # 更改主单状态
+                order_main_instance.OMstatus = OrderMainStatus.wait_recv.value
+                s_list.append(order_main_instance)
+            s.add_all(s_list)
+        return Success('success')
 
