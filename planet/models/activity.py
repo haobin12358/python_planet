@@ -140,6 +140,7 @@ class MagicBoxJoin(Base):
     USid = Column(String(64), nullable=False, comment='参与用户')
     MBAid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
     MBJprice = Column(Float, nullable=False, comment='原价格')
+    MBJstatus = Column(Integer, default=0, comment=' 0 待领奖, 10 已领取 20 过期')
     MBJcurrentPrice = Column(Float, default=MBJprice, comment='当前价格')
 
 

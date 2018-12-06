@@ -295,7 +295,8 @@ class COrder(CPay, CCoupon):
             s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body)
+        openid = user.USopenid1 or user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

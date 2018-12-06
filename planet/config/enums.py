@@ -222,8 +222,8 @@ class AdminAction(Enum):
     ADtelphone = '手机号码'
 
 
-class GuessAwardFlowStatus(Enum):
-    """猜数字领奖状态"""
+class ActivityRecvStatus(Enum):
+    """活动领奖状态"""
     wait_recv = 0, '待领取'
     ready_recv = 10, '已领取'
     expired = 20, '已过期'

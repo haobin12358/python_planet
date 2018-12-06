@@ -25,8 +25,7 @@ class ActivityUpdateForm(BaseForm):
 
 class ActivityGetForm(BaseForm):
     actype = IntegerField(validators=[InputRequired('请输入活动类型')])
-    mbaid = StringField()
-    usid_base = StringField()
+    mbjid = StringField('参与活动的唯一标志')
 
     def validate_actype(self, raw):
         activiy = Activity.query.filter_by_({'ACtype': raw.data}).first_('活动不存在')
@@ -82,8 +81,9 @@ class MagicBoxOpenForm(BaseForm):
                                  ('2', 'Gearstwo'),
                                  ('3', 'Gearsthree')])
 
-    usid_base = StringField()
+    # usid_base = StringField()
     mbaid = StringField('进行中的活动')
+    mbjid = StringField('参与记录来源')
 
 
 class MagicBoxCreateForm(BaseForm):

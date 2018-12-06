@@ -80,12 +80,18 @@ class CActivity(CUser):
         form = ActivityGetForm().valid_data()
         act_instance = form.activity
         ac_type = ActivityType(form.actype.data).name
-        mbaid = form.mbaid.data
-        usid_base = form.usid_base.data
-        if not usid_base:
+        mbjid = form.mbjid.data
+        mbaid = None
+        if not mbjid:
             usid = None if is_tourist() else request.user.id
         else:
-            usid = self._base_decode(usid_base)
+            magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first()
+            if magic_box_join:
+                usid = magic_box_join.USid
+                mbaid = magic_box_join.MBAid
+            else:
+                usid = None if is_tourist() else request.user.id
+
         today = date.today()
         act_instance.hide('ACid', 'ACbackGround', 'ACbutton', 'ACtopPic')
         if ac_type == 'magic_box':  # 魔盒

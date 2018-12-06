@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import json
 from planet.common.error_response import StatusError, DumpliError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import ApplyStatus
+from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxCreateForm, request
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity
@@ -22,12 +22,21 @@ class CMagicBox(CUser):
     @token_required
     def open(self):
         """好友帮拆"""
-        # todo activity中的actype判斷活動是否進行
+        # 判断帮拆活动总控制是否结束
+        Activity.query.filter_by({
+            'ACtype': ActivityType.magic_box.value
+        }).first_('活动已结束')
+
         form = MagicBoxOpenForm().valid_data()
-        usid_base = form.usid_base.data  # 用以标志来源用户
+        mbjid = form.mbjid.data
         level = form.level.data
         levle_attr = dict(form.level.choices).get(level)
-        mbaid = form.mbaid.data  # 用以标志拆盒活动
+        usid = request.user.id
+        # 源参与记录
+        magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first_('来源参数异常(mbjid)')
+        if magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
+            raise StatusError('已领奖或已过期')
+        mbaid = magic_box_join.MBAid
         # 活动是否在进行
         magic_box_apply = MagicBoxApply.query.filter_by_().filter(
             MagicBoxApply.MBAid == mbaid,
@@ -37,34 +46,12 @@ class CMagicBox(CUser):
         lasting = magic_box_apply.AgreeEndtime >= today
         if not lasting:
             raise StatusError('活动过期')
-        try:
-            usid = self._base_decode(usid_base)
-        except ValueError:
-            raise ParamsError('usid_base异常')
-
         with db.auto_commit():
-            # 来源用户参与状况
-            magic_box_join = MagicBoxJoin.query.filter_by().filter(
-                MagicBoxJoin.USid == usid,
-                MagicBoxJoin.MBAid == mbaid
-            ).order_by(MagicBoxJoin.createtime.desc()).first()
-            # 来源用户未参加
-            if not magic_box_join:
-                mbjid = str(uuid.uuid1())   # 参与活动的id
-                magic_box_join = MagicBoxJoin.create({
-                    'MBJid': mbjid,
-                    'USid': usid,
-                    'MBAid': mbaid,
-                    'MBJprice': magic_box_apply.SKUprice
-                })
-                db.session.add(magic_box_join)
-                db.session.flush()
-            else:  # 来源用户已参加
-                mbjid = magic_box_join.MBJid
-                ready_open = MagicBoxOpen.query.filter_by_({'USid': request.user.id,
-                                                            'MBJid': mbjid}).first()
-                if ready_open:
-                    raise DumpliError('已经帮好友拆过')
+            # 是否已经帮开奖
+            ready_open = MagicBoxOpen.query.filter_by_({'USid': usid,
+                                                        'MBJid': mbjid}).first()
+            if ready_open:
+                raise DumpliError('已经帮好友拆过')
             # 价格变动随机
             current_level_str = getattr(magic_box_apply, levle_attr)
             current_level_json = json.loads(current_level_str)  # 列表 ["1-2", "3-4"]
@@ -86,7 +73,7 @@ class CMagicBox(CUser):
             user = User.query.filter_by_({'USid': usid}).first()
             mb_open = MagicBoxOpen.create({
                 'MBOid': str(uuid.uuid1()),
-                'USid': request.user.id,
+                'USid': usid,
                 'MBJid': mbjid,
                 'MBOgear': int(level),
                 'MBOresult': float(final_reduce),
@@ -105,7 +92,10 @@ class CMagicBox(CUser):
     def join(self):
         """参与活动, 分享前(或分享后调用), 创建用户的参与记录
         """
-        # todo activity中的actype判斷活動是否進行
+        # 判断帮拆活动总控制是否结束
+        Activity.query.filter_by({
+            'ACtype': ActivityType.magic_box.value
+        }).first_('活动已结束')
         form = MagicBoxCreateForm().valid_data()
         mbaid = form.mbaid.data
         usid = request.user.id
@@ -119,13 +109,13 @@ class CMagicBox(CUser):
             Activity.query.filter_by_({
 
             })
-
             # 已参与则不再新建记录
-            already_join = MagicBoxJoin.query.filter_by_({
+            magic_box_join = MagicBoxJoin.query.filter_by_({
                 'USid': usid,
                 'MBAid': mbaid
             }).first()
-            if not already_join:
+            if not magic_box_join:
+                # 一期活动只可参与一次
                 magic_box_join = MagicBoxJoin.create({
                     'MBJid': str(uuid.uuid1()),
                     'USid': usid,
@@ -133,7 +123,10 @@ class CMagicBox(CUser):
                     'MBJprice': magic_box_apply.SKUprice,
                 })
                 db.session.add(magic_box_join)
+            else:
+                # 但是可以多次分享
+                if magic_box_join.MBJstatus == ActivityRecvStatus.ready_recv.value:
+                    raise StatusError('本期已参与')
         return Success('参与成功', data={
-            'usid_base': self._base_encode(usid),
-            'mbaid': mbaid,
+            'mbjid': magic_box_join.MBJid
         })

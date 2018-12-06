@@ -3,7 +3,7 @@ import json
 import uuid
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, ApiError
@@ -172,6 +172,7 @@ class CPay():
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        current_app.logger.info('openid is {}'.format(openid))
         ####
         # 一种测试的付款方式, 使用支付宝网页支付
         if omclient == 'test':
@@ -180,7 +181,7 @@ class CPay():
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
-                body = body[:110] + '...'
+                body = body[:66] + '...'
                 wechat_pay_dict = dict(
                     body=body,
                     out_trade_no=opayno,
@@ -204,7 +205,7 @@ class CPay():
                     raw = self.alipay.api_alipay_trade_app_pay(
                         out_trade_no=opayno,
                         total_amount=mount_price,
-                        subject=body[:200] + '...',
+                        subject=body[:66] + '...',
                     )
                 except Exception as e:
                     raise SystemError('支付宝参数异常')
