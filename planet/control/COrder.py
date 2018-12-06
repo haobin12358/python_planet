@@ -620,7 +620,7 @@ class COrder(CPay, CCoupon):
                                                              [OrderFrom.carts.value, OrderFrom.product_info.value]
                                                          )).count(),
                         'name': '售后中',
-                        'status': 'refund'
+                        'status': 40,
                     }
                 )
         return Success(data=data)
