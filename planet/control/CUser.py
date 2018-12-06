@@ -121,6 +121,16 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('邀请人参数异常')
         return json.loads(model_byte.decode('utf-8'))
 
+    def _base_decode(self, raw):
+        import base64
+        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+
+    def _base_encode(self, raw):
+        import base64
+        raw = raw.encode()
+        return base64.b64encode(raw).decode()
+
+
     @get_session
     def login(self):
         """手机验证码登录"""
@@ -1184,10 +1194,6 @@ class CUser(SUser, BASEAPPROVAL):
         data = {status.name: status.zh_value for status in AdminStatus}
         return Success('获取所有状态成功', data=data)
 
-    # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
-    # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
-    # todo 佣金配置文件修改接口
-
     @get_session
     @token_required
     def update_admin_password(self):
@@ -1211,12 +1217,6 @@ class CUser(SUser, BASEAPPROVAL):
 
         raise AuthorityError('账号已被回收')
 
-    def _base_decode(self, raw):
-        import base64
-        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
-
-    def _base_encode(self, raw):
-        import base64
-        raw = raw.encode()
-        return base64.b64encode(raw).decode()
-
+    # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
+    # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
+    # todo 佣金配置文件修改接口

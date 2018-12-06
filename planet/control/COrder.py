@@ -174,7 +174,7 @@ class COrder(CPay, CCoupon):
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
                     if omfrom == OrderFrom.carts.value:
-                        s.query(Carts).filter_by_({"USid": usid, "SKUid": skuid}).delete_()
+                        s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
                     # 对应商品销量 + num sku库存 -num
@@ -295,7 +295,8 @@ class COrder(CPay, CCoupon):
             s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body)
+        openid = user.USopenid1 or user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

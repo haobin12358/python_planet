@@ -140,6 +140,7 @@ class MagicBoxJoin(Base):
     USid = Column(String(64), nullable=False, comment='参与用户')
     MBAid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
     MBJprice = Column(Float, nullable=False, comment='原价格')
+    MBJstatus = Column(Integer, default=0, comment=' 0 待领奖, 10 已领取 20 过期')
     MBJcurrentPrice = Column(Float, default=MBJprice, comment='当前价格')
 
 
@@ -148,16 +149,17 @@ class MagicBoxOpen(Base):
     __tablename__ = 'MagixBoxOpen'
     MBOid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='拆盒子之人')
+    USname = Column(String(64), nullable=False, comment='拆盒子之人的用户名')
     MBJid = Column(String(64), nullable=False, comment='来源参与')
     MBOgear = Column(Integer, nullable=False, comment='选择档位')
     MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
     MBOprice = Column(Float, nullable=False, comment='此时价格')
-    MBOhasShare = Column(Boolean, default=False, comment='')
+    MBOhasShare = Column(Boolean, default=False, comment='是否分享出去, 待用字段')
 
 
 class FreshManFirstApply(Base):
     """新人首单申请"""
-    __tablename__ = 'FreshManFirst'
+    __tablename__ = 'FreshManFirstApply'
     FMFAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), primary_key=True, comment='供应商')
     PRid = Column(String(64), nullable=False, comment='商品id')

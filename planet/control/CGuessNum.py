@@ -13,7 +13,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply
-from planet.config.enums import GuessAwardFlowStatus, OrderFrom, Client, PayType
+from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType
 from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
 
@@ -138,14 +138,14 @@ class CGuessNum(COrder):
             # 领奖流水
             guess_award_flow_instance = GuessAwardFlow.query.filter_by_({
                 'GNid': gnid,
-                'GAFstatus': GuessAwardFlowStatus.wait_recv.value,
+                'GAFstatus': ActivityRecvStatus.wait_recv.value,
             }).first_('未中奖或已领奖')
             sku_instance = ProductSku.query.filter_by_({"SKUid": skuid}).first_('sku: {}不存在'.format(skuid))
             product_instance = Products.query.filter_by_({"PRid": sku_instance.PRid}).first_('商品已下架')
             pbid = product_instance.PBid
             product_brand_instance = ProductBrand.query.filter_by({'PBid': pbid}).first_()
             # 领奖状态改变
-            guess_award_flow_instance.GAFstatus = GuessAwardFlowStatus.ready_recv.value
+            guess_award_flow_instance.GAFstatus = ActivityRecvStatus.ready_recv.value
             s_list.append(guess_award_flow_instance)
             # 用户的地址信息
             user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')

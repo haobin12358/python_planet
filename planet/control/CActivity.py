@@ -9,10 +9,12 @@ from planet.common.token_handler import is_tourist
 from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
-from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products
+from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
+    MagicBoxOpen
+from .CUser import CUser
 
 
-class CActivity:
+class CActivity(CUser):
     def list(self):
         """获取正在进行中的活动"""
         # 判断是否是新人, 没有已付款的订单则为新人
@@ -78,10 +80,22 @@ class CActivity:
         form = ActivityGetForm().valid_data()
         act_instance = form.activity
         ac_type = ActivityType(form.actype.data).name
+        mbjid = form.mbjid.data
+        mbaid = None
+        if not mbjid:
+            usid = None if is_tourist() else request.user.id
+        else:
+            magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first()
+            if magic_box_join:
+                usid = magic_box_join.USid
+                mbaid = magic_box_join.MBAid
+            else:
+                usid = None if is_tourist() else request.user.id
+
         today = date.today()
         act_instance.hide('ACid', 'ACbackGround', 'ACbutton', 'ACtopPic')
-        if ac_type == 'magic_box':
-            if not act_instance.ACdesc:
+        if ac_type == 'magic_box':  # 魔盒
+            if not mbaid:
                 product, magic_apply = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
@@ -91,14 +105,41 @@ class CActivity:
                     MagicBoxApply.AgreeEndtime >= today,
                     MagicBoxApply.isdelete == False,
                 ).first_('活动未在进行')
-                act_instance.fill('prpic', product.PRmainpic)
-                magic_apply.fileds = [
-                    'SKUprice', 'SKUminPrice', 'Gearsone', 'Gearstwo', 'Gearsthree', 'AgreeStartime', 'AgreeEndtime'
-                ]
-                magic_apply.Gearsone = json.loads(magic_apply.Gearsone or '[]')
-                magic_apply.Gearstwo = json.loads(magic_apply.Gearstwo or '[]')
-                magic_apply.Gearsthree = json.loads(magic_apply.Gearsthree or '[]')
-                act_instance.fill('infos', magic_apply)
+            else:
+                product, magic_apply = db.session.query(Products, MagicBoxApply).join(
+                    ProductSku, ProductSku.PRid == Products.PRid
+                ).join(
+                    MagicBoxApply, MagicBoxApply.SKUid == ProductSku.SKUid
+                ).filter_(
+                    # MagicBoxApply.AgreeStartime <= today,
+                    # MagicBoxApply.AgreeEndtime >= today,
+                    MagicBoxApply.MBAid == mbaid,
+                    MagicBoxApply.isdelete == False,
+                ).first_('活动不存在')
+
+            act_instance.fill('prpic', product.PRmainpic)
+            magic_apply.fileds = [
+                'SKUprice', 'SKUminPrice', 'Gearsone',
+                'Gearstwo', 'Gearsthree', 'AgreeStartime',
+                'AgreeEndtime', 'MBAid', 'SKUprice', 'SKUminPrice'
+            ]
+            magic_apply.Gearsone = json.loads(magic_apply.Gearsone or '[]')
+            magic_apply.Gearstwo = json.loads(magic_apply.Gearstwo or '[]')
+            magic_apply.Gearsthree = json.loads(magic_apply.Gearsthree or '[]')
+            act_instance.fill('infos', magic_apply)
+            # 当前价格
+            if usid is not None:
+                magic_box_join = MagicBoxJoin.query.filter_by_({
+                    'MBAid': mbaid,
+                    'USid': usid
+                }).first()
+
+                if magic_box_join:
+                    magic_apply.fill('current_price', magic_box_join.MBJcurrentPrice)
+                    # 拆盒记录
+                    mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).limit(4).all()
+                    magic_apply.fill('open_history', mbp_history)
+
         elif ac_type == 'guess_num':
             apply = Products.query.join(
                 ProductSku, Products.PRid == ProductSku.PRid
