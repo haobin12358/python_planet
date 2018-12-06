@@ -29,7 +29,7 @@ class OrderListForm(BaseForm):
                     OrderMain.OMinRefund == False
                 ]
         except ValueError as e:
-            if raw.data == 'inrefund':
+            if raw.data in ['inrefund', 'refund', 40, '40']:
                 self.omstatus.data = [
                     OrderMain.OMinRefund == True,
                 ]

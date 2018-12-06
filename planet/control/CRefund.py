@@ -13,7 +13,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType
-from planet.extensions.register_ext import wx_pay, alipay
+from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay
@@ -41,6 +41,20 @@ class CRefund(object):
         else:
             raise ParamsError('须指定主单或副单')
         return Success('申请成功, 等待答复')
+
+    @token_required
+    def cancle(self):
+        """撤销"""
+        data = parameter_required(('oraid', ))
+        oraid = data.get('oraid')
+        with db.auto_commit():
+            OrderRefundApply.query.filter_by({
+                'ORAid': oraid,
+                "USid": request.user.id
+            }).update({
+                'ORAstatus': OrderRefundOrstatus.cancle.value
+            })
+        return Success('撤销成功')
 
     @token_required
     def create_dispute_type(self):
@@ -80,10 +94,7 @@ class CRefund(object):
         agree = data.get('agree')
         with self.strade.auto_commit() as s:
             s_list = []
-            refund_apply_instance = s.query(OrderRefundApply).filter_by_({
-                'ORAid': oraid,
-                'ORAstatus': ApplyStatus.wait_check.value
-            }).first_('申请已处理或不存在')
+            refund_apply_instance = s.query(OrderRefundApply).filter_by_({ 'ORAid': oraid, 'ORAstatus': ApplyStatus.wait_check.value }).first_('申请已处理或不存在')
             refund_apply_instance.ORAcheckTime = datetime.now()
             if agree is True:
                 refund_apply_instance.ORAstatus = ApplyStatus.agree.value
@@ -166,6 +177,7 @@ class CRefund(object):
     @token_required
     def refund_query(self):
         """查询退款结果"""
+        # todo 查询退款结果
 
     @staticmethod
     def _generic_no():

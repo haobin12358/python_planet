@@ -115,6 +115,7 @@ class MagicBoxApply(Base):
     SUid = Column(String(64), nullable=False, comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     PRid = Column(String(64), nullable=False, comment='商品id')
+    PBid = Column(String(64), nullable=False, comment='品牌id')
     MBAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     MBAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
     SKUprice = Column(Float, nullable=False, comment='原价')
@@ -164,18 +165,22 @@ class FreshManFirstApply(Base):
 
 
 class FreshManFirstProduct(Base):
+    """新人首单申请商品"""
     __tablename__ = 'FreshManFirstProduct'
     FMFPid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='申请新人首单的商品id')
     PRmainpic = Column(String(255), nullable=False, comment='主图')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
     PBid = Column(String(64), nullable=False, comment='品牌id')
-    
+    PRdescription = Column(Text, comment='商品描述')
+    PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
+    PRfeight = Column(Float, default=0, comment='快递费用')
     PRprice = Column(Float, nullable=False, comment='显示价格')
     FMFAid = Column(String(64), nullable=False, comment='新人首单申请单id')
 
 
 class FreshManFirstSku(Base):
+    """新人首单申请sku"""
     __tablename__ = 'FreshManFirstSku'
     FMFSid = Column(String(64), primary_key=True)
     FMFPid = Column(String(64), nullable=False, comment='申请商品id')

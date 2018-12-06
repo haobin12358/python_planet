@@ -79,7 +79,9 @@ class COrder(CPay, CCoupon):
             if order_main.OMinRefund is True:
                 omid = order_main.OMid
                 order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
-                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate', 'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime']
+                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate',
+                                                      'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh',
+                                                      'createtime', 'ORAid']
                 order_main.fill('order_refund_apply', order_refund_apply_instance)
                 # 售后发货状态
                 if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
@@ -620,7 +622,7 @@ class COrder(CPay, CCoupon):
                                                              [OrderFrom.carts.value, OrderFrom.product_info.value]
                                                          )).count(),
                         'name': '售后中',
-                        'status': 40,
+                        'status': 40,  # 售后表示数字
                     }
                 )
         return Success(data=data)

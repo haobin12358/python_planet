@@ -10,5 +10,6 @@ class AMagicBox(Resource):
         apis = {
             'open': self.cmagicbox.open,
             'join': self.cmagicbox.join,
+            'recv_award': self.cmagicbox.recv_award,
         }
         return apis
