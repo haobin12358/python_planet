@@ -169,10 +169,11 @@ class FreshManFirstProduct(Base):
     __tablename__ = 'FreshManFirstProduct'
     FMFPid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='申请新人首单的商品id')
-    PRmainpic = Column(String(255), nullable=False, comment='主图')
+    PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
     PBid = Column(String(64), nullable=False, comment='品牌id')
-    PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
+    PRattribute = Column(String(255), comment='商品属性 ["网络","颜色","存储"]')
+    PRdescription = Column(Text, comment='描述')
     PRfeight = Column(Float, default=0, comment='快递费用')
     PRprice = Column(Float, nullable=False, comment='显示价格')
     FMFAid = Column(String(64), nullable=False, comment='新人首单申请单id')
