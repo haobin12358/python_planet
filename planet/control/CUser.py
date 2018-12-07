@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -73,8 +73,10 @@ class CUser(SUser, BASEAPPROVAL):
         if not (user.USrealname and user.USidentification):
             check_result = False
             check_reason.append("实名认证未通过")
-        # todo 创建押金订单
-        # self.__check_gift_order()
+
+        if not self.__check_gift_order():
+            check_result = False
+            check_reason.append('没有购买开店大礼包')
         return check_result, check_reason[:]
 
     def __check_password(self, password):
@@ -125,7 +127,22 @@ class CUser(SUser, BASEAPPROVAL):
         return json.loads(model_byte.decode('utf-8'))
 
     def __check_gift_order(self):
-        order = OrderMain.query.filter_by_(USid=request.user.id)
+
+        start = datetime.datetime.now().timestamp()
+        op_list = OrderPart.query.filter(
+            OrderMain.isdelete == False,
+            OrderMain.USid == request.user.id,
+            OrderMain.OMstatus == OrderMainStatus.ready.value,
+            OrderPart.PRid == ProductItems.PRid,
+            ProductItems.ITid == Items.ITid,
+            Items.ITname == '开店大礼包',
+            OrderPart.OMid == OrderMain.OMid).all()
+
+        end = datetime.datetime.now().timestamp()
+        gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' %(end - start))))
+        if op_list:
+            return True
+        return False
 
 
     def _base_decode(self, raw):
@@ -163,7 +180,7 @@ class CUser(SUser, BASEAPPROVAL):
         savepath, savedbpath = self._get_path('qrcode')
         secret_usid = self._base_encode(usid)
         # url = PLANET_SUBSCRIBE if app_from and  in PLANET_SUBSCRIBE else PLANET_SERVICE
-        url = url + '?secret_usid={0}'.format(secret_usid)
+        url = url + '/#/selected?secret_usid={0}'.format(secret_usid)
         # filename = "{0}{1}.png".format(secret_usid, )
         filename = os.path.join(savepath, '{0}.png'.format(secret_usid))
         filedbname = os.path.join(savedbpath, '{0}.png'.format(secret_usid))
@@ -171,8 +188,34 @@ class CUser(SUser, BASEAPPROVAL):
         head = current_app.config['BASEDIR'] + head
         gennerc_log('get head {0}'.format(head))
         qrcodeWithlogo(url, head, filename)
-
         return filedbname
+
+    def analysis_app_from(self, appfrom):
+        # todo app 可能存在问题。
+        if appfrom in PLANET_SUBSCRIBE:
+            return {
+                'appid': SUBSCRIBE_APPID,
+                'appsecret': SUBSCRIBE_APPSECRET,
+                'url': PLANET_SUBSCRIBE,
+                'usfilter': 'USopenid2',
+                'apptype': WXLoginFrom.subscribe.value
+            }
+        elif appfrom in PLANET_SERVICE:
+            return {
+                'appid': SERVICE_APPID,
+                'appsecret': SERVICE_APPSECRET,
+                'url': PLANET_SERVICE,
+                'usfilter': 'USopenid1',
+                'apptype': WXLoginFrom.service.value
+            }
+        else:
+            return {
+                'appid': SERVICE_APPID,
+                'appsecret': SERVICE_APPSECRET,
+                'url': PLANET_SERVICE,
+                'usfilter': 'USopenid1',
+                'apptype': WXLoginFrom.app.value
+            }
 
     @get_session
     def login(self):
@@ -311,8 +354,6 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        # todo 插入 优惠券信息
-        # user.add('优惠券')
         uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
         user.fields = self.USER_FIELDS[:]
@@ -633,8 +674,6 @@ class CUser(SUser, BASEAPPROVAL):
         if data.get("usgender"):
             user.USgender = data.get("usgender")
 
-        # todo 查看是否购买了大礼包
-
         user.USlevel = 3
         # 资质认证
         self.check_idcode(data, user)
@@ -644,7 +683,8 @@ class CUser(SUser, BASEAPPROVAL):
 
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
             # 创建后台账号用其手机号作为账号
-            # adid = str(uuid.uuid1())
+            # adid = str(uuid.
+            # ())
             # adinstance = Admin.create({
             #     'ADid': user.USid,
             #     'ADname': str(user.UStelphone),
@@ -1040,37 +1080,13 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get url %s' % url)
         app_from = request.args.get('app_from', )
         # todo 根据不同的来源处理不同的mp
-
-        data = mp_server.jsapi_sign(url=url)
+        if app_from and app_from in PLANET_SUBSCRIBE:
+            data = mp_subscribe.jsapi_sign(url=url)
+        else:
+            data = mp_server.jsapi_sign(url=url)
         gennerc_log("get wx config %s" % data)
         return Success('获取微信参数成功', data=data)
 
-    def analysis_app_from(self, appfrom):
-        # todo app 可能存在问题。
-        if appfrom in PLANET_SUBSCRIBE:
-            return {
-                'appid': SUBSCRIBE_APPID,
-                'appsecret': SUBSCRIBE_APPSECRET,
-                'url': PLANET_SUBSCRIBE,
-                'usfilter': 'USopenid2',
-                'apptype': WXLoginFrom.subscribe.value
-            }
-        elif appfrom in PLANET_SERVICE:
-            return {
-                'appid': SERVICE_APPID,
-                'appsecret': SERVICE_APPSECRET,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.service.value
-            }
-        else:
-            return {
-                'appid': SERVICE_APPID,
-                'appsecret': SERVICE_APPSECRET,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.app.value
-            }
     @get_session
     def wx_login(self):
         """微信登录"""
@@ -1199,8 +1215,8 @@ class CUser(SUser, BASEAPPROVAL):
             return_user = user
 
         return_user.fields = self.USER_FIELDS[:]
-        return_user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        return_user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        return_user.fill('usidentification', self.__conver_idcode(return_user.USidentification))
+        return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': return_user})
