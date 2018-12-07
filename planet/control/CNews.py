@@ -14,7 +14,7 @@ from planet.config.enums import ItemType, NewsStatus
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand
+    Products, CouponUser, Admin, ProductBrand, User
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -133,8 +133,12 @@ class CNews(object):
             trample = 0
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
-        news_author = self.snews.get_user_by_id(news.USid)
-        news_author.fields = ['USname', 'USheader']
+        # news_author = self.snews.get_user_by_id(news.USid)
+        news_author = User.query.filter_by_(USid=news.USid).first()
+        if news_author:
+            news_author.fields = ['USname', 'USheader']
+        else:
+            news_author = {'usname': '客官', 'usheader': ''}
         # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
         commentnumber = self.snews.get_news_comment_count(neid)

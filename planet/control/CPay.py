@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import re
 import uuid
 from decimal import Decimal
 
@@ -112,9 +113,9 @@ class CPay():
     def wechat_notify(self):
         """微信支付回调"""
         # 待测试
-        data = self.pay.to_dict(request.data)
-        if not self.pay.check(data):
-            return self.pay.reply(u"签名验证失败", False)
+        data = self.wx_pay.to_dict(request.data)
+        if not self.wx_pay.check(data):
+            return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
         with self.strade.auto_commit() as s:
             s_list = []
@@ -134,7 +135,7 @@ class CPay():
                 commion_instance_list = self._insert_usercommision(s, order_main)
                 s_list.extend(commion_instance_list)
             s.add_all(s_list)
-        return self.pay.reply("OK", True)
+        return self.wx_pay.reply("OK", True).decode()
 
     def _insert_usercommision(self, s, order_main):
         """写入佣金流水表"""
@@ -173,6 +174,7 @@ class CPay():
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        body = re.sub('\s', '', body)
         mount_price = 0.01
         current_app.logger.info('openid is {}'.format(openid))
         ####
@@ -183,7 +185,7 @@ class CPay():
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
-                body = 'body'
+                body = body[:66] + '...'
                 current_app.logger.info('body is {}'.format(body))
                 wechat_pay_dict = {
                     'body': body,

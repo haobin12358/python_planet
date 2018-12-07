@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Integer, String, Text, Float, DateTime, Boolean
+from sqlalchemy import Integer, String, Text, Float, DateTime, Boolean, orm
 
 from planet.common.base_model import Base, Column
 
@@ -205,8 +205,14 @@ class LogisticsCompnay(Base):
     """快递公司"""
     __tablename__ = 'LogisticsCompnay'
     id = Column(Integer, autoincrement=True, primary_key=True)
-    LCname = Column(String(64), nullable=False, index=True, comment='公司名称')
+    LCname = Column(String(64), nullable=False, comment='公司名称')
     LCcode = Column(String(64), nullable=False, index=True, comment='快递公司编码')
+    LCfirstCharater = Column(String(1), nullable=False, index=True, comment='首字母')
+    LCisCommon = Column(Boolean, default=False, comment='是否常用')
+
+    @orm.reconstructor
+    def __init__(self):
+        self.fields = ['LCname', 'LCcode', ]
 
 
 class Coupon(Base):

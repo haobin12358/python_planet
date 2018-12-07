@@ -48,12 +48,30 @@ class CRefund(object):
         data = parameter_required(('oraid', ))
         oraid = data.get('oraid')
         with db.auto_commit():
-            OrderRefundApply.query.filter_by({
+            order_refund_apply = OrderRefundApply.query.filter_by({
                 'ORAid': oraid,
                 "USid": request.user.id
-            }).update({
+            }).first()
+
+            order_refund_apply.update({
                 'ORAstatus': OrderRefundOrstatus.cancle.value
             })
+            db.session.add(order_refund_apply)
+            # 修改主单或副单售后状态
+            if order_refund_apply.OPid:
+                OrderPart.query.filter_by({
+                    'OPid': order_refund_apply.OPid
+                }).update({
+                    'OPisinORA': False
+                })
+
+            OrderMain.query.filter_by({
+                'OMid': order_refund_apply.OMid
+            }).update({
+                "OMinRefund": False
+            })
+
+
         return Success('撤销成功')
 
     @token_required
