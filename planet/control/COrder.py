@@ -4,7 +4,7 @@ import random
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import request
@@ -25,7 +25,7 @@ from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor
+    AddressArea, AddressProvince, CouponFor, TrialCommodity
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund
@@ -62,6 +62,14 @@ class COrder(CPay, CCoupon):
                 # 状态
                 # order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
                 # order_part.add('OPstatus_en')
+
+                # 如果是试用商品，订单信息中添加押金到期信息
+                if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
+                                        OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
+                    trialcommodity = TrialCommodity.query.filter_by_(TCid=order_part.PRid).first()
+                    deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+                    order_main.fill('deposit_expires', deposit_expires)
+                    order_part.fill('deposit_expires', deposit_expires)
             order_main.fill('order_part', order_parts)
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -394,7 +402,7 @@ class COrder(CPay, CCoupon):
         usid = request.user.id
         User.query.filter_by_(USid=usid).first_('用户不存在')
         order = OrderMain.query.filter_by_(OMid=omid).first_('订单不存在')
-        assert order.OMstatus == -40, '只有已取消的订单可以删除'
+        assert order.OMstatus == OrderMainStatus.cancle.value, '只有已取消的订单可以删除'
         order.isdelete = True
         db.session.commit()
         return Success('删除成功', {'omid': omid})
@@ -483,7 +491,7 @@ class COrder(CPay, CCoupon):
                                                           OrderMain.OMstatus == OrderMainStatus.wait_comment.value
                                                           ], {'OMstatus': OrderMainStatus.ready.value})
         if not update_status:
-            raise StatusError('状态错误，服务器繁忙')
+            raise StatusError('服务器繁忙 - 10001')
 
         # 如果提交时主单中还有未评价的副单，默认好评
         if len(orderpartid_list) > 0:
