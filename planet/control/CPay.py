@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import request, current_app
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, ApiError
+from planet.common.error_response import ParamsError, SystemError, ApiError, StatusError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
@@ -68,7 +68,8 @@ class CPay():
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
             session_list.append(order_pay_instance)
             s.add_all(session_list)
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
+        user = User.query.filter(User.USid == order_main.USid).first()
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body, openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
@@ -90,13 +91,13 @@ class CPay():
         with self.strade.auto_commit() as s:
             s_list = []
             # 更改付款流水
-            order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
+            order_pay_instance = s.query(OrderPay).filter_by({'OPayno': out_trade_no}).first_('异常支付')
             order_pay_instance.OPaytime = data.get('gmt_payment')
             order_pay_instance.OPaysn = data.get('trade_no')  # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
             s_list.append(order_pay_instance)
             # 更改主单
-            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            order_mains = s.query(OrderMain).filter_by({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
@@ -172,6 +173,7 @@ class CPay():
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        mount_price = 0.01
         current_app.logger.info('openid is {}'.format(openid))
         ####
         # 一种测试的付款方式, 使用支付宝网页支付
@@ -181,18 +183,29 @@ class CPay():
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
-                body = body[:66] + '...'
-                wechat_pay_dict = dict(
-                    body=body,
-                    out_trade_no=opayno,
-                    total_fee=int(mount_price * 100), attach='attach',
-                    spbill_create_ip=request.remote_addr
-                )
+                body = 'body'
+                current_app.logger.info('body is {}'.format(body))
+                wechat_pay_dict = {
+                    'body': body,
+                    'out_trade_no': opayno,
+                    'total_fee': int(mount_price * 100),
+                    'attach': 'attach',
+                    'spbill_create_ip': request.remote_addr
+                }
+
                 if omclient == Client.wechat.value:  # 微信客户端
-                    wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+                    if not openid:
+                        raise StatusError('用户未使用微信登录')
+                    # wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+                    wechat_pay_dict.update({
+                        'trade_type': 'JSAPI',
+                        'openid': openid
+                    })
                     raw = self.wx_pay.jsapi(**wechat_pay_dict)
                 else:
-                    wechat_pay_dict.update(dict(trade_type="APP"))
+                    wechat_pay_dict.update({
+                        'trade_type': "APP"
+                    })
                     raw = self.wx_pay.unified_order(**wechat_pay_dict)
             except WeixinPayError as e:
                 raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
@@ -207,7 +220,7 @@ class CPay():
                         total_amount=mount_price,
                         subject=body[:66] + '...',
                     )
-                except Exception as e:
+                except Exception:
                     raise SystemError('支付宝参数异常')
         else:
             raise SystemError('请选用其他支付方式')

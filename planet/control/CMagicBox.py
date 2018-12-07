@@ -8,14 +8,17 @@ from sqlalchemy.dialects.postgresql import json
 from planet.common.error_response import StatusError, DumpliError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus
+from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus, OrderFrom, PayType
 from planet.extensions.register_ext import db
-from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxCreateForm, request
-from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity
+from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxJoinForm, request, \
+    MagicBoxRecvAwardForm
+from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity, ProductBrand, \
+    AddressArea, UserAddress, AddressCity, AddressProvince, OrderMain, Products, OrderPart, ProductSku, OrderPay
 from .CUser import CUser
+from .COrder import COrder
 
 
-class CMagicBox(CUser):
+class CMagicBox(CUser, COrder):
     def __init__(self):
         pass
 
@@ -96,7 +99,7 @@ class CMagicBox(CUser):
         Activity.query.filter_by({
             'ACtype': ActivityType.magic_box.value
         }).first_('活动已结束')
-        form = MagicBoxCreateForm().valid_data()
+        form = MagicBoxJoinForm().valid_data()
         mbaid = form.mbaid.data
         usid = request.user.id
         with db.auto_commit():
@@ -130,3 +133,104 @@ class CMagicBox(CUser):
         return Success('参与成功', data={
             'mbjid': magic_box_join.MBJid
         })
+
+    @token_required
+    def recv_award(self):
+        """购买魔盒礼品"""
+        form = MagicBoxRecvAwardForm().valid_data()
+        magic_box_join = form.magic_box_join
+        mbaid = magic_box_join.MBAid
+        omclient = form.omclient.data
+        ommessage = form.ommessage.data
+        opaytype = form.opaytype.data
+        uaid = form.uaid.data
+        usid = request.user.id
+        with db.auto_commit():
+            magic_box_apply = MagicBoxApply.query.filter_by_({"MBAid": mbaid}).first()
+            prid = magic_box_apply.PRid
+            skuid = magic_box_apply.SKUid
+            price = magic_box_join.MBJcurrentPrice
+            pbid = magic_box_apply.PBid
+            product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
+            product = Products.query.filter_by({'PRid': prid}).first()
+            sku = ProductSku.query.filter_by({'SKUid': magic_box_apply.SKUid}).first()
+            # 地址信息
+            # 用户的地址信息
+            user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            omrecvphone = user_address_instance.UAphone
+            areaid = user_address_instance.AAid
+            # 地址拼接
+            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
+            # 创建订单
+            omid = str(uuid.uuid4())
+            opayno = self.wx_pay.nonce_str
+            # 主单
+            order_main_dict = {
+                'OMid': omid,
+                'OMno': self._generic_omno(),
+                'OPayno': opayno,
+                'USid': usid,
+                'OMfrom': OrderFrom.magic_box.value,
+                'PBname': product_brand.PBname,
+                'PBid': pbid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0
+                'OMmount': price,
+                'OMmessage': ommessage,
+                'OMtrueMount': price,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+            }
+            order_main_instance = OrderMain.create(order_main_dict)
+            db.session.add(order_main_instance)
+            # 订单副单
+            order_part_dict = {
+                'OMid': omid,
+                'OPid': str(uuid.uuid4()),
+                'SKUid': skuid,
+                'PRattribute': product.PRattribute,
+                'SKUattriteDetail': sku.SKUattriteDetail,
+                'PRtitle': product.PRtitle,
+                'SKUprice': price,
+                'PRmainpic': product.PRmainpic,
+                'OPnum': 1,
+                'PRid': product.PRid,
+                'OPsubTotal': price,
+                # 副单商品来源
+                'PRfrom': product.PRfrom,
+                'PRcreateId': product.CreaterId
+            }
+            order_part_instance = OrderPart.create(order_part_dict)
+            db.session.add(order_part_instance)
+            # 用户参与状态改变
+            magic_box_join.MBJstatus = ActivityRecvStatus.ready_recv.value
+            db.session.add(magic_box_join)
+            # 支付数据表
+            order_pay_dict = {
+                'OPayid': str(uuid.uuid4()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': price,
+            }
+            order_pay_instance = OrderPay.create(order_pay_dict)
+            db.session.add(order_pay_instance)
+        # 生成支付信息
+        body = product.PRtitle
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建订单成功', data=response)
+
+
+

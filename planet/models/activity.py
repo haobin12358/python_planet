@@ -109,18 +109,13 @@ class GuessNumAwardApply(Base):
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
 
-# 魔术礼盒
-# class MagicBox(Base):
-#     __tablename__ = 'MagicBox'
-#     MBid = Column(String(64), primary_key=True)
-#
-
 class MagicBoxApply(Base):
     __tablename__ = 'MagicBoxApply'
     MBAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), nullable=False, comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     PRid = Column(String(64), nullable=False, comment='商品id')
+    PBid = Column(String(64), nullable=False, comment='品牌id')
     MBAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     MBAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
     SKUprice = Column(Float, nullable=False, comment='原价')
@@ -162,9 +157,33 @@ class FreshManFirstApply(Base):
     __tablename__ = 'FreshManFirstApply'
     FMFAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), primary_key=True, comment='供应商')
-    PRid = Column(String(64), nullable=False, comment='商品id')
     FMFAstartTime = Column(DateTime, nullable=False, comment='申请开始时间')
     FMFAendTime = Column(DateTime, nullable=False, comment='申请结束时间')
     FMFAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
+
+
+class FreshManFirstProduct(Base):
+    """新人首单申请商品"""
+    __tablename__ = 'FreshManFirstProduct'
+    FMFPid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='申请新人首单的商品id')
+    PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
+    PRtitle = Column(String(255), nullable=False, comment='商品标题')
+    PBid = Column(String(64), nullable=False, comment='品牌id')
+    PRattribute = Column(String(255), comment='商品属性 ["网络","颜色","存储"]')
+    PRdescription = Column(Text, comment='描述')
+    PRfeight = Column(Float, default=0, comment='快递费用')
+    PRprice = Column(Float, nullable=False, comment='显示价格')
+    FMFAid = Column(String(64), nullable=False, comment='新人首单申请单id')
+
+
+class FreshManFirstSku(Base):
+    """新人首单申请sku"""
+    __tablename__ = 'FreshManFirstSku'
+    FMFSid = Column(String(64), primary_key=True)
+    FMFPid = Column(String(64), nullable=False, comment='申请商品id')
+    SKUid = Column(String(64), nullable=False, comment='skuid')
+    SKUprice = Column(Float, nullable=False, comment='sku价格')
+

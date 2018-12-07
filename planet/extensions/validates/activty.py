@@ -4,7 +4,10 @@ from datetime import date
 from sqlalchemy import cast, Date
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.models.activity import GuessNum, Activity
+from planet.config.enums import Client, ActivityRecvStatus, PayType
+from planet.extensions.register_ext import db
+from planet.models import AddressArea, AddressCity, AddressProvince, UserAddress
+from planet.models.activity import GuessNum, Activity, MagicBoxJoin
 from .base_form import *
 
 
@@ -80,16 +83,31 @@ class MagicBoxOpenForm(BaseForm):
     level = SelectField(choices=[("1", 'Gearsone'),
                                  ('2', 'Gearstwo'),
                                  ('3', 'Gearsthree')])
-
-    # usid_base = StringField()
     mbaid = StringField('进行中的活动')
     mbjid = StringField('参与记录来源')
 
 
-class MagicBoxCreateForm(BaseForm):
+class MagicBoxJoinForm(BaseForm):
     mbaid = StringField('当前活动的唯一标志', validators=[DataRequired('需要传入 mbaid')])
 
 
+class MagicBoxRecvAwardForm(BaseForm):
+    mbjid = StringField('参与记录id', validators=[DataRequired('传入参与记录id')])
+    uaid = StringField('地址id', validators=[DataRequired('地址不可为空')])
+    omclient = IntegerField('下单设备', default=Client.wechat.value)
+    ommessage = StringField('留言')
+    opaytype = IntegerField('支付类型')
+
+    def validate_mbjid(self, raw):
+        self.magic_box_join = MagicBoxJoin.query.filter_by_({'MBJid': raw.data}).first_('未参与活动')
+        if self.magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
+            raise StatusError('已领奖或已过期')
+
+    def validate_omclient(self, raw):
+        Client(raw.data)
+
+    def validate_opaytype(self, raw):
+        PayType(raw.data)
 
 
 

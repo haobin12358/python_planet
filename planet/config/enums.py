@@ -53,7 +53,7 @@ class OrderFrom(Enum):
 
 
 class OrderMainStatus(Enum):
-    """买家主订单状态"""
+    """买家主订单状态, 40是售后状态, 未写出"""
     wait_pay = 0, '待支付'
     wait_send = 10, '待发货'
     wait_recv = 20, '待收货'

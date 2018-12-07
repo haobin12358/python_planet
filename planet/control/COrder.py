@@ -19,7 +19,6 @@ from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation
-from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
@@ -87,7 +86,9 @@ class COrder(CPay, CCoupon):
             if order_main.OMinRefund is True:
                 omid = order_main.OMid
                 order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
-                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate', 'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh', 'createtime']
+                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate',
+                                                      'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh',
+                                                      'createtime', 'ORAid']
                 order_main.fill('order_refund_apply', order_refund_apply_instance)
                 # 售后发货状态
                 if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
@@ -628,7 +629,7 @@ class COrder(CPay, CCoupon):
                                                              [OrderFrom.carts.value, OrderFrom.product_info.value]
                                                          )).count(),
                         'name': '售后中',
-                        'status': 'refund'
+                        'status': 40,  # 售后表示数字
                     }
                 )
         return Success(data=data)
@@ -716,6 +717,7 @@ class COrder(CPay, CCoupon):
 
         return Success(data=res)
 
+
     @staticmethod
     def _get_order_count(arg, k):
         return OrderMain.query.filter_(OrderMain.OMstatus == getattr(OrderMainStatus, k).value,
@@ -765,7 +767,7 @@ class COrder(CPay, CCoupon):
         return order_refund_instance
 
     def _coupon_for(self, coid):
-        return CouponFor.query.filter_by({'COid': coid}).all()
+        return CouponFor.query.filter_by({'COid': coid}).all(   )
 
     @staticmethod
     def _coupon_for_pbids(coupon_for):
@@ -774,4 +776,65 @@ class COrder(CPay, CCoupon):
     @staticmethod
     def _coupon_for_prids(coupon_for):
         return [x.PRid for x in coupon_for if x.PRid]
+
+    def test_to_pay(self):
+        """"""
+        data = parameter_required(('phone',))
+        phone = data.get('phone')
+        with db.auto_commit():
+            user = User.query.filter(
+                User.UStelphone == phone
+            ).first()
+            order_mains = OrderMain.query.filter_by({
+                'USid': user.USid,
+                "OMstatus": 0
+            }).all()
+            for order_main in order_mains:
+                order_main.update({
+                    'OMstatus': OrderMainStatus.wait_send.value
+                })
+                db.session.add(order_main)
+                # 添加支付数据
+                out_trade_no = order_main.OPayno
+                order_pay_instance = OrderPay.query.filter_by({'OPayno': out_trade_no}).update({
+                    'OPaytime': datetime.now(),
+                    'OPaysn': self._generic_omno(),
+                    'OPayJson': '{"hello": 1}'
+                })
+
+        return Success('success')
+
+    def test_to_send(self):
+        data = parameter_required(('phone',))
+        phone = data.get('phone')
+        olcompany = 'YTO'
+        olexpressno = '802725584022945412'
+        user = User.query.filter(
+            User.UStelphone == phone
+        ).first()
+        with self.strade.auto_commit() as s:
+            order_mains = OrderMain.query.filter_by({
+                'USid': user.UStelphone,
+                'OMstatus': OrderMainStatus.wait_send.value
+            }).all()
+            s_list = []
+            for order_main_instance in order_mains:
+                omid = order_main_instance.OMid
+                if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
+                    raise StatusError('订单状态不正确')
+                if order_main_instance.OMinRefund is True:
+                    raise StatusError('商品在售后状态')
+                # 添加物流记录
+                order_logistics_instance = OrderLogistics.create({
+                    'OLid': str(uuid.uuid4()),
+                    'OMid': omid,
+                    'OLcompany': olcompany,
+                    'OLexpressNo': olexpressno,
+                })
+                s_list.append(order_logistics_instance)
+                # 更改主单状态
+                order_main_instance.OMstatus = OrderMainStatus.wait_recv.value
+                s_list.append(order_main_instance)
+            s.add_all(s_list)
+        return Success('success')
 
