@@ -185,6 +185,5 @@ class FreshManFirstSku(Base):
     FMFSid = Column(String(64), primary_key=True)
     FMFPid = Column(String(64), nullable=False, comment='申请商品id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
-    SKUpic = Column(String(255), nullable=False, comment='sku图片')
     SKUprice = Column(Float, nullable=False, comment='sku价格')
 

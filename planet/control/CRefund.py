@@ -259,11 +259,11 @@ class CRefund(object):
             order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
             # 申请参数校验
-            oraproductstatus = data.get('oraproductstatus')  # 是否已经收到货
+            oraproductstatus = int(data.get('oraproductstatus'))  # 是否已经收到货
             ORAproductStatus(oraproductstatus)
             oramount = data.get('oramount')
 
-            orastate = data.get('orastate', OrderRefundORAstate.goods_money.value)
+            orastate = int(data.get('orastate', OrderRefundORAstate.goods_money.value))
             try:
                 OrderRefundORAstate(orastate)
             except Exception as e:

@@ -173,6 +173,7 @@ class CPay():
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        mount_price = 0.01
         current_app.logger.info('openid is {}'.format(openid))
         ####
         # 一种测试的付款方式, 使用支付宝网页支付

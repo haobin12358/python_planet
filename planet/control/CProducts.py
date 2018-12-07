@@ -236,8 +236,8 @@ class CProducts:
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
-                skuprice = sku.get('skuprice')
-                skustock = sku.get('skustock')
+                skuprice = float(sku.get('skuprice'))
+                skustock = int(sku.get('skustock'))
                 assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
                 sku_dict = {
                     'SKUid': str(uuid.uuid4()),
@@ -264,7 +264,7 @@ class CProducts:
             if items:
                 for item in items:
                     itid = item.get('itid')
-                    item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签不存在')
+                    item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签{}不存在'.format(itid))
                     item_product_dict = {
                         'PIid': str(uuid.uuid4()),
                         'PRid': prid,
