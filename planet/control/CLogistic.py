@@ -25,20 +25,12 @@ class CLogistic:
         common = LogisticsCompnay.query.filter_by({
             'LCisCommon': True
         }).all()
-        all = []
-        logistic_groups = LogisticsCompnay.query.group_by(
+        logistics = LogisticsCompnay.query.filter_by_().order_by(
             LogisticsCompnay.LCfirstCharater
-        ).order_by(LogisticsCompnay.LCfirstCharater).all()
-        for logistic_group in logistic_groups:
-            logistics = LogisticsCompnay.query.filter_by({
-                'LCfirstCharater': logistic_group.LCfirstCharater
-            }).all()
-            all.append({
-                logistic_group.LCfirstCharater: logistics
-            })
+        ).all()
         return Success(data={
             'common': common,
-            'all': all
+            'all': logistics
         })
 
     @token_required
