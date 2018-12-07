@@ -70,8 +70,6 @@ class CRefund(object):
             }).update({
                 "OMinRefund": False
             })
-
-
         return Success('撤销成功')
 
     @token_required

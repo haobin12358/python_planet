@@ -174,7 +174,7 @@ class CPay():
         return order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
-        body = re.sub('\s', '', body)
+        body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         mount_price = 0.01
         current_app.logger.info('openid is {}'.format(openid))
         ####
@@ -185,7 +185,7 @@ class CPay():
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
-                body = body[:66] + '...'
+                body = body[:16] + '...'
                 current_app.logger.info('body is {}'.format(body))
                 wechat_pay_dict = {
                     'body': body,

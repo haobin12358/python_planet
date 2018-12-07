@@ -12,7 +12,7 @@ from planet.common.token_handler import token_required, is_admin, is_shop_keeper
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
 
@@ -55,15 +55,28 @@ class CProducts:
             sku_value_item.append(sku.SKUattriteDetail)
         product.fill('skus', skus)
         # sku value
-        sku_value_item_reverse = []
-        for index, name in enumerate(product.PRattribute):
-            value = list(set([attribute[index] for attribute in sku_value_item]))
-            value = sorted(value)
-            temp = {
-                'name': name,
-                'value': value
-            }
-            sku_value_item_reverse.append(temp)
+        # 是否有skuvalue, 如果没有则自行组装
+        sku_value_instance = ProductSkuValue.query.filter_by_({
+            'PRid': prid
+        }).first()
+        if not sku_value_instance:
+            sku_value_item_reverse = []
+            for index, name in enumerate(product.PRattribute):
+                value = list(set([attribute[index] for attribute in sku_value_item]))
+                value = sorted(value)
+                temp = {
+                    'name': name,
+                    'value': value
+                }
+                sku_value_item_reverse.append(temp)
+        else:
+            sku_value_item_reverse = []
+            pskuvalue = json.loads(sku_value_instance.PSKUvalue)
+            for index, value in enumerate(pskuvalue):
+                sku_value_item_reverse.append({
+                    'name': product.PRattribute[index],
+                    'value': value
+                })
         product.fill('SkuValue', sku_value_item_reverse)
         # product_sku_value = self.sproduct.get_sku_value({'PRid': prid})
         # product_sku_value.PSKUvalue = json.loads(getattr(product_sku_value, 'PSKUvalue', '[]'))
@@ -146,8 +159,7 @@ class CProducts:
             query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
                 SupplizerProduct.SUid.is_(None)
             )
-        products = query. \
-            filter_(*filter_args).\
+        products = query.filter_(*filter_args).\
               order_by(order_by).all_with_page()
         # 填充
         for product in products:
@@ -232,10 +244,12 @@ class CProducts:
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku
+            sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
             for sku in skus:
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
+                sku_detail_list.append(skuattritedetail)
                 skuprice = float(sku.get('skuprice'))
                 skustock = int(sku.get('skustock'))
                 assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
@@ -249,6 +263,25 @@ class CProducts:
                 }
                 sku_instance = ProductSku.create(sku_dict)
                 session_list.append(sku_instance)
+            #sku value
+            pskuvalue = data.get('pskuvalue')
+            if pskuvalue:
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                    raise ParamsError('pskuvalue与prattribute不符')
+                sku_reverce = []
+                for index in range(len(prattribute)):
+                    value = list(set([attribute[index] for attribute in sku_detail_list]))
+                    sku_reverce.append(value)
+                    # 对应位置的列表元素应该相同
+                    if set(value) != set(pskuvalue[index]):
+                        raise ParamsError('请核对pskuvalue')
+                # sku_value表
+                sku_value_instance = ProductSkuValue.create({
+                    'PSKUid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'PSKUvalue': json.dumps(pskuvalue)
+                })
+                session_list.append(sku_value_instance)
             # images
             for image in images:
                 image_dict = {
@@ -350,6 +383,26 @@ class CProducts:
                     }
                     [setattr(sku_instance, k, v) for k, v in sku_dict.items() if v is not None]
                     session_list.append(sku_instance)
+
+                    # sku value
+                    pskuvalue = data.get('pskuvalue')
+                    if pskuvalue:
+                        if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                            raise ParamsError('pskuvalue与prattribute不符')
+                        sku_reverce = []
+                        for index in range(len(prattribute)):
+                            value = list(set([attribute[index] for attribute in sku_detail_list]))
+                            sku_reverce.append(value)
+                            # 对应位置的列表元素应该相同
+                            if set(value) != set(pskuvalue[index]):
+                                raise ParamsError('请核对pskuvalue')
+                        # sku_value表
+                        sku_value_instance = ProductSkuValue.create({
+                            'PSKUid': str(uuid.uuid1()),
+                            'PRid': prid,
+                            'PSKUvalue': json.dumps(pskuvalue)
+                        })
+                        session_list.append(sku_value_instance)
             # images, 有piid为修改, 无piid为新增
             if images:
                 for image in images:
