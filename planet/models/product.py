@@ -56,7 +56,7 @@ class ProductSkuValue(Base):
     """
     __tablename__ = 'ProductSkuValue'
     PSKUid = Column(String(64), primary_key=True)
-    PCid = Column(String(64), nullable=False, comment='分类id')
+    PRid = Column(String(64), nullable=False, comment='商品id')
     PSKUvalue = Column(Text, comment='属性名[[联通, 电信], [白, 黑], [16G, 32G]]')
 
 
