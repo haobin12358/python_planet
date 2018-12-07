@@ -172,7 +172,6 @@ class FreshManFirstProduct(Base):
     PRmainpic = Column(String(255), nullable=False, comment='主图')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
     PBid = Column(String(64), nullable=False, comment='品牌id')
-    PRdescription = Column(Text, comment='商品描述')
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     PRfeight = Column(Float, default=0, comment='快递费用')
     PRprice = Column(Float, nullable=False, comment='显示价格')
