@@ -6,18 +6,19 @@ from PIL import Image
 import qrcode
 
 
-def qrcodeWithurl(url):
+def qrcodeWithurl(url, savepath):
     """
     生成url二维码
     :param url:
+    :param savepath: 保存路径
     :return:
     """
     img=qrcode.make(url)
-    savePath='1.png'
-    img.save(savePath)
+    # savepath='1.png'
+    img.save(savepath)
 
 
-def qrcodeWithtext(text):
+def qrcodeWithtext(text, savepath):
     """
     生成文本二维码
     :param text:
@@ -25,16 +26,16 @@ def qrcodeWithtext(text):
     """
     img=qrcode.make(text)
     #保存图片
-    savePath='2.png'
-    img.save(savePath)
+    # savepath='2.png'
+    img.save(savepath)
 
 
-def qrcodeWithlogo(url, filename, logo_file):
+def qrcodeWithlogo(url, logo_file, savepath):
     """
     生成带logo的二维码
     :param url:
-    :param filename:
     :param logo_file:
+    :param savepath:
     :return:
     """
     qr = qrcode.QRCode(
@@ -67,6 +68,4 @@ def qrcodeWithlogo(url, filename, logo_file):
     img.paste(newimg, (w - 4, h - 4), newimg)
 
     img.paste(icon, (w, h), icon)
-    img.save('D:\\tmp\\' + filename + '.png', quality=100)
-
-# create_qrcode('https://www.baidu.com/', 'test')
+    img.save(savepath, quality=100)

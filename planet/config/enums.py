@@ -256,6 +256,12 @@ class UserLoginTimetype(Enum):
     admin = 2, '管理员'
 
 
+class WXLoginFrom(Enum):
+    service = 0, '服务号'
+    subscribe = 1, '订阅号'
+    app = 2, '移动端'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
