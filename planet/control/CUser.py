@@ -1,10 +1,12 @@
 import base64
 import json
+import os
 import random
 import re
 import datetime
 import uuid
 
+import requests
 from flask import request
 
 from flask import current_app
@@ -13,7 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -27,7 +29,7 @@ from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
-from planet.config.timeformat import format_for_db
+from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.validates.user import SupplizerLoginForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
@@ -35,7 +37,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
-from planet.models.trade import OrderPart
+from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db
 
@@ -71,7 +73,10 @@ class CUser(SUser, BASEAPPROVAL):
         if not (user.USrealname and user.USidentification):
             check_result = False
             check_reason.append("实名认证未通过")
-        # todo 创建押金订单
+
+        if not self.__check_gift_order():
+            check_result = False
+            check_reason.append('没有购买开店大礼包')
         return check_result, check_reason[:]
 
     def __check_password(self, password):
@@ -121,6 +126,25 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('邀请人参数异常')
         return json.loads(model_byte.decode('utf-8'))
 
+    def __check_gift_order(self):
+
+        start = datetime.datetime.now().timestamp()
+        op_list = OrderPart.query.filter(
+            OrderMain.isdelete == False,
+            OrderMain.USid == request.user.id,
+            OrderMain.OMstatus == OrderMainStatus.ready.value,
+            OrderPart.PRid == ProductItems.PRid,
+            ProductItems.ITid == Items.ITid,
+            Items.ITname == '开店大礼包',
+            OrderPart.OMid == OrderMain.OMid).all()
+
+        end = datetime.datetime.now().timestamp()
+        gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' %(end - start))))
+        if op_list:
+            return True
+        return False
+
+
     def _base_decode(self, raw):
         import base64
         return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
@@ -130,12 +154,76 @@ class CUser(SUser, BASEAPPROVAL):
         raw = raw.encode()
         return base64.b64encode(raw).decode()
 
+    def _get_local_head(self, headurl, openid):
+        data = requests.get(headurl)
+        filename = openid + '.png'
+        filepath, filedbpath = self._get_path('avatar')
+        filedbname = os.path.join(filedbpath, filename)
+        filename = os.path.join(filepath, filename)
+        with open(filename, 'wb') as head:
+            head.write(data.content)
+
+        return filedbname
+
+    def _get_path(self, fold):
+        time_now = datetime.datetime.now()
+        year = str(time_now.year)
+        month = str(time_now.month)
+        day = str(time_now.day)
+        filepath = os.path.join(current_app.config['BASEDIR'], 'img', fold, year, month, day)
+        file_db_path = os.path.join('/img', fold, year, month, day)
+        if not os.path.isdir(filepath):
+            os.makedirs(filepath)
+        return filepath, file_db_path
+
+    def _create_qrcode(self, head, usid, url):
+        savepath, savedbpath = self._get_path('qrcode')
+        secret_usid = self._base_encode(usid)
+        # url = PLANET_SUBSCRIBE if app_from and  in PLANET_SUBSCRIBE else PLANET_SERVICE
+        url = url + '/#/selected?secret_usid={0}'.format(secret_usid)
+        # filename = "{0}{1}.png".format(secret_usid, )
+        filename = os.path.join(savepath, '{0}.png'.format(secret_usid))
+        filedbname = os.path.join(savedbpath, '{0}.png'.format(secret_usid))
+        gennerc_log('get basedir {0}'.format(current_app.config['BASEDIR']))
+        head = current_app.config['BASEDIR'] + head
+        gennerc_log('get head {0}'.format(head))
+        qrcodeWithlogo(url, head, filename)
+        return filedbname
+
+    def analysis_app_from(self, appfrom):
+        # todo app 可能存在问题。
+        if appfrom in PLANET_SUBSCRIBE:
+            return {
+                'appid': SUBSCRIBE_APPID,
+                'appsecret': SUBSCRIBE_APPSECRET,
+                'url': PLANET_SUBSCRIBE,
+                'usfilter': 'USopenid2',
+                'apptype': WXLoginFrom.subscribe.value
+            }
+        elif appfrom in PLANET_SERVICE:
+            return {
+                'appid': SERVICE_APPID,
+                'appsecret': SERVICE_APPSECRET,
+                'url': PLANET_SERVICE,
+                'usfilter': 'USopenid1',
+                'apptype': WXLoginFrom.service.value
+            }
+        else:
+            return {
+                'appid': SERVICE_APPID,
+                'appsecret': SERVICE_APPSECRET,
+                'url': PLANET_SERVICE,
+                'usfilter': 'USopenid1',
+                'apptype': WXLoginFrom.app.value
+            }
 
     @get_session
     def login(self):
         """手机验证码登录"""
         data = parameter_required(('ustelphone', 'identifyingcode'))
         ustelphone = data.get('ustelphone')
+
+        fromdict = self.analysis_app_from(data.get('app_from', 'app'))
         self.__check_identifyingcode(ustelphone, data.get("identifyingcode"))
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
@@ -148,6 +236,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
+                "USqrcode": self._create_qrcode(default_head_path, usid, fromdict.get('url')),
                 "USlevel": uslevel
             })
             self.session.add(user)
@@ -159,7 +248,7 @@ class CUser(SUser, BASEAPPROVAL):
             "USid": usid,
             "USTip": request.remote_addr
         })
-        self.session.add(userloggintime)
+        db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
@@ -172,6 +261,7 @@ class CUser(SUser, BASEAPPROVAL):
         """获取token"""
         data = parameter_required(('ustelphone',))
         ustelphone = data.get('ustelphone')
+        fromdict = self.analysis_app_from(data.get('app_from', 'app'))
 
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
@@ -184,6 +274,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
+                "USqrcode": self._create_qrcode(default_head_path, usid, fromdict.get('url')),
                 "USlevel": uslevel
             })
             db.session.add(user)
@@ -263,8 +354,6 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        # todo 插入 优惠券信息
-        # user.add('优惠券')
         uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
         user.fields = self.USER_FIELDS[:]
@@ -585,8 +674,6 @@ class CUser(SUser, BASEAPPROVAL):
         if data.get("usgender"):
             user.USgender = data.get("usgender")
 
-        # todo 查看是否购买了大礼包
-
         user.USlevel = 3
         # 资质认证
         self.check_idcode(data, user)
@@ -596,7 +683,8 @@ class CUser(SUser, BASEAPPROVAL):
 
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
             # 创建后台账号用其手机号作为账号
-            # adid = str(uuid.uuid1())
+            # adid = str(uuid.
+            # ())
             # adinstance = Admin.create({
             #     'ADid': user.USid,
             #     'ADname': str(user.UStelphone),
@@ -992,8 +1080,10 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get url %s' % url)
         app_from = request.args.get('app_from', )
         # todo 根据不同的来源处理不同的mp
-
-        data = mp_server.jsapi_sign(url=url)
+        if app_from and app_from in PLANET_SUBSCRIBE:
+            data = mp_subscribe.jsapi_sign(url=url)
+        else:
+            data = mp_server.jsapi_sign(url=url)
         gennerc_log("get wx config %s" % data)
         return Success('获取微信参数成功', data=data)
 
@@ -1006,10 +1096,13 @@ class CUser(SUser, BASEAPPROVAL):
         # app from : {IOS Android, web1, web2} ps
         code = args.get('code')
         # todo 根据不同的来源处理不同的appid, appsecret
-        APP_ID = SERVICE_APPID
-        APP_SECRET_KEY = SERVICE_APPSECRET
+
+        fromdict = self.analysis_app_from(app_from)
+        APP_ID = fromdict.get('appid')
+        APP_SECRET_KEY = fromdict.get('appsecret')
 
         wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
+
         try:
             data = wxlogin.access_token(args["code"])
         except WeixinLoginError as e:
@@ -1019,14 +1112,20 @@ class CUser(SUser, BASEAPPROVAL):
         access_token = data.access_token
         gennerc_log('get openid = {0} and access_token = {1}'.format(openid, access_token))
         # todo 通过app_from 来通过不同的openid 获取用户
-        user = User.query.filter(User.USopenid1 == openid).first()
+        usfilter = {
+            fromdict.get('usfilter'): openid
+        }
+
+        user = User.query.filter_by_(usfilter).first()
         user_info = wxlogin.userinfo(access_token, openid)
         gennerc_log(user_info)
-
-        if args.get('ussupper'):
+        head = self._get_local_head(user_info.get("headimgurl"), openid)
+        if args.get('secret_usid'):
             try:
-                tokenmodel = self._base_decode(args.get('ussupper'))
+                tokenmodel = self._base_decode(args.get('secret_usid'))
                 upperd = self.get_user_by_id(tokenmodel['id'])
+                if upperd.USid == user.USid:
+                    upperd = None
             except:
                 upperd = None
         else:
@@ -1037,7 +1136,7 @@ class CUser(SUser, BASEAPPROVAL):
             sex = 0
         if user:
             usid = user.USid
-            user.USheader = user_info.get('headimgurl')
+            user.USheader = head
             user.USname = user_info.get('nickname')
             user.USgender = sex
         else:
@@ -1046,13 +1145,15 @@ class CUser(SUser, BASEAPPROVAL):
                 'USid': usid,
                 'USname': user_info.get('nickname'),
                 'USgender': sex,
-                'USheader': user_info.get('headimgurl'),
+                'USheader': head,
                 'USintegral': 0,
-                'USlevel': 1
+                'USqrcode': self._create_qrcode(head, usid, fromdict.get('url')),
+                'USfrom': fromdict.get('apptype'),
+                'USlevel': 1,
             }
 
             # todo 根据app_from 添加不同的openid, 添加不同的usfrom
-            user_dict.setdefault('USopenid1', openid)
+            user_dict.setdefault(fromdict.get('usfilter'), openid)
             if upperd:
                 # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
                 if upperd.USlevel == self.AGENT_TYPE:
@@ -1072,9 +1173,13 @@ class CUser(SUser, BASEAPPROVAL):
 
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
+        user.fill('openid', openid)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
-        return Success('登录成功', data=user)
+        token = usid_to_token(user.USid)
+        data = {'token': token, 'user': user, 'is_new': not bool(user.UStelphone)}
+        gennerc_log(data)
+        return Success('登录成功', data=data)
 
     @get_session
     @token_required
@@ -1110,8 +1215,8 @@ class CUser(SUser, BASEAPPROVAL):
             return_user = user
 
         return_user.fields = self.USER_FIELDS[:]
-        return_user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        return_user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        return_user.fill('usidentification', self.__conver_idcode(return_user.USidentification))
+        return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': return_user})
