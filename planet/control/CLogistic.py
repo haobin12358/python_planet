@@ -21,12 +21,25 @@ class CLogistic:
         self.strade = STrade()
 
     def list_company(self):
-        data = parameter_required()
-        kw = (data.get('kw') or '').split()
-        logistics = self.strade.get_logisticscompany_list([
-            LogisticsCompnay.LCname.contains(kw)
-        ])
-        return Success(data=logistics)
+
+        common = LogisticsCompnay.query.filter_by({
+            'LCisCommon': True
+        }).all()
+        all = []
+        logistic_groups = LogisticsCompnay.query.group_by(
+            LogisticsCompnay.LCfirstCharater
+        ).order_by(LogisticsCompnay.LCfirstCharater).all()
+        for logistic_group in logistic_groups:
+            logistics = LogisticsCompnay.query.filter_by({
+                'LCfirstCharater': logistic_group.LCfirstCharater
+            }).all()
+            all.append({
+                logistic_group.LCfirstCharater: logistics
+            })
+        return Success(data={
+            'common': common,
+            'all': all
+        })
 
     @token_required
     def send(self):
