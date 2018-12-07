@@ -19,7 +19,6 @@ from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation
-from planet.control.BaseControl import Commsion
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
@@ -760,7 +759,7 @@ class COrder(CPay, CCoupon):
         return order_refund_instance
 
     def _coupon_for(self, coid):
-        return CouponFor.query.filter_by({'COid': coid}).all()
+        return CouponFor.query.filter_by({'COid': coid}).all(   )
 
     @staticmethod
     def _coupon_for_pbids(coupon_for):

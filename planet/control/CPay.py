@@ -68,7 +68,8 @@ class CPay():
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
             session_list.append(order_pay_instance)
             s.add_all(session_list)
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body)
+        user = User.query.filter(User.USid == order_main.USid).first()
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body, openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
