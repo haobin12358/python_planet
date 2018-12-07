@@ -5,6 +5,7 @@ from flask import request, current_app
 
 from PIL import Image
 
+from planet.common.compress_picture import CompressPicture
 from planet.common.error_response import NotFound, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -14,7 +15,7 @@ from planet.config.http_config import API_HOST
 
 
 class CFile(object):
-    # @token_required
+    @token_required
     def upload_img(self):
         file = request.files.get('file')
         data = parameter_required()
@@ -58,7 +59,6 @@ class CFile(object):
                 os.makedirs(newPath)
             newFile = os.path.join(newPath, img_name)
             file.save(newFile)  # 保存图片
-
             data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
                                                                           month=month, day=day,
                                                                           img_name=img_name)
@@ -79,13 +79,18 @@ class CFile(object):
                 upload_type = 'image'
                 video_thum = ''
                 video_dur = ''
+
                 # 读取
-                img = Image.open(newFile)
-                img_size = '_' + 'x'.join(map(str, img.size))
-                path_with_size = newFile + img_size + shuffix
-                data += (img_size + shuffix)
-                img.save(path_with_size)
-                os.remove(newFile)
+                # img = Image.open(thumbnail_img)
+                # img_size = '_' + 'x'.join(map(str, img.size))
+                # path_with_size = thumbnail_img + img_size + shuffix
+                # data += (img_size + shuffix)
+                # img.save(path_with_size)
+                # os.remove(newFile)
+
+                # 生成压缩图
+                thumbnail_img = CompressPicture.resize_img(ori_img=newFile, ratio=0.5, save_q=45)
+                data += '_' + thumbnail_img.split('_')[-1]
             return data, video_thum, video_dur, upload_type
         else:
             return SystemError(u'上传有误')

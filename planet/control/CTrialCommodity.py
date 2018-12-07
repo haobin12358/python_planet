@@ -34,8 +34,15 @@ class CTrialCommodity(COrder):
                                                       ).all_with_page()
         for commodity in commodity_list:
             commodity.fields = ['TCid', 'TCtitle', 'TCdescription', 'TCdeposit', 'TCmainpic']
-            mouth = round(commodity.TCdeadline / 31)
-            commodity.fill("zh_remarks", "{0}个月{1}元".format(mouth, int(commodity.TCdeposit)))
+            # mouth = round(commodity.TCdeadline / 31)
+            # 押金天数处理
+            # deadline = commodity.TCdeadline
+            # remainder_day = deadline % 31
+            # day_deadline = '{}天'.format(remainder_day) if remainder_day > 0 else ''
+            # remainder_mouth = deadline // 31
+            # mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
+            # commodity.fill('zh_remarks', mouth_deadline + day_deadline + "{}元".format(int(commodity.TCdeposit)))
+            commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, int(commodity.TCdeposit)))
         background = Activity.query.filter_by_(ACtype=ActivityType.free_use.value).first()
         banner = background["ACtopPic"] if background else ""
         remarks = getattr(background, "ACdesc", "体验专区")
@@ -69,12 +76,13 @@ class CTrialCommodity(COrder):
         [image.hide('TCid') for image in image_list]
         commodity.fill('image', image_list)
         # 押金天数处理
-        deadline = commodity.TCdeadline
-        remainder_day = deadline % 31
-        day_deadline = '{}天'.format(remainder_day) if remainder_day > 0 else ''
-        remainder_mouth = deadline // 31
-        mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
-        commodity.fill('zh_deadline', mouth_deadline + day_deadline)
+        # deadline = commodity.TCdeadline
+        # remainder_day = deadline % 31
+        # day_deadline = '{}天'.format(remainder_day) if remainder_day > 0 else ''
+        # remainder_mouth = deadline // 31
+        # mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
+        # commodity.fill('zh_deadline', mouth_deadline + day_deadline)
+        commodity.fill('zh_deadline', '{}天'.format(commodity.TCdeadline))
         # 填充sku
         skus = TrialCommoditySku.query.filter_by_(TCid=tcid).all()
         sku_value_item = []
