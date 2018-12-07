@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import request, current_app
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, ApiError
+from planet.common.error_response import ParamsError, SystemError, ApiError, StatusError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
@@ -181,18 +181,29 @@ class CPay():
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
-                body = body[:66] + '...'
-                wechat_pay_dict = dict(
-                    body=body,
-                    out_trade_no=opayno,
-                    total_fee=int(mount_price * 100), attach='attach',
-                    spbill_create_ip=request.remote_addr
-                )
+                body = 'body'
+                current_app.logger.info('body is {}'.format(body))
+                wechat_pay_dict = {
+                    'body': body,
+                    'out_trade_no': opayno,
+                    'total_fee': int(mount_price * 100),
+                    'attach': 'attach',
+                    'spbill_create_ip': request.remote_addr
+                }
+
                 if omclient == Client.wechat.value:  # 微信客户端
-                    wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+                    if not openid:
+                        raise StatusError('用户未使用微信登录')
+                    # wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+                    wechat_pay_dict.update({
+                        'trade_type': 'JSAPI',
+                        'openid': openid
+                    })
                     raw = self.wx_pay.jsapi(**wechat_pay_dict)
                 else:
-                    wechat_pay_dict.update(dict(trade_type="APP"))
+                    wechat_pay_dict.update({
+                        'trade_type': "APP"
+                    })
                     raw = self.wx_pay.unified_order(**wechat_pay_dict)
             except WeixinPayError as e:
                 raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
@@ -207,7 +218,7 @@ class CPay():
                         total_amount=mount_price,
                         subject=body[:66] + '...',
                     )
-                except Exception as e:
+                except Exception:
                     raise SystemError('支付宝参数异常')
         else:
             raise SystemError('请选用其他支付方式')
