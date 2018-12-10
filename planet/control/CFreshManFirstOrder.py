@@ -1,11 +1,15 @@
 import json
 from datetime import datetime
 
+from flask import request
+
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
+from planet.common.token_handler import token_required
 from planet.config.enums import ApplyStatus
 from planet.extensions.register_ext import db
-from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku
+from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
+    ProductSkuValue
 
 
 class CFreshManFirstOrder:
@@ -46,26 +50,52 @@ class CFreshManFirstOrder:
         fresh_man_skus = FreshManFirstSku.query.filter_by_({'FMFPid': fmfpid}).all()
 
         product_skus = []  # sku对象
-        product_skus_detail = []  # sku 的key
+        sku_value_item = []
         for fresh_man_sku in fresh_man_skus:
             product_sku = ProductSku.query.filter_by_({'SKUid': fresh_man_sku.SKUid}).first()
             product_sku.SKUprice = fresh_man_sku.SKUprice
             product_skus.append(product_sku)
             product_sku.SKUattriteDetail = json.loads(product_sku.SKUattriteDetail)
-            product_skus_detail.append(product_sku.SKUattriteDetail)
+            sku_value_item.append(product_sku.SKUattriteDetail)  # 原商品的sku
         product.fill('skus', product_skus)
 
-        # sku value
-        sku_value_item_reverse = []
-        for index, name in enumerate(product.PRattribute):
-            value = list(set([attribute[index] for attribute in product_skus_detail]))
-            value = sorted(value)
-            temp = {
-                'name': name,
-                'value': value
-            }
-            sku_value_item_reverse.append(temp)
+        # 是否有skuvalue, 如果没有则自行组装(这个sku_value是商品的sku_value, 而不再单独设置新人商品的sku)
+        sku_value_instance = ProductSkuValue.query.filter_by_({
+            'PRid': prid
+        }).first()
+        if not sku_value_instance:
+            sku_value_item_reverse = []
+            for index, name in enumerate(product.PRattribute):
+                value = list(set([attribute[index] for attribute in sku_value_item]))
+                value = sorted(value)
+                temp = {
+                    'name': name,
+                    'value': value
+                }
+                sku_value_item_reverse.append(temp)
+        else:
+            sku_value_item_reverse = []  # 转置
+            pskuvalue = json.loads(sku_value_instance.PSKUvalue)
+            for index, value in enumerate(pskuvalue):
+                sku_value_item_reverse.append({
+                    'name': product.PRattribute[index],
+                    'value': value
+                })
         product.fill('SkuValue', sku_value_item_reverse)
         return Success(product)
+
+    @token_required
+    def add_order(self):
+        """购买, 返回支付参数"""
+        data = parameter_required(('skuid', 'omclient', 'uaid', 'opaytype'))
+        # 只可以买一次
+        usid = request.user.id
+        exists_order = OrderMain.query.filter_(
+            OrderMain.USid == usid, OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+        ).first()
+        if exists_order:
+            raise StatusError()
+        # 判断是否是别人分享而来
+
 
 
