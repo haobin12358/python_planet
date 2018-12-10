@@ -54,7 +54,7 @@ qrcode==6.0
 redis==2.10.6
 requests==2.19.1
 simplegeneric==0.8.1
-six==1.11.0pip
+six==1.11.0
 SQLAlchemy==1.2.12
 traitlets==4.3.2
 urllib3==1.23

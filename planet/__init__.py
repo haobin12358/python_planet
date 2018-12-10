@@ -32,6 +32,7 @@ from planet.api.v1.ANews import ANews
 from planet.api.v1.AAddress import AAddress
 from planet.api.v1.AApproval import Aapproval
 from planet.api.v1.AQuestanswer import AQuestanswer
+from planet.api.v1.AWechatShareParams import AWechatShareParams
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -137,6 +138,7 @@ def register_v1(app):
     v1.add_url_rule('/supplizer/<string:supplizer>', view_func=ASupplizer.as_view('supplizer'))
     v1.add_url_rule('/magicbox/<string:magicbox>', view_func=AMagicBox.as_view('magicbox'))
     v1.add_url_rule('/fresh_man/<string:fresh_man>', view_func=AFreshManFirstOrder.as_view('fresh_man'))
+    v1.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
 
     v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
     v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
