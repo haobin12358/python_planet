@@ -13,3 +13,9 @@ class AFreshManFirstOrder(Resource):
         }
         return apis
 
+    def post(self, fresh_man):
+        apis = {
+            'add_order': self.creshman.add_order,
+        }
+        return apis
+

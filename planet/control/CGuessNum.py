@@ -126,7 +126,6 @@ class CGuessNum(COrder):
 
         with db.auto_commit():
             s_list = []
-
             # 参与记录
             guess_num = GuessNum.query.filter_by_().filter_by_({
                 'SKUid': skuid,
@@ -161,7 +160,7 @@ class CGuessNum(COrder):
             omrecvname = user_address_instance.UAname
 
             # 创建订单
-            omid = str(uuid.uuid4())
+            omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
             # 主单
             order_main_dict = {

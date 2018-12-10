@@ -1,20 +1,23 @@
 import json
-from datetime import datetime
+import uuid
+from datetime import datetime, date
 
-from flask import request
+from flask import request, current_app
 
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
-from planet.config.enums import ApplyStatus
+from planet.common.token_handler import token_required, get_current_user
+from planet.config.enums import ApplyStatus, OrderMainStatus, OrderFrom, Client, ActivityType, PayType
+from planet.common.error_response import StatusError, ParamsError
+from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
-    ProductSkuValue
+    ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
+    FreshManJoinFlow
+from .CUser import CUser
 
 
-class CFreshManFirstOrder:
-    def __init__(self):
-        pass
+class CFreshManFirstOrder(COrder, CUser):
 
     def list(self):
         """获取列表"""
@@ -88,14 +91,162 @@ class CFreshManFirstOrder:
     def add_order(self):
         """购买, 返回支付参数"""
         data = parameter_required(('skuid', 'omclient', 'uaid', 'opaytype'))
+        try:
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            Client(omclient)
+        except Exception as e:
+            raise ParamsError('客户端或商品来源错误')
         # 只可以买一次
         usid = request.user.id
         exists_order = OrderMain.query.filter_(
-            OrderMain.USid == usid, OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+            OrderMain.USid == usid,
+            # OrderMain.OMstatus > OrderMainStatus.wait_pay.value
         ).first()
         if exists_order:
-            raise StatusError()
+            raise StatusError('您不是新人')
+        try:
+            opaytype = int(data.get('opaytype'))
+        except ValueError:
+            raise StatusError('支付方式异常, 未创建订单')
+        skuid = data.get('skuid')
+        uaid = data.get('uaid')
+        # 该sku是否是活动sku
+        today = date.today()
+        # 新人商品sku
+        fresh_man_sku = FreshManFirstSku.query.join(
+            FreshManFirstProduct, FreshManFirstSku.FMFPid == FreshManFirstProduct.FMFPid
+        ).join(FreshManFirstApply, FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid).filter(
+            FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+            FreshManFirstApply.AgreeStartime <= today,
+            FreshManFirstApply.AgreeEndtime >= today,
+            FreshManFirstSku.isdelete == False,
+            FreshManFirstProduct.isdelete == False,
+            FreshManFirstApply.isdelete == False,
+            FreshManFirstSku.SKUid == skuid,
+        ).first_('当前商品未在活动中')
+        Activity.query.filter_by_({
+            'ACtype': ActivityType.fresh_man.value,
+            'ACshow': True
+        }).first_('活动未在进行')
+        # 新人商品
+        fresh_first_product = FreshManFirstProduct.query.filter_by_({
+            'FMFPid': fresh_man_sku.FMFPid
+        }).first_('当前商品未在活动中')
+        # sku详情
+        product_sku = ProductSku.query.filter_by_({
+            'SKUid': skuid
+        }).first_('商品属性已删除')
+        # 商品详情
+        product_instance = Products.query.filter_by({
+            'PRid': fresh_first_product.PRid
+        }).first_('商品已删除')
+
+        # 地址拼接
+        user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+        omrecvphone = user_address_instance.UAphone
+        areaid = user_address_instance.AAid
+        area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+            AddressArea.AAid == areaid).first_('地址有误')
+        address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+            area, "AAname", '')
+        omrecvaddress = address + user_address_instance.UAtext
+        omrecvname = user_address_instance.UAname
         # 判断是否是别人分享而来
+        secret_usid = data.get('secret_usid')
+
+        if secret_usid:
+            try:
+                from_usid = self._base_decode(secret_usid)
+                # 来源用户是否购买
+                from_user_order = OrderMain.query.filter_by().filter(
+                    OrderMain.USid == from_usid,
+                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                ).first()
+            except ValueError:
+                current_app.logger.info('secret_usid decode error : {}'.format(secret_usid))
+                from_user_order = None
+        else:
+            from_user_order = None
+        with db.auto_commit():
+            # 创建订单
+            omid = str(uuid.uuid1())
+            opayno = self.wx_pay.nonce_str
+            price = fresh_man_sku.SKUprice
+            # 主单
+            order_main_dict = {
+                'OMid': omid,
+                'OMno': self._generic_omno(),
+                'OPayno': opayno,
+                'USid': usid,
+                'OMfrom': OrderFrom.guess_num_award.value,
+                'PBname': fresh_first_product.PBname,
+                'PBid': fresh_first_product.PBid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0
+                'OMmount': price,
+                'OMmessage': data.get('ommessage'),
+                'OMtrueMount': price,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+            }
+            order_main_instance = OrderMain.create(order_main_dict)
+            db.session.add(order_main_instance)
+            # 副单
+            order_part_dict = {
+                'OMid': omid,
+                'OPid': str(uuid.uuid1()),
+                'SKUid': skuid,
+                'PRattribute': fresh_first_product.PRattribute,
+                'SKUattriteDetail': product_sku.SKUattriteDetail,
+                'PRtitle': fresh_first_product.PRtitle,
+                'SKUprice': price,
+                'PRmainpic': fresh_first_product.PRmainpic,
+                'OPnum': 1,
+                'PRid': fresh_first_product.PRid,
+                # # 副单商品来源
+                'PRfrom': product_instance.PRfrom,
+                'PRcreateId': product_instance.CreaterId
+            }
+            order_part_instance = OrderPart.create(order_part_dict)
+            db.session.add(order_part_instance)
+            # 支付数据表
+            order_pay_dict = {
+                'OPayid': str(uuid.uuid1()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': price,
+            }
+            order_pay_instance = OrderPay.create(order_pay_dict)
+            db.session.add(order_pay_instance)
+            # 购买记录
+            fresh_man_join_dict = {
+                'FMJFid': str(uuid.uuid1()),
+                'OMid': omid,
+            }
+            if from_user_order:
+                fresh_man_join_dict['UPid'] = from_usid
+            join_instance = FreshManJoinFlow.create(fresh_man_join_dict)
+            db.session.add(join_instance)
+        # 生成支付信息
+        body = product_instance.PRtitle
+        current_user = get_current_user()
+        openid = current_user.USCommission1 or current_user.USCommission2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建订单成功', data=response)
+
+
+
+
+
 
 
 
