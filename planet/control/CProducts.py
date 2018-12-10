@@ -129,17 +129,18 @@ class CProducts:
             Products.PRstatus == prstatus,
         ]
         # 标签位置和权限筛选
-        if not itid:
-            itposition = data.get('itposition')
-            itauthority = data.get('itauthority')
-            if not itposition:  # 位置 标签的未知
-                filter_args.append(or_(Items.ITposition == ItemPostion.scene.value, Items.ITposition.is_(None)))
-            else:
-                filter_args.append(Items.ITposition == int(itposition))
-            if not itauthority:
-                filter_args.append(or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
-            else:
-                filter_args.append(Items.ITauthority == int(itauthority))
+        if not is_admin():
+            if not itid:
+                itposition = data.get('itposition')
+                itauthority = data.get('itauthority')
+                if not itposition:  # 位置 标签的未知
+                    filter_args.append(or_(Items.ITposition == ItemPostion.scene.value, Items.ITposition.is_(None)))
+                else:
+                    filter_args.append(Items.ITposition == int(itposition))
+                if not itauthority:
+                    filter_args.append(or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
+                else:
+                    filter_args.append(Items.ITauthority == int(itauthority))
         # products = self.sproduct.get_product_list(filter_args, [order_by, ])
         query = Products.query.filter(Products.isdelete == False). \
             outerjoin(
@@ -194,6 +195,7 @@ class CProducts:
 
     @token_required
     def add_product(self):
+        # todo 详细介绍
         self._can_add_product()
         data = parameter_required((
             'pcid', 'pbid', 'prtitle', 'prprice', 'prattribute',
@@ -221,6 +223,8 @@ class CProducts:
                     pass
             prdesc = data.get('prdesc')
             if prdesc:
+                if not isinstance(prdesc, list):
+                    raise ParamsError('prdesc 格式不正确')
                 prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRid': prid,
@@ -238,7 +242,7 @@ class CProducts:
                 'PRfrom': self.product_from,
                 'CreaterId': request.user.id,
                 'PRstatus': self.prstatus,
-                'PRdescription': prdescription
+                'PRdescription': prdescription  # 描述
             }
             product_dict = {k: v for k, v in product_dict.items() if v is not None}
             product_instance = Products.create(product_dict)
@@ -383,26 +387,25 @@ class CProducts:
                     }
                     [setattr(sku_instance, k, v) for k, v in sku_dict.items() if v is not None]
                     session_list.append(sku_instance)
-
-                    # sku value
-                    pskuvalue = data.get('pskuvalue')
-                    if pskuvalue:
-                        if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
-                            raise ParamsError('pskuvalue与prattribute不符')
-                        sku_reverce = []
-                        for index in range(len(prattribute)):
-                            value = list(set([attribute[index] for attribute in sku_detail_list]))
-                            sku_reverce.append(value)
-                            # 对应位置的列表元素应该相同
-                            if set(value) != set(pskuvalue[index]):
-                                raise ParamsError('请核对pskuvalue')
-                        # sku_value表
-                        sku_value_instance = ProductSkuValue.create({
-                            'PSKUid': str(uuid.uuid1()),
-                            'PRid': prid,
-                            'PSKUvalue': json.dumps(pskuvalue)
-                        })
-                        session_list.append(sku_value_instance)
+            # sku value  todo
+            pskuvalue = data.get('pskuvalue')
+            if pskuvalue:
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                    raise ParamsError('pskuvalue与prattribute不符')
+                sku_reverce = []
+                for index in range(len(prattribute)):
+                    value = list(set([attribute[index] for attribute in sku_detail_list]))
+                    sku_reverce.append(value)
+                    # 对应位置的列表元素应该相同
+                    if set(value) != set(pskuvalue[index]):
+                        raise ParamsError('请核对pskuvalue')
+                # sku_value表
+                sku_value_instance = ProductSkuValue.create({
+                    'PSKUid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'PSKUvalue': json.dumps(pskuvalue)
+                })
+                session_list.append(sku_value_instance)
             # images, 有piid为修改, 无piid为新增
             if images:
                 for image in images:

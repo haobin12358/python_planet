@@ -1,4 +1,4 @@
-# -*-LJ_DB_PWi coding: utf-8 -*-
+# -*-coding: utf-8 -*-
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 
@@ -64,16 +64,13 @@ def token_required(func):
             current_app.logger.info('current_user is {}'.format(request.user.id))
             return func(self, *args, **kwargs)
         raise TokenError()
-        # state_url = request.environ.get('HTTP_X_URL', request.url)
-        # if '#' in state_url:
-        #     state_url = state_url.replace('#', '$')
-        # state = str(state_url)
-        # self.login = WeixinLogin(appid, appsecret)
-        # redirect_url = self.login.authorize(API_HOST + "/api/v1/user/weixin_callback", wxscope, state=state)
-        # return Success(u'执行跳转', status=302, data={
-        #     'redirect_url': redirect_url
-        # })
     return inner
+
+
+def get_current_user():
+    usid = request.user.id
+    from planet.models import User
+    return User.query.filter(User.USid == usid).first()
 
 
 
