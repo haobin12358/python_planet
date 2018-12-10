@@ -33,7 +33,18 @@ class CFreshManFirstOrder(COrder, CUser):
         ).all()
         for fresh_man_product in fresh_man_products:
             fresh_man_product.hide('PRattribute', 'PRid', 'PBid', )
-        return Success(data=fresh_man_products)
+        # 上方图
+        activity = Activity.query.filter_by_({
+            'ACtype': ActivityType.fresh_man.value,
+            'ACshow': True
+        }).first_('活动已结束')
+        data = {
+            'fresh_man': fresh_man_products,
+            'actopPic': activity['ACtopPic'],
+            'acdesc': activity.ACdesc,
+            'acname': activity.ACname,
+        }
+        return Success(data=data)
 
     def get(self):
         """获取单个新人商品"""
