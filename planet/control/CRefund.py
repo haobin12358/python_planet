@@ -210,10 +210,10 @@ class CRefund(object):
                 'OPisinORA': False
             }).first_('不存在的订单详情')
             # 所在主单的副单个数
-            order_main_count = OrderMain.query.filter_by_({
+            order_part_count = OrderPart.query.filter_by_({
                 'OMid': order_part.OMid
             }).count()
-            if order_main_count == 1:
+            if order_part_count == 1:
                 # 如果只有一个副单, 则改为申请主单售后
                 self._order_main_refund(order_part.OMid, usid, data)
             else:
