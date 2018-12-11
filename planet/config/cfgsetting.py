@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from flask import current_app
+
 try:
     import ConfigParser
 except Exception as e:
@@ -28,5 +30,11 @@ class ConfigSettings(object):
         return self.cf.get(section, option)
 
     def set_item(self, section, option, value):
-        self.cf.set(section, option, value.encode('utf8'))
-        self.cf.write(open(self.config_file_path, "w"))
+        self.cf.set(section, option, value)
+        # self.cf.write(open(self.config_file_path, "w"))
+        self.write_file()
+
+    def write_file(self):
+        with open(self.config_file_path, "w") as cfg:
+            self.cf.write(cfg)
+            current_app.logger.info('file is closed')

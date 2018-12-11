@@ -54,7 +54,7 @@ class CRefund(object):
             }).first()
 
             order_refund_apply.update({
-                'ORAstatus': OrderRefundOrstatus.cancle.value
+                'ORAstatus': ApplyStatus.cancle.value
             })
             db.session.add(order_refund_apply)
             # 修改主单或副单售后状态
@@ -209,56 +209,64 @@ class CRefund(object):
                 'OPid': opid,
                 'OPisinORA': False
             }).first_('不存在的订单详情')
-            order_part.OPisinORA = True  # 附单状态
-            s_list.append(order_part)
-            # 主单售后状态
-            omid = order_part.OMid
-            order_main = s.query(OrderMain).filter_(
-                OrderMain.OMid == omid,
-                OrderMain.OMstatus.notin_([
-                    OrderMainStatus.wait_pay.value,
-                    OrderMainStatus.cancle.value,
-                    OrderMainStatus.ready.value,
-                ]),
-                OrderMain.USid == usid
-            ).first_('不存在的订单')
-            # 不改变主单的状态
-            # order_main.OMinRefund = True  # 主单状态
-            # s_list.append(order_main)
-            # 申请参数校验
-            oraproductstatus = data.get('oraproductstatus')
-            ORAproductStatus(oraproductstatus)
-            oramount = data.get('oramount')
-            if not oramount or oramount > order_part.OPsubTotal:
-                raise ParamsError('oramount退款金额不正确')
-            oraddtionvoucher = data.get('oraddtionvoucher')
-            if oraddtionvoucher and isinstance(oraddtionvoucher, list):
-                oraddtionvoucher = json.dumps(oraddtionvoucher)
+            # 所在主单的副单个数
+            order_part_count = OrderPart.query.filter_by_({
+                'OMid': order_part.OMid
+            }).count()
+            if order_part_count == 1:
+                # 如果只有一个副单, 则改为申请主单售后
+                self._order_main_refund(order_part.OMid, usid, data)
             else:
-                oraddtionvoucher = None
-            oraaddtion = data.get('oraaddtion')
-            orastate = data.get('orastate', OrderRefundORAstate.goods_money.value)
-            try:
-                OrderRefundORAstate(orastate)
-            except Exception as e:
-                raise ParamsError('orastate参数错误')
-            # 添加申请表
-            order_refund_apply_dict = {
-                'ORAid': str(uuid.uuid4()),
-                'OMid': omid,
-                'ORAsn': self._generic_no(),
-                'OPid': opid,
-                'USid': usid,
-                'ORAmount': oramount,
-                'ORaddtionVoucher': oraddtionvoucher,
-                'ORAaddtion': oraaddtion,
-                'ORAreason': data.get('orareason'),
-                'ORAproductStatus': oraproductstatus,
-                'ORAstate': orastate,
-            }
-            order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
-            s_list.append(order_refund_apply_instance)
-            s.add_all(s_list)
+                order_part.OPisinORA = True  # 附单状态
+                s_list.append(order_part)
+                # 主单售后状态
+                omid = order_part.OMid
+                order_main = s.query(OrderMain).filter_(
+                    OrderMain.OMid == omid,
+                    OrderMain.OMstatus.notin_([
+                        OrderMainStatus.wait_pay.value,
+                        OrderMainStatus.cancle.value,
+                        OrderMainStatus.ready.value,
+                    ]),
+                    OrderMain.USid == usid
+                ).first_('不存在的订单')
+                # 不改变主单的状态
+                # order_main.OMinRefund = True  # 主单状态
+                # s_list.append(order_main)
+                # 申请参数校验
+                oraproductstatus = data.get('oraproductstatus')
+                ORAproductStatus(oraproductstatus)
+                oramount = data.get('oramount')
+                if not oramount or oramount > order_part.OPsubTotal:
+                    raise ParamsError('oramount退款金额不正确')
+                oraddtionvoucher = data.get('oraddtionvoucher')
+                if oraddtionvoucher and isinstance(oraddtionvoucher, list):
+                    oraddtionvoucher = json.dumps(oraddtionvoucher)
+                else:
+                    oraddtionvoucher = None
+                oraaddtion = data.get('oraaddtion')
+                orastate = data.get('orastate', OrderRefundORAstate.goods_money.value)
+                try:
+                    OrderRefundORAstate(orastate)
+                except Exception as e:
+                    raise ParamsError('orastate参数错误')
+                # 添加申请表
+                order_refund_apply_dict = {
+                    'ORAid': str(uuid.uuid4()),
+                    'OMid': omid,
+                    'ORAsn': self._generic_no(),
+                    'OPid': opid,
+                    'USid': usid,
+                    'ORAmount': oramount,
+                    'ORaddtionVoucher': oraddtionvoucher,
+                    'ORAaddtion': oraaddtion,
+                    'ORAreason': data.get('orareason'),
+                    'ORAproductStatus': oraproductstatus,
+                    'ORAstate': orastate,
+                }
+                order_refund_apply_instance = OrderRefundApply.create(order_refund_apply_dict)
+                s_list.append(order_refund_apply_instance)
+                s.add_all(s_list)
 
     def _order_main_refund(self, omid, usid, data):
         with self.strade.auto_commit() as s:
@@ -272,12 +280,19 @@ class CRefund(object):
                 ]),
                 OrderMain.USid == usid
             ).first_('不存在的订单')
+            # 申请主单售后, 所有的副单不可以有在售后状态的
+            order_part_in_refund = OrderPart.query.filter_by_({
+                'OMid': omid,
+                'OPisinORA': True
+            }).first()
+            if order_part_in_refund:
+                raise StatusError('订单中存在售后中的商品')
             order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
             # 申请参数校验
             oraproductstatus = int(data.get('oraproductstatus'))  # 是否已经收到货
             ORAproductStatus(oraproductstatus)
-            oramount = data.get('oramount')
+            oramount = float(data.get('oramount'))
 
             orastate = int(data.get('orastate', OrderRefundORAstate.goods_money.value))
             try:

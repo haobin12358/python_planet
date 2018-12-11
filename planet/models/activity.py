@@ -63,7 +63,8 @@ class TrialCommoditySkuValue(Base):
     """商品分类sku属性名"""
     __tablename__ = 'TrialCommoditySkuValue'
     TSKUid = Column(String(64), primary_key=True)
-    PSKUvalue = Column(Text, comment='属性名["color", "尺寸"]')
+    TCid = Column(String(64), nullable=False, comment='试用商品id')
+    TSKUvalue = Column(Text, comment='属性名["网络","颜色","存储"]')
 
 
 class GuessNum(Base):
@@ -105,6 +106,8 @@ class GuessNumAwardApply(Base):
     GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
     SKUprice = Column(Float, default=0.01, comment='参与价格')
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    ADid = Column(String(64), comment='处理人')
+    GNAArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
@@ -124,6 +127,8 @@ class MagicBoxApply(Base):
     Gearstwo = Column(String(64), nullable=False, comment='第二档 [2-1, 230-3]')
     Gearsthree = Column(String(64), nullable=False, comment='第三档 [2-1, 230-3]')
     MBAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    ADid = Column(String(64), comment='处理人')
+    MBArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
@@ -160,6 +165,8 @@ class FreshManFirstApply(Base):
     FMFAstartTime = Column(DateTime, nullable=False, comment='申请开始时间')
     FMFAendTime = Column(DateTime, nullable=False, comment='申请结束时间')
     FMFAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    ADid = Column(String(64), comment='处理人')
+    FMFArejectReson = Column(String(255), comment='拒绝理由')
     AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, comment='最终确认结束时间')
 
@@ -168,15 +175,16 @@ class FreshManFirstProduct(Base):
     """新人首单申请商品"""
     __tablename__ = 'FreshManFirstProduct'
     FMFPid = Column(String(64), primary_key=True)
+    FMFAid = Column(String(64), nullable=False, comment='新人首单申请单id')
     PRid = Column(String(64), nullable=False, comment='申请新人首单的商品id')
     PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
     PBid = Column(String(64), nullable=False, comment='品牌id')
+    PBname = Column(String(64), nullable=False, comment='品牌名字')
     PRattribute = Column(String(255), comment='商品属性 ["网络","颜色","存储"]')
     PRdescription = Column(Text, comment='描述')
     PRfeight = Column(Float, default=0, comment='快递费用')
     PRprice = Column(Float, nullable=False, comment='显示价格')
-    FMFAid = Column(String(64), nullable=False, comment='新人首单申请单id')
 
 
 class FreshManFirstSku(Base):
@@ -186,4 +194,14 @@ class FreshManFirstSku(Base):
     FMFPid = Column(String(64), nullable=False, comment='申请商品id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
     SKUprice = Column(Float, nullable=False, comment='sku价格')
+
+
+class FreshManJoinFlow(Base):
+    """新人首单参与记录"""
+    __tablename__ = 'FreshManJoinFlow'
+    FMJFid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), nullable=False, comment='订单id')
+    OMprice = Column(Float, nullable=False, comment='订单价格')
+    UPid = Column(String(64), comment='首单页面来源用户id, 以便分发奖励')
+
 

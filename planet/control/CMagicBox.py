@@ -109,9 +109,6 @@ class CMagicBox(CUser, COrder):
                 MagicBoxApply.AgreeEndtime >= today,
                 MagicBoxApply.MBAid == mbaid
             ).first_('活动结束')
-            Activity.query.filter_by_({
-
-            })
             # 已参与则不再新建记录
             magic_box_join = MagicBoxJoin.query.filter_by_({
                 'USid': usid,

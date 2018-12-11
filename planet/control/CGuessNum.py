@@ -5,10 +5,10 @@ from datetime import datetime, date, timedelta
 from flask import request
 from sqlalchemy import cast, Date, extract
 
-from planet.common.error_response import StatusError, ParamsError
+from planet.common.error_response import StatusError, ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, get_current_user
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
@@ -61,16 +61,31 @@ class CGuessNum(COrder):
         """获得单日个人参与"""
         form = GuessNumGetForm().valid_data()
         usid = request.user.id
-        guess_num_instance = GuessNum.query.filter_(
+        join_history = GuessNum.query.filter_(
             GuessNum.USid == usid,
             cast(GuessNum.createtime, Date) == form.date.data,
             GuessNum.isdelete == False
-        ).first()
-        if guess_num_instance:
-            guess_num_instance.hide('USid').add('createtime')
-        else:
-            guess_num_instance = {}
-        return Success(data=guess_num_instance)
+        ).first_('未参与')
+
+        if join_history:
+            correct_num = CorrectNum.query.filter(
+                CorrectNum.CNdate == join_history.GNdate
+            ).first()
+            join_history.fill('correct_num', correct_num)
+            if not correct_num:
+                result = 'not_open'
+            else:
+                correct_num.hide('CNid')
+                if correct_num.CNnum.strip('0') == join_history.GNnum.strip('0'):
+                    result = 'correct'
+                else:
+                    result = 'uncorrect'
+            join_history.fill('result', result).hide('USid', 'PRid')
+
+            product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
+            product.fields = ['PRid', 'PRmainpic', 'PRtitle']
+            join_history.fill('product', product)
+        return Success(data=join_history)
 
     @token_required
     def history_join(self):
@@ -91,14 +106,14 @@ class CGuessNum(COrder):
         correct_count = 0  # 猜对次数
         for join_history in join_historys:
             correct_num = CorrectNum.query.filter(
-                join_history.GNdate == CorrectNum.CNdate
+                CorrectNum.CNdate == join_history.GNdate
             ).first()
             join_history.fill('correct_num', correct_num)
             if not correct_num:
                 result = 'not_open'
             else:
                 correct_num.hide('CNid')
-                if correct_num.CNnum == join_history.GNnum:
+                if correct_num.CNnum.strip('0') == join_history.GNnum.strip('0'):
                     result = 'correct'
                     correct_count += 1
                 else:
@@ -126,7 +141,6 @@ class CGuessNum(COrder):
 
         with db.auto_commit():
             s_list = []
-
             # 参与记录
             guess_num = GuessNum.query.filter_by_().filter_by_({
                 'SKUid': skuid,
@@ -161,7 +175,7 @@ class CGuessNum(COrder):
             omrecvname = user_address_instance.UAname
 
             # 创建订单
-            omid = str(uuid.uuid4())
+            omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
             # 主单
             order_main_dict = {
@@ -214,7 +228,9 @@ class CGuessNum(COrder):
             db.session.add_all(s_list)
         # 生成支付信息
         body = product_instance.PRtitle
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body)
+        user = get_current_user()
+        openid = user.USopenid1 or user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

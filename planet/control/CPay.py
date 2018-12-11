@@ -11,12 +11,12 @@ from planet.common.error_response import ParamsError, SystemError, ApiError, Sta
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import PayType, Client, OrderMainStatus
+from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission
-from planet.models.trade import OrderMain, OrderPart, OrderPay
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
 
@@ -163,6 +163,17 @@ class CPay():
                 'USid': up2
             }
             s_list.append(UserCommission.create(users_commision_dict))
+
+        # 新人活动订单
+        if order_main.OMfrom == OrderFrom.fresh_man.value:
+            fresh_man_join_flow = FreshManJoinFlow.query.filter(
+                FreshManJoinFlow.isdelete == False,
+                FreshManJoinFlow.OMid == order_main.OMid,
+            ).first()
+            if fresh_man_join_flow and fresh_man_join_flow.UPid:
+                pass
+                # todo 新人首单奖励分发
+
         return s_list
 
     def test_pay(self, out_trade_no=1, mount_price=1):
