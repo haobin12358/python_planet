@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
+from decimal import Decimal
 
 from flask import request
 from sqlalchemy import or_, and_, not_
@@ -9,6 +10,7 @@ from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
@@ -90,6 +92,10 @@ class CProducts:
         month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
         product.fill('month_sale_value', month_sale_value)
         product.fill('items', items)
+        # 预计佣金
+        cfg = ConfigSettings()
+        level1commision = cfg.get_item('commission', 'level1commision')
+        product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
         return Success(data=product)
 
     def get_produt_list(self):

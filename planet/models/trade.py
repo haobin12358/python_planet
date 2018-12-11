@@ -91,6 +91,7 @@ class OrderPart(Base):
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
     OPsubTrueTotal = Column(Float, default=OPsubTotal, comment='依照价格比例计算出的使用优惠券后的价格')
+    # OPsubReducePriceFrom = Column(String(64), comment='减少金额的成本承担者(代理商), 为空则为平台')
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')

@@ -80,10 +80,10 @@ class OrderEvaluationScore(Enum):
 
 
 class ApplyStatus(Enum):
-    cancle = -20, '取消'
-    reject = -10, '拒绝'
-    wait_check = 0, '未审核'
-    agree = 10, '同意'
+    cancle = -20, '已撤销'
+    reject = -10, '已拒绝'
+    wait_check = 0, '审核中'
+    agree = 10, '已同意'
 
 
 class OrderRefundOrstatus(Enum):

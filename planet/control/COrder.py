@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import extract
 
 from planet.common.params_validates import parameter_required
@@ -132,12 +132,12 @@ class COrder(CPay, CCoupon):
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str
-            model_bean = []
+            # model_bean = []
             mount_price = Decimal()  # 总价
-            # 实际佣金比
-            cfg = ConfigSettings()
-            level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
-            level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
+            # # 实际佣金比
+            # cfg = ConfigSettings()
+            # level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
+            # level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
             # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
@@ -150,6 +150,7 @@ class COrder(CPay, CCoupon):
                 ommessage = info.get('ommessage')
                 product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
                 prid_dict = {}  # 一个临时的prid字典
+                order_part_list = []
                 for sku in skus:
                     # 订单副单
                     opid = str(uuid.uuid4())
@@ -180,7 +181,10 @@ class COrder(CPay, CCoupon):
                         # 'PRcreateId': product_instance.CreaterId
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
-                    model_bean.append(order_part_instance)
+                    order_part_list.append(order_part_instance)
+                    # model_bean.append(order_part_instance)
+                    s.add(order_part_instance)
+                    s.flush()
                     # 订单价格计算
                     order_price += small_total
                     order_old_price += small_total
@@ -213,10 +217,12 @@ class COrder(CPay, CCoupon):
                             'PRid': prid,
                             'PMSVnum': opnum
                         })
-                        model_bean.append(month_sale_instance)
+                        # model_bean.append(month_sale_instance)
+                        s.add(month_sale_instance)
                 # 使用优惠券
                 if coupons:
                     for coid in coupons:
+                        coupon_for_in_this = prid_dict.copy()
                         coupon_user = s.query(CouponUser).filter_by_({"COid": coid, 'USid': usid, 'UCalreadyUse': False}).first_('用户优惠券{}不存在'.format(coid))
                         coupon = s.query(Coupon).filter_by_({"COid": coupon_user.COid}).first_('优惠券不可用')
                         # 是否过期或者已使用过
@@ -237,23 +243,39 @@ class COrder(CPay, CCoupon):
                             if pbid not in coupon_for_pbids:
                                 raise StatusError('优惠券{}仅可使用指定品牌'.format(coid))
                         coupon_for_prids = self._coupon_for_prids(coupon_fors)
+                        import ipdb
+                        ipdb.set_trace()
                         if coupon_for_prids:
                             if not set(coupon_for_prids).intersection(set(prid_dict)):
                                 raise StatusError('优惠券{}仅可用于指定商品'.format(coid))
-                            coupon_for_sum = sum([Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
+
+                            # coupon_for_prids = [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids]
+                            coupon_for_in_this = {
+                                prid: Decimal(str(price)) for prid, price in coupon_for_in_this.items() if prid in coupon_for_prids
+                            }
+                            coupon_for_sum = sum(coupon_for_in_this.values())  # 优惠券支持的商品的总价
                             if coupon.COdownLine > coupon_for_sum:
                                 raise StatusError('优惠券{}未达到指定商品满减'.format(coid))
-                            # order_price = prid_dict[prid] * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
                             reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
-                            order_price = order_old_price - reduce_price
+                            order_price = order_price - reduce_price
+                            if order_price <= 0:
+                                order_price = 0.01
                             # 减少金额计算
-                            reduce_price = order_old_price - order_price
+                            # reduce_price = order_old_price - order_price
                         else:
+                            coupon_for_sum = order_old_price
                             order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
                             reduce_price = order_old_price - order_price
+                        # 副单按照比例计算'实际价格'
+                        for order_part in order_part_list:
+                            if order_part.PRid in coupon_for_in_this:
+                                order_part.OPsubTrueTotal = Decimal(order_part.OPsubTrueTotal) -\
+                                                            (reduce_price * coupon_for_in_this[order_part.PRid] / coupon_for_sum)
+                                s.add(order_part)
+                                s.flush()
                         # 更改优惠券状态
                         coupon_user.UCalreadyUse = True
-                        model_bean.append(coupon_user)
+                        s.add(coupon_user)
                         # 优惠券使用记录
                         order_coupon_dict = {
                             'OCid': str(uuid.uuid4()),
@@ -262,7 +284,7 @@ class COrder(CPay, CCoupon):
                             'OCreduce': reduce_price,
                         }
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
-                        model_bean.append(order_coupon_instance)
+                        s.add(order_coupon_instance)
 
                 # 主单
                 order_main_dict = {
@@ -293,7 +315,7 @@ class COrder(CPay, CCoupon):
                     # order_main_dict.setdefault('OMtotalCommision', total_comm)
                     pass  # 佣金计算已修改
                 order_main_instance = OrderMain.create(order_main_dict)
-                model_bean.append(order_main_instance)
+                s.add(order_main_instance)
                 # 总价格累加
                 mount_price += order_price
             # 支付数据表
@@ -304,8 +326,8 @@ class COrder(CPay, CCoupon):
                 'OPayMount': mount_price,
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
-            model_bean.append(order_pay_instance)
-            s.add_all(model_bean)
+            s.add(order_pay_instance)
+            # s.add_all(model_bean)
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2
@@ -731,7 +753,7 @@ class COrder(CPay, CCoupon):
             'OMid': omid,
             'USid': usid,
             'OMstatus': OrderMainStatus.wait_recv.value
-        }).first_('订单不存在')
+        }).first_('订单不存在或状态不正确')
         with db.auto_commit():
             # 改变订单状态
             order_main.OMstatus = OrderMainStatus.wait_comment.value
@@ -807,10 +829,12 @@ class COrder(CPay, CCoupon):
             user = User.query.filter(
                 User.UStelphone == phone
             ).first()
+            current_app.logger.info('current test user is {}'.format(dict(user)))
             order_mains = OrderMain.query.filter_by({
                 'USid': user.USid,
                 "OMstatus": 0
             }).all()
+            order_pay_instance = 0
             for order_main in order_mains:
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
@@ -824,7 +848,7 @@ class COrder(CPay, CCoupon):
                     'OPayJson': '{"hello": 1}'
                 })
 
-        return Success('success')
+        return Success('success {}'.format(order_pay_instance))
 
     def test_to_send(self):
         data = parameter_required(('phone',))
@@ -860,5 +884,5 @@ class COrder(CPay, CCoupon):
                 order_main_instance.OMstatus = OrderMainStatus.wait_recv.value
                 s_list.append(order_main_instance)
             s.add_all(s_list)
-        return Success('success')
+        return Success('success {}'.format(len(s_list)))
 
