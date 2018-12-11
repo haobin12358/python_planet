@@ -247,10 +247,11 @@ class CFreshManFirstOrder(COrder, CUser):
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             db.session.add(order_pay_instance)
-            # 购买记录
+            # 新人首单参与记录
             fresh_man_join_dict = {
                 'FMJFid': str(uuid.uuid1()),
                 'OMid': omid,
+                'OMprice': price
             }
             if from_user_order:
                 fresh_man_join_dict['UPid'] = from_usid
@@ -271,11 +272,4 @@ class CFreshManFirstOrder(COrder, CUser):
             'args': pay_args
         }
         return Success('创建订单成功', data=response)
-
-
-
-
-
-
-
 
