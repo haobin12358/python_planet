@@ -200,6 +200,7 @@ class FreshManJoinFlow(Base):
     __tablename__ = 'FreshManJoinFlow'
     FMJFid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
+    OMprice = Column(Float, nullable=False, comment='订单价格')
     UPid = Column(String(64), comment='首单页面来源用户id, 以便分发奖励')
 
 
