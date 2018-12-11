@@ -19,6 +19,7 @@ from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation
+from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
@@ -133,6 +134,10 @@ class COrder(CPay, CCoupon):
             opayno = self.wx_pay.nonce_str
             model_bean = []
             mount_price = Decimal()  # 总价
+            # 实际佣金比
+            cfg = ConfigSettings()
+            level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
+            level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
             # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
@@ -221,7 +226,6 @@ class COrder(CPay, CCoupon):
                         # 是否可以在本订单使用
                         if coupon.COuseNum and coupons.count(coid) > coupon.COuseNum:
                             raise StatusError('叠加超出限制{}'.format(coid))
-
 
                         if coupon.COdownLine > order_old_price:
                             raise StatusError('未达到满减条件: {}'.format(coid))
@@ -638,7 +642,7 @@ class COrder(CPay, CCoupon):
     def get_can_use_coupon(self):
         """获取可以使用的个人优惠券"""
         """
-        
+
        "pbid": "pbid1",
         "skus": [
             {
@@ -717,6 +721,24 @@ class COrder(CPay, CCoupon):
 
         return Success(data=res)
 
+    @token_required
+    def confirm(self):
+        """确认收货"""
+        data = parameter_required(('omid',))
+        omid = data.get('omid')
+        usid = request.user.id
+        order_main = OrderMain.query.filter_by_({
+            'OMid': omid,
+            'USid': usid,
+            'OMstatus': OrderMainStatus.wait_recv.value
+        }).first_('订单不存在')
+        with db.auto_commit():
+            # 改变订单状态
+            order_main.OMstatus = OrderMainStatus.wait_comment.value
+            db.session.add(order_main)
+            # 佣金状态更改
+            pass
+        return Success('确认收货成功')
 
     @staticmethod
     def _get_order_count(arg, k):
@@ -814,16 +836,18 @@ class COrder(CPay, CCoupon):
         ).first()
         with self.strade.auto_commit() as s:
             order_mains = OrderMain.query.filter_by({
-                'USid': user.UStelphone,
+                'USid': user.USid,
                 'OMstatus': OrderMainStatus.wait_send.value
             }).all()
+            from flask import current_app
+            current_app.logger.info('order main\' count is {}'.format(len(order_mains)))
             s_list = []
             for order_main_instance in order_mains:
                 omid = order_main_instance.OMid
                 if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
-                    raise StatusError('订单状态不正确')
+                    continue
                 if order_main_instance.OMinRefund is True:
-                    raise StatusError('商品在售后状态')
+                    continue
                 # 添加物流记录
                 order_logistics_instance = OrderLogistics.create({
                     'OLid': str(uuid.uuid4()),
