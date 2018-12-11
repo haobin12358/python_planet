@@ -63,7 +63,8 @@ class TrialCommoditySkuValue(Base):
     """商品分类sku属性名"""
     __tablename__ = 'TrialCommoditySkuValue'
     TSKUid = Column(String(64), primary_key=True)
-    PSKUvalue = Column(Text, comment='属性名["color", "尺寸"]')
+    TCid = Column(String(64), nullable=False, comment='试用商品id')
+    TSKUvalue = Column(Text, comment='属性名["网络","颜色","存储"]')
 
 
 class GuessNum(Base):

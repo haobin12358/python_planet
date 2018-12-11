@@ -141,6 +141,7 @@ class CNews(object):
             news_author = {'usname': '客官', 'usheader': ''}
         # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
+        news.fill('createtime', news.createtime)
         commentnumber = self.snews.get_news_comment_count(neid)
         news.fill('commentnumber', commentnumber)
         favoritnumber = self.snews.get_news_favorite_count(neid)

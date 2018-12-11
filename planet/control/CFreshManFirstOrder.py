@@ -205,7 +205,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 'OMno': self._generic_omno(),
                 'OPayno': opayno,
                 'USid': usid,
-                'OMfrom': OrderFrom.guess_num_award.value,
+                'OMfrom': OrderFrom.fresh_man.value,
                 'PBname': fresh_first_product.PBname,
                 'PBid': fresh_first_product.PBid,
                 'OMclient': omclient,

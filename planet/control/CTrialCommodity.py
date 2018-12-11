@@ -11,7 +11,7 @@ from planet.config.enums import TrialCommodityStatus, ActivityType, Client, Orde
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
-    UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay
+    UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay, TrialCommoditySkuValue
 
 
 class CTrialCommodity(COrder):
@@ -45,7 +45,7 @@ class CTrialCommodity(COrder):
             commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, int(commodity.TCdeposit)))
         background = Activity.query.filter_by_(ACtype=ActivityType.free_use.value).first()
         banner = background["ACtopPic"] if background else ""
-        remarks = getattr(background, "ACdesc", "体验专区")
+        remarks = getattr(background, "ACdesc", "体验专区") if background else "体验专区"
         data = {
             "banner": banner,
             "remarks": remarks,
@@ -91,15 +91,27 @@ class CTrialCommodity(COrder):
             sku.SKUprice = commodity.TCdeposit
             sku_value_item.append(sku.SKUattriteDetail)
         commodity.fill('skus', skus)
-        sku_value_item_reverse = []
-        for index, name in enumerate(commodity.TCattribute):
-            value = list(set([attribute[index] for attribute in sku_value_item]))
-            value = sorted(value)
-            combination = {
-                'name': name,
-                'value': value
-            }
-            sku_value_item_reverse.append(combination)
+        # 拼装skuvalue
+        sku_value_instance = TrialCommoditySkuValue.query.filter_by_(TCid=tcid).first()
+        if not sku_value_instance:
+            sku_value_item_reverse = []
+            for index, name in enumerate(commodity.TCattribute):
+                value = list(set([attribute[index] for attribute in sku_value_item]))
+                value = sorted(value)
+                combination = {
+                    'name': name,
+                    'value': value
+                }
+                sku_value_item_reverse.append(combination)
+        else:
+            sku_value_item_reverse = []
+            tskuvalue = json.loads(sku_value_instance.TSKUvalue)
+            for index, value in enumerate(tskuvalue):
+                sku_value_item_reverse.append({
+                    'name': commodity.TCattribute[index],
+                    'value': value
+                })
+
         commodity.fill('skuvalue', sku_value_item_reverse)
         return Success(data=commodity).get_body(tourist=tourist)
 
@@ -148,11 +160,14 @@ class CTrialCommodity(COrder):
                     'TCIsort': image.get('tcisort')
                 })
                 session_list.append(image_info)
+            # sku
+            sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
             for sku in skus:
                 parameter_required(('skupic', 'skustock', 'skuattritedetail'), datafrom=sku)
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(tcattribute):
                     raise ParamsError('skuattritedetail与tcattribute不符')
+                sku_detail_list.append(skuattritedetail)
                 skustock = sku.get('skustock')
                 assert int(skustock) <= int(tcstocks), 'skustock参数错误，单sku库存大于库存总数'
                 sku_info = TrialCommoditySku.create({
@@ -164,6 +179,25 @@ class CTrialCommodity(COrder):
                     'SKUattriteDetail': json.dumps(skuattritedetail)
                 })
                 session_list.append(sku_info)
+            # skuvalue
+            tskuvalue = data.get('tskuvalue')
+            if tskuvalue:
+                if not isinstance(tskuvalue, list) or len(tskuvalue) != len(tcattribute):
+                    raise ParamsError('tskuvalue与prattribute不符')
+                sku_reverce = []
+                for index in range(len(tcattribute)):
+                    value = list(set([attribute[index] for attribute in sku_detail_list]))
+                    sku_reverce.append(value)
+                    # 对应位置的列表元素应该相同
+                    if set(value) != set(tskuvalue[index]):
+                        raise ParamsError('请核对tskuvalue')
+                # sku_value表
+                sku_value_instance = TrialCommoditySkuValue.create({
+                    'TSKUid': str(uuid.uuid1()),
+                    'TCid': tcid,
+                    'TSKUvalue': json.dumps(tskuvalue)
+                })
+                session_list.append(sku_value_instance)
             db.session.add_all(session_list)
         return Success("添加成功", {'tcid': tcid})
 
@@ -274,7 +308,7 @@ class CTrialCommodity(COrder):
             db.session.add_all(model_bean)
         # 生成支付信息
         body = product_instance.TCtitle
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body, openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
