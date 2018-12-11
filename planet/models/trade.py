@@ -90,6 +90,7 @@ class OrderPart(Base):
     PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
+    OPsubTrueTotal = Column(Float, default=OPsubTotal, comment='依照价格比例计算出的使用优惠券后的价格')
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
@@ -235,6 +236,7 @@ class Coupon(Base):
     COdesc = Column(String(255), comment='描述')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
+    SUid = Column(String(64), comment='来源供应商, 如为空则为平台')
 
 
 class CouponItem(Base):
