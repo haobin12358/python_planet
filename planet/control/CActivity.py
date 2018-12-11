@@ -23,6 +23,8 @@ class CActivity(CUser):
             exists_order = OrderMain.query.filter_(
                 OrderMain.USid == usid, OrderMain.OMstatus > OrderMainStatus.wait_pay.value
             ).first()
+            # 新人首单总是出现在列表
+            exists_order = False  # todo 记得删除
         else:
             exists_order = False
         if exists_order:

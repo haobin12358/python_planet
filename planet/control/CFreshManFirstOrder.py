@@ -13,7 +13,7 @@ from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
-    FreshManJoinFlow
+    FreshManJoinFlow, ProductMonthSaleValue, ProductImage
 from .CUser import CUser
 
 
@@ -95,8 +95,22 @@ class CFreshManFirstOrder(COrder, CUser):
                     'name': product.PRattribute[index],
                     'value': value
                 })
+
         product.fill('SkuValue', sku_value_item_reverse)
-        return Success(product)
+        # 轮播图
+        images = ProductImage.query.filter_by_({'PRid': prid}). \
+            order_by(ProductImage.PIsort).all()
+        product.fill('image', images)
+        # 月销量
+        month_sale_instance = ProductMonthSaleValue.query.filter_by_({'PRid': prid}).first()
+        month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
+        product.fill('month_sale_value', month_sale_value)
+        # 品牌
+        product.fill('brand', {
+            'pbname': fresh_man_first_product.PBname
+        })
+
+        return Success(data=product)
 
     @token_required
     def add_order(self):
@@ -109,9 +123,9 @@ class CFreshManFirstOrder(COrder, CUser):
             raise ParamsError('客户端或商品来源错误')
         # 只可以买一次
         usid = request.user.id
-        exists_order = OrderMain.query.filter_(
+        exists_order = OrderMain.query.filter(
             OrderMain.USid == usid,
-            # OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+            OrderMain.OMstatus > OrderMainStatus.wait_pay.value
         ).first()
         if exists_order:
             raise StatusError('您不是新人')
@@ -242,10 +256,14 @@ class CFreshManFirstOrder(COrder, CUser):
                 fresh_man_join_dict['UPid'] = from_usid
             join_instance = FreshManJoinFlow.create(fresh_man_join_dict)
             db.session.add(join_instance)
+            # 删除未支付的新人订单
+            if exists_order:
+                exists_order.isdelete = True
+                db.session.add(exists_order)
         # 生成支付信息
         body = product_instance.PRtitle
         current_user = get_current_user()
-        openid = current_user.USCommission1 or current_user.USCommission2
+        openid = current_user.USopenid1 or current_user.USopenid2
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
