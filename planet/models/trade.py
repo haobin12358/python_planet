@@ -41,11 +41,7 @@ class OrderMain(Base):
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
-    # 上级信息
-    UPperid = Column(String(64), comment='上级id')  # 方便查询下级
-    UPperid2 = Column(String(64), comment='上上级id')
-    OMtotalCommision = Column(Float, comment='产生的总佣金')  # 不用
-    PRcreateId = Column(String(64), comment='发布者id')
+    PRcreateId = Column(String(64), comment='发布者id')  # 不用
 
 
 class OrderPay(Base):
@@ -95,7 +91,15 @@ class OrderPart(Base):
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    UPperid = Column(String(64), comment='上级id')  # 方便查询下级
+    UPperid2 = Column(String(64), comment='上上级id')
+    # 指定佣金比, 用于活动的自定义设置
+    USCommission1 = Column(Float, comment='一级佣金比')
+    USCommission2 = Column(Float, comment='二级佣金比')
 
+    @property
+    def SKUpic(self):
+        return self.PRmainpic
 
 class OrderRefundApply(Base):
     """订单售后申请"""
