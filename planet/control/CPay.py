@@ -2,6 +2,7 @@
 import json
 import re
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
@@ -11,7 +12,7 @@ from planet.common.error_response import ParamsError, SystemError, ApiError, Sta
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom
+from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
@@ -140,27 +141,59 @@ class CPay():
     def _insert_usercommision(self, s, order_main):
         """写入佣金流水表"""
         s_list = []
-        up1 = order_main.UPperid
-        up2 = order_main.UPperid2
-        if not up1:
-            return []
+        # up1 = order_main.UPperid
+        # up2 = order_main.UPperid2
+        omid = order_main.OMid
+        # if not up1:
+        #     return []
         user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户
+        current_app.logger.info(dict(user))
         cfg = ConfigSettings()
-        level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
-        user_commision_dict = {
-            'UCid': str(uuid.uuid4()),
-            'OMid': order_main.OMid,
-            'UCcommission': Decimal(str(level1commision * order_main.OMtrueMount)),
-            'USid': up1
-        }
-        s_list.append(UserCommission.create(user_commision_dict))
-        if up2:
-            level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
+        user_level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
+        user_level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
+        planetcommision = cfg.get_item('integralbase', 'integral')  # 平台佣金比例
+        order_parts = s.query(OrderPart).filter_by_({
+            'OMid': omid
+        }).all()
+        #
+        if order_main.OMfrom == OrderFrom.trial_commodity.value:  # 试用
+            UCtype = UserCommissionType.deposit.value  # 押金
+            UCendTime = datetime.now()   # todo 如何定义时间??
+        else:
+            UCtype = None
+            UCendTime = None
+        for order_part in order_parts:
+            up1 = order_part.UPperid
+            up2 = order_part.UPperid2
+            if not up1:
+                continue
+            level1commision = order_part.USCommission1 or user_level1commision
+            user_commision_dict = {
+                'UCid': str(uuid.uuid1()),
+                'OMid': omid,
+                'OPid': order_part.OPid,
+                'UCcommission': Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) /  Decimal(100),
+                'USid': up1,
+                'UCtype': UCtype,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCendTime': UCendTime
+
+            }
+            s_list.append(UserCommission.create(user_commision_dict))
+            if not up2:
+                continue
+            level2commision = order_part.USCommission2 or user_level2commision
             users_commision_dict = {
-                'UCid': str(uuid.uuid4()),
-                'OMid': order_main.OMid,
-                'UCcommission': Decimal(str(level2commision * order_main.OMtrueMount)),
-                'USid': up2
+                'UCid': str(uuid.uuid1()),
+                'OMid': omid,
+                'OPid': order_part.OPid,
+                'UCcommission': Decimal(level2commision) * Decimal(order_main.OMtrueMount) / Decimal(100),
+                'USid': up2,
+                'UCtype': UCtype,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCendTime': UCendTime
             }
             s_list.append(UserCommission.create(users_commision_dict))
 

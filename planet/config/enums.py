@@ -262,6 +262,12 @@ class WXLoginFrom(Enum):
     app = 2, '移动端'
 
 
+class UserCommissionType(Enum):
+    true_commision = 0, '佣金'
+    fresh_man = 1, '新人商品'
+    deposit = 3, '押金'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

@@ -118,6 +118,8 @@ class COrder(CPay, CCoupon):
         infos = data.get('info')
         with self.strade.auto_commit() as s:
             user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
+            up1 = user.USopenid1
+            up2 = user.USopenid2
             body = set()  # 付款时候需要使用的字段
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
@@ -178,6 +180,8 @@ class COrder(CPay, CCoupon):
                         'OPsubTotal': small_total,
                         # 副单商品来源
                         'PRfrom': product_instance.PRfrom,
+                        'UPperid': up1,
+                        'UPperid2': up2,
                         # 'PRcreateId': product_instance.CreaterId
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
@@ -219,10 +223,10 @@ class COrder(CPay, CCoupon):
                         })
                         # model_bean.append(month_sale_instance)
                         s.add(month_sale_instance)
+                coupon_for_in_this = prid_dict.copy()
                 # 使用优惠券
                 if coupons:
                     for coid in coupons:
-                        coupon_for_in_this = prid_dict.copy()
                         coupon_user = s.query(CouponUser).filter_by_({"COid": coid, 'USid': usid, 'UCalreadyUse': False}).first_('用户优惠券{}不存在'.format(coid))
                         coupon = s.query(Coupon).filter_by_({"COid": coupon_user.COid}).first_('优惠券不可用')
                         # 是否过期或者已使用过
@@ -243,8 +247,6 @@ class COrder(CPay, CCoupon):
                             if pbid not in coupon_for_pbids:
                                 raise StatusError('优惠券{}仅可使用指定品牌'.format(coid))
                         coupon_for_prids = self._coupon_for_prids(coupon_fors)
-                        import ipdb
-                        ipdb.set_trace()
                         if coupon_for_prids:
                             if not set(coupon_for_prids).intersection(set(prid_dict)):
                                 raise StatusError('优惠券{}仅可用于指定商品'.format(coid))
@@ -304,16 +306,16 @@ class COrder(CPay, CCoupon):
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
                     'OMrecvAddress': omrecvaddress,
-                    'UPperid': user.USsupper1,
-                    'UPperid2': user.USsupper2,
+                    # 'UPperid': user.USsupper1,
+                    # 'UPperid2': user.USsupper2,
                     'UseCoupon': bool(coupons)
                 }
-                if user.USsupper1:
+                # if user.USsupper1:
                     # 主单佣金数据
                     # commision = user.USCommission
                     # total_comm = Commsion(order_price, commision).total_comm  # 佣金使用实付价格计算
                     # order_main_dict.setdefault('OMtotalCommision', total_comm)
-                    pass  # 佣金计算已修改
+                    # pass  # 佣金计算已修改
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
                 # 总价格累加

@@ -260,6 +260,8 @@ class CTrialCommodity(COrder):
                 'PRmainpic': product_instance.TCmainpic,
                 'OPnum': opnum,
                 'OPsubTotal': small_total,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
             }
             order_part_instance = OrderPart.create(order_part_dict)
             model_bean.append(order_part_instance)
@@ -289,8 +291,7 @@ class CTrialCommodity(COrder):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
-                'UPperid': user.USsupper1,
-                'UPperid2': user.USsupper2,
+
                 'UseCoupon': False  # 试用商品不能试用优惠券
             }
             order_main_instance = OrderMain.create(order_main_dict)
