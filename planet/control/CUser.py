@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -33,7 +33,7 @@ from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.validates.user import SupplizerLoginForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -144,6 +144,14 @@ class CUser(SUser, BASEAPPROVAL):
             return True
         return False
 
+    def __user_fill_uw_total(self, user):
+        uw = UserWallet.query.filter_by_(USid=user.USid).first()
+        if not uw:
+            user.fill('usbalance', 0)
+            user.fill('ustotal', 0)
+        else:
+            user.fill('usbalance', uw.UWbalance or 0)
+            user.fill('ustotal', uw.UWtotal or 0)
 
     def _base_decode(self, raw):
         import base64
@@ -253,6 +261,8 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        self.__user_fill_uw_total(user)
+
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': user})
 
@@ -294,7 +304,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
-
+        self.__user_fill_uw_total(user)
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': user})
 
@@ -361,6 +371,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', uscoupon or 0)
+        self.__user_fill_uw_total(user)
         return Success('获取首页用户信息成功', data=user)
 
     @get_session
@@ -372,6 +383,11 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
         user.fields = self.USER_FIELDS[:]
+
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        self.__user_fill_uw_total(user)
         umfront = self.get_usermedia(user.USid, 1)
         if umfront:
             user.fill('umfront', umfront['UMurl'])
@@ -682,6 +698,9 @@ class CUser(SUser, BASEAPPROVAL):
             # 资质认证ok，创建审批流
 
             self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
+            # todo 遍历邀请历史，将未成为店主以及未成为其他店主粉丝的粉丝绑定为自己的粉丝在审批完成之后实现
+
+
             # 创建后台账号用其手机号作为账号
             # adid = str(uuid.
             # ())
@@ -1174,6 +1193,10 @@ class CUser(SUser, BASEAPPROVAL):
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
         token = usid_to_token(user.USid)
@@ -1218,6 +1241,7 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fill('usidentification', self.__conver_idcode(return_user.USidentification))
         return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        self.__user_fill_uw_total(return_user)
         token = usid_to_token(usid, model='User', level=uslevel)
         return Success('登录成功', data={'token': token, 'user': return_user})
 
@@ -1322,6 +1346,78 @@ class CUser(SUser, BASEAPPROVAL):
 
         raise AuthorityError('账号已被回收')
 
-    # todo 用户绑定用户关联表的创建 粉丝成店主时，自动绑定所有为成为店主前邀请的还为绑定店主的切不是店主的粉丝
+
     # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
     # todo 佣金配置文件修改接口
+
+    def get_salesvolume_all(self):
+        pass
+
+    @get_session
+    @token_required
+    def get_cash(self):
+        data = parameter_required(('cashnum', 'cardno', 'cardname', 'bankname', 'bankdetail'))
+        if not is_shop_keeper():
+            raise AuthorityError('权限不足')
+
+
+    def _verify_cardnum(self, num):
+        """获取所属行"""
+        bank_url = 'https://ccdcapi.alipay.com/validateAndCacheCardInfo.json?cardNo={}&cardBinCheck=true'
+        url = bank_url.format(num)
+        response = requests.get(url).json()
+        if response and response.get('validated'):
+            validated = response.get('validated')
+            bankname = getattr(BankName, response.get('bank'), None)
+            if bankname:
+                bankname = bankname.zh_value
+            else:
+                validated = False
+                bankname = None
+        else:
+            bankname = None
+            validated = False
+
+        return Success('获取银行信息成功', data={'bankname': bankname, 'validated': validated})
+
+    def get_bankname(self):
+        data = parameter_required(('cardno',))
+        self.__check_card_num(data.get('cardno'))
+        return self._verify_cardnum(data.get('cardno'))
+
+    def __check_card_num(self, num):
+        if not num:
+            raise ParamsError('卡号不能为空')
+        num = re.sub(r'\s+', '', str(num))
+        if not num:
+            raise ParamsError('卡号不能为空')
+        if not (16 < len(num) < 19) or not self.__check_bit(num):
+            raise ParamsError('请输入正确卡号')
+        return True
+
+    def __check_bit(self, num):
+        """
+        *从不含校验位的银行卡卡号采用Luhm校验算法获得校验位
+        *该校验的过程：
+        *1、从卡号最后一位数字开始，逆向将奇数位(1、3、5 等等)相加。
+        *2、从卡号最后一位数字开始，逆向将偶数位数字(0、2、4等等)，先乘以2（如果乘积为两位数，则将其减去9或个位与十位相加的和），再求和。
+        *3、将奇数位总和加上偶数位总和，如果可以被整除，末尾是0 ，如果不能被整除，则末尾为10 - 余数
+        """
+        num_str_list = list(num[:-1])
+        num_str_list.reverse()
+        if not num_str_list:
+            return False
+
+        num_list = []
+        for num_item in num_str_list:
+            num_list.append(int(num_item))
+
+        sum_odd = sum(num_list[1::2])
+        sum_even = sum([n * 2 if n * 2 < 10 else n * 2 - 9 for n in num_list[::2]])
+        luhm_sum = sum_odd + sum_even
+
+        if (luhm_sum % 10) == 0:
+            check_num = 0
+        else:
+            check_num = 10 - (luhm_sum % 10)
+        return check_num == num[-1]

@@ -203,3 +203,12 @@ class UserWallet(Base):
     USid = Column(String(64), comment='用户id')
     UWbalance = Column(DECIMAL(precision=28, scale=2), comment='用户账户余额')
     UWtotal = Column(DECIMAL(precision=28, scale=2), comment='用户账户总额')
+
+
+class CashNotes(Base):
+    """用户提现记录"""
+    CNid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    CNbankName = Column(Text, comment='开户行')
+    CNbankDetail = Column(Text, comment='开户网点详情')
+    CNcardNo = Column(String(), comment='卡号')
