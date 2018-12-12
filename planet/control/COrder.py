@@ -810,6 +810,12 @@ class COrder(CPay, CCoupon):
         order_refund_instance.ORlogisticSignStatus_zh = LogisticsSignStatus(
             order_refund_instance.ORlogisticSignStatus).zh_value
         order_refund_instance.add('ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime')
+        if order_refund_instance.ORlogisticCompany:
+            logistic_company = LogisticsCompnay.query.filter_by_({
+                'LCcode': order_refund_instance.ORlogisticCompany  # 快递中文
+            }).first_()
+            order_refund_instance.fill('orlogisticcompany_zh', logistic_company.LCname)
+
         return order_refund_instance
 
     def _coupon_for(self, coid):
