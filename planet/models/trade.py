@@ -270,3 +270,29 @@ class CouponFor(Base):
     PRid = Column(String(64), comment='限制使用商品')
     PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
     COid = Column(String(64), comment='优惠券id')
+
+
+class ActivationCodeApply(Base):
+    """购买商品激活码申请提交"""
+    __tablename__ = 'ActivationCodeApply'
+    ACAid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='提交用户id')
+    ACAname = Column(String(32), nullable=False, comment='收款人姓名')
+    ACAnum = Column(String(32), nullable=False, comment='收款银行卡号')
+    ACAaddress = Column(String(125), nullable=False, comment='开户行')
+    ACAvouchers = Column(Text, url_list=True, comment='凭证列表')
+    ACAapplyStatus = Column(Integer, default=0, comment='0, 审核中 10 已同意, -10 已拒绝')
+
+
+class UserActivationCode(Base):
+    """用户拥有的激活码"""
+    __tablename__ = 'UserActivationCode'
+    UACid = Column(String(64), primary_key=True)
+    USid = Column(String(64), index=True, nullable=False, comment='拥有者')
+    UACcode = Column(String(16), nullable=False, comment='激活码, 两个小写字母加5个数字')
+    UACstatus = Column(Integer, default=0, comment='使用状态 0未使用, 10 已经使用 -10 不可用')
+    UACuseFor = Column(String(64), comment='使用者')
+
+
+# todo 激活码使用
+# todo 各种审核人, 原因

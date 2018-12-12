@@ -2,7 +2,7 @@
 import json
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import request, current_app
@@ -16,7 +16,7 @@ from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, Use
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import User, UserCommission, ProductBrand, ProductItems, Items
+from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -169,8 +169,10 @@ class CPay():
         }).all()
         #
         if order_main.OMfrom == OrderFrom.trial_commodity.value:  # 试用
-            UCtype = UserCommissionType.deposit.value  # 押金
-            UCendTime = datetime.now()   # todo 如何定义时间??
+            trialcommodity = s.query(TrialCommodity).filter_by(TCid=order_parts[0]['PRid']).first()
+            deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+            UCtype = UserCommissionType.deposit.value  # 类型是押金
+            UCendTime = deposit_expires
         else:
             UCtype = None
             UCendTime = None
@@ -184,7 +186,7 @@ class CPay():
                 'UCid': str(uuid.uuid1()),
                 'OMid': omid,
                 'OPid': order_part.OPid,
-                'UCcommission': Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) /  Decimal(100),
+                'UCcommission': Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) / Decimal(100),
                 'USid': up1,
                 'UCtype': UCtype,
                 'PRtitle': order_part.PRtitle,

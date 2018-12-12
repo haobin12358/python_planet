@@ -257,6 +257,8 @@ class CRefund(object):
                 oraproductstatus = data.get('oraproductstatus')
                 ORAproductStatus(oraproductstatus)
                 oramount = data.get('oramount')
+                if oramount:
+                    oramount = float(oramount)
                 if not oramount or oramount > order_part.OPsubTrueTotal:
                     raise ParamsError('oramount退款金额不正确')
                 oraddtionvoucher = data.get('oraddtionvoucher')
@@ -327,14 +329,15 @@ class CRefund(object):
             # 申请参数校验
             oraproductstatus = int(data.get('oraproductstatus'))  # 是否已经收到货
             ORAproductStatus(oraproductstatus)
-            oramount = float(data.get('oramount'))
 
             orastate = int(data.get('orastate', OrderRefundORAstate.goods_money.value))
             try:
                 OrderRefundORAstate(orastate)
             except Exception as e:
                 raise ParamsError('orastate参数错误')
-
+            oramount = data.get('oramount')
+            if oramount:
+                oramount = float(oramount)
             if not oramount or oramount > order_main.OMtrueMount:
                 raise ParamsError('oramount退款金额不正确')
             # 不改变副单的状态
@@ -388,3 +391,5 @@ class CRefund(object):
             if result["code"] != "10000":
                 raise ApiError('退款错误')
         return result
+
+# todo 售后物流

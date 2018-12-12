@@ -149,9 +149,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         end = datetime.datetime.now().timestamp()
         gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' %(end - start))))
-        if op_list:
-            return True
-        return False
+        return bool(op_list)
 
     def __user_fill_uw_total(self, user):
         """用户增加用户余额和用户总收益"""
@@ -906,10 +904,10 @@ class CUser(SUser, BASEAPPROVAL):
             date_filter = datetime.datetime.now()
         uc_model_list = self.get_ucmonth_by_usid(request.user.id, date_filter)
         uc_mount = 0
-        common_list = []
-        popular_list = []
+        # common_list = []
+        # popular_list = []
         for uc_model in uc_model_list:
-            uc_model.fields = ['OMid', 'createtime']
+            uc_model.fields = ['createtime', 'UCcommission', 'PRtitle', 'SKUpic']
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_mount += float(uc_model.UCcommission)
             op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid).all()
@@ -917,24 +915,25 @@ class CUser(SUser, BASEAPPROVAL):
             if not op_list:
                 gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
                 raise SystemError('服务器异常')
-            is_popular = False
-            om_name = []
-            for op in op_list:
-                om_name.append(str(op.PRtitle))
-                itemes = Items.query.filter(
-                    Items.ITid == ProductItems.ITid, ProductItems.PRid == op.PRid).first()
-                if itemes and itemes.ITname == self.POPULAR_NAME:
-                    is_popular = True
-            om_name = "+".join(om_name)
-            if is_popular:
-                popular_list.append(uc_model)
-            else:
-                common_list.append(uc_model)
-            uc_model.fill('UCname', om_name)
+            # is_popular = False
+            # om_name = []
+            # for op in op_list:
+            #     om_name.append(str(op.PRtitle))
+            #     itemes = Items.query.filter(
+            #         Items.ITid == ProductItems.ITid, ProductItems.PRid == op.PRid).first()
+            #     if itemes and itemes.ITname == self.POPULAR_NAME:
+            #         is_popular = True
+            # om_name = "+".join(om_name)
+            # # if is_popular:
+            # #     popular_list.append(uc_model)
+            # # else:
+            # #     common_list.append(uc_model)
+            # uc_model.fill('UCname', om_name)
         return Success('获取收益详情', data={
-            'usercommission_mount': uc_mount,
-            'usercommission_common_list': common_list,
-            "usercommission_popular_list": popular_list})
+            'usercommission_mount': '%.2f' % uc_mount,
+            'usercommission_common_list': uc_model_list,
+            # "usercommission_popular_list": popular_list
+        })
 
     @get_session
     @token_required

@@ -25,7 +25,7 @@ from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items
+    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund
@@ -66,8 +66,10 @@ class COrder(CPay, CCoupon):
                 # 如果是试用商品，订单信息中添加押金到期信息
                 if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
                                         OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
-                    trialcommodity = TrialCommodity.query.filter_by_(TCid=order_part.PRid).first()
-                    deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+                    # trialcommodity = TrialCommodity.query.filter_by_(TCid=order_part.PRid).first()
+                    # deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+                    usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
+                    deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
                     order_main.fill('deposit_expires', deposit_expires)
                     order_part.fill('deposit_expires', deposit_expires)
             order_main.fill('order_part', order_parts)

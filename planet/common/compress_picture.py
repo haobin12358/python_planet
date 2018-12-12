@@ -26,7 +26,7 @@ class CompressPicture(object):
         ori_w, ori_h = im.size
         width_ratio = height_ratio = None
         save_q = arg['save_q']
-        ratio = args['ratio']
+        ratio = args.get('ratio')
         shuffix = ori_img.split('.')[-1]
         if ratio:
             if max(ori_w, ori_h) < 1000:
@@ -39,8 +39,6 @@ class CompressPicture(object):
         else:
             ratio = 1
             if (ori_w and ori_w > arg['dst_w']) or (ori_h and ori_h > arg['dst_h']):
-                import ipdb
-                ipdb.set_trace()
                 if arg['dst_w'] and ori_w > arg['dst_w']:
                     width_ratio = float(arg['dst_w']) / ori_w  # 正确获取小数的方式
                 if arg['dst_h'] and ori_h > arg['dst_h']:
@@ -66,6 +64,25 @@ class CompressPicture(object):
         dst_img = ori_img + '_' + str(new_width) + 'x' + str(new_height) + '.' + shuffix  # 拼接图片尺寸在最后
         im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
 
+        # 根据EXIF旋转压缩后的图片为正确可读方向
+        old_img = image.open(dst_img)
+        if hasattr(im, '_getexif'):
+            # 获取exif信息
+            dict_exif = im._getexif()
+            # print(dict_exif)
+            if dict_exif:
+                rotate_status = dict_exif[274]
+                if rotate_status == 6:  # 竖直屏幕拍摄的情况
+                    rotated = old_img.rotate(-90, expand=True)
+                elif rotate_status == 8:  # 倒置手机拍摄
+                    rotated = old_img.rotate(90, expand=True)
+                elif rotate_status == 3:  # 右侧水平拍摄
+                    rotated = old_img.rotate(180, expand=True)
+                else:
+                    rotated = dst_img
+
+                rotated.save(dst_img)
+
         '''
         image.ANTIALIAS还有如下值：
         NEAREST: use nearest neighbour
@@ -73,7 +90,6 @@ class CompressPicture(object):
         BICUBIC:cubic spline interpolation in a 4x4 environment
         ANTIALIAS:best down-sizing filter
         '''
-
         return dst_img
 
     # 裁剪压缩图片

@@ -134,7 +134,7 @@ class CNews(object):
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
         # news_author = self.snews.get_user_by_id(news.USid)
-        news_author = User.query.filter_by_(USid=news.USid).first()
+        news_author = User.query.filter_by(USid=news.USid).first()
         if news_author:
             news_author.fields = ['USname', 'USheader']
         else:
