@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -33,7 +33,8 @@ from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.validates.user import SupplizerLoginForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
-    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet
+    UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
+    CashNotes, UserSalesVolume
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -127,7 +128,7 @@ class CUser(SUser, BASEAPPROVAL):
         return json.loads(model_byte.decode('utf-8'))
 
     def __check_gift_order(self):
-
+        """检查是否购买大礼包"""
         start = datetime.datetime.now().timestamp()
         op_list = OrderPart.query.filter(
             OrderMain.isdelete == False,
@@ -145,6 +146,7 @@ class CUser(SUser, BASEAPPROVAL):
         return False
 
     def __user_fill_uw_total(self, user):
+        """用户增加用户余额和用户总收益"""
         uw = UserWallet.query.filter_by_(USid=user.USid).first()
         if not uw:
             user.fill('usbalance', 0)
@@ -163,6 +165,7 @@ class CUser(SUser, BASEAPPROVAL):
         return base64.b64encode(raw).decode()
 
     def _get_local_head(self, headurl, openid):
+        """转置微信头像到服务器，用以后续二维码生成"""
         data = requests.get(headurl)
         filename = openid + '.png'
         filepath, filedbpath = self._get_path('avatar')
@@ -174,6 +177,7 @@ class CUser(SUser, BASEAPPROVAL):
         return filedbname
 
     def _get_path(self, fold):
+        """获取服务器上文件路径"""
         time_now = datetime.datetime.now()
         year = str(time_now.year)
         month = str(time_now.month)
@@ -185,6 +189,7 @@ class CUser(SUser, BASEAPPROVAL):
         return filepath, file_db_path
 
     def _create_qrcode(self, head, usid, url):
+        """创建二维码"""
         savepath, savedbpath = self._get_path('qrcode')
         secret_usid = self._base_encode(usid)
         # url = PLANET_SUBSCRIBE if app_from and  in PLANET_SUBSCRIBE else PLANET_SERVICE
@@ -197,6 +202,63 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get head {0}'.format(head))
         qrcodeWithlogo(url, head, filename)
         return filedbname
+
+    def _verify_cardnum(self, num):
+        """获取所属行"""
+        bank_url = 'https://ccdcapi.alipay.com/validateAndCacheCardInfo.json?cardNo={}&cardBinCheck=true'
+        url = bank_url.format(num)
+        response = requests.get(url).json()
+        if response and response.get('validated'):
+            validated = response.get('validated')
+            bankname = getattr(BankName, response.get('bank'), None)
+            if bankname:
+                bankname = bankname.zh_value
+            else:
+                validated = False
+                bankname = None
+        else:
+            bankname = None
+            validated = False
+
+        return Success('获取银行信息成功', data={'cnbankname': bankname, 'validated': validated})
+
+    def __check_card_num(self, num):
+        """初步校验卡号"""
+        if not num:
+            raise ParamsError('卡号不能为空')
+        num = re.sub(r'\s+', '', str(num))
+        if not num:
+            raise ParamsError('卡号不能为空')
+        if not (16 <= len(num) <= 19) or not self.__check_bit(num):
+            raise ParamsError('请输入正确卡号')
+        return True
+
+    def __check_bit(self, num):
+        """
+        *从不含校验位的银行卡卡号采用Luhm校验算法获得校验位
+        *该校验的过程：
+        *1、从卡号最后一位数字开始，逆向将奇数位(1、3、5 等等)相加。
+        *2、从卡号最后一位数字开始，逆向将偶数位数字(0、2、4等等)，先乘以2（如果乘积为两位数，则将其减去9或个位与十位相加的和），再求和。
+        *3、将奇数位总和加上偶数位总和，如果可以被整除，末尾是0 ，如果不能被整除，则末尾为10 - 余数
+        """
+        num_str_list = list(num[:-1])
+        num_str_list.reverse()
+        if not num_str_list:
+            return False
+
+        num_list = []
+        for num_item in num_str_list:
+            num_list.append(int(num_item))
+
+        sum_odd = sum(num_list[1::2])
+        sum_even = sum([n * 2 if n * 2 < 10 else n * 2 - 9 for n in num_list[::2]])
+        luhm_sum = sum_odd + sum_even
+
+        if (luhm_sum % 10) == 0:
+            check_num = 0
+        else:
+            check_num = 10 - (luhm_sum % 10)
+        return check_num == int(num[-1])
 
     def analysis_app_from(self, appfrom):
         # todo app 可能存在问题。
@@ -1326,6 +1388,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def update_admin_password(self):
+        """更新管理员密码"""
         if not is_admin():
             raise AuthorityError('权限不足')
 
@@ -1346,78 +1409,54 @@ class CUser(SUser, BASEAPPROVAL):
 
         raise AuthorityError('账号已被回收')
 
+    @get_session
+    @token_required
+    def apply_cash(self):
+        data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
+        if not is_shop_keeper():
+            raise AuthorityError('权限不足')
+        user = self.get_user_by_id(request.user.id)
+        if user.USlevel != self.AGENT_TYPE:
+            raise AuthorityError('代理商权限过期')
+        cn = CashNotes.create({
+            'CNid': str(uuid.uuid1()),
+            'USid': request.user.id,
+            'CNbankName': data.get('cnbankname'),
+            'CNbankDetail': data.get('cnbankdetail'),
+            'CNcardNo': data.get('cncardno'),
+            'CNcashNum': data.get('cncashnum'),
+        })
+        db.session.add(cn)
+        # 创建审批流
+        self.create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        return Success('已成功提交提现申请， 我们将在3个工作日内完成审核，请及时关注您的账户余额')
+
+    def get_bankname(self):
+        """根据卡号获取银行信息"""
+        data = parameter_required(('cncardno',))
+        self.__check_card_num(data.get('cncardno'))
+        return self._verify_cardnum(data.get('cncardno'))
 
     # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
     # todo 佣金配置文件修改接口
-
-    def get_salesvolume_all(self):
-        pass
+    # todo 登录接口绑定二级
 
     @get_session
     @token_required
-    def get_cash(self):
-        data = parameter_required(('cashnum', 'cardno', 'cardname', 'bankname', 'bankdetail'))
+    def get_salesvolume_all(self):
+        today = datetime.datetime.now()
+        args = request.args.to_dict()
+        month = args.get('month') or today.month
+        year = args.get('year') or today.year
+
         if not is_shop_keeper():
-            raise AuthorityError('权限不足')
+            raise AuthorityError('权限不够')
+        user = self.get_user_by_id(request.user.id)
+        if user.USlevel != self.AGENT_TYPE:
+            raise AuthorityError('代理商权限已过期')
 
-
-    def _verify_cardnum(self, num):
-        """获取所属行"""
-        bank_url = 'https://ccdcapi.alipay.com/validateAndCacheCardInfo.json?cardNo={}&cardBinCheck=true'
-        url = bank_url.format(num)
-        response = requests.get(url).json()
-        if response and response.get('validated'):
-            validated = response.get('validated')
-            bankname = getattr(BankName, response.get('bank'), None)
-            if bankname:
-                bankname = bankname.zh_value
-            else:
-                validated = False
-                bankname = None
-        else:
-            bankname = None
-            validated = False
-
-        return Success('获取银行信息成功', data={'bankname': bankname, 'validated': validated})
-
-    def get_bankname(self):
-        data = parameter_required(('cardno',))
-        self.__check_card_num(data.get('cardno'))
-        return self._verify_cardnum(data.get('cardno'))
-
-    def __check_card_num(self, num):
-        if not num:
-            raise ParamsError('卡号不能为空')
-        num = re.sub(r'\s+', '', str(num))
-        if not num:
-            raise ParamsError('卡号不能为空')
-        if not (16 < len(num) < 19) or not self.__check_bit(num):
-            raise ParamsError('请输入正确卡号')
-        return True
-
-    def __check_bit(self, num):
-        """
-        *从不含校验位的银行卡卡号采用Luhm校验算法获得校验位
-        *该校验的过程：
-        *1、从卡号最后一位数字开始，逆向将奇数位(1、3、5 等等)相加。
-        *2、从卡号最后一位数字开始，逆向将偶数位数字(0、2、4等等)，先乘以2（如果乘积为两位数，则将其减去9或个位与十位相加的和），再求和。
-        *3、将奇数位总和加上偶数位总和，如果可以被整除，末尾是0 ，如果不能被整除，则末尾为10 - 余数
-        """
-        num_str_list = list(num[:-1])
-        num_str_list.reverse()
-        if not num_str_list:
-            return False
-
-        num_list = []
-        for num_item in num_str_list:
-            num_list.append(int(num_item))
-
-        sum_odd = sum(num_list[1::2])
-        sum_even = sum([n * 2 if n * 2 < 10 else n * 2 - 9 for n in num_list[::2]])
-        luhm_sum = sum_odd + sum_even
-
-        if (luhm_sum % 10) == 0:
-            check_num = 0
-        else:
-            check_num = 10 - (luhm_sum % 10)
-        return check_num == num[-1]
+        usv_month = UserSalesVolume.query.filter(
+            extract('month', UserSalesVolume.createtime) == month,
+            extract('year', UserSalesVolume.createtime) == year,
+            UserSalesVolume.USid == request.user.id
+        ).first()
