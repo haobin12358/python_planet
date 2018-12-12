@@ -478,7 +478,7 @@ class COrder(CPay, CCoupon):
                     'OMid': omid,
                     'USid': usid,
                     'OPid': opid,
-                    'OEtext': data.get('oetext', '此用户没有填写评价。'),
+                    'OEtext': evaluation.get('oetext', '此用户没有填写评价。'),
                     'OEscore': int(oescore),
                     'PRid': order_part_info.PRid,
                     'SKUattriteDetail': order_part_info.SKUattriteDetail
