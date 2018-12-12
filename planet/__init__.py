@@ -7,6 +7,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v1.AActivationcode import AActivationCode
 from planet.api.v1.AActivity import AActivity
 from planet.api.v1.AAuth import AAuth
 from planet.api.v1.AFreshManFirstOrder import AFreshManFirstOrder
@@ -140,6 +141,7 @@ def register_v1(app):
     v1.add_url_rule('/fresh_man/<string:fresh_man>', view_func=AFreshManFirstOrder.as_view('fresh_man'))
     v1.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
     v1.add_url_rule('/auth/<string:auth>', view_func=AAuth.as_view('auth'))
+    v1.add_url_rule('/act_code/<string:act_code>', view_func=AActivationCode.as_view('act_code'))  # 激活码
 
 
     # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

@@ -5,7 +5,7 @@ from .base_enum import Enum
 class UserStatus(Enum):
     """user状态,供应商状态"""
     usual = 0, '正常'
-    forbidden = 10, '禁用'
+    forbidden = -10, '禁用'
 
 
 class ProductStatus(Enum):
@@ -433,6 +433,13 @@ class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
     deposit = 3, '押金'
+
+
+# 激活码相关
+class UserActivationCodeStatus(Enum):
+    forbidden = -10, '不可用'
+    wait_use = 0, '可用'
+    ready = 10, '已用'
 
 
 if __name__ == '__main__':
