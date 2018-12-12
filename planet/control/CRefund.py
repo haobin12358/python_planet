@@ -6,8 +6,9 @@ import uuid
 from datetime import datetime
 
 from flask import request
+from sqlalchemy import or_
 
-from planet.common.error_response import ParamsError, StatusError, ApiError
+from planet.common.error_response import ParamsError, StatusError, ApiError, DumpliError
 from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
@@ -64,12 +65,12 @@ class CRefund(object):
                 }).update({
                     'OPisinORA': False
                 })
-
-            OrderMain.query.filter_by({
-                'OMid': order_refund_apply.OMid
-            }).update({
-                "OMinRefund": False
-            })
+            if order_refund_apply.OMid:
+                OrderMain.query.filter_by({
+                    'OMid': order_refund_apply.OMid
+                }).update({
+                    "OMinRefund": False
+                })
         return Success('撤销成功')
 
     @token_required
@@ -204,11 +205,21 @@ class CRefund(object):
     def _order_part_refund(self, opid, usid, data):
         with self.strade.auto_commit() as s:
             s_list = []
-            # 副单进入售后状态
-            order_part = s.query(OrderPart).filter_by_({
-                'OPid': opid,
-                'OPisinORA': False
-            }).first_('不存在的订单详情')
+            # 副单
+            order_part = s.query(OrderPart).filter(
+                OrderPart.OPid == opid,
+                OrderPart.isdelete == False
+            ).first_('不存在的订单详情')
+            if order_part.OPisinORA is True:
+                cancled_apply = OrderRefundApply.query.filter_by_({
+                    'ORAstatus': ApplyStatus.cancle.value,
+                    'OPid': opid
+                }).first()
+                if not cancled_apply:
+                    raise DumpliError('重复申请')
+                # 删除之前已经撤销的售后
+                cancled_apply.isdelete = True
+                s_list.append(cancled_apply)
             # 所在主单的副单个数
             order_part_count = OrderPart.query.filter_by_({
                 'OMid': order_part.OMid
@@ -230,6 +241,15 @@ class CRefund(object):
                     ]),
                     OrderMain.USid == usid
                 ).first_('不存在的订单')
+                if order_main.OMinRefund == True:
+                    cancled_apply = OrderRefundApply.query.filter_by_({
+                        'ORAstatus': ApplyStatus.cancle.value,
+                        'OMid': order_main.OMid
+                    }).first()
+                    if not cancled_apply:
+                        raise DumpliError('订单已在售后中, 请勿重复申请')
+                    cancled_apply.isdelete = True
+                    s_list.append(cancled_apply)
                 # 不改变主单的状态
                 # order_main.OMinRefund = True  # 主单状态
                 # s_list.append(order_main)
@@ -237,7 +257,7 @@ class CRefund(object):
                 oraproductstatus = data.get('oraproductstatus')
                 ORAproductStatus(oraproductstatus)
                 oramount = data.get('oramount')
-                if not oramount or oramount > order_part.OPsubTotal:
+                if not oramount or oramount > order_part.OPsubTrueTotal:
                     raise ParamsError('oramount退款金额不正确')
                 oraddtionvoucher = data.get('oraddtionvoucher')
                 if oraddtionvoucher and isinstance(oraddtionvoucher, list):
@@ -253,7 +273,7 @@ class CRefund(object):
                 # 添加申请表
                 order_refund_apply_dict = {
                     'ORAid': str(uuid.uuid4()),
-                    'OMid': omid,
+                    # 'OMid': omid,
                     'ORAsn': self._generic_no(),
                     'OPid': opid,
                     'USid': usid,
@@ -280,13 +300,28 @@ class CRefund(object):
                 ]),
                 OrderMain.USid == usid
             ).first_('不存在的订单')
-            # 申请主单售后, 所有的副单不可以有在售后状态的
-            order_part_in_refund = OrderPart.query.filter_by_({
+            if order_main.OMinRefund is True:
+                cancled_apply = OrderRefundApply.query.filter_by_({
+                    'ORAstatus': ApplyStatus.cancle.value,
+                    'OMid': order_main.OMid
+                }).first()
+                if not cancled_apply:
+                    raise DumpliError('订单已在售后中, 请勿重复申请')
+                cancled_apply.isdelete = True
+                s_list.append(cancled_apply)
+            # 申请主单售后, 所有的副单不可以有在未撤销的售后状态
+            order_parts_in_refund = OrderPart.query.filter_by_({
                 'OMid': omid,
                 'OPisinORA': True
-            }).first()
-            if order_part_in_refund:
-                raise StatusError('订单中存在售后中的商品')
+            }).all()
+            for order_part in order_parts_in_refund:
+                cancled_apply = OrderRefundApply.query.filter_by_({
+                    'ORAstatus': ApplyStatus.cancle.value,
+                    'OPid': order_part.OPid
+                }).first()
+                if not cancled_apply:
+                    raise DumpliError('订单中有商品已在售后中, 请勿重复申请')
+
             order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
             # 申请参数校验
