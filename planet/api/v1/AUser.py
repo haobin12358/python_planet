@@ -50,5 +50,7 @@ class AUser(Resource):
             'get_admin_all_status': self.user.get_admin_all_status,  # 获取管理员所有状态
             'secret_usid': self.user.get_secret_usid,  # base64编码后的usid
             'get_bankname': self.user.get_bankname,  # 获取银行名
+            'get_salesvolume_all': self.user.get_salesvolume_all,  # 获取团队销售额
+
         }
         return apis

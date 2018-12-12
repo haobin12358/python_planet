@@ -428,6 +428,7 @@ class BankName(Enum):
     CBBQS = 163, "城市商业银行资金清算中心"
     HBRCU = 164, "河北省农村信用社"
 
+
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'

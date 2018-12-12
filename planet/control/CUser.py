@@ -56,6 +56,14 @@ class CUser(SUser, BASEAPPROVAL):
         if not idcode:
             return ''
         return idcode[:6] + "*" * 12
+    #
+    # @staticmethod
+    # def __cover_telephone(tel):
+    #     """隐藏部分手机号"""
+    #     if not tel:
+    #         return ""
+    #     return
+
 
     def __update_birthday_str(self, birthday_date):
         """变更用户生日展示"""
@@ -836,6 +844,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError
 
         agent = self.get_user_by_id(request.user.id)
+        self.__user_fill_uw_total(agent)
         gennerc_log('get user is {0}'.format(agent))
         if not agent:
             raise ParamsError('token error')
@@ -877,6 +886,7 @@ class CUser(SUser, BASEAPPROVAL):
             'fens_mouth_count': fens_mouth_count,
             'hottest_product': hottest_product,
             'newest_product': newest_product,
+            'usbalance': agent.usbalance
         }
         return Success('获取店主中心数据成功', data=data)
 
@@ -1201,12 +1211,14 @@ class CUser(SUser, BASEAPPROVAL):
         user_info = wxlogin.userinfo(access_token, openid)
         gennerc_log(user_info)
         head = self._get_local_head(user_info.get("headimgurl"), openid)
+
         if args.get('secret_usid'):
             try:
                 tokenmodel = self._base_decode(args.get('secret_usid'))
                 upperd = self.get_user_by_id(tokenmodel['id'])
                 if upperd.USid == user.USid:
                     upperd = None
+
             except:
                 upperd = None
         else:
@@ -1239,6 +1251,7 @@ class CUser(SUser, BASEAPPROVAL):
                 # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
                 if upperd.USlevel == self.AGENT_TYPE:
                     user_dict.setdefault('USsupper1', upperd.USid)
+                    user_dict.setdefault('USsupper2', upperd.USsupper1)
                 else:
                     uin = UserInvitation.create({
                         'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': user.USid})
@@ -1261,7 +1274,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
-        token = usid_to_token(user.USid)
+        token = usid_to_token(user.USid, level=user.USlevel)
         data = {'token': token, 'user': user, 'is_new': not bool(user.UStelphone)}
         gennerc_log(data)
         return Success('登录成功', data=data)
@@ -1418,6 +1431,10 @@ class CUser(SUser, BASEAPPROVAL):
         user = self.get_user_by_id(request.user.id)
         if user.USlevel != self.AGENT_TYPE:
             raise AuthorityError('代理商权限过期')
+        uw = UserWallet.query.filter_by_(USid=request.user.id).first()
+        balance = uw.UWbalance if uw else 0
+        if float(data.get('cncashnum')) > balance:
+            raise ParamsError('提现金额超出余额')
         cn = CashNotes.create({
             'CNid': str(uuid.uuid1()),
             'USid': request.user.id,
@@ -1437,9 +1454,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_card_num(data.get('cncardno'))
         return self._verify_cardnum(data.get('cncardno'))
 
-    # todo 用户表增加销售额 其粉丝购买的所有订单总额，用来方便2级团队收益展示
     # todo 佣金配置文件修改接口
-    # todo 登录接口绑定二级
 
     @get_session
     @token_required
@@ -1460,3 +1475,35 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserSalesVolume.createtime) == year,
             UserSalesVolume.USid == request.user.id
         ).first()
+        fens_list = User.query.filter(
+            User.USsupper1 == request.user.id, User.USlevel != self.AGENT_TYPE).all()
+        fens_salesvolume_list = []
+        for fens in fens_list:
+            order_list = OrderMain.query.filter_by_(USid=fens.USid, OMstatus=OrderMainStatus.ready.value).all()
+
+            us_salesvolume = sum(order_main.OMmount for order_main in order_list)
+            fens_salesvolume_list.append({
+                'USheader': fens['USheader'],
+                'USname': fens.USname,
+                'USsalesvolume': us_salesvolume
+            })
+        sub_salesvolume_list = []
+        sub_list = User.query.filter_by_(USsupper1=request.user.id, USlevel=self.AGENT_TYPE).all()
+        for sub in sub_list:
+            us_salesvolume = UserSalesVolume.query.filter(
+                extract('month', UserSalesVolume.createtime) == month,
+                extract('year', UserSalesVolume.createtime) == year,
+                UserSalesVolume.USid == sub.USid).first()
+            amount = us_salesvolume.USVamount if us_salesvolume else 0
+            sub_salesvolume_list.append({
+                'USheader': sub.USheader,
+                'USname': sub.USname,
+                'USsalesvolume': amount
+            })
+        usvamout = usv_month.USVamount if usv_month else 0
+        data = {
+            'usvamout': usvamout,
+            'fens_detail': fens_salesvolume_list,
+            'sub_detail': sub_salesvolume_list,
+        }
+        return Success('获取收益详情成功', data=data)

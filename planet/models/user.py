@@ -181,7 +181,7 @@ class AddressArea(Base):
 
 
 class UserSalesVolume(Base):
-    """用户销售额 按月统计，需要总额需要累加"""
+    """用户销售额 按月统计，需要总额需要累加 只累加粉丝的订单销售额"""
     __tablename__ = 'UserSalesvolume'
     USVid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
