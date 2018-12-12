@@ -207,6 +207,7 @@ class UserWallet(Base):
 
 class CashNotes(Base):
     """用户提现记录"""
+    __tablename__ = 'CashNotes'
     CNid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
     CNbankName = Column(Text, comment='开户行')
