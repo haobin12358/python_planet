@@ -8,6 +8,7 @@ from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
 from planet.api.v1.AActivity import AActivity
+from planet.api.v1.AAuth import AAuth
 from planet.api.v1.AFreshManFirstOrder import AFreshManFirstOrder
 from planet.api.v1.AMagicBox import AMagicBox
 from planet.api.v1.ASupplizer import ASupplizer
@@ -19,7 +20,6 @@ from planet.api.v1.ACoupon import ACoupon
 from planet.api.v1.AGuessNum import AGuessNum
 from planet.api.v1.AIndex import AIndex
 from planet.api.v1.AItems import AItems
-from planet.api.v1.AAuth import AAuthTest, APayTest
 from planet.api.v1.AFile import AFile
 from planet.api.v1.ALogistic import ALogistic
 from planet.api.v1.AOrder import AOrder
@@ -139,9 +139,10 @@ def register_v1(app):
     v1.add_url_rule('/magicbox/<string:magicbox>', view_func=AMagicBox.as_view('magicbox'))
     v1.add_url_rule('/fresh_man/<string:fresh_man>', view_func=AFreshManFirstOrder.as_view('fresh_man'))
     v1.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
+    v1.add_url_rule('/auth/<string:auth>', view_func=AAuth.as_view('auth'))
 
-    v1.add_url_rule('/authtest', view_func=AAuthTest.as_view('auth'))
-    v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
+
+    # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v1.add_url_rule.....
     app.register_blueprint(v1)
 
