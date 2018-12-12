@@ -181,7 +181,7 @@ class AddressArea(Base):
 
 
 class UserSalesVolume(Base):
-    """用户销售额 按月统计，需要总额需要累加"""
+    """用户销售额 按月统计，需要总额需要累加 只累加粉丝的订单销售额"""
     __tablename__ = 'UserSalesvolume'
     USVid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
@@ -203,3 +203,16 @@ class UserWallet(Base):
     USid = Column(String(64), comment='用户id')
     UWbalance = Column(DECIMAL(precision=28, scale=2), comment='用户账户余额')
     UWtotal = Column(DECIMAL(precision=28, scale=2), comment='用户账户总额')
+
+
+class CashNotes(Base):
+    """用户提现记录"""
+    __tablename__ = 'CashNotes'
+    CNid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='用户id')
+    CNbankName = Column(Text, comment='开户行')
+    CNbankDetail = Column(Text, comment='开户网点详情')
+    CNcardNo = Column(String(32), comment='卡号')
+    CNcashNum = Column(DECIMAL(precision=28, scale=2), comment='提现金额')
+    CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
+

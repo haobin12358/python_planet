@@ -153,6 +153,7 @@ class ProductCategory(Base):
     ParentPCid = Column(String(64), comment='父类别id, 为空则为一级主类别')
     PCsort = Column(String(64), comment='显示顺序')
     PCpic = Column(String(255), comment='图片', url=True)
+    PCtopPic = Column(String(255), url=True, comment='一级分类顶部图')
 
 
 # class WareHouse(Base):
