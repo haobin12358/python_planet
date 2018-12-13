@@ -4,7 +4,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import UserActivationCodeStatus
-from planet.models import UserActivationCode
+from planet.models import UserActivationCode, ActivationCodeRule
 
 
 class CActivationCode:
@@ -13,12 +13,9 @@ class CActivationCode:
         pass
 
     def get_rule(self):
-        """获取规则电话地址以及下方协议"""
-        pass
+        """获取规则电话地址以及下方协议以及收款信息"""
+        info = ActivationCodeRule.query.filter_by_().first_()
 
-    def get_platform_bank(self):
-        """收款信息获取"""
-        pass
 
     @token_required
     def get_user_activationcode(self):
