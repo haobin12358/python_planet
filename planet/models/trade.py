@@ -289,7 +289,7 @@ class UserActivationCode(Base):
     __tablename__ = 'UserActivationCode'
     UACid = Column(String(64), primary_key=True)
     USid = Column(String(64), index=True, nullable=False, comment='拥有者')
-    UACcode = Column(String(16), nullable=False, comment='激活码, 两个小写字母加5个数字')
+    UACcode = Column(String(16), nullable=False, index=True, comment='激活码, 两个小写字母加5个数字')
     UACstatus = Column(Integer, default=0, comment='使用状态 0未使用, 10 已经使用 -10 不可用')
     UACuseFor = Column(String(64), comment='使用者')
 

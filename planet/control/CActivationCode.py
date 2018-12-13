@@ -1,10 +1,12 @@
 import json
+import random
 import re
+import string
 import uuid
 
 from flask import request
 
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
@@ -45,6 +47,8 @@ class CActivationCode:
         info = ActivationCodeRule.query.filter_by_(ACRisShow=True).first_()
         return Success(data=info)
 
+    def agree_apply(self):
+        pass
 
     @token_required
     def get_user_activationcode(self):
@@ -71,5 +75,28 @@ class CActivationCode:
         for user_act_code in user_act_codes:
             user_act_code.fill('uacstatus_zh',
                                UserActivationCodeStatus(user_act_code.UACstatus).zh_value)
-
         return Success(data=user_act_codes)
+
+    def _generate_activaty_code(self, num=10):
+        """生成激活码"""
+        code_list = []
+        lowercase = string.ascii_lowercase
+        count = 0
+        while len(code_list) < num:
+            if count > 10:
+                raise SystemError('激活码库存不足')
+            code = ''.join(random.choice(lowercase) for _ in range(2)) + ''.join(str(random.randint(0, 9)) for _ in range(5))
+            # 是否与已有重复
+            is_exists = UserActivationCode.query.filter_by_({
+                'UACcode': code,
+                'UACstatus': UserActivationCodeStatus.wait_use.value
+            }).first()
+            if not is_exists:
+                code_list.append(code)
+            else:
+                count += 1
+        return code_list
+
+
+
+
