@@ -19,14 +19,14 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
-    ActivityOrderNavigation
+    ActivityOrderNavigation, UserActivationCodeStatus
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission
+    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund
@@ -139,24 +139,27 @@ class COrder(CPay, CCoupon):
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str
-            # model_bean = []
             mount_price = Decimal()  # 总价
-            # # 实际佣金比
-            # cfg = ConfigSettings()
-            # level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
-            # level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
             # 采用激活码购买跳过支付参数
             if opaytype == PayType.codepay.value:
+                activation_code = data.get('activation_code')
+                if not activation_code:
+                    raise ParamsError('请输入激活码')
+                act_code = UserActivationCode.query.filter_by_({
+                    'UACcode': activation_code,
+                    'UACstatus': UserActivationCodeStatus.wait_use.value
+                }).first_('激活码不可用')
+                act_code.UACstatus = UserActivationCodeStatus.ready.value
+                s.flush()
                 self.__buy_upgrade_gift(
                     infos, s, omfrom, omclient, omrecvaddress,
-                    omrecvname, omrecvphone, opaytype, data.get('activation_code'))
-                # todo 校验激活码合法性
+                    omrecvname, omrecvphone, opaytype, activation_code)
                 return Success('购买商品大礼包成功')
             # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
-                omid = str(uuid.uuid4())  # 主单id
+                omid = str(uuid.uuid1())  # 主单id
                 info = parameter_required(('pbid', 'skus', ), datafrom=info)
                 pbid = info.get('pbid')
                 skus = info.get('skus')
@@ -168,7 +171,7 @@ class COrder(CPay, CCoupon):
 
                 for sku in skus:
                     # 订单副单
-                    opid = str(uuid.uuid4())
+                    opid = str(uuid.uuid1())
                     skuid = sku.get('skuid')
                     opnum = int(sku.get('nums', 1))
                     assert opnum > 0
@@ -229,7 +232,7 @@ class COrder(CPay, CCoupon):
                     }, synchronize_session=False)
                     if not month_sale_updated:
                         month_sale_instance = ProductMonthSaleValue.create({
-                            'PMSVid': str(uuid.uuid4()),
+                            'PMSVid': str(uuid.uuid1()),
                             'PRid': prid,
                             'PMSVnum': opnum
                         })
@@ -263,7 +266,6 @@ class COrder(CPay, CCoupon):
                             if not set(coupon_for_prids).intersection(set(prid_dict)):
                                 raise StatusError('优惠券{}仅可用于指定商品'.format(coid))
 
-                            # coupon_for_prids = [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids]
                             coupon_for_in_this = {
                                 prid: Decimal(str(price)) for prid, price in coupon_for_in_this.items() if prid in coupon_for_prids
                             }
@@ -274,9 +276,6 @@ class COrder(CPay, CCoupon):
                             order_price = order_price - reduce_price
                             if order_price <= 0:
                                 order_price = 0.01
-
-                            # 减少金额计算
-                            # reduce_price = order_old_price - order_price
                         else:
                             coupon_for_sum = order_old_price
                             order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
@@ -298,7 +297,7 @@ class COrder(CPay, CCoupon):
                         s.add(coupon_user)
                         # 优惠券使用记录
                         order_coupon_dict = {
-                            'OCid': str(uuid.uuid4()),
+                            'OCid': str(uuid.uuid1()),
                             'OMid': omid,
                             'COid': coid,
                             'OCreduce': reduce_price,
@@ -324,23 +323,15 @@ class COrder(CPay, CCoupon):
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
                     'OMrecvAddress': omrecvaddress,
-                    # 'UPperid': user.USsupper1,
-                    # 'UPperid2': user.USsupper2,
                     'UseCoupon': bool(coupons),
                 }
-                # if user.USsupper1:
-                    # 主单佣金数据
-                    # commision = user.USCommission
-                    # total_comm = Commsion(order_price, commision).total_comm  # 佣金使用实付价格计算
-                    # order_main_dict.setdefault('OMtotalCommision', total_comm)
-                    # pass  # 佣金计算已修改
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
                 # 总价格累加
                 mount_price += order_price
             # 支付数据表
             order_pay_dict = {
-                'OPayid': str(uuid.uuid4()),
+                'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
                 'OPayMount': mount_price,
@@ -977,7 +968,7 @@ class COrder(CPay, CCoupon):
                     continue
                 # 添加物流记录
                 order_logistics_instance = OrderLogistics.create({
-                    'OLid': str(uuid.uuid4()),
+                    'OLid': str(uuid.uuid1()),
                     'OMid': omid,
                     'OLcompany': olcompany,
                     'OLexpressNo': olexpressno,
@@ -998,7 +989,7 @@ class COrder(CPay, CCoupon):
             info = parameter_required(('pbid', 'skus',), datafrom=info)
             pbid = info.get('pbid')
             skus = info.get('skus')
-            omid = str(uuid.uuid4())  # 主单id
+            omid = str(uuid.uuid1())  # 主单id
             ommessage = info.get('ommessage')
             prid_dict = {}  # 一个临时的prid字典
             product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_(
@@ -1007,7 +998,7 @@ class COrder(CPay, CCoupon):
             order_part_list = []
             for sku in skus:
                 # 订单副单
-                opid = str(uuid.uuid4())
+                opid = str(uuid.uuid1())
                 skuid = sku.get('skuid')
                 opnum = int(sku.get('nums', 1))
                 assert opnum > 0
@@ -1068,7 +1059,7 @@ class COrder(CPay, CCoupon):
                 }, synchronize_session=False)
                 if not month_sale_updated:
                     month_sale_instance = ProductMonthSaleValue.create({
-                        'PMSVid': str(uuid.uuid4()),
+                        'PMSVid': str(uuid.uuid1()),
                         'PRid': prid,
                         'PMSVnum': opnum
                     })
@@ -1102,7 +1093,7 @@ class COrder(CPay, CCoupon):
             mount_price += order_price
         # 支付数据表
         order_pay_dict = {
-            'OPayid': str(uuid.uuid4()),
+            'OPayid': str(uuid.uuid1()),
             'OPayno': activation_code,
             'OPayType': opaytype,
             'OPayMount': mount_price,
