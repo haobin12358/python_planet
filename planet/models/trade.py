@@ -34,7 +34,7 @@ class OrderMain(Base):
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(Float, nullable=False, comment='总价')
     OMtrueMount = Column(Float, nullable=False, comment='实际总价')
-    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货,30完成, 35 待评价, -40取消交易')
+    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 35 待评价, 30完成 -40取消交易')
     OMinRefund = Column(Boolean, default=False, comment='主单是否在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
@@ -42,6 +42,7 @@ class OrderMain(Base):
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
     PRcreateId = Column(String(64), comment='发布者id')  # 不用
+    OMlogisticType = Column(Integer, default=0, comment='发货类型 0 正常发货, 10线上发货(无物流)')
 
 
 class OrderPay(Base):
@@ -292,6 +293,7 @@ class UserActivationCode(Base):
     UACcode = Column(String(16), nullable=False, index=True, comment='激活码, 两个小写字母加5个数字')
     UACstatus = Column(Integer, default=0, comment='使用状态 0未使用, 10 已经使用 -10 不可用')
     UACuseFor = Column(String(64), comment='使用者')
+    UACtime = Column(DateTime, comment='使用时间')
 
 
 class ActivationCodeRule(Base):

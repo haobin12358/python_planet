@@ -19,7 +19,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
-    ActivityOrderNavigation, UserActivationCodeStatus
+    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -150,6 +150,8 @@ class COrder(CPay, CCoupon):
                     'UACstatus': UserActivationCodeStatus.wait_use.value
                 }).first_('激活码不可用')
                 act_code.UACstatus = UserActivationCodeStatus.ready.value
+                act_code.UACuseFor = usid
+                act_code.UACtime = datetime.now()
                 s.flush()
                 self.__buy_upgrade_gift(
                     infos, s, omfrom, omclient, omrecvaddress,
@@ -168,7 +170,7 @@ class COrder(CPay, CCoupon):
                 product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
-
+                freight_list = []  # 快递费
                 for sku in skus:
                     # 订单副单
                     opid = str(uuid.uuid1())
@@ -189,7 +191,7 @@ class COrder(CPay, CCoupon):
                         'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
                         'SKUprice': sku_instance.SKUprice,
-                        'PRmainpic': product_instance.PRmainpic,
+                        'PRmainpic': sku_instance.SKUpic,
                         'OPnum': opnum,
                         'PRid': product_instance.PRid,
                         'OPsubTotal': small_total,
@@ -238,6 +240,19 @@ class COrder(CPay, CCoupon):
                         })
                         # model_bean.append(month_sale_instance)
                         s.add(month_sale_instance)
+                    # 是否是开店大礼包
+                    item = Items.query.join(ProductItems, Items.ITid == ProductItems.ITid).filter(
+                        Items.isdelete == False,
+                        ProductItems.isdelete == False,
+                        Items.ITid == 'upgrade_product',
+                        ProductItems.PRid == prid,
+                    ).first()
+                    if item:
+                        OMlogisticType = OMlogisticTypeEnum.online.value
+                    else:
+                        OMlogisticType = None
+
+                    freight_list.append(product_instance.PRfreight)
                 coupon_for_in_this = prid_dict.copy()
                 # 使用优惠券
                 if coupons:
@@ -304,7 +319,8 @@ class COrder(CPay, CCoupon):
                         }
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
-
+                # 快递费选最大
+                freight = max(freight_list)
                 # 主单
                 order_main_dict = {
                     'OMid': omid,
@@ -315,7 +331,7 @@ class COrder(CPay, CCoupon):
                     'PBname': product_brand_instance.PBname,
                     'PBid': pbid,
                     'OMclient': omclient,
-                    'OMfreight': 0,  # 运费暂时为0
+                    'OMfreight': freight,
                     'OMmount': order_old_price,
                     'OMmessage': ommessage,
                     'OMtrueMount': order_price,
@@ -324,11 +340,13 @@ class COrder(CPay, CCoupon):
                     'OMrecvName': omrecvname,
                     'OMrecvAddress': omrecvaddress,
                     'UseCoupon': bool(coupons),
+                    'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
                 }
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
                 # 总价格累加
                 mount_price += order_price
+
             # 支付数据表
             order_pay_dict = {
                 'OPayid': str(uuid.uuid1()),
@@ -349,6 +367,28 @@ class COrder(CPay, CCoupon):
             'args': pay_args
         }
         return Success('创建成功', data=response)
+
+    def get_order_feight(self):
+        """获取获取快递费"""
+        with self.strade.auto_commit() as s:
+            info = parameter_required(('pbid', 'skus',))
+            pbid = info.get('pbid')
+            skus = info.get('skus')
+            s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+            prid_dict = {}  # 一个临时的prid字典
+            for sku in skus:
+                # 订单副单
+                skuid = sku.get('skuid')
+                opnum = int(sku.get('nums', 1))
+                assert opnum > 0
+                sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+                prid = sku_instance.PRid
+                product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
+                    'skuid: {}对应的商品不存在'.format(skuid))
+                prid_dict[prid] = product_instance.PRfreight
+        feight = max([x for x in prid_dict.values()])
+        return Success(data=feight)
+
 
     @token_required
     def get(self):
@@ -468,9 +508,13 @@ class COrder(CPay, CCoupon):
             order_pay = OrderPay.query.filter_by_({'OPayno': order_main.OPayno}).first()
             order_main.fill('pay_time', order_pay.OPaytime)
         # 发货时间
-        if order_main.OMstatus > OrderMainStatus.wait_send.value:
-            order_logistics = OrderLogistics.query.filter_by_({'OMid': omid}).first()
-            order_main.fill('send_time', order_logistics.createtime)
+        try:
+            if order_main.OMstatus > OrderMainStatus.wait_send.value:
+                order_logistics = OrderLogistics.query.filter_by_({'OMid': omid}).first()
+                order_main.fill('send_time', order_logistics.createtime)
+        except AttributeError as e:
+            current_app.logger.info('获取发货时间出现错误{}'.format(e))
+            order_main.fill('send_time', datetime.now())
         return Success(data=order_main)
 
     @token_required
@@ -1086,17 +1130,32 @@ class COrder(CPay, CCoupon):
                 # 'UPperid': user.USsupper1,
                 # 'UPperid2': user.USsupper2,
                 'UseCoupon': False,
-                'OMstatus': OrderMainStatus.ready.value
+                'OMstatus': OrderMainStatus.ready.value,
+                'OMlogisticType': OMlogisticTypeEnum.online.value
             }
             order_main_instance = OrderMain.create(order_main_dict)
             s.add(order_main_instance)
             mount_price += order_price
+            # 发货表
+            orderlogistics = OrderLogistics.create({
+                'OLid': str(uuid.uuid1()),
+                'OMid': omid,
+                'OLcompany': 'auto',
+                'OLexpressNo': self._generic_omno(),
+                'OLsignStatus': LogisticsSignStatus.already_signed.value,
+                'OLdata': '[]',
+                'OLlastresult': '{}'
+            })
+            s.add(orderlogistics)
         # 支付数据表
         order_pay_dict = {
             'OPayid': str(uuid.uuid1()),
             'OPayno': activation_code,
             'OPayType': opaytype,
             'OPayMount': mount_price,
+            'OPaytime': datetime.now(),
         }
         order_pay_instance = OrderPay.create(order_pay_dict)
         s.add(order_pay_instance)
+
+

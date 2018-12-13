@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
+import random
 import re
+import time
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -12,11 +14,12 @@ from planet.common.error_response import ParamsError, SystemError, ApiError, Sta
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType
+from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
+    LogisticsSignStatus
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity
+from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -170,47 +173,45 @@ class CPay():
         #
         if order_main.OMfrom == OrderFrom.trial_commodity.value:  # 试用
             trialcommodity = s.query(TrialCommodity).filter_by(TCid=order_parts[0]['PRid']).first()
-            deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+            UCendTime = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
             UCtype = UserCommissionType.deposit.value  # 类型是押金
-            UCendTime = deposit_expires
+            mount = order_main.OMtrueMount
         else:
             UCtype = None
             UCendTime = None
+            mount = None
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
-            if not up1:
-                continue
-            level1commision = order_part.USCommission1 or user_level1commision
-            user_commision_dict = {
-                'UCid': str(uuid.uuid1()),
-                'OMid': omid,
-                'OPid': order_part.OPid,
-                'UCcommission': Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) / Decimal(100),
-                'USid': up1,
-                'UCtype': UCtype,
-                'PRtitle': order_part.PRtitle,
-                'SKUpic': order_part.SKUpic,
-                'UCendTime': UCendTime
+            if up1:
+                level1commision = order_part.USCommission1 or user_level1commision
+                user_commision_dict = {
+                    'UCid': str(uuid.uuid1()),
+                    'OMid': omid,
+                    'OPid': order_part.OPid,
+                    'UCcommission': mount or Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) / Decimal(100),
+                    'USid': up1,
+                    'UCtype': UCtype,
+                    'PRtitle': order_part.PRtitle,
+                    'SKUpic': order_part.SKUpic,
+                    'UCendTime': UCendTime
 
-            }
-            s_list.append(UserCommission.create(user_commision_dict))
-            if not up2:
-                continue
-            level2commision = order_part.USCommission2 or user_level2commision
-            users_commision_dict = {
-                'UCid': str(uuid.uuid1()),
-                'OMid': omid,
-                'OPid': order_part.OPid,
-                'UCcommission': Decimal(level2commision) * Decimal(order_main.OMtrueMount) / Decimal(100),
-                'USid': up2,
-                'UCtype': UCtype,
-                'PRtitle': order_part.PRtitle,
-                'SKUpic': order_part.SKUpic,
-                'UCendTime': UCendTime
-            }
-            s_list.append(UserCommission.create(users_commision_dict))
-
+                }
+                s_list.append(UserCommission.create(user_commision_dict))
+            if up2:
+                level2commision = order_part.USCommission2 or user_level2commision
+                users_commision_dict = {
+                    'UCid': str(uuid.uuid1()),
+                    'OMid': omid,
+                    'OPid': order_part.OPid,
+                    'UCcommission': Decimal(level2commision) * Decimal(order_main.OMtrueMount) / Decimal(100),
+                    'USid': up2,
+                    'UCtype': UCtype,
+                    'PRtitle': order_part.PRtitle,
+                    'SKUpic': order_part.SKUpic,
+                    'UCendTime': UCendTime
+                }
+                s_list.append(UserCommission.create(users_commision_dict))
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
@@ -218,9 +219,40 @@ class CPay():
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
             if fresh_man_join_flow and fresh_man_join_flow.UPid:
-                pass
-                # todo 新人首单奖励分发
+                # 邀请人的新人首单
+                up_order_main = OrderMain.query.filter(
+                    OrderMain.isdelete == True,
+                    OrderMain.USid == fresh_man_join_flow.UPid,
+                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                ).first()
+                if up_order_main:
+                    reward = min(order_main.OMtrueMount, up_order_main.OMtrueMount)
+                    user_commision_dict = {
+                        'UCid': str(uuid.uuid1()),
+                        'OMid': omid,
+                        'UCcommission': reward,
+                        'USid': fresh_man_join_flow.UPid,
+                        'UCtype': UserCommissionType.fresh_man.value,
+                        'UCendTime': UCendTime
+                    }
+                    s_list.append(UserCommission.create(user_commision_dict))
+                    # todo 新人首单奖励分发
 
+        if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:  # 线上发货
+            order_main.OMstatus = OrderMainStatus.ready.value
+            s_list.append(order_main)
+            # 发货表
+            orderlogistics = OrderLogistics.create({
+                'OLid': str(uuid.uuid1()),
+                'OMid': omid,
+                'OLcompany': 'auto',
+                'OLexpressNo': self._generic_omno(),
+                'OLsignStatus': LogisticsSignStatus.already_signed.value,
+                'OLdata': '[]',
+                'OLlastresult': '{}'
+            })
+            s_list.append(orderlogistics)
         return s_list
 
     def test_pay(self, out_trade_no=1, mount_price=1):
@@ -292,6 +324,12 @@ class CPay():
         :return:
         """
         pass
+
+    @staticmethod
+    def _generic_omno():
+        """生成订单号"""
+        return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
+               str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
 
 
 

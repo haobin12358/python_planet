@@ -443,6 +443,11 @@ class UserActivationCodeStatus(Enum):
     ready = 10, '已用'
 
 
+class OMlogisticTypeEnum(Enum):
+    usual = 0, '普通发货'
+    online = 10, '线上发'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

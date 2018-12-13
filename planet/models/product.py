@@ -29,6 +29,11 @@ class Products(Base):
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     # PRcode = Column(String(64), comment='商品的外部编号')
 
+    @orm.reconstructor
+    def __init__(self):
+        super(Products, self).__init__()
+        self.add('createtime')
+
 
 class ProductMonthSaleValue(Base):
     """商品月销量"""
