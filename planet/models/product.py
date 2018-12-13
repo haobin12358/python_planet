@@ -49,6 +49,7 @@ class ProductSku(Base):
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
     SKUprice = Column(Float, nullable=False, comment='价格')
     SKUstock = Column(Integer, comment='库存')
+    SKUsn = Column(String(64), default=SKUid, nullable=False, comment='sku编码')
 
 
 class ProductSkuValue(Base):
@@ -84,7 +85,6 @@ class ProductBrand(Base):
     PBlinks = Column(String(255), comment='官网, 待用')
     PBbackgroud = Column(String(255), comment='背景图')
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
-
 
 
 class BrandWithItems(Base):

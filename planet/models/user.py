@@ -51,7 +51,7 @@ class UserCommission(Base):
     UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金')
     UCendTime = Column(DateTime, comment='预期到账时间')
     PRtitle = Column(String(255), comment='商品标题')
-    SKUpic = Column(Text, comment='商品sku主图')
+    SKUpic = Column(Text, url=True, comment='商品sku主图')
     OMid = Column(String(64), comment='佣金来源订单')
     OPid = Column(String(64), comment='分单id')
 
