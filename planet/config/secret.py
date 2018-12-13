@@ -14,7 +14,7 @@ host = env.get('DXX_DB_HOST', "127.0.0.1")
 port = "3306"
 username = env.get('DXX_DB_USER', '')
 password = env.get('DXX_DB_PWD', 'password')
-charset = "utf8"
+charset = "utf8mb4"
 sqlenginename = 'mysql+pymysql'
 DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
     sqlenginename,
