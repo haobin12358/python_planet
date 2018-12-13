@@ -10,6 +10,7 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import extract
 
+from planet.common.logistics import Logistics
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError, TokenError, \
     AuthorityError
@@ -370,6 +371,44 @@ class COrder(CPay, CCoupon):
                         order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
                     order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
                     order_part.fill('order_refund', order_refund_instance)
+                    # 已发货
+                    time_now = datetime.now()
+                    if order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
+                        if (not order_refund_instance.ORlogisticData or (
+                                time_now - order_refund_instance.updatetime).total_seconds() > 6 * 3600) \
+                                and order_refund_instance.ORlogisticLostResult != 3:  # 没有data信息或超过6小时 并且状态不是已签收
+                            l = Logistics()
+                            current_app.logger.info('正在查询售后物流信息')
+                            response = l.get_logistic(order_refund_instance.ORlogisticsn, order_refund_instance.ORlogisticCompany)
+
+                            if response:
+                                # 插入数据库
+                                with db.auto_commit():
+                                    code = response.get('status')
+                                    if code == '0':
+
+                                        result = response.get('result')
+                                        order_refund_instance.update({
+                                            'ORlogisticSignStatus': int(result.get('deliverystatus')),
+                                            'ORlogisticData':  json.dumps(result),
+                                            'ORlogisticLostResult': json.dumps(result.get('list')[0])
+                                        })
+                                        db.session.add(order_refund_instance)
+                                        #
+                                    else:
+                                        current_app.logger.error('获取售后物流异常')
+                                        OrderLogisticsDict = {
+                                            'ORlogisticSignStatus': -1,
+                                            'ORlogisticData': json.dumps(response),  # 结果原字符串
+                                            'ORlogisticLostResult': '{}'
+                                        }
+                                        order_refund_instance.update(OrderLogisticsDict)
+                                        db.session.add(order_refund_instance)
+                        try:
+                            order_refund_instance.ORlogisticLostResult = json.loads(order_refund_instance.ORlogisticLostResult)
+                            order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
+                        except Exception:
+                            current_app.logger.error('售后物流出错')
         # 主单售后状态信息
         if order_main.OMinRefund is True:
             omid = order_main.OMid
@@ -380,6 +419,45 @@ class COrder(CPay, CCoupon):
                     order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
                 order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
                 order_main.fill('order_refund', order_refund_instance)
+
+                # 已发货
+                time_now = datetime.now()
+                if order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
+                    if (not order_refund_instance.ORlogisticData or (
+                            time_now - order_refund_instance.updatetime).total_seconds() > 6 * 3600) \
+                            and order_refund_instance.ORlogisticLostResult != 3:  # 没有data信息或超过6小时 并且状态不是已签收
+                        l = Logistics()
+                        current_app.logger.info('正在查询售后物流信息')
+                        response = l.get_logistic(order_refund_instance.ORlogisticsn, order_refund_instance.ORlogisticCompany)
+
+                        if response:
+                            # 插入数据库
+                            with db.auto_commit():
+                                code = response.get('status')
+                                if code == '0':
+                                    result = response.get('result')
+                                    order_refund_instance.update({
+                                        'ORlogisticSignStatus': int(result.get('deliverystatus')),
+                                        'ORlogisticData': json.dumps(result),
+                                        'ORlogisticLostResult': json.dumps(result.get('list')[0])
+                                    })
+                                    db.session.add(order_refund_instance)
+                                    #
+                                else:
+                                    current_app.logger.error('获取售后物流异常')
+                                    OrderLogisticsDict = {
+                                        'ORlogisticSignStatus': -1,
+                                        'ORlogisticData': json.dumps(response),  # 结果原字符串
+                                        'ORlogisticLostResult': '{}'
+                                    }
+                                    order_refund_instance.update(OrderLogisticsDict)
+                                    db.session.add(order_refund_instance)
+                    try:
+                        order_refund_instance.ORlogisticLostResult = json.loads(
+                            order_refund_instance.ORlogisticLostResult)
+                        order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
+                    except Exception:
+                        current_app.logger.error('售后物流出错')
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name

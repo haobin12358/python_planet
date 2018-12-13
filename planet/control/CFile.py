@@ -116,7 +116,7 @@ class CFile(object):
 
     @staticmethod
     def allowed_folder(folder):
-        return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar'] else 'temp'
+        return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar', 'voucher'] else 'temp'
 
     def new_name(self, shuffix):
         import string, random  # import random

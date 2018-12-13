@@ -277,9 +277,9 @@ class ActivationCodeApply(Base):
     __tablename__ = 'ActivationCodeApply'
     ACAid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='提交用户id')
-    ACRname = Column(String(32), nullable=False, comment='收款人姓名')
-    ACRbankSn = Column(String(32), nullable=False, comment='收款银行卡号')
-    ACRbankAddress = Column(String(125), nullable=False, comment='开户行')
+    ACAname = Column(String(32), nullable=False, comment='收款人姓名')
+    ACAbankSn = Column(String(32), nullable=False, comment='收款银行卡号')
+    ACAbankname= Column(String(125), nullable=False, comment='开户行')
     ACAvouchers = Column(Text, url_list=True, comment='凭证列表')
     ACAapplyStatus = Column(Integer, default=0, comment='0, 审核中 10 已同意, -10 已拒绝')
 
@@ -305,6 +305,7 @@ class ActivationCodeRule(Base):
     ACRbankSn = Column(String(32), nullable=False, comment='卡号')
     ACRbankAddress = Column(String(125), nullable=False, comment='支行地址')
     ACRAgreeMent = Column(Text, comment='协议')
+    ACRisShow = Column(Boolean, default=True, comment='是否显示')
 
 
 

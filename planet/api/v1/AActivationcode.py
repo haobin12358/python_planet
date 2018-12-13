@@ -8,6 +8,13 @@ class AActivationCode(Resource):
 
     def get(self, act_code):
         apis = {
-            'list_act_code': self.cact_code.get_user_activationcode
+            'list_act_code': self.cact_code.get_user_activationcode,
+            'get_rule': self.cact_code.get_rule,
+        }
+        return apis
+
+    def post(self, act_code):
+        apis = {
+            'apply': self.cact_code.create_apply,
         }
         return apis

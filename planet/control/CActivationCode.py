@@ -1,20 +1,49 @@
+import json
+import re
+import uuid
+
 from flask import request
 
+from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
 from planet.config.enums import UserActivationCodeStatus
-from planet.models import UserActivationCode, ActivationCodeRule
+from planet.extensions.register_ext import db
+from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply
 
 
 class CActivationCode:
+    @token_required
     def create_apply(self):
         """提交购买申请"""
-        pass
+        data = parameter_required(('acabankname', 'acabanksn', 'acaname', 'vouchers'))
+        acabankname = data.get('acabankname')
+        acabanksn = data.get('acabanksn')
+        if len(acabanksn) < 10 or len(acabanksn) > 30:
+            raise ParamsError('卡号错误')
+        if re.findall('\D', acabanksn):
+            raise ParamsError('卡号错误')
+        acaname = data.get('acaname')
+        vouchers = data.get('vouchers')
+        if not vouchers or (not isinstance(vouchers, list)) or (len(vouchers) > 4):
+            raise ParamsError('凭证有误')
+        with db.auto_commit():
+            apply = ActivationCodeApply.create({
+                'ACAid': str(uuid.uuid1()),
+                'USid': request.user.id,
+                'ACAname': acaname,
+                'ACAbankSn': acabanksn,
+                'ACAbankname': acabankname,
+                'ACAvouchers': json.dumps(vouchers)
+            })
+            db.session.add(apply)
+        return Success('提交成功')
 
     def get_rule(self):
         """获取规则电话地址以及下方协议以及收款信息"""
-        info = ActivationCodeRule.query.filter_by_().first_()
+        info = ActivationCodeRule.query.filter_by_(ACRisShow=True).first_()
+        return Success(data=info)
 
 
     @token_required
