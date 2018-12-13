@@ -33,6 +33,7 @@ class PayType(Enum):
     """{0: '微信支付', 10: 支付宝}"""
     wechat_pay = 0, '微信支付'
     alipay = 10, '支付宝'
+    codepay = 20, '激活码支付'
 
 
 class Client(Enum):

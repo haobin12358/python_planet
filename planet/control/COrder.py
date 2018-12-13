@@ -26,7 +26,7 @@ from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor, TrialCommodity, UserCommission
+    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission
 from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund
@@ -118,8 +118,10 @@ class COrder(CPay, CCoupon):
             OrderFrom(omfrom)
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
+
         infos = data.get('info')
         with self.strade.auto_commit() as s:
+
             user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
             up1 = user.USopenid1
             up2 = user.USopenid2
@@ -143,6 +145,13 @@ class COrder(CPay, CCoupon):
             # cfg = ConfigSettings()
             # level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
             # level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
+            # 采用激活码购买跳过支付参数
+            if opaytype == PayType.codepay.value:
+                self.__buy_upgrade_gift(
+                    infos, s, omfrom, omclient, omrecvaddress,
+                    omrecvname, omrecvphone, opaytype, data.get('activation_code'))
+                # todo 校验激活码合法性
+                return Success('购买商品大礼包成功')
             # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
@@ -156,6 +165,7 @@ class COrder(CPay, CCoupon):
                 product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
+
                 for sku in skus:
                     # 订单副单
                     opid = str(uuid.uuid4())
@@ -164,7 +174,6 @@ class COrder(CPay, CCoupon):
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
-
                     product_instance = s.query(Products).filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
@@ -317,7 +326,7 @@ class COrder(CPay, CCoupon):
                     'OMrecvAddress': omrecvaddress,
                     # 'UPperid': user.USsupper1,
                     # 'UPperid2': user.USsupper2,
-                    'UseCoupon': bool(coupons)
+                    'UseCoupon': bool(coupons),
                 }
                 # if user.USsupper1:
                     # 主单佣金数据
@@ -980,3 +989,123 @@ class COrder(CPay, CCoupon):
             s.add_all(s_list)
         return Success('success {}'.format(len(s_list)))
 
+    def __buy_upgrade_gift(self, infos, s, omfrom, omclient, omrecvaddress,
+                           omrecvname, omrecvphone, opaytype, activation_code):
+        mount_price = Decimal()
+        for info in infos:
+            order_price = Decimal()  # 订单实际价格
+            order_old_price = Decimal()  # 原价格
+            info = parameter_required(('pbid', 'skus',), datafrom=info)
+            pbid = info.get('pbid')
+            skus = info.get('skus')
+            omid = str(uuid.uuid4())  # 主单id
+            ommessage = info.get('ommessage')
+            prid_dict = {}  # 一个临时的prid字典
+            product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_(
+                '品牌id: {}不存在'.format(pbid))
+
+            order_part_list = []
+            for sku in skus:
+                # 订单副单
+                opid = str(uuid.uuid4())
+                skuid = sku.get('skuid')
+                opnum = int(sku.get('nums', 1))
+                assert opnum > 0
+                sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+                prid = sku_instance.PRid
+
+                product_instance = s.query(Products).filter_by_({'PRid': prid}).first_(
+                    'skuid: {}对应的商品不存在'.format(skuid))
+                if product_instance.PBid != pbid:
+                    raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+                small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                order_part_dict = {
+                    'OMid': omid,
+                    'OPid': opid,
+                    'SKUid': skuid,
+                    'PRattribute': product_instance.PRattribute,
+                    'SKUattriteDetail': sku_instance.SKUattriteDetail,
+                    'PRtitle': product_instance.PRtitle,
+                    'SKUprice': sku_instance.SKUprice,
+                    'PRmainpic': product_instance.PRmainpic,
+                    'OPnum': opnum,
+                    'PRid': product_instance.PRid,
+                    'OPsubTotal': small_total,
+                    # 副单商品来源
+                    'PRfrom': product_instance.PRfrom,
+                    # 'UPperid': up1,
+                    # 'UPperid2': up2,
+                    # 'PRcreateId': product_instance.CreaterId
+                }
+                order_part_instance = OrderPart.create(order_part_dict)
+                order_part_list.append(order_part_instance)
+                # model_bean.append(order_part_instance)
+                s.add(order_part_instance)
+                s.flush()
+                # 订单价格计算
+                order_price += small_total
+                order_old_price += small_total
+                # 临时记录单品价格
+                prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
+                # 删除购物车
+                if omfrom == OrderFrom.carts.value:
+                    s.query(Carts).filter_by({"USid": request.user.id, "SKUid": skuid}).delete_()
+
+                s.query(Products).filter_by_(PRid=prid).update({
+                    'PRsalesValue': Products.PRsalesValue + opnum,
+                })
+                s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                    'SKUstock': ProductSku.SKUstock - opnum
+                })
+                # 月销量 修改或新增
+                today = datetime.now()
+                month_sale_updated = s.query(ProductMonthSaleValue).filter_(
+                    ProductMonthSaleValue.PRid == prid,
+                    extract('month', ProductMonthSaleValue.createtime) == today.month,
+                    extract('year', ProductMonthSaleValue.createtime) == today.year
+                ).update({
+                    'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                }, synchronize_session=False)
+                if not month_sale_updated:
+                    month_sale_instance = ProductMonthSaleValue.create({
+                        'PMSVid': str(uuid.uuid4()),
+                        'PRid': prid,
+                        'PMSVnum': opnum
+                    })
+
+                    s.add(month_sale_instance)
+
+            order_main_dict = {
+                'OMid': omid,
+                'OMno': self._generic_omno(),
+                # 'OPayno': opayno,
+                'USid': request.user.id,
+                'OMfrom': omfrom,
+                'PBname': product_brand_instance.PBname,
+                'PBid': pbid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0
+                'OMmount': order_old_price,
+                'OMmessage': ommessage,
+                'OMtrueMount': order_price,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+                # 'UPperid': user.USsupper1,
+                # 'UPperid2': user.USsupper2,
+                'UseCoupon': False,
+                'OMstatus': OrderMainStatus.ready.value
+            }
+            order_main_instance = OrderMain.create(order_main_dict)
+            s.add(order_main_instance)
+            mount_price += order_price
+        # 支付数据表
+        order_pay_dict = {
+            'OPayid': str(uuid.uuid4()),
+            'OPayno': activation_code,
+            'OPayType': opaytype,
+            'OPayMount': mount_price,
+        }
+        order_pay_instance = OrderPay.create(order_pay_dict)
+        s.add(order_pay_instance)

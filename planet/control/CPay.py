@@ -16,7 +16,7 @@ from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, Use
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import User, UserCommission, TrialCommodity
+from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -101,13 +101,25 @@ class CPay():
             # 更改主单
             order_mains = s.query(OrderMain).filter_by({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
-                order_main.update({
-                    'OMstatus': OrderMainStatus.wait_send.value
-                })
-                s_list.append(order_main)
-                # 添加佣金记录
-                commion_instance_list = self._insert_usercommision(s, order_main)
-                s_list.extend(commion_instance_list)
+                is_upgrade_gift = bool(s.query(OrderPart).firter(
+                        OrderMain.OMid == OrderPart.OMid,
+                        ProductBrand.PRid == OrderPart.PRid,
+                        ProductItems.ITid == Items.ITid,
+                        Items.ITname == '开店大礼包').all())
+                if not is_upgrade_gift:
+                    order_main.update({
+                        'OMstatus': OrderMainStatus.wait_send.value
+                    })
+                    s_list.append(order_main)
+                    # 添加佣金记录
+                    commion_instance_list = self._insert_usercommision(s, order_main)
+                    s_list.extend(commion_instance_list)
+                else:
+                    # 如果是开店大礼包，则直接订单完成
+                    order_main.update({
+                        'OMstatus': OrderMainStatus.ready.value
+                    })
+                    s_list.append(order_main)
             s.add_all(s_list)
         return 'success'
 

@@ -260,8 +260,8 @@ class CTrialCommodity(COrder):
                 'PRmainpic': product_instance.TCmainpic,
                 'OPnum': opnum,
                 'OPsubTotal': small_total,
-                'UPperid': user.USsupper1,
-                'UPperid2': user.USsupper2,
+                'UPperid': user.USid,
+                # 'UPperid2': user.USid,
             }
             order_part_instance = OrderPart.create(order_part_dict)
             model_bean.append(order_part_instance)
