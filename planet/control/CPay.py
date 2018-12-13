@@ -238,8 +238,8 @@ class CPay():
                     }
                     s_list.append(UserCommission.create(user_commision_dict))
                     # todo 新人首单奖励分发
-
-        if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:  # 线上发货
+        # 线上发货
+        if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
             order_main.OMstatus = OrderMainStatus.ready.value
             s_list.append(order_main)
             # 发货表
