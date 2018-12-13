@@ -408,13 +408,6 @@ class CProducts:
                 if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
                     raise ParamsError('pskuvalue与prattribute不符')
                 # todo  skudetail校验
-                # sku_reverce = []
-                # for index in range(len(prattribute)):
-                #     value = list(set([attribute[index] for attribute in sku_detail_list]))
-                #     sku_reverce.append(value)
-                #     # 对应位置的列表元素应该相同
-                #     if set(value) != set(pskuvalue[index]):
-                #         raise ParamsError('请核对pskuvalue')
                 # sku_value表
                 sku_value_instance = ProductSkuValue.create({
                     'PSKUid': str(uuid.uuid1()),
@@ -423,6 +416,7 @@ class CProducts:
                 })
                 session_list.append(sku_value_instance)
             else:
+                """
                 sku_value_instance = ProductSkuValue.query.filter_by_({
                     'PRid': prid,
                 }).first()
@@ -435,6 +429,14 @@ class CProducts:
                                 old_pskvalue[o_index].append(value[o_index])
                     # sku_value_instance.PSKUvalue = ''
                     sku_value_instance.PSKUvalue = json.dumps(old_pskvalue)
+                    session_list.append(sku_value_instance)
+                """
+                sku_value_instance = ProductSkuValue.query.filter_by_({
+                    'PRid': prid,
+                }).first()
+                if sku_value_instance:
+                    # 默认如果不传就删除原来的, 防止value混乱, todo
+                    sku_value_instance.isdelete = True
                     session_list.append(sku_value_instance)
 
             # images, 有piid为修改, 无piid为新增

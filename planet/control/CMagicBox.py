@@ -3,13 +3,14 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from flask import current_app
 from sqlalchemy.dialects.postgresql import json
 
 from planet.common.error_response import StatusError, DumpliError
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, get_current_user
 from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus, OrderFrom, PayType
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, wx_pay
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxJoinForm, request, \
     MagicBoxRecvAwardForm
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity, ProductBrand, \
@@ -19,8 +20,6 @@ from .COrder import COrder
 
 
 class CMagicBox(CUser, COrder):
-    def __init__(self):
-        pass
 
     @token_required
     def open(self):
@@ -36,7 +35,7 @@ class CMagicBox(CUser, COrder):
         levle_attr = dict(form.level.choices).get(level)
         usid = request.user.id
         # 源参与记录
-        magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first_('来源参数异常(mbjid)')
+        magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first_('请点击好友发来邀请链接')
         if magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
             raise StatusError('已领奖或已过期')
         mbaid = magic_box_join.MBAid
@@ -134,20 +133,29 @@ class CMagicBox(CUser, COrder):
     @token_required
     def recv_award(self):
         """购买魔盒礼品"""
+        self.wx_pay = wx_pay
+
         form = MagicBoxRecvAwardForm().valid_data()
-        magic_box_join = form.magic_box_join
-        mbaid = magic_box_join.MBAid
+        # magic_box_join = form.magic_box_join
+        mbaid = form.mbaid.data
+
         omclient = form.omclient.data
         ommessage = form.ommessage.data
         opaytype = form.opaytype.data
         uaid = form.uaid.data
         usid = request.user.id
+
+        magic_box_join = MagicBoxJoin.query.filter_by_({'MBAid': mbaid, 'USid': usid}).first_('未参与')
+        if magic_box_join and magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
+            raise StatusError('已领奖')
+
         with db.auto_commit():
             magic_box_apply = MagicBoxApply.query.filter_by_({"MBAid": mbaid}).first()
             prid = magic_box_apply.PRid
             skuid = magic_box_apply.SKUid
             price = magic_box_join.MBJcurrentPrice
             pbid = magic_box_apply.PBid
+            current_app.logger.info(pbid)
             product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
             product = Products.query.filter_by({'PRid': prid}).first()
             sku = ProductSku.query.filter_by({'SKUid': magic_box_apply.SKUid}).first()
@@ -165,7 +173,7 @@ class CMagicBox(CUser, COrder):
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
             # 创建订单
-            omid = str(uuid.uuid4())
+            omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
             # 主单
             order_main_dict = {
@@ -189,9 +197,10 @@ class CMagicBox(CUser, COrder):
             order_main_instance = OrderMain.create(order_main_dict)
             db.session.add(order_main_instance)
             # 订单副单
+            user = get_current_user()
             order_part_dict = {
                 'OMid': omid,
-                'OPid': str(uuid.uuid4()),
+                'OPid': str(uuid.uuid1()),
                 'SKUid': skuid,
                 'PRattribute': product.PRattribute,
                 'SKUattriteDetail': sku.SKUattriteDetail,
@@ -203,7 +212,9 @@ class CMagicBox(CUser, COrder):
                 'OPsubTotal': price,
                 # 副单商品来源
                 'PRfrom': product.PRfrom,
-                'PRcreateId': product.CreaterId
+                'PRcreateId': product.CreaterId,
+                'USCommission1': user.USCommission1,
+                'USCommission2': user.USCommission2,
             }
             order_part_instance = OrderPart.create(order_part_dict)
             db.session.add(order_part_instance)
@@ -212,7 +223,7 @@ class CMagicBox(CUser, COrder):
             db.session.add(magic_box_join)
             # 支付数据表
             order_pay_dict = {
-                'OPayid': str(uuid.uuid4()),
+                'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
                 'OPayMount': price,
@@ -221,7 +232,8 @@ class CMagicBox(CUser, COrder):
             db.session.add(order_pay_instance)
         # 生成支付信息
         body = product.PRtitle
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body)
+        openid = user.USopenid1 or user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
