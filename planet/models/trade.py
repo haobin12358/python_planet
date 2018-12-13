@@ -102,6 +102,7 @@ class OrderPart(Base):
     def SKUpic(self):
         return self.PRmainpic
 
+
 class OrderRefundApply(Base):
     """订单售后申请"""
     __tablename__ = 'OrderRefundApply'
