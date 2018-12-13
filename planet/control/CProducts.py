@@ -368,6 +368,7 @@ class CProducts:
             session_list.append(product)
             # sku, 有skuid为修改, 无skuid为新增
             if skus:
+                new_sku = []
                 for sku in skus:
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
@@ -378,40 +379,64 @@ class CProducts:
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
-                        sku_instance = s.query(ProductSku).filter_by({'SKUid': sku.get('skuid')}).first_('sku不存在')
+                        sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
+                        sku_instance.update({
+                            'SKUpic': sku.get('skupic'),
+                            'SKUattriteDetail': json.dumps(skuattritedetail),
+                            'SKUstock': int(skustock),
+                            'SKUsn': data.get('skusn')
+                        })
+                        session_list.append(sku_instance)
                     else:
-                        skuid = str(uuid.uuid4())
-                        sku_instance = ProductSku()
-                    sku_dict = {
-                        'SKUid': skuid,
-                        'PRid': prid,
-                        'SKUpic': sku.get('skupic'),
-                        'SKUprice': round(skuprice, 2),
-                        'SKUstock': int(skustock),
-                        'SKUattriteDetail': json.dumps(skuattritedetail),
-                        'isdelete': sku.get('isdelete')
-                    }
-                    [setattr(sku_instance, k, v) for k, v in sku_dict.items() if v is not None]
-                    session_list.append(sku_instance)
-            # sku value  todo  skudetail校验
+                        sku_instance = ProductSku.create({
+                            'SKUid': str(uuid.uuid1()),
+                            'PRid': prid,
+                            'SKUpic': sku.get('skupic'),
+                            'SKUprice': round(skuprice, 2),
+                            'SKUstock': int(skustock),
+                            'SKUattriteDetail': json.dumps(skuattritedetail),
+                            'isdelete': sku.get('isdelete'),
+                            'SKUsn': data.get('skusn')
+                        })
+                        session_list.append(sku_instance)
+                    if not sku.get('isdelete'):
+                        new_sku.append(skuattritedetail)  # sku记录  [电信, 红, xl]
+
+            # sku value
             pskuvalue = data.get('pskuvalue')
-            # if pskuvalue:
-            #     if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
-            #         raise ParamsError('pskuvalue与prattribute不符')
-            #     sku_reverce = []
-            #     for index in range(len(prattribute)):
-            #         value = list(set([attribute[index] for attribute in sku_detail_list]))
-            #         sku_reverce.append(value)
-            #         # 对应位置的列表元素应该相同
-            #         if set(value) != set(pskuvalue[index]):
-            #             raise ParamsError('请核对pskuvalue')
+            if pskuvalue:
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                    raise ParamsError('pskuvalue与prattribute不符')
+                # todo  skudetail校验
+                # sku_reverce = []
+                # for index in range(len(prattribute)):
+                #     value = list(set([attribute[index] for attribute in sku_detail_list]))
+                #     sku_reverce.append(value)
+                #     # 对应位置的列表元素应该相同
+                #     if set(value) != set(pskuvalue[index]):
+                #         raise ParamsError('请核对pskuvalue')
                 # sku_value表
-            sku_value_instance = ProductSkuValue.create({
-                'PSKUid': str(uuid.uuid1()),
-                'PRid': prid,
-                'PSKUvalue': json.dumps(pskuvalue)
-            })
-            session_list.append(sku_value_instance)
+                sku_value_instance = ProductSkuValue.create({
+                    'PSKUid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'PSKUvalue': json.dumps(pskuvalue)
+                })
+                session_list.append(sku_value_instance)
+            else:
+                sku_value_instance = ProductSkuValue.query.filter_by_({
+                    'PRid': prid,
+                }).first()
+                if sku_value_instance:
+                    # 更新sku_value, todo 修改的sku也需要记录
+                    old_pskvalue = json.loads(sku_value_instance.PSKUvalue )  # [[联通, 电信], [白, 黑], [16G, 32G]]
+                    for o_index, o_value in enumerate(old_pskvalue):
+                        for index, value in enumerate(new_sku):
+                            if value[o_index] not in old_pskvalue[o_index]:
+                                old_pskvalue[o_index].append(value[o_index])
+                    # sku_value_instance.PSKUvalue = ''
+                    sku_value_instance.PSKUvalue = json.dumps(old_pskvalue)
+                    session_list.append(sku_value_instance)
+
             # images, 有piid为修改, 无piid为新增
             if images:
                 for image in images:
