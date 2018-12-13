@@ -1425,11 +1425,11 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def apply_cash(self):
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
-        if not is_shop_keeper():
-            raise AuthorityError('权限不足')
-        user = self.get_user_by_id(request.user.id)
-        if user.USlevel != self.AGENT_TYPE:
-            raise AuthorityError('代理商权限过期')
+        # if not is_shop_keeper():
+        #     raise AuthorityError('权限不足')
+        # user = self.get_user_by_id(request.user.id)
+        # if user.USlevel != self.AGENT_TYPE:
+        #     raise AuthorityError('代理商权限过期')
         uw = UserWallet.query.filter_by_(USid=request.user.id).first()
         balance = uw.UWbalance if uw else 0
         if float(data.get('cncashnum')) > balance:
@@ -1458,6 +1458,8 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_salesvolume_all(self):
+        """获取团队销售额"""
+        # todo 销售额表自动插入
         today = datetime.datetime.now()
         args = request.args.to_dict()
         month = args.get('month') or today.month
