@@ -1495,7 +1495,7 @@ class CUser(SUser, BASEAPPROVAL):
                 UserSalesVolume.USid == sub.USid).first()
             amount = us_salesvolume.USVamount if us_salesvolume else 0
             sub_salesvolume_list.append({
-                'USheader': sub.USheader,
+                'USheader': sub['USheader'],
                 'USname': sub.USname,
                 'USsalesvolume': amount
             })
