@@ -77,6 +77,10 @@ class DefaltSettig(object):
             # 'schedule': crontab(hour=0, minute=1)
             'schedule': timedelta(hours=6)
         },
+        'auto_evaluate': {
+            'task': 'auto_evaluate',
+            'schedule': crontab(hour=4, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+        }
     }
 
 
