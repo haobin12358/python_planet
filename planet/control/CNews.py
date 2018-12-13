@@ -600,14 +600,14 @@ class CNews(object):
             raise AuthorityError('只能删除自己发布的评论')
         return Success('删除成功', {'ncid': ncid})
 
-    def fill_user_info(self, usid):
+    @staticmethod
+    def fill_user_info(usid):
         try:
-            usinfo = self.snews.get_user_by_id(usid)
-        except Exception as f:
-            gennerc_log("this user is deleted, error is {}".format(f))
-            user_dict = {"USname": "匿名用户", "USheader": ""}
-            return user_dict
-        usinfo.fields = ['USname', 'USheader']
+            usinfo = User.query.filter_by(USid=usid).first()
+            usinfo.fields = ['USname', 'USheader']
+        except Exception as e:
+            gennerc_log("This User is Deleted, ERROR is {}".format(e))
+            usinfo = {"USname": "匿名用户", "USheader": ""}
         return usinfo
 
     @admin_required

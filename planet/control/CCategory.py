@@ -47,7 +47,8 @@ class CCategory(CProducts):
                 'PCdesc': pcdesc,
                 'ParentPCid': parentpcid,
                 'PCpic': pcpic,
-                'PCsort': pcsort
+                'PCsort': pcsort,
+                'PCtopPic': data.get('pctoppic')
             })
             s.add(category_instance)
         return Success('创建成功', {'pcid': category_instance.PCid})

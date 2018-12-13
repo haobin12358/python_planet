@@ -71,7 +71,7 @@ class CompressPicture(object):
             dict_exif = im._getexif()
             # print(dict_exif)
             if dict_exif:
-                rotate_status = dict_exif[274]
+                rotate_status = dict_exif.get(274)
                 if rotate_status == 6:  # 竖直屏幕拍摄的情况
                     rotated = old_img.rotate(-90, expand=True)
                 elif rotate_status == 8:  # 倒置手机拍摄
@@ -79,8 +79,7 @@ class CompressPicture(object):
                 elif rotate_status == 3:  # 右侧水平拍摄
                     rotated = old_img.rotate(180, expand=True)
                 else:
-                    rotated = dst_img
-
+                    rotated = old_img
                 rotated.save(dst_img)
 
         '''
