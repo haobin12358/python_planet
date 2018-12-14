@@ -86,7 +86,7 @@ class CRefund(object):
         except Exception as e:
             raise ParamsError('ditype错误')
         with self.strade.auto_commit() as s:
-            diid = str(uuid.uuid4())
+            diid = str(uuid.uuid1())
             dispute_type_dict = {
                 'DIid': diid,
                 'DIname': diname,
@@ -121,7 +121,7 @@ class CRefund(object):
                     order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
                     order_pay_instance = s.query(OrderPay).filter
                     refund_flow_instance = OrderRefundFlow.create({
-                        'ORFid': str(uuid.uuid4()),
+                        'ORFid': str(uuid.uuid1()),
                         'ORAid': oraid,
                         'ORAmount': refund_apply_instance.ORAmount,
                         'OPayno': order_main_instance.Opayno,
@@ -146,7 +146,7 @@ class CRefund(object):
                     except Exception as e:
                         raise ParamsError('请填写必要的收货信息')
                     order_refund_dict = {
-                        'ORid': str(uuid.uuid4()),
+                        'ORid': str(uuid.uuid1()),
                         'OMid': refund_apply_instance.OMid,
                         'OPid': refund_apply_instance.OPid,
                         'ORAid': oraid,
@@ -282,7 +282,7 @@ class CRefund(object):
                 raise ParamsError('orastate参数错误')
             # 添加申请表
             order_refund_apply_dict = {
-                'ORAid': str(uuid.uuid4()),
+                'ORAid': str(uuid.uuid1()),
                 # 'OMid': omid,
                 'ORAsn': self._generic_no(),
                 'OPid': opid,
@@ -366,7 +366,7 @@ class CRefund(object):
                 oraddtionvoucher = json.dumps(oraddtionvoucher)
             oraaddtion = data.get('oraaddtion')
             order_refund_apply_dict = {
-                'ORAid': str(uuid.uuid4()),
+                'ORAid': str(uuid.uuid1()),
                 'OMid': omid,
                 'ORAsn': self._generic_no(),
                 'USid': usid,

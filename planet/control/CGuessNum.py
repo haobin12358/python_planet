@@ -198,6 +198,7 @@ class CGuessNum(COrder):
             }
             order_main_instance = OrderMain.create(order_main_dict)
             s_list.append(order_main_instance)
+            user = get_current_user()
             order_part_dict = {
                 'OMid': omid,
                 'OPid': str(uuid.uuid1()),
@@ -212,7 +213,10 @@ class CGuessNum(COrder):
                 'OPsubTotal': price,
                 # 副单商品来源
                 'PRfrom': product_instance.PRfrom,
-                'PRcreateId': product_instance.CreaterId
+                'PRcreateId': product_instance.CreaterId,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
             s_list.append(order_part_instance)

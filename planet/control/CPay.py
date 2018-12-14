@@ -63,7 +63,7 @@ class CPay():
             session_list.append(order_main)
             # 新建支付流水
             order_pay_instance = OrderPay.create({
-                'OPayid': str(uuid.uuid4()),
+                'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
                 'OPayMount': order_main.OMtrueMount
@@ -156,11 +156,7 @@ class CPay():
     def _insert_usercommision(self, s, order_main):
         """写入佣金流水表"""
         s_list = []
-        # up1 = order_main.UPperid
-        # up2 = order_main.UPperid2
         omid = order_main.OMid
-        # if not up1:
-        #     return []
         user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户
         current_app.logger.info(dict(user))
         cfg = ConfigSettings()

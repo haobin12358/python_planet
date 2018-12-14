@@ -213,8 +213,9 @@ class CMagicBox(CUser, COrder):
                 # 副单商品来源
                 'PRfrom': product.PRfrom,
                 'PRcreateId': product.CreaterId,
-                'USCommission1': user.USCommission1,
-                'USCommission2': user.USCommission2,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
             db.session.add(order_part_instance)

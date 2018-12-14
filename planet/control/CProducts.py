@@ -140,7 +140,8 @@ class CProducts:
                 itposition = data.get('itposition')
                 itauthority = data.get('itauthority')
                 if not itposition:  # 位置 标签的未知
-                    filter_args.append(or_(Items.ITposition == ItemPostion.scene.value, Items.ITposition.is_(None)))
+                    filter_args.extend([Items.ITposition != ItemPostion.other.value,
+                                       Items.ITposition != ItemPostion.new_user_page.value])
                 else:
                     filter_args.append(Items.ITposition == int(itposition))
                 if not itauthority:
@@ -192,7 +193,7 @@ class CProducts:
         if kw != [''] and not is_tourist():
             with self.sproduct.auto_commit() as s:
                 instance = UserSearchHistory.create({
-                    'USHid': str(uuid.uuid4()),
+                    'USHid': str(uuid.uuid1()),
                     'USid': request.user.id,
                     'USHname': ' '.join(kw)
                 })
@@ -218,7 +219,7 @@ class CProducts:
             session_list = []
             # 商品
             prattribute = data.get('prattribute')
-            prid = str(uuid.uuid4())
+            prid = str(uuid.uuid1())
             prmarks = data.get('prmarks')  # 备注
             if prmarks:
                 try:
@@ -264,7 +265,7 @@ class CProducts:
                 skustock = int(sku.get('skustock'))
                 assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
                 sku_dict = {
-                    'SKUid': str(uuid.uuid4()),
+                    'SKUid': str(uuid.uuid1()),
                     'PRid': prid,
                     'SKUpic': sku.get('skupic'),
                     'SKUprice': round(skuprice, 2),
@@ -295,7 +296,7 @@ class CProducts:
             # images
             for image in images:
                 image_dict = {
-                    'PIid': str(uuid.uuid4()),
+                    'PIid': str(uuid.uuid1()),
                     'PRid': prid,
                     'PIpic': image.get('pipic'),
                     'PIsort': image.get('pisort'),
@@ -309,7 +310,7 @@ class CProducts:
                     itid = item.get('itid')
                     item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签{}不存在'.format(itid))
                     item_product_dict = {
-                        'PIid': str(uuid.uuid4()),
+                        'PIid': str(uuid.uuid1()),
                         'PRid': prid,
                         'ITid': itid
                     }
@@ -446,7 +447,7 @@ class CProducts:
                         piid = image.get('piid')
                         image_instance = s.query(ProductImage).filter_by({'PIid': piid}).first_('商品图片信息不存在')
                     else:
-                        piid = str(uuid.uuid4())
+                        piid = str(uuid.uuid1())
                         image_instance = ProductImage()
                     image_dict = {
                         'PIid': piid,
@@ -468,7 +469,7 @@ class CProducts:
                         piid = product_item_instance.PIid
                         item_product_instance = s.query(ProductItems).filter_by_({'PIid': piid}).first_('piid不存在')
                     else:
-                        piid = str(uuid.uuid4())
+                        piid = str(uuid.uuid1())
                         item_product_instance = ProductItems()
                     item_product_dict = {
                         'PIid': piid,
