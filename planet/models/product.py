@@ -195,7 +195,8 @@ class Supplizer(Base):
     """供应商"""
     __tablename__ = 'Supplizer'
     SUid = Column(String(64), primary_key=True)
-    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话,登录使用')
+    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话')
+    SUloginPhone = Column(String(11), default=SUlinkPhone, comment='登录手机号')
     SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
