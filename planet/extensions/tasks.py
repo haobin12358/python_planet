@@ -57,7 +57,7 @@ def auto_evaluate():
         s_list = list()
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
-                                             OrderMain.createtime + timedelta(days=30) >= datetime.now()
+                                             OrderMain.createtime <= datetime.now() - timedelta(days=30)
                                              ).all()  # 所有超过30天待评价的商品订单
         for order_main in order_mains:
             order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
@@ -90,7 +90,8 @@ def auto_evaluate():
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        fetch_share_deal()
+        # fetch_share_deal()
+        auto_evaluate()
 
  # # 今日结果
         # db_today = CorrectNum.query.filter(

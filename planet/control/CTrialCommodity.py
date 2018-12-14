@@ -247,7 +247,7 @@ class CTrialCommodity(COrder):
             product_instance = db.session.query(TrialCommodity).filter_by_({'TCid': tcid}).first_('skuid: {}对应的商品不存在'.format(skuid))
             if product_instance.PBid != pbid:
                 raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
-            small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+            small_total = Decimal(str(product_instance.TCdeposit)) * opnum
             order_part_dict = {
                 'OMid': omid,
                 'OPid': opid,
@@ -292,7 +292,7 @@ class CTrialCommodity(COrder):
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
 
-                'UseCoupon': False  # 试用商品不能试用优惠券
+                'UseCoupon': False  # 试用商品不能使用优惠券
             }
             order_main_instance = OrderMain.create(order_main_dict)
             model_bean.append(order_main_instance)
