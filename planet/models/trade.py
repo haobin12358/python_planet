@@ -169,6 +169,8 @@ class OrderEvaluation(Base):
     __tablename__ = 'OrderEvaluation'
     OEid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='用户')
+    USname = Column(String(255), comment='用户名')
+    USheader = Column(Text, default='用户头像', url=True)
     OPid = Column(String(64), nullable=False, comment='订单副单id')
     OMid = Column(String(64), nullable=False, comment='订单主单id')
     PRid = Column(String(64), nullable=False, comment='商品id')
