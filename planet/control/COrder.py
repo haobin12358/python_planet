@@ -334,7 +334,7 @@ class COrder(CPay, CCoupon):
                     'OMfreight': freight,
                     'OMmount': order_old_price,
                     'OMmessage': ommessage,
-                    'OMtrueMount': order_price,
+                    'OMtrueMount': order_price + Decimal(str(freight)),
                     # 收货信息
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
