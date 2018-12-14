@@ -9,7 +9,7 @@ from sqlalchemy import or_, and_, not_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
@@ -232,7 +232,6 @@ class CProducts:
             if prdesc:
                 if not isinstance(prdesc, list):
                     raise ParamsError('prdesc 格式不正确')
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
@@ -349,8 +348,6 @@ class CProducts:
             if pcid:
                 product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
             prdesc = data.get('prdesc')
-            if prdesc:
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
@@ -365,7 +362,7 @@ class CProducts:
                 'PRremarks': prmarks,
                 'PRdescription': prdescription
             }
-            [setattr(product, k, v) for k, v in product_dict.items() if v]
+            product.update(product_dict)
             session_list.append(product)
             # sku, 有skuid为修改, 无skuid为新增
             if skus:
@@ -406,16 +403,25 @@ class CProducts:
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
-                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(json.loads(product.PRattribute)):
                     raise ParamsError('pskuvalue与prattribute不符')
                 # todo  skudetail校验
                 # sku_value表
-                sku_value_instance = ProductSkuValue.create({
-                    'PSKUid': str(uuid.uuid1()),
-                    'PRid': prid,
-                    'PSKUvalue': json.dumps(pskuvalue)
-                })
-                session_list.append(sku_value_instance)
+                exists_sku_value = ProductSkuValue.query.filter_by_({
+                    'PRid': prid
+                }).first()
+                if exists_sku_value:
+                    exists_sku_value.update({
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(exists_sku_value)
+                else:
+                    sku_value_instance = ProductSkuValue.create({
+                        'PSKUid': str(uuid.uuid1()),
+                        'PRid': prid,
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(sku_value_instance)
             else:
                 """
                 sku_value_instance = ProductSkuValue.query.filter_by_({
@@ -571,7 +577,7 @@ class CProducts:
         if is_admin():
             self.product_from = ProductFrom.platform.value
             self.prstatus = None
-        elif is_shop_keeper():
+        elif is_supplizer():  # 供应商添加的商品需要审核
             self.product_from = ProductFrom.shop_keeper.value
             self.prstatus = ProductStatus.auditing.value
         else:

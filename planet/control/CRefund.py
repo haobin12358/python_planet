@@ -72,6 +72,13 @@ class CRefund(object):
                 }).update({
                     "OMinRefund": False
                 })
+            # 对应退货流水表改为已取消
+            OrderRefund.query.filter(
+                OrderRefund.ORAid == oraid,
+                OrderRefund.isdelete == False
+            ).update({
+                'ORstatus': OrderRefundOrstatus.cancle.value
+            })
         return Success('撤销成功')
 
     @token_required
@@ -137,6 +144,11 @@ class CRefund(object):
                     )
                     msg = '已同意, 正在退款'
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
+                    # 取消原来的退货表, (主要是因为因为可能因撤销为未完全删除)
+                    old_order_refund = OrderRefund.query.filter(OrderRefund.isdelete == False,
+                                                                OrderRefund.ORAid == oraid).update({
+                        'ORstatus': OrderRefundOrstatus.cancle.value
+                    })
                     # 写入退换货表
                     orrecvname = data.get('orrecvname')
                     orrecvphone = validate_arg('^1\d{10}$', data.get('orrecvphone', ''), '输入合法的手机号码')
@@ -145,6 +157,7 @@ class CRefund(object):
                         assert orrecvname and orrecvphone and orrecvaddress
                     except Exception as e:
                         raise ParamsError('请填写必要的收货信息')
+
                     order_refund_dict = {
                         'ORid': str(uuid.uuid1()),
                         'OMid': refund_apply_instance.OMid,
@@ -232,7 +245,6 @@ class CRefund(object):
                 # 删除之前已经撤销的售后
                 cancled_apply.isdelete = True
                 s_list.append(cancled_apply)
-                # todo 可能要删除之前的退货表
             # 主单售后状态
             omid = order_part.OMid
             order_main = s.query(OrderMain).filter_(
@@ -271,7 +283,7 @@ class CRefund(object):
                 raise ParamsError('oramount退款金额不正确')
             oraddtionvoucher = data.get('oraddtionvoucher')
             if oraddtionvoucher and isinstance(oraddtionvoucher, list):
-                oraddtionvoucher = json.dumps(oraddtionvoucher)
+                oraddtionvoucher = oraddtionvoucher
             else:
                 oraddtionvoucher = None
             oraaddtion = data.get('oraaddtion')
@@ -362,8 +374,6 @@ class CRefund(object):
             #     s_list.append(order_part)
             # 添加申请表
             oraddtionvoucher = data.get('oraddtionvoucher')
-            if oraddtionvoucher and isinstance(oraddtionvoucher, list):
-                oraddtionvoucher = json.dumps(oraddtionvoucher)
             oraaddtion = data.get('oraaddtion')
             order_refund_apply_dict = {
                 'ORAid': str(uuid.uuid1()),

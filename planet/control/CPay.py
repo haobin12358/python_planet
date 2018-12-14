@@ -155,6 +155,7 @@ class CPay():
 
     def _insert_usercommision(self, s, order_main):
         """写入佣金流水表"""
+        # todo 判断是否是代理商
         s_list = []
         omid = order_main.OMid
         user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户

@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import datetime
 
-from flask import request
+from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
@@ -382,7 +382,7 @@ class CNews(object):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} is favorite news'.format(user.USname))
+            current_app.logger.info('User {0} is favorite news'.format(user.USname))
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})

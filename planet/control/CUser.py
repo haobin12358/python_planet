@@ -1362,9 +1362,9 @@ class CUser(SUser, BASEAPPROVAL):
         """供应商登录"""
         # 手机号登录
         form = SupplizerLoginForm().valid_data()
-        sulinkphone = form.mobile.data
+        mobile = form.mobile.data
         password = form.password.data
-        supplizer = Supplizer.query.filter_by_({'SUlinkPhone': sulinkphone}).first_()
+        supplizer = Supplizer.query.filter_by_({'SUloginPhone': mobile}).first_()
         if not supplizer or supplizer.SUpassword != password:
             raise NotFound('手机号或密码错误')
         if supplizer.SUstatus == UserStatus.forbidden.value:
