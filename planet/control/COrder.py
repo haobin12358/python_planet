@@ -599,9 +599,9 @@ class COrder(CPay, CCoupon):
                 exist_evaluation = oe.query(OrderEvaluation).filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
 
                 if exist_evaluation:
-                    exist_evaluation.fields = '__all__'
-                    current_app.logger.info('已存在的评论 {}'.format(dict(exist_evaluation)))
-                    # raise StatusError('该订单已完成评价')
+                    # exist_evaluation.fields = '__all__'
+                    # current_app.logger.info('已存在的评论 {}'.format(dict(exist_evaluation)))
+                    raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')

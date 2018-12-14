@@ -55,42 +55,87 @@ def auto_evaluate():
     """超时自动评价订单"""
     with db.auto_commit():
         s_list = list()
+        current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
+        count = 1
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
-                                             OrderMain.createtime + timedelta(days=30) >= datetime.now()
+                                             OrderMain.createtime <= datetime.now() - timedelta(days=30)
                                              ).all()  # 所有超过30天待评价的商品订单
-        for order_main in order_mains:
-            order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
-            for order_part in order_parts:
-                evaluation_dict = {
-                    'OEid': str(uuid.uuid1()),
-                    'USid': order_main.USid,
-                    'OPid': order_part.OPid,
-                    'OMid': order_main.OMid,
-                    'PRid': order_part.PRid,
-                    'SKUattriteDetail': order_part.SKUattriteDetail,
-                    'OEtext': '此用户没有填写评价。',
-                    'OEscore': 5,
-                }
-                evaluation_instance = OrderEvaluation.create(evaluation_dict)
-                s_list.append(evaluation_instance)
-                # 商品总体评分变化
-                try:
-                    product_info = Products.query.filter_by_(PRid=order_part.PRid).first()
-                    average_score = round((float(product_info.PRaverageScore) + 10) / 2)
-                    Products.query.filter_by_(PRid=order_part.PRid).update({'PRaverageScore': average_score})
-                except Exception as e:
-                    current_app.logger.info("Auto Evaluation , Update Product Score ERROR, is {}".format(e))
-            # 更改主单待评价状态为已完成
-            OrderMain.query.filter_by_(OMid=order_main.OMid).update({'OMstatus': OrderMainStatus.ready.value})
+        if not order_mains:
+            current_app.logger.info(">>>>>>  没有超过30天未评价的商品订单  <<<<<<")
+        else:
+            for order_main in order_mains:
+                order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
+                for order_part in order_parts:
+                    exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
+                    if exist_evaluation:
+                        current_app.logger.info(">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
+                        continue
+                    evaluation_dict = {
+                        'OEid': str(uuid.uuid1()),
+                        'USid': order_main.USid,
+                        'OPid': order_part.OPid,
+                        'OMid': order_main.OMid,
+                        'PRid': order_part.PRid,
+                        'SKUattriteDetail': order_part.SKUattriteDetail,
+                        'OEtext': '此用户没有填写评价。',
+                        'OEscore': 5,
+                    }
+                    evaluation_instance = OrderEvaluation.create(evaluation_dict)
+                    s_list.append(evaluation_instance)
+                    current_app.logger.info(">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
+
+                    # 商品总体评分变化
+                    try:
+                        product_info = Products.query.filter_by_(PRid=order_part.PRid).first()
+                        average_score = round((float(product_info.PRaverageScore) + 10) / 2)
+                        Products.query.filter_by_(PRid=order_part.PRid).update({'PRaverageScore': average_score})
+                    except Exception as e:
+                        current_app.logger.info("Auto Evaluation , Update Product Score ERROR, is {}".format(e))
+
+                # 更改主单待评价状态为已完成
+                change_status = OrderMain.query.filter_by_(OMid=order_main.OMid).update({'OMstatus': OrderMainStatus.ready.value})
+                if change_status:
+                    current_app.logger.info(">>>>>>  主单状态更改成功 OMid : {}  <<<<<<".format(str(order_main.OMid)))
+                else:
+                    current_app.logger.info(">>>>>>  主单状态更改失败 OMid : {}  <<<<<<".format(str(order_main.OMid)))
         if s_list:
             db.session.add_all(s_list)
+        current_app.logger.info(">>>>>> 自动评价任务结束，共更改{}条数据  <<<<<<".format(count))
+
+    # 修改评价异常数据（已评价，未修改状态）
+    # with db.auto_commit():
+    #     order_evaluations = OrderEvaluation.query.filter_by_().all()
+    #     count = 0
+    #     for oe in order_evaluations:
+    #         om = OrderMain.query.filter(OrderMain.OMid == oe.OMid, OrderMain.OMfrom.in_([OrderFrom.carts.value,
+    #                                                                                      OrderFrom.product_info.value]
+    #                                                                                     )).first()
+    #         if not om:
+    #             om_info = OrderMain.query.filter(OrderMain.OMid == oe.OMid).first()
+    #             print("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
+    #             continue
+    #         omid = om.OMid
+    #         omstatus = om.OMstatus
+    #         if int(omstatus) == OrderMainStatus.wait_comment.value:
+    #             print("-->  已存在评价的主单id为 {}，未修改前的主单状态为{}  <--".format(str(omid), str(omstatus)))
+    #             print("-->  开始更改状态  <--")
+    #             upinfo = OrderMain.query.filter_by_(OMid=omid).update({'OMstatus': OrderMainStatus.ready.value})
+    #             count += 1
+    #             if upinfo:
+    #                 print("-->  {}:更改状态成功  <--".format(str(omid)))
+    #             else:
+    #                 print("-->  {}:更改失败  <--".format(str(omid)))
+    #             print("--------------分割线----------------------")
+    #             print("--------------分割线----------------------")
+    #     print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        fetch_share_deal()
+        # fetch_share_deal()
+        auto_evaluate()
 
  # # 今日结果
         # db_today = CorrectNum.query.filter(
