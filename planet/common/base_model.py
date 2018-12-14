@@ -128,7 +128,10 @@ class Base(db.Model):
             elif isinstance(v, list) and is_url_list:
                 v_items = []
                 for v_item in v:
-                    v_items.append(v_item[len(HTTP_HOST):])
+                    if isinstance(v, str) and v.startswith(HTTP_HOST):
+                        v_items.append(v_item[len(HTTP_HOST):])
+                    else:
+                        v_items.append(v_item)
                 setattr(self, k, json.dumps(v_items))
             else:
                 setattr(self, k, v)
