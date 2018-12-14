@@ -8,6 +8,8 @@ class News(Base):
     __tablename__ = 'News'
     NEid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='发布用户id')
+    USname = Column(String(255), comment='用户名')
+    USheader = Column(Text, default='用户头像', url=True)
     NEtitle = Column(String(32), nullable=False, comment='标题')
     NEtext = Column(Text, comment='文本内容')
     NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
@@ -45,6 +47,8 @@ class NewsComment(Base):
     NCid = Column(String(64), primary_key=True)
     NEid = Column(String(64), nullable=False, comment='资讯id')
     USid = Column(String(64), nullable=False, comment='评论者id')
+    USname = Column(String(255), comment='用户名')
+    USheader = Column(Text, default='用户头像', url=True)
     NCtext = Column(String(140), comment='评论内容')
     NCparentid = Column(String(64), comment='回复的父类评论id')
     NCrootid = Column(String(64), comment='回复源评论id')
