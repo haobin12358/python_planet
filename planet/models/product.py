@@ -29,6 +29,11 @@ class Products(Base):
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     # PRcode = Column(String(64), comment='商品的外部编号')
 
+    @orm.reconstructor
+    def __init__(self):
+        super(Products, self).__init__()
+        self.add('createtime')
+
 
 class ProductMonthSaleValue(Base):
     """商品月销量"""
@@ -190,7 +195,8 @@ class Supplizer(Base):
     """供应商"""
     __tablename__ = 'Supplizer'
     SUid = Column(String(64), primary_key=True)
-    SUlinkPhone = Column(String(11), nullable=False, comment='供应商联系电话,登录使用')
+    SUloginPhone = Column(String(11), nullable=False, index=True, unique=True, comment='登录手机号')
+    SUlinkPhone = Column(String(11), default=SUloginPhone, comment='供应商联系电话')
     SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')

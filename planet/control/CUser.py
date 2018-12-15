@@ -331,7 +331,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
 
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -373,7 +373,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -1014,7 +1014,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "ULtype": 2
             })
             db.session.add(ul_instance)
-            token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel)
+            token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel, username=admin.ADname)
             admin.fields = ['ADname', 'ADheader', 'ADlevel']
 
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
@@ -1277,7 +1277,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
-        token = usid_to_token(user.USid, level=user.USlevel)
+        token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
         data = {'token': token, 'user': user, 'is_new': not bool(user.UStelphone)}
         gennerc_log(data)
         return Success('登录成功', data=data)
@@ -1320,7 +1320,7 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(return_user)
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': return_user})
 
 
@@ -1366,14 +1366,14 @@ class CUser(SUser, BASEAPPROVAL):
         """供应商登录"""
         # 手机号登录
         form = SupplizerLoginForm().valid_data()
-        sulinkphone = form.mobile.data
+        mobile = form.mobile.data
         password = form.password.data
-        supplizer = Supplizer.query.filter_by_({'SUlinkPhone': sulinkphone}).first_()
+        supplizer = Supplizer.query.filter_by_({'SUloginPhone': mobile}).first_()
         if not supplizer or supplizer.SUpassword != password:
             raise NotFound('手机号或密码错误')
         if supplizer.SUstatus == UserStatus.forbidden.value:
             raise StatusError('账户禁用')
-        jwt = usid_to_token(supplizer.SUid, 'Supplizer')  # 供应商jwt
+        jwt = usid_to_token(supplizer.SUid, 'Supplizer', username=supplizer.SUname)  # 供应商jwt
         supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
         return Success('登录成功', data={
             'token': jwt,

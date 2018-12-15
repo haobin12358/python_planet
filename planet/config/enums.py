@@ -150,6 +150,7 @@ class LogisticsSearchStatus(Enum):
 class LogisticsSignStatus(Enum):
     """物流签收状态"""
     #  1.在途中 2.正在派件 3.已签收 4.派送失败
+    api_error = -1, '无物流'
     wait_collect = 0, '等待揽收'  # 等待揽收
     on_the_way = 1, '在途中'
     sending = 2, '正在派件' # 正在派件
@@ -455,6 +456,12 @@ class UserIdentityStatus(Enum):
     ordinary = 1, '普通用户'
     agent = 2, '代理商'
     toagent = 3, '申请成为代理商中'
+
+
+class OMlogisticTypeEnum(Enum):
+    usual = 0, '普通发货'
+    online = 10, '线上发'
+
 
 
 if __name__ == '__main__':

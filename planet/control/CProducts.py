@@ -9,7 +9,7 @@ from sqlalchemy import or_, and_, not_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
@@ -140,7 +140,8 @@ class CProducts:
                 itposition = data.get('itposition')
                 itauthority = data.get('itauthority')
                 if not itposition:  # 位置 标签的未知
-                    filter_args.append(or_(Items.ITposition == ItemPostion.scene.value, Items.ITposition.is_(None)))
+                    filter_args.extend([Items.ITposition != ItemPostion.other.value,
+                                       Items.ITposition != ItemPostion.new_user_page.value])
                 else:
                     filter_args.append(Items.ITposition == int(itposition))
                 if not itauthority:
@@ -192,7 +193,7 @@ class CProducts:
         if kw != [''] and not is_tourist():
             with self.sproduct.auto_commit() as s:
                 instance = UserSearchHistory.create({
-                    'USHid': str(uuid.uuid4()),
+                    'USHid': str(uuid.uuid1()),
                     'USid': request.user.id,
                     'USHname': ' '.join(kw)
                 })
@@ -218,7 +219,7 @@ class CProducts:
             session_list = []
             # 商品
             prattribute = data.get('prattribute')
-            prid = str(uuid.uuid4())
+            prid = str(uuid.uuid1())
             prmarks = data.get('prmarks')  # 备注
             if prmarks:
                 try:
@@ -231,7 +232,6 @@ class CProducts:
             if prdesc:
                 if not isinstance(prdesc, list):
                     raise ParamsError('prdesc 格式不正确')
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
@@ -264,7 +264,7 @@ class CProducts:
                 skustock = int(sku.get('skustock'))
                 assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
                 sku_dict = {
-                    'SKUid': str(uuid.uuid4()),
+                    'SKUid': str(uuid.uuid1()),
                     'PRid': prid,
                     'SKUpic': sku.get('skupic'),
                     'SKUprice': round(skuprice, 2),
@@ -295,7 +295,7 @@ class CProducts:
             # images
             for image in images:
                 image_dict = {
-                    'PIid': str(uuid.uuid4()),
+                    'PIid': str(uuid.uuid1()),
                     'PRid': prid,
                     'PIpic': image.get('pipic'),
                     'PIsort': image.get('pisort'),
@@ -309,7 +309,7 @@ class CProducts:
                     itid = item.get('itid')
                     item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签{}不存在'.format(itid))
                     item_product_dict = {
-                        'PIid': str(uuid.uuid4()),
+                        'PIid': str(uuid.uuid1()),
                         'PRid': prid,
                         'ITid': itid
                     }
@@ -348,8 +348,6 @@ class CProducts:
             if pcid:
                 product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
             prdesc = data.get('prdesc')
-            if prdesc:
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
@@ -364,10 +362,12 @@ class CProducts:
                 'PRremarks': prmarks,
                 'PRdescription': prdescription
             }
-            [setattr(product, k, v) for k, v in product_dict.items() if v]
+            product.update(product_dict)
             session_list.append(product)
             # sku, 有skuid为修改, 无skuid为新增
             if skus:
+                new_sku = []
+                sku_ids = []  # 此时传入的skuid
                 for sku in skus:
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
@@ -378,48 +378,86 @@ class CProducts:
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
-                        sku_instance = s.query(ProductSku).filter_by({'SKUid': sku.get('skuid')}).first_('sku不存在')
+                        sku_ids.append(skuid)
+                        sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
+                        sku_instance.update({
+                            'SKUpic': sku.get('skupic'),
+                            'SKUattriteDetail': json.dumps(skuattritedetail),
+                            'SKUstock': int(skustock),
+                            'SKUsn': data.get('skusn')
+                        })
+                        session_list.append(sku_instance)
                     else:
-                        skuid = str(uuid.uuid4())
-                        sku_instance = ProductSku()
-                    sku_dict = {
-                        'SKUid': skuid,
-                        'PRid': prid,
-                        'SKUpic': sku.get('skupic'),
-                        'SKUprice': round(skuprice, 2),
-                        'SKUstock': int(skustock),
-                        'SKUattriteDetail': json.dumps(skuattritedetail),
-                        'isdelete': sku.get('isdelete')
-                    }
-                    [setattr(sku_instance, k, v) for k, v in sku_dict.items() if v is not None]
-                    session_list.append(sku_instance)
-            # sku value  todo
+                        sku_instance = ProductSku.create({
+                            'SKUid': str(uuid.uuid1()),
+                            'PRid': prid,
+                            'SKUpic': sku.get('skupic'),
+                            'SKUprice': round(skuprice, 2),
+                            'SKUstock': int(skustock),
+                            'SKUattriteDetail': json.dumps(skuattritedetail),
+                            # 'isdelete': sku.get('isdelete'),
+                            'SKUsn': data.get('skusn')
+                        })
+                        session_list.append(sku_instance)
+                    # 剩下的就是删除
+
+
+
+            # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
-                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(json.loads(product.PRattribute)):
                     raise ParamsError('pskuvalue与prattribute不符')
-                sku_reverce = []
-                for index in range(len(prattribute)):
-                    value = list(set([attribute[index] for attribute in sku_detail_list]))
-                    sku_reverce.append(value)
-                    # 对应位置的列表元素应该相同
-                    if set(value) != set(pskuvalue[index]):
-                        raise ParamsError('请核对pskuvalue')
+                # todo  skudetail校验
                 # sku_value表
-                sku_value_instance = ProductSkuValue.create({
-                    'PSKUid': str(uuid.uuid1()),
+                exists_sku_value = ProductSkuValue.query.filter_by_({
+                    'PRid': prid
+                }).first()
+                if exists_sku_value:
+                    exists_sku_value.update({
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(exists_sku_value)
+                else:
+                    sku_value_instance = ProductSkuValue.create({
+                        'PSKUid': str(uuid.uuid1()),
+                        'PRid': prid,
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(sku_value_instance)
+            else:
+                """
+                sku_value_instance = ProductSkuValue.query.filter_by_({
                     'PRid': prid,
-                    'PSKUvalue': json.dumps(pskuvalue)
-                })
-                session_list.append(sku_value_instance)
+                }).first()
+                if sku_value_instance:
+                    # 更新sku_value, todo 修改的sku也需要记录
+                    old_pskvalue = json.loads(sku_value_instance.PSKUvalue )  # [[联通, 电信], [白, 黑], [16G, 32G]]
+                    for o_index, o_value in enumerate(old_pskvalue):
+                        for index, value in enumerate(new_sku):
+                            if value[o_index] not in old_pskvalue[o_index]:
+                                old_pskvalue[o_index].append(value[o_index])
+                    # sku_value_instance.PSKUvalue = ''
+                    sku_value_instance.PSKUvalue = json.dumps(old_pskvalue)
+                    session_list.append(sku_value_instance)
+                """
+                sku_value_instance = ProductSkuValue.query.filter_by_({
+                    'PRid': prid,
+                }).first()
+                if sku_value_instance:
+                    # 默认如果不传就删除原来的, 防止value混乱, todo
+                    sku_value_instance.isdelete = True
+                    session_list.append(sku_value_instance)
+
             # images, 有piid为修改, 无piid为新增
+            # todo
             if images:
                 for image in images:
                     if 'piid' in image:
                         piid = image.get('piid')
                         image_instance = s.query(ProductImage).filter_by({'PIid': piid}).first_('商品图片信息不存在')
                     else:
-                        piid = str(uuid.uuid4())
+                        piid = str(uuid.uuid1())
                         image_instance = ProductImage()
                     image_dict = {
                         'PIid': piid,
@@ -428,7 +466,8 @@ class CProducts:
                         'PIsort': image.get('pisort'),
                         'isdelete': image.get('isdelete')
                     }
-                    [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
+                    image_instance.update(image_dict)
+                    # [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
                     session_list.append(image_instance)
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
@@ -441,7 +480,7 @@ class CProducts:
                         piid = product_item_instance.PIid
                         item_product_instance = s.query(ProductItems).filter_by_({'PIid': piid}).first_('piid不存在')
                     else:
-                        piid = str(uuid.uuid4())
+                        piid = str(uuid.uuid1())
                         item_product_instance = ProductItems()
                     item_product_dict = {
                         'PIid': piid,
@@ -543,7 +582,7 @@ class CProducts:
         if is_admin():
             self.product_from = ProductFrom.platform.value
             self.prstatus = None
-        elif is_shop_keeper():
+        elif is_supplizer():  # 供应商添加的商品需要审核
             self.product_from = ProductFrom.shop_keeper.value
             self.prstatus = ProductStatus.auditing.value
         else:

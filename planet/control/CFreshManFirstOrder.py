@@ -234,7 +234,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 'PRid': fresh_first_product.PRid,
                 # # 副单商品来源
                 'PRfrom': product_instance.PRfrom,
-                'PRcreateId': product_instance.CreaterId
+                # 'PRcreateId': product_instance.CreaterId
             }
             order_part_instance = OrderPart.create(order_part_dict)
             db.session.add(order_part_instance)

@@ -9,5 +9,12 @@ class ASupplizer(Resource):
     def get(self, supplizer):
         apis = {
             'list': self.csupplizer.list,
+            'get': self.csupplizer.get,
+        }
+        return apis
+
+    def post(self, supplizer):
+        apis = {
+            'create': self.csupplizer.create,
         }
         return apis

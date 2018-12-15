@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import datetime
 
-from flask import request
+from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
@@ -138,7 +138,7 @@ class CNews(object):
         if news_author:
             news_author.fields = ['USname', 'USheader']
         else:
-            news_author = {'usname': '客官', 'usheader': ''}
+            news_author = {'usname': '神秘的客官', 'usheader': ''}
         # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
         news.fill('createtime', news.createtime)
@@ -382,7 +382,7 @@ class CNews(object):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} is favorite news'.format(user.USname))
+            current_app.logger.info('User {0} is favorite news'.format(user.USname))
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
@@ -469,7 +469,7 @@ class CNews(object):
             re_user = self.fill_user_info(reply_comment.USid)
             reply_comment.fill('commentuser', re_user['USname'])
             replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid,))
-            repliedusername = replied_user.USname if replied_user else '匿名用户'
+            repliedusername = replied_user.USname if replied_user else '神秘的客官'
             if repliedusername == re_user['USname']:
                 repliedusername = ''
             reply_comment.fill('replieduser', repliedusername)
@@ -482,6 +482,7 @@ class CNews(object):
         news_comment.fill('reply_count', reply_count)
         news_comment.fill('reply', reply_comments)
         user_info = self.fill_user_info(news_comment.USid)
+        user_info = {k.lower(): v for k, v in dict(user_info).items()}  # 回复被删除的用户信息字段转小写
         news_comment.fill('user', user_info)
         if usid:
             is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
@@ -606,8 +607,8 @@ class CNews(object):
             usinfo = User.query.filter_by(USid=usid).first()
             usinfo.fields = ['USname', 'USheader']
         except Exception as e:
-            gennerc_log("This User is Deleted, ERROR is {}".format(e))
-            usinfo = {"USname": "匿名用户", "USheader": ""}
+            gennerc_log("This User has been Deleted, ERROR is {}".format(e))
+            usinfo = {"USname": "神秘的客官", "USheader": ""}
         return usinfo
 
     @admin_required

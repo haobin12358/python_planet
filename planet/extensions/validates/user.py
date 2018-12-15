@@ -1,4 +1,6 @@
-from planet.common.error_response import DumpliError
+import re
+
+from planet.common.error_response import DumpliError, ParamsError
 from planet.models import Supplizer
 from .base_form import *
 
@@ -13,11 +15,22 @@ class SupplizerListForm(BaseForm):
     mobile = StringField('手机号', default='')
 
 
+class SupplizerGetForm(BaseForm):
+    suid = StringField(validators=[DataRequired('suid不可为空')])
+
+    def validate_suid(self, raw):
+        supplizer= Supplizer.query.filter(Supplizer.SUid == raw.data,
+                                           Supplizer.isdelete == False).first_('供应商不存在')
+        self.supplizer = supplizer
+
+
+
 class SupplizerCreateForm(BaseForm):
-    sulinkphone = StringField('联系电话', validators=[
+    suloginphone = StringField('登录手机号', validators=[
         DataRequired('手机号不可以为空'),
-        Regexp('^1{10}$', message='手机号格式错误'),
+        Regexp('^1\d{10}$', message='手机号格式错误'),
     ])
+    sulinkphone = StringField('联系电话')
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
@@ -25,11 +38,16 @@ class SupplizerCreateForm(BaseForm):
     subankname = StringField('银行名字')
     supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
     suheader = StringField('头像')
-    sucontract = FieldList(StringField())
+    sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
 
-    def validate_sulinkphone(self, raw):
+    def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(
-            Supplizer.SUlinkPhone == raw.data
+            Supplizer.SUloginPhone == raw.data
         ).first()
         if is_exists:
-            raise DumpliError('已存在')
+            raise DumpliError('登陆手机号已存在')
+
+    def validate_sulinkphone(self, raw):
+        if raw.data:
+            if re.match('^1\d{11}$', raw.data):
+                raise ParamsError('联系人手机号格式错误')

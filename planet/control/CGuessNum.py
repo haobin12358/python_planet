@@ -45,7 +45,7 @@ class CGuessNum(COrder):
             ).first_('今日活动不开放')
 
             guess_instance = GuessNum.create({
-                'GNid': str(uuid.uuid4()),
+                'GNid': str(uuid.uuid1()),
                 'GNnum': gnnum,
                 'USid': usid,
                 'PRid': today_raward.PRid,
@@ -198,9 +198,10 @@ class CGuessNum(COrder):
             }
             order_main_instance = OrderMain.create(order_main_dict)
             s_list.append(order_main_instance)
+            user = get_current_user()
             order_part_dict = {
                 'OMid': omid,
-                'OPid': str(uuid.uuid4()),
+                'OPid': str(uuid.uuid1()),
                 'SKUid': skuid,
                 'PRattribute': product_instance.PRattribute,
                 'SKUattriteDetail': sku_instance.SKUattriteDetail,
@@ -212,13 +213,16 @@ class CGuessNum(COrder):
                 'OPsubTotal': price,
                 # 副单商品来源
                 'PRfrom': product_instance.PRfrom,
-                'PRcreateId': product_instance.CreaterId
+                'PRcreateId': product_instance.CreaterId,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
             s_list.append(order_part_instance)
             # 支付数据表
             order_pay_dict = {
-                'OPayid': str(uuid.uuid4()),
+                'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
                 'OPayMount': price,

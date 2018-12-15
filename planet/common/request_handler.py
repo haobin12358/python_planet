@@ -16,7 +16,7 @@ User = namedtuple('User', ('id', 'model', 'level'))
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        gennerc_log('before request', info='info')
+        current_app.logger.info('>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<'.format('before request'))
         parameter = request.args.to_dict()
         token = parameter.get('token')
         if token:
@@ -26,15 +26,28 @@ def request_first_handler(app):
                 id = data['id']
                 model = data['model']
                 level = data['level']
-                User = namedtuple('User', ('id', 'model', 'level'))
-                user = User(id, model, level)
+                username = data.get('username', 'none')
+                User = namedtuple('User', ('id', 'model', 'level', 'username'))
+                user = User(id, model, level, username)
                 setattr(request, 'user', user)
+                current_app.logger.info('current_user is {}, id is {},  model is {}'.format(username, id, model))
             except BadSignature as e:
                 pass
             except SignatureExpired as e:
                 pass
             except Exception as e:
-                pass
+                current_app.logger.info(e)
+        current_app.logger.info(request.detail)
+    #
+    # @app.teardown_request
+    # def end_request(param):
+    #     end = """>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<
+    #
+    #
+    #     """
+    #     current_app.logger.info(end.format('end  request'))
+    #     return param
+
 
 
 def error_handler(app):
@@ -55,7 +68,7 @@ def error_handler(app):
             return SystemError()
 
 
-def gennerc_log(data, info='bug'):
+def gennerc_log(data, info='info'):
     """
 
     :param data: 'success get user %s, user id %s' %(user,userid)
@@ -64,7 +77,9 @@ def gennerc_log(data, info='bug'):
     """
     if isinstance(data, Exception):
         data = traceback.format_exc()
+        info = 'bug'
     current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
+
     if info == 'info':
         current_app.logger.info(data)
     else:
@@ -72,7 +87,7 @@ def gennerc_log(data, info='bug'):
     try:
         current_app.logger.info(request.detail)
     except Exception as e:
-        pass
+        current_app.logger.error(traceback.format_exc())
 
 
 def check_mem():
