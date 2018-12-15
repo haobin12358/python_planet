@@ -16,5 +16,6 @@ class ASupplizer(Resource):
     def post(self, supplizer):
         apis = {
             'create': self.csupplizer.create,
+            'update': self.csupplizer.update,
         }
         return apis

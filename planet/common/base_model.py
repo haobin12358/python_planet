@@ -40,8 +40,8 @@ class Base(db.Model):
         instance = cls()
         return instance._set_attrs(data)
 
-    def update(self, data):
-        return self._set_attrs(data)
+    def update(self, data, null='ignore'):
+        return self._set_attrs(data, null=null)
 
     def __getitem__(self, item):
         cls_attr = getattr(self.__class__, item, None)
@@ -113,9 +113,9 @@ class Base(db.Model):
         setattr(self, name, obj)
         return self.add(name)
 
-    def _set_attrs(self, data):
+    def _set_attrs(self, data, null='ignore'):
         for k, v in data.items():
-            if v is None:
+            if v is None and null == 'ignore':
                 continue
             cls_attr = getattr(self.__class__, k)
             is_url_list = getattr(cls_attr, 'url_list', None)
