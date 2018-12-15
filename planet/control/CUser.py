@@ -1257,7 +1257,7 @@ class CUser(SUser, BASEAPPROVAL):
                     user_dict.setdefault('USsupper2', upperd.USsupper1)
                 else:
                     uin = UserInvitation.create({
-                        'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': user.USid})
+                        'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
                     db.session.add(uin)
             user = User.create(user_dict)
             db.session.add(user)
@@ -1320,7 +1320,7 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(return_user)
-        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
+        token = usid_to_token(usid, model='User', level=uslevel, username=return_user.USname)
         return Success('登录成功', data={'token': token, 'user': return_user})
 
 
