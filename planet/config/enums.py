@@ -19,7 +19,7 @@ class ProductStatus(Enum):
 class ProductFrom(Enum):
     """商品来源"""
     platform = (0, '平台')
-    shop_keeper = 10, '店主'
+    supplizer = 10, '供应商'
     # ..其他
 
 
@@ -34,6 +34,7 @@ class PayType(Enum):
     wechat_pay = 0, '微信支付'
     alipay = 10, '支付宝'
     codepay = 20, '激活码支付'
+    test_pay = 10086, '测试支付'
 
 
 class Client(Enum):
@@ -437,6 +438,14 @@ class UserCommissionType(Enum):
     deposit = 3, '押金'
 
 
+class ApprovalStatus(Enum):
+    """审批流状态"""
+    cancel = -20, '已取消'
+    refuse = -10, '拒绝'
+    approvaling = 0, '审批中'
+    complate = 10, '审批通过'
+
+
 # 激活码相关
 class UserActivationCodeStatus(Enum):
     forbidden = -10, '不可用'
@@ -444,9 +453,16 @@ class UserActivationCodeStatus(Enum):
     ready = 10, '已用'
 
 
+class UserIdentityStatus(Enum):
+    ordinary = 1, '普通用户'
+    agent = 2, '代理商'
+    toagent = 3, '申请成为代理商中'
+
+
 class OMlogisticTypeEnum(Enum):
     usual = 0, '普通发货'
     online = 10, '线上发'
+
 
 
 if __name__ == '__main__':

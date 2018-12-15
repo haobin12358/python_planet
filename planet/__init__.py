@@ -92,7 +92,7 @@ class Request(_Request):
     @property
     def detail(self):
         return {
-            'url': self.url,
+            'path': self.path,
             'method': self.method,
             'args': self.args.to_dict(),
             'data': self.data.decode(),

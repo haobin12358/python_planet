@@ -5,11 +5,11 @@ from flask import current_app, request
 from .error_response import AuthorityError, TokenError
 
 
-def usid_to_token(id, model='User', level=0, expiration=''):
+def usid_to_token(id, model='User', level=0, expiration='', username='none'):
     """生成令牌
     id: 用户id
-    model: 用户类型(User 或者 SuperUser)
-    expiration: 过期时间, 在appcommon/setting中修改
+    model: 用户类型(User 或者 Admin, Supplizer)
+    expiration: 过期时间, 在config/secret中修改
     """
     if not expiration:
         expiration = current_app.config['TOKEN_EXPIRATION']
@@ -17,7 +17,8 @@ def usid_to_token(id, model='User', level=0, expiration=''):
     return s.dumps({
         'id': id,
         'model': model,
-        'level': level
+        'level': level,
+        'username': username
     }).decode()
 
 
@@ -61,7 +62,6 @@ def admin_required(func):
 def token_required(func):
     def inner(self, *args, **kwargs):
         if not is_tourist():
-            current_app.logger.info('current_user is {}'.format(request.user.id))
             return func(self, *args, **kwargs)
         raise TokenError()
     return inner

@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus
+    LogisticsSignStatus, UserIdentityStatus
 from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay
 from planet.extensions.weixin.pay import WeixinPayError
@@ -39,13 +39,10 @@ class CPay():
         omid = data.get('omid')
         usid = request.user.id
         try:
-            omclient = data.get('omclient', Client.wechat.value)  # 测试
-            if omclient != 'test':
-                omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
-                Client(omclient)
+            omclient = int(data.get('omclient', Client.wechat.value))  # 客户端(app或者微信)
+            Client(omclient)
             opaytype = int(data.get('opaytype', PayType.wechat_pay.value))  # 付款方式
             PayType(opaytype)
-
         except ValueError as e:
             raise e
         except Exception as e:
@@ -96,34 +93,24 @@ class CPay():
         with self.strade.auto_commit() as s:
             s_list = []
             # 更改付款流水
-            order_pay_instance = s.query(OrderPay).filter_by({'OPayno': out_trade_no}).first_('异常支付')
+            order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('gmt_payment')
-            order_pay_instance.OPaysn = data.get('trade_no')  # 支付宝交易凭证号
+            order_pay_instance.OPaysn = data.get('trade_no')   # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
-            s_list.append(order_pay_instance)
             # 更改主单
-            order_mains = s.query(OrderMain).filter_by({'OPayno': out_trade_no}).all()
+            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
-                is_upgrade_gift = bool(s.query(OrderPart).firter(
-                        OrderMain.OMid == OrderPart.OMid,
-                        ProductBrand.PRid == OrderPart.PRid,
-                        ProductItems.ITid == Items.ITid,
-                        Items.ITname == '开店大礼包').all())
-                if not is_upgrade_gift:
-                    order_main.update({
-                        'OMstatus': OrderMainStatus.wait_send.value
-                    })
-                    s_list.append(order_main)
-                    # 添加佣金记录
-                    commion_instance_list = self._insert_usercommision(s, order_main)
-                    s_list.extend(commion_instance_list)
-                else:
-                    # 如果是开店大礼包，则直接订单完成
-                    order_main.update({
-                        'OMstatus': OrderMainStatus.ready.value
-                    })
-                    s_list.append(order_main)
+                order_main.update({
+                    'OMstatus': OrderMainStatus.wait_send.value
+                })
+                s_list.append(order_main)
+                # 添加佣金记录
+                current_app.logger.info('支付宝付款成功')
+                commion_instance_list = self._insert_usercommision(s, order_main)
+                s_list.extend(commion_instance_list)
             s.add_all(s_list)
+            s.add_all(s_list)
+
         return 'success'
 
     def wechat_notify(self):
@@ -148,6 +135,7 @@ class CPay():
                 })
                 s_list.append(order_main)
                 # 添加佣金记录
+                current_app.logger.info('微信支付成功')
                 commion_instance_list = self._insert_usercommision(s, order_main)
                 s_list.extend(commion_instance_list)
             s.add_all(s_list)
@@ -155,18 +143,21 @@ class CPay():
 
     def _insert_usercommision(self, s, order_main):
         """写入佣金流水表"""
+        # todo 判断是否是代理商
         s_list = []
         omid = order_main.OMid
         user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户
-        current_app.logger.info(dict(user))
+        try:
+            current_app.logger.info('当前付款人: {}, 状态: {}  '.format(user.USname, UserIdentityStatus(user.USlevel).zh_value))
+        except Exception:
+            pass
         cfg = ConfigSettings()
         user_level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
         user_level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
-        planetcommision = cfg.get_item('integralbase', 'integral')  # 平台佣金比例
+        planetcommision = cfg.get_item('integralbase', 'integral')  # todo 平台佣金计算 平台佣金比例
         order_parts = s.query(OrderPart).filter_by_({
             'OMid': omid
         }).all()
-        #
         if order_main.OMfrom == OrderFrom.trial_commodity.value:  # 试用
             trialcommodity = s.query(TrialCommodity).filter_by(TCid=order_parts[0]['PRid']).first()
             UCendTime = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
@@ -179,6 +170,8 @@ class CPay():
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
+            if UserIdentityStatus.agent.value != user.USlevel:
+                continue
             if up1:
                 level1commision = order_part.USCommission1 or user_level1commision
                 user_commision_dict = {
@@ -257,17 +250,12 @@ class CPay():
             total_amount=mount_price,
             subject='testestestestestestestestsetestsetsetest',
         )
-        return order_string
+        return 'https://openapi.alipaydev.com/gateway.do?' + order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         mount_price = 0.01
         current_app.logger.info('openid is {}'.format(openid))
-        ####
-        # 一种测试的付款方式, 使用支付宝网页支付
-        if omclient == 'test':
-            return self.test_pay(out_trade_no=opayno, mount_price=mount_price)
-        ####
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
@@ -310,6 +298,13 @@ class CPay():
                     )
                 except Exception:
                     raise SystemError('支付宝参数异常')
+        elif opaytype == PayType.test_pay.value:
+            raw = self.alipay.api_alipay_trade_page_pay(
+                out_trade_no=opayno,
+                total_amount=mount_price,
+                subject=body[10],
+            )
+            raw = 'https://openapi.alipaydev.com/gateway.do?' + raw
         else:
             raise SystemError('请选用其他支付方式')
         return raw

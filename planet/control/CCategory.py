@@ -4,7 +4,8 @@ import uuid
 from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, admin_required
+from planet.extensions.register_ext import db
 from planet.models import ProductCategory, Products
 from .CProducts import CProducts
 
@@ -22,7 +23,7 @@ class CCategory(CProducts):
             self._sub_category(category, deep)
         return Success(data=categorys)
 
-    @token_required
+    @admin_required
     def create(self):
         """创建分类"""
         data = parameter_required(('pcdesc', 'pcname', 'pcpic'))
@@ -53,6 +54,7 @@ class CCategory(CProducts):
             s.add(category_instance)
         return Success('创建成功', {'pcid': category_instance.PCid})
 
+    @admin_required
     def delete(self):
         data = parameter_required(('pcid', ))
         pcid = data.get('pcid')
@@ -83,6 +85,39 @@ class CCategory(CProducts):
                         'PCid': parent_catetgory_id
                     }, synchronize_session=False)
         return Success('删除成功')
+
+    def update(self):
+        """更新分类"""
+        data = parameter_required(('pcid', 'pcdesc', 'pcname', 'pcpic'))
+        pcdesc = data.get('pcdesc')
+        pcname = data.get('pcname')
+        pcpic = data.get('pcpic')
+        parentpcid = data.get('parentpcid')
+        pcsort = data.get('pcsort', 1)
+        pctoppic = data.get('pctoppic')
+        with db.auto_commit():
+            current_category = ProductCategory.query.filter(
+                ProductCategory.isdelete == False,
+                ProductCategory.PCid == data.get('pcid')
+            ).first_('分类不存在')
+            if parentpcid:
+                parent_cat = ProductCategory.query.filter(
+                    ProductCategory.isdelete == False,
+                    ProductCategory.PCid == parentpcid
+                ).first_('指定上级目录不存在')
+                current_category.PCtype = parent_cat.PCtype + 1
+            else:
+                current_category.PCtype = 1
+            current_category.update({
+                'PCname': pcname,
+                'PCdesc': pcdesc,
+                'ParentPCid': parentpcid,
+                'PCsort': pcsort,
+                'PCpic': pcpic,
+                'PCtopPic': pctoppic
+            }, null='not ignore')
+            db.session.add(current_category)
+        return Success('更新成功')
 
     def _sub_category(self, category, deep, parent_ids=()):
         """遍历子分类"""

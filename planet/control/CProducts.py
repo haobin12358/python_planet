@@ -3,18 +3,18 @@ import json
 import uuid
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import or_, and_, not_
 
-from planet.common.error_response import NotFound, ParamsError, AuthorityError
+from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
 
@@ -96,6 +96,9 @@ class CProducts:
         cfg = ConfigSettings()
         level1commision = cfg.get_item('commission', 'level1commision')
         product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
+        if is_admin() or is_supplizer():
+            if product.PCid and product.PCid != 'null':
+                product.fill('pcids', self._up_category(product.PCid))
         return Success(data=product)
 
     def get_produt_list(self):
@@ -157,7 +160,11 @@ class CProducts:
         ).outerjoin(Items, Items.ITid == ProductItems.ITid)
         # 后台的一些筛选条件
         # 供应源筛选
-        suid = data.get('suid')
+        if is_supplizer():
+            current_app.logger.info('供应商查看自己的商品')
+            suid = request.user.id
+        else:
+            suid = data.get('suid')
         if suid and suid != 'planet':
             query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid)
             filter_args.append(
@@ -232,7 +239,6 @@ class CProducts:
             if prdesc:
                 if not isinstance(prdesc, list):
                     raise ParamsError('prdesc 格式不正确')
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
@@ -251,7 +257,6 @@ class CProducts:
                 'PRstatus': self.prstatus,
                 'PRdescription': prdescription  # 描述
             }
-            product_dict = {k: v for k, v in product_dict.items() if v is not None}
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku
@@ -316,6 +321,13 @@ class CProducts:
                     }
                     item_product_instance = ProductItems.create(item_product_dict)
                     session_list.append(item_product_instance)
+            # 供应商商品表
+            if is_supplizer():
+                SupplizerProduct.create({
+                    'SPid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'SUid': request.user.id
+                })
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
 
@@ -349,8 +361,6 @@ class CProducts:
             if pcid:
                 product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
             prdesc = data.get('prdesc')
-            if prdesc:
-                prdesc = json.dumps(prdesc)
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
@@ -365,11 +375,12 @@ class CProducts:
                 'PRremarks': prmarks,
                 'PRdescription': prdescription
             }
-            [setattr(product, k, v) for k, v in product_dict.items() if v]
+            product.update(product_dict)
             session_list.append(product)
             # sku, 有skuid为修改, 无skuid为新增
             if skus:
                 new_sku = []
+                sku_ids = []  # 此时传入的skuid
                 for sku in skus:
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
@@ -380,6 +391,7 @@ class CProducts:
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
+                        sku_ids.append(skuid)
                         sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
                         sku_instance.update({
                             'SKUpic': sku.get('skupic'),
@@ -389,6 +401,7 @@ class CProducts:
                         })
                         session_list.append(sku_instance)
                     else:
+
                         sku_instance = ProductSku.create({
                             'SKUid': str(uuid.uuid1()),
                             'PRid': prid,
@@ -396,26 +409,45 @@ class CProducts:
                             'SKUprice': round(skuprice, 2),
                             'SKUstock': int(skustock),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
-                            'isdelete': sku.get('isdelete'),
+                            # 'isdelete': sku.get('isdelete'),
                             'SKUsn': data.get('skusn')
                         })
+                        new_sku.append(sku_instance)
                         session_list.append(sku_instance)
-                    if not sku.get('isdelete'):
-                        new_sku.append(skuattritedetail)  # sku记录  [电信, 红, xl]
+                # 剩下的就是删除
+                old_sku = ProductSku.query.filter(
+                    ProductSku.isdelete == False,
+                    ProductSku.PRid == prid,
+                    ProductSku.SKUid.notin_(sku_ids)
+                ).delete_(synchronize_session=False)
+                current_app.logger.info('删除了{}个不需要的sku, 更新了{}个sku, 添加了{}个新sku '.format(old_sku, len(sku_ids), len(new_sku)))
+                # import ipdb
+                # ipdb.set_trace()
+                # if old_sku > 10:
+                #     raise StatusError('删除过多')
 
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
-                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(json.loads(product.PRattribute)):
                     raise ParamsError('pskuvalue与prattribute不符')
                 # todo  skudetail校验
                 # sku_value表
-                sku_value_instance = ProductSkuValue.create({
-                    'PSKUid': str(uuid.uuid1()),
-                    'PRid': prid,
-                    'PSKUvalue': json.dumps(pskuvalue)
-                })
-                session_list.append(sku_value_instance)
+                exists_sku_value = ProductSkuValue.query.filter_by_({
+                    'PRid': prid
+                }).first()
+                if exists_sku_value:
+                    exists_sku_value.update({
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(exists_sku_value)
+                else:
+                    sku_value_instance = ProductSkuValue.create({
+                        'PSKUid': str(uuid.uuid1()),
+                        'PRid': prid,
+                        'PSKUvalue': json.dumps(pskuvalue)
+                    })
+                    session_list.append(sku_value_instance)
             else:
                 """
                 sku_value_instance = ProductSkuValue.query.filter_by_({
@@ -441,23 +473,38 @@ class CProducts:
                     session_list.append(sku_value_instance)
 
             # images, 有piid为修改, 无piid为新增
+            # todo
             if images:
+                piids = []
+                new_piids = []
                 for image in images:
-                    if 'piid' in image:
+                    if 'piid' in image:  # 修改
                         piid = image.get('piid')
+                        piids.append(piid)
                         image_instance = s.query(ProductImage).filter_by({'PIid': piid}).first_('商品图片信息不存在')
-                    else:
+                    else:  # 新增
                         piid = str(uuid.uuid1())
                         image_instance = ProductImage()
-                    image_dict = {
-                        'PIid': piid,
-                        'PRid': prid,
-                        'PIpic': image.get('pipic'),
-                        'PIsort': image.get('pisort'),
-                        'isdelete': image.get('isdelete')
-                    }
-                    [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
+                        new_piids.append(piid)
+                        image_dict = {
+                            'PIid': piid,
+                            'PRid': prid,
+                            'PIpic': image.get('pipic'),
+                            'PIsort': image.get('pisort'),
+                            'isdelete': image.get('isdelete')
+                        }
+                        image_instance.update(image_dict)
+                    # [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
                     session_list.append(image_instance)
+                # 删除其他
+                delete_images = ProductImage.query.filter(
+                    ProductImage.isdelete == False,
+                    ProductImage.PIid.notin_(piids),
+                    ProductImage.PRid == prid,
+                ).delete_(synchronize_session=False)
+                current_app.logger.info('删除了{}个图片, 修改了{}个, 新增了{}个 '.format(delete_images, len(piids),
+                                                                           len(new_piids)))
+
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
             if items:
@@ -569,10 +616,12 @@ class CProducts:
 
     def _can_add_product(self):
         if is_admin():
+            current_app.logger.info('管理员添加商品')
             self.product_from = ProductFrom.platform.value
             self.prstatus = None
-        elif is_shop_keeper():
-            self.product_from = ProductFrom.shop_keeper.value
+        elif is_supplizer():  # 供应商添加的商品需要审核
+            current_app.logger.info('供应商添加商品')
+            self.product_from = ProductFrom.supplizer.value
             self.prstatus = ProductStatus.auditing.value
         else:
             raise AuthorityError()
@@ -592,6 +641,18 @@ class CProducts:
                     for sub in subs:
                         pcid = sub.PCid
                         queue.append(pcid)
+
+    def _up_category(self, pcid, pc_list=()):
+        """遍历上级分类至一级"""
+        pc_list = list(pc_list)
+        pc_list.insert(0, pcid)
+        category = ProductCategory.query.filter_by({
+            'PCid': pcid,
+            'isdelete': False,
+        }).first()
+        if not category.ParentPCid or category in pc_list:
+            return pc_list
+        return self._up_category(category.ParentPCid, pc_list)
 
 
 

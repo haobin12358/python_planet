@@ -145,7 +145,7 @@ class CTrialCommodity(COrder):
                 'TCstatus': TrialCommodityStatus.auditing.value,
                 'TCmainpic': data.get('tcmainpic'),
                 'TCattribute': json.dumps(tcattribute or '[]'),
-                'TCdesc': json.dumps(tcdesc or '[]'),
+                'TCdesc': tcdesc or [],
                 'TCremarks': data.get('tcremarks'),
                 'CreaterId': request.user.id,
                 'PBid': pbid,

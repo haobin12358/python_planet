@@ -17,5 +17,6 @@ class ACategory(Resource):
         apis = {
             'create': self.ccategory.create,
             'delete': self.ccategory.delete,
+            'update': self.ccategory.update,
         }
         return apis

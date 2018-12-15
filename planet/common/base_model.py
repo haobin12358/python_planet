@@ -38,12 +38,10 @@ class Base(db.Model):
     @classmethod
     def create(cls, data):
         instance = cls()
-        [setattr(instance, k, v) for k, v in data.items() if v is not None]
-        return instance
+        return instance._set_attrs(data)
 
-    def update(self, data):
-        [setattr(self, k, v) for k, v in data.items() if v is not None]
-        return self
+    def update(self, data, null='ignore'):
+        return self._set_attrs(data, null=null)
 
     def __getitem__(self, item):
         cls_attr = getattr(self.__class__, item, None)
@@ -115,3 +113,26 @@ class Base(db.Model):
         setattr(self, name, obj)
         return self.add(name)
 
+    def _set_attrs(self, data, null='ignore'):
+        for k, v in data.items():
+            if v is None and null == 'ignore':
+                continue
+            cls_attr = getattr(self.__class__, k)
+            is_url_list = getattr(cls_attr, 'url_list', None)
+            is_url = getattr(cls_attr, 'url', None)
+            if is_url:
+                if isinstance(v, str) and v.startswith(HTTP_HOST):  # 如果链接中有httphost, 则需要去掉
+                    setattr(self, k, v[len(HTTP_HOST):])
+                else:
+                    setattr(self, k, v)
+            elif isinstance(v, list) and is_url_list:
+                v_items = []
+                for v_item in v:
+                    if isinstance(v, str) and v.startswith(HTTP_HOST):
+                        v_items.append(v_item[len(HTTP_HOST):])
+                    else:
+                        v_items.append(v_item)
+                setattr(self, k, json.dumps(v_items))
+            else:
+                setattr(self, k, v)
+        return self

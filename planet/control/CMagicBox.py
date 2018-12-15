@@ -53,7 +53,9 @@ class CMagicBox(CUser, COrder):
             ready_open = MagicBoxOpen.query.filter_by_({'USid': usid,
                                                         'MBJid': mbjid}).first()
             if ready_open:
-                raise DumpliError('已经帮好友拆过')
+                # todo 加上限制
+                pass
+                # raise DumpliError('已经帮好友拆过')
             # 价格变动随机
             current_level_str = getattr(magic_box_apply, levle_attr)
             current_level_json = json.loads(current_level_str)  # 列表 ["1-2", "3-4"]

@@ -331,7 +331,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
 
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -373,7 +373,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
 
     @get_session
@@ -1014,7 +1014,7 @@ class CUser(SUser, BASEAPPROVAL):
                 "ULtype": 2
             })
             db.session.add(ul_instance)
-            token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel)
+            token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel, username=admin.ADname)
             admin.fields = ['ADname', 'ADheader', 'ADlevel']
 
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
@@ -1207,15 +1207,18 @@ class CUser(SUser, BASEAPPROVAL):
         }
 
         user = User.query.filter_by_(usfilter).first()
+        if user:
+            gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
         user_info = wxlogin.userinfo(access_token, openid)
-        gennerc_log(user_info)
+        gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
         head = self._get_local_head(user_info.get("headimgurl"), openid)
 
         if args.get('secret_usid'):
             try:
-                tokenmodel = self._base_decode(args.get('secret_usid'))
-                upperd = self.get_user_by_id(tokenmodel['id'])
-                if upperd.USid == user.USid:
+                superid = self._base_decode(args.get('secret_usid'))
+                upperd = self.get_user_by_id(superid)
+                gennerc_log('wx_login get supper user : {0}'.format(upperd.__dict__))
+                if user and upperd.USid == user.USid:
                     upperd = None
 
             except:
@@ -1227,6 +1230,7 @@ class CUser(SUser, BASEAPPROVAL):
         if sex < 0:
             sex = 0
         if user:
+            # todo 如果用户不想使用自己的微信昵称和微信头像，则不修改 需额外接口。配置额外字段
             usid = user.USid
             user.USheader = head
             user.USname = user_info.get('nickname')
@@ -1273,7 +1277,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
-        token = usid_to_token(user.USid, level=user.USlevel)
+        token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
         data = {'token': token, 'user': user, 'is_new': not bool(user.UStelphone)}
         gennerc_log(data)
         return Success('登录成功', data=data)
@@ -1316,7 +1320,7 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
         return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(return_user)
-        token = usid_to_token(usid, model='User', level=uslevel)
+        token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': return_user})
 
 
@@ -1362,14 +1366,14 @@ class CUser(SUser, BASEAPPROVAL):
         """供应商登录"""
         # 手机号登录
         form = SupplizerLoginForm().valid_data()
-        sulinkphone = form.mobile.data
+        mobile = form.mobile.data
         password = form.password.data
-        supplizer = Supplizer.query.filter_by_({'SUlinkPhone': sulinkphone}).first_()
-        if not supplizer or supplizer.SUpassword != password:
+        supplizer = Supplizer.query.filter_by_({'SUloginPhone': mobile}).first_()
+        if not supplizer or not check_password_hash(supplizer.SUpassword, password):
             raise NotFound('手机号或密码错误')
         if supplizer.SUstatus == UserStatus.forbidden.value:
             raise StatusError('账户禁用')
-        jwt = usid_to_token(supplizer.SUid, 'Supplizer')  # 供应商jwt
+        jwt = usid_to_token(supplizer.SUid, 'Supplizer', username=supplizer.SUname)  # 供应商jwt
         supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
         return Success('登录成功', data={
             'token': jwt,
@@ -1425,11 +1429,11 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def apply_cash(self):
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
-        if not is_shop_keeper():
-            raise AuthorityError('权限不足')
-        user = self.get_user_by_id(request.user.id)
-        if user.USlevel != self.AGENT_TYPE:
-            raise AuthorityError('代理商权限过期')
+        # if not is_shop_keeper():
+        #     raise AuthorityError('权限不足')
+        # user = self.get_user_by_id(request.user.id)
+        # if user.USlevel != self.AGENT_TYPE:
+        #     raise AuthorityError('代理商权限过期')
         uw = UserWallet.query.filter_by_(USid=request.user.id).first()
         balance = uw.UWbalance if uw else 0
         if float(data.get('cncashnum')) > balance:
@@ -1458,6 +1462,8 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def get_salesvolume_all(self):
+        """获取团队销售额"""
+        # todo 销售额表自动插入
         today = datetime.datetime.now()
         args = request.args.to_dict()
         month = args.get('month') or today.month

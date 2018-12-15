@@ -1,4 +1,3 @@
-import json
 import random
 import re
 import string
@@ -37,7 +36,7 @@ class CActivationCode:
                 'ACAname': acaname,
                 'ACAbankSn': acabanksn,
                 'ACAbankname': acabankname,
-                'ACAvouchers': json.dumps(vouchers)
+                'ACAvouchers': vouchers
             })
             db.session.add(apply)
         return Success('提交成功')
