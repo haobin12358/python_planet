@@ -390,6 +390,7 @@ class CProducts:
                         })
                         session_list.append(sku_instance)
                     else:
+
                         sku_instance = ProductSku.create({
                             'SKUid': str(uuid.uuid1()),
                             'PRid': prid,
@@ -400,18 +401,19 @@ class CProducts:
                             # 'isdelete': sku.get('isdelete'),
                             'SKUsn': data.get('skusn')
                         })
+                        new_sku.append(sku_instance)
                         session_list.append(sku_instance)
-                    # 剩下的就是删除
-                    old_sku = ProductSku.query.filter(
-                        ProductSku.isdelete == False,
-                        ProductSku.PRid == prid,
-                        ProductSku.SKUid.notin_(sku_ids)
-                    ).delete_(synchronize_session=False)
-                    current_app.logger.info('删除了{}个不需要的sku'.format(old_sku))
-                    # import ipdb
-                    # ipdb.set_trace()
-                    # if old_sku > 10:
-                    #     raise StatusError('删除过多')
+                # 剩下的就是删除
+                old_sku = ProductSku.query.filter(
+                    ProductSku.isdelete == False,
+                    ProductSku.PRid == prid,
+                    ProductSku.SKUid.notin_(sku_ids)
+                ).delete_(synchronize_session=False)
+                current_app.logger.info('删除了{}个不需要的sku, 更新了{}个sku, 添加了{}个新sku '.format(old_sku, len(sku_ids), len(new_sku)))
+                # import ipdb
+                # ipdb.set_trace()
+                # if old_sku > 10:
+                #     raise StatusError('删除过多')
 
             # sku value
             pskuvalue = data.get('pskuvalue')
@@ -462,23 +464,36 @@ class CProducts:
             # images, 有piid为修改, 无piid为新增
             # todo
             if images:
+                piids = []
+                new_piids = []
                 for image in images:
-                    if 'piid' in image:
+                    if 'piid' in image:  # 修改
                         piid = image.get('piid')
+                        piids.append(piid)
                         image_instance = s.query(ProductImage).filter_by({'PIid': piid}).first_('商品图片信息不存在')
-                    else:
+                    else:  # 新增
                         piid = str(uuid.uuid1())
                         image_instance = ProductImage()
-                    image_dict = {
-                        'PIid': piid,
-                        'PRid': prid,
-                        'PIpic': image.get('pipic'),
-                        'PIsort': image.get('pisort'),
-                        'isdelete': image.get('isdelete')
-                    }
-                    image_instance.update(image_dict)
+                        new_piids.append(piid)
+                        image_dict = {
+                            'PIid': piid,
+                            'PRid': prid,
+                            'PIpic': image.get('pipic'),
+                            'PIsort': image.get('pisort'),
+                            'isdelete': image.get('isdelete')
+                        }
+                        image_instance.update(image_dict)
                     # [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
                     session_list.append(image_instance)
+                # 删除其他
+                delete_images = ProductImage.query.filter(
+                    ProductImage.isdelete == False,
+                    ProductImage.PIid.notin_(piids),
+                    ProductImage.PRid == prid,
+                ).delete_(synchronize_session=False)
+                current_app.logger.info('删除了{}个图片, 修改了{}个, 新增了{}个 '.format(delete_images, len(piids),
+                                                                           len(new_piids)))
+
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
             if items:

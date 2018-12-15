@@ -34,6 +34,7 @@ class PayType(Enum):
     wechat_pay = 0, '微信支付'
     alipay = 10, '支付宝'
     codepay = 20, '激活码支付'
+    test_pay = 10086, '测试支付'
 
 
 class Client(Enum):
