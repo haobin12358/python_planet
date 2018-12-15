@@ -68,7 +68,6 @@ class SupplizerUpdateForm(SupplizerCreateForm):
     ])
     supassword = StringField('密码')
 
-
     def validate_suid(self, raw):
         if is_supplizer():
             self.suid.data = request.user.id

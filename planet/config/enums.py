@@ -19,7 +19,7 @@ class ProductStatus(Enum):
 class ProductFrom(Enum):
     """商品来源"""
     platform = (0, '平台')
-    shop_keeper = 10, '店主'
+    supplizer = 10, '供应商'
     # ..其他
 
 
