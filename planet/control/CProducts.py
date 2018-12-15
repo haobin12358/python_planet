@@ -3,10 +3,10 @@ import json
 import uuid
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import or_, and_, not_
 
-from planet.common.error_response import NotFound, ParamsError, AuthorityError
+from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer
@@ -14,7 +14,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm
 
@@ -96,6 +96,9 @@ class CProducts:
         cfg = ConfigSettings()
         level1commision = cfg.get_item('commission', 'level1commision')
         product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
+        if is_admin() or is_supplizer():
+            if product.PCid and product.PCid != 'null':
+                product.fill('pcids', self._up_category(product.PCid))
         return Success(data=product)
 
     def get_produt_list(self):
@@ -250,7 +253,6 @@ class CProducts:
                 'PRstatus': self.prstatus,
                 'PRdescription': prdescription  # 描述
             }
-            product_dict = {k: v for k, v in product_dict.items() if v is not None}
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku
@@ -400,8 +402,16 @@ class CProducts:
                         })
                         session_list.append(sku_instance)
                     # 剩下的就是删除
-
-
+                    old_sku = ProductSku.query.filter(
+                        ProductSku.isdelete == False,
+                        ProductSku.PRid == prid,
+                        ProductSku.SKUid.notin_(sku_ids)
+                    ).delete_(synchronize_session=False)
+                    current_app.logger.info('删除了{}个不需要的sku'.format(old_sku))
+                    # import ipdb
+                    # ipdb.set_trace()
+                    # if old_sku > 10:
+                    #     raise StatusError('删除过多')
 
             # sku value
             pskuvalue = data.get('pskuvalue')
@@ -603,6 +613,18 @@ class CProducts:
                     for sub in subs:
                         pcid = sub.PCid
                         queue.append(pcid)
+
+    def _up_category(self, pcid, pc_list=()):
+        """遍历上级分类至一级"""
+        pc_list = list(pc_list)
+        pc_list.insert(0, pcid)
+        category = ProductCategory.query.filter_by({
+            'PCid': pcid,
+            'isdelete': False,
+        }).first()
+        if not category.ParentPCid or category in pc_list:
+            return pc_list
+        return self._up_category(category.ParentPCid, pc_list)
 
 
 
