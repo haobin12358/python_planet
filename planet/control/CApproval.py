@@ -7,7 +7,7 @@ import uuid
 from decimal import Decimal
 
 from flask import request
-from planet.config.enums import PermissionType
+from planet.config.enums import PermissionType, ApprovalStatus, ApprovalType, UserIdentityStatus
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
@@ -79,7 +79,8 @@ class CApproval(BASEAPPROVAL):
 
     def get_permission_list(self):
         """超级管理员查看所有权限list"""
-        # todo
+        pm_list = Permission.query.all()
+
         pass
 
     def get_permission_detail(self):
@@ -123,13 +124,13 @@ class CApproval(BASEAPPROVAL):
                     approval_model.AVlevel += 1
                 else:
                     # 没有下一级审批人了
-                    approval_model.AVstatus = 10
+                    approval_model.AVstatus = ApprovalStatus.complate.value
             else:
                 # 审批操作为拒绝 等级回退到最低级
-                approval_model.AVstatus = -10
+                approval_model.AVstatus = ApprovalStatus.refuse.value
                 approval_model.AVlevel = 1
-                if approval_model.AVtype == 1:
-                    s.query(User).filter(User.USid == approval_model.AVstartid).update({"USlevel": 1})
+                if approval_model.AVtype == ApprovalType.toagent.value:
+                    s.query(User).filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
 
             # 审批流水记录
             approvalnote_dict = {

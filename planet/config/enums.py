@@ -436,11 +436,25 @@ class UserCommissionType(Enum):
     deposit = 3, '押金'
 
 
+class ApprovalStatus(Enum):
+    """审批流状态"""
+    cancel = -20, '已取消'
+    refuse = -10, '拒绝'
+    approvaling = 0, '审批中'
+    complate = 10, '审批通过'
+
+
 # 激活码相关
 class UserActivationCodeStatus(Enum):
     forbidden = -10, '不可用'
     wait_use = 0, '可用'
     ready = 10, '已用'
+
+
+class UserIdentityStatus(Enum):
+    ordinary = 1, '普通用户'
+    agent = 2, '代理商'
+    toagent = 3, '申请成为代理商中'
 
 
 if __name__ == '__main__':

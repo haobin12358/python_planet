@@ -35,3 +35,10 @@ class ApprovalNotes(Base):
     ADid = Column(String(64), comment='处理人id')
     ANaction = Column(Integer, default=1, comment='审批意见 1 同意,0 提交 -1：拒绝')
     ANabo = Column(Text, comment='审批备注')
+#
+#
+# class PermissionItems(Base):
+#     """权限标签"""
+#     __tablename__ = 'PermissionItems'
+#     PIid = Column(String(64), primary_key=True)
+#     PIType = Column(Integer, comment='权限标签')

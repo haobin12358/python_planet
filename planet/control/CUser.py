@@ -1207,15 +1207,18 @@ class CUser(SUser, BASEAPPROVAL):
         }
 
         user = User.query.filter_by_(usfilter).first()
+        if user:
+            gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
         user_info = wxlogin.userinfo(access_token, openid)
-        gennerc_log(user_info)
+        gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
         head = self._get_local_head(user_info.get("headimgurl"), openid)
 
         if args.get('secret_usid'):
             try:
-                tokenmodel = self._base_decode(args.get('secret_usid'))
-                upperd = self.get_user_by_id(tokenmodel['id'])
-                if upperd.USid == user.USid:
+                superid = self._base_decode(args.get('secret_usid'))
+                upperd = self.get_user_by_id(superid)
+                gennerc_log('wx_login get supper user : {0}'.format(upperd.__dict__))
+                if user and upperd.USid == user.USid:
                     upperd = None
 
             except:
@@ -1227,6 +1230,7 @@ class CUser(SUser, BASEAPPROVAL):
         if sex < 0:
             sex = 0
         if user:
+            # todo 如果用户不想使用自己的微信昵称和微信头像，则不修改 需额外接口。配置额外字段
             usid = user.USid
             user.USheader = head
             user.USname = user_info.get('nickname')
