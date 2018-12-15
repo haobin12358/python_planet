@@ -16,7 +16,7 @@ User = namedtuple('User', ('id', 'model', 'level'))
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        gennerc_log('before request', info='info')
+        current_app.logger.info('>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<'.format('before request'))
         parameter = request.args.to_dict()
         token = parameter.get('token')
         if token:
@@ -26,15 +26,24 @@ def request_first_handler(app):
                 id = data['id']
                 model = data['model']
                 level = data['level']
-                User = namedtuple('User', ('id', 'model', 'level'))
-                user = User(id, model, level)
+                username = data.get('username', 'none')
+                User = namedtuple('User', ('id', 'model', 'level', 'username'))
+                user = User(id, model, level, username)
                 setattr(request, 'user', user)
+                current_app.logger.info('current_user is {}, id is {},  model is {}'.format(username, id, model))
             except BadSignature as e:
                 pass
             except SignatureExpired as e:
                 pass
             except Exception as e:
-                pass
+                current_app.logger.info(e)
+        current_app.logger.info(request.detail)
+
+    @app.teardown_request
+    def end_request(param):
+        current_app.logger.info('>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<'.format('end  request'))
+        return param
+
 
 
 def error_handler(app):

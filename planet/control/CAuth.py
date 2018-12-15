@@ -14,14 +14,14 @@ class CAuth:
                 User.USid == usid,
                 User.isdelete == False
             ).first_('用户已删除')
-            jwt = usid_to_token(usid, model='User', level=user.USlevel)
+            jwt = usid_to_token(usid, model='User', level=user.USlevel, username=user.USname)
         elif request.user.model == 'Admin':
             admin = Admin.query.filter(
                 Admin.ADid == request.user.id,
                 Admin.isdelete == False,
                 Admin.ADstatus == 0
             ).first_('管理员状态有误')
-            jwt = usid_to_token(usid, model='Admin', level=admin.ADlevel)
+            jwt = usid_to_token(usid, model='Admin', level=admin.ADlevel, username=admin.ADname)
         else:
             jwt = None
         return Success(data=jwt)

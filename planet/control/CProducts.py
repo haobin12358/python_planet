@@ -367,6 +367,7 @@ class CProducts:
             # sku, 有skuid为修改, 无skuid为新增
             if skus:
                 new_sku = []
+                sku_ids = []  # 此时传入的skuid
                 for sku in skus:
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
@@ -377,6 +378,7 @@ class CProducts:
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
+                        sku_ids.append(skuid)
                         sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
                         sku_instance.update({
                             'SKUpic': sku.get('skupic'),
@@ -393,12 +395,13 @@ class CProducts:
                             'SKUprice': round(skuprice, 2),
                             'SKUstock': int(skustock),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
-                            'isdelete': sku.get('isdelete'),
+                            # 'isdelete': sku.get('isdelete'),
                             'SKUsn': data.get('skusn')
                         })
                         session_list.append(sku_instance)
-                    if not sku.get('isdelete'):
-                        new_sku.append(skuattritedetail)  # sku记录  [电信, 红, xl]
+                    # 剩下的就是删除
+
+
 
             # sku value
             pskuvalue = data.get('pskuvalue')
@@ -447,6 +450,7 @@ class CProducts:
                     session_list.append(sku_value_instance)
 
             # images, 有piid为修改, 无piid为新增
+            # todo
             if images:
                 for image in images:
                     if 'piid' in image:
@@ -462,7 +466,8 @@ class CProducts:
                         'PIsort': image.get('pisort'),
                         'isdelete': image.get('isdelete')
                     }
-                    [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
+                    image_instance.update(image_dict)
+                    # [setattr(image_instance, k, v) for k, v in image_dict.items() if v is not None]
                     session_list.append(image_instance)
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
