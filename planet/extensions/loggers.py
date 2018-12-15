@@ -32,7 +32,7 @@ class MyTimedRotatingFileHandler(TimedRotatingFileHandler):
 
 
 class LoggerHandler():
-    def __init__(self, app=None, file='', format="%(asctime)s-%(message)s"):
+    def __init__(self, app=None, file='', format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"):
         self.file = file
         self.set_format(format)
         if app is not None:

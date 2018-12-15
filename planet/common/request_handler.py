@@ -38,11 +38,15 @@ def request_first_handler(app):
             except Exception as e:
                 current_app.logger.info(e)
         current_app.logger.info(request.detail)
-
-    @app.teardown_request
-    def end_request(param):
-        current_app.logger.info('>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<'.format('end  request'))
-        return param
+    #
+    # @app.teardown_request
+    # def end_request(param):
+    #     end = """>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<
+    #
+    #
+    #     """
+    #     current_app.logger.info(end.format('end  request'))
+    #     return param
 
 
 
