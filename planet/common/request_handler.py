@@ -55,7 +55,7 @@ def error_handler(app):
             return SystemError()
 
 
-def gennerc_log(data, info='bug'):
+def gennerc_log(data, info='info'):
     """
 
     :param data: 'success get user %s, user id %s' %(user,userid)
@@ -64,7 +64,9 @@ def gennerc_log(data, info='bug'):
     """
     if isinstance(data, Exception):
         data = traceback.format_exc()
+        info = 'bug'
     current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
+
     if info == 'info':
         current_app.logger.info(data)
     else:
@@ -72,7 +74,7 @@ def gennerc_log(data, info='bug'):
     try:
         current_app.logger.info(request.detail)
     except Exception as e:
-        pass
+        current_app.logger.error(traceback.format_exc())
 
 
 def check_mem():
