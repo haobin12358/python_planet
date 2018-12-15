@@ -11,7 +11,7 @@ from planet.common.share_stock import ShareStock
 from planet.config.enums import OrderMainStatus, OrderFrom
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products
+    Products, User
 
 celery = Celery()
 
@@ -56,7 +56,7 @@ def auto_evaluate():
     with db.auto_commit():
         s_list = list()
         current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
-        count = 1
+        count = 0
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
                                              OrderMain.createtime <= datetime.now() - timedelta(days=30)
@@ -71,9 +71,16 @@ def auto_evaluate():
                     if exist_evaluation:
                         current_app.logger.info(">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
                         continue
+                    user = User.query.filter_by(USid=order_main.USid).first()
+                    if user:
+                        usname, usheader = user.USname, user.USheader
+                    else:
+                        usname, usheader = '神秘的客官', ''
                     evaluation_dict = {
                         'OEid': str(uuid.uuid1()),
                         'USid': order_main.USid,
+                        'USname': usname,
+                        'USheader': usheader,
                         'OPid': order_part.OPid,
                         'OMid': order_main.OMid,
                         'PRid': order_part.PRid,
@@ -83,6 +90,7 @@ def auto_evaluate():
                     }
                     evaluation_instance = OrderEvaluation.create(evaluation_dict)
                     s_list.append(evaluation_instance)
+                    count += 1
                     current_app.logger.info(">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
 
                     # 商品总体评分变化
@@ -103,32 +111,34 @@ def auto_evaluate():
             db.session.add_all(s_list)
         current_app.logger.info(">>>>>> 自动评价任务结束，共更改{}条数据  <<<<<<".format(count))
 
-    # 修改评价异常数据（已评价，未修改状态）
-    # with db.auto_commit():
-    #     order_evaluations = OrderEvaluation.query.filter_by_().all()
-    #     count = 0
-    #     for oe in order_evaluations:
-    #         om = OrderMain.query.filter(OrderMain.OMid == oe.OMid, OrderMain.OMfrom.in_([OrderFrom.carts.value,
-    #                                                                                      OrderFrom.product_info.value]
-    #                                                                                     )).first()
-    #         if not om:
-    #             om_info = OrderMain.query.filter(OrderMain.OMid == oe.OMid).first()
-    #             print("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
-    #             continue
-    #         omid = om.OMid
-    #         omstatus = om.OMstatus
-    #         if int(omstatus) == OrderMainStatus.wait_comment.value:
-    #             print("-->  已存在评价的主单id为 {}，未修改前的主单状态为{}  <--".format(str(omid), str(omstatus)))
-    #             print("-->  开始更改状态  <--")
-    #             upinfo = OrderMain.query.filter_by_(OMid=omid).update({'OMstatus': OrderMainStatus.ready.value})
-    #             count += 1
-    #             if upinfo:
-    #                 print("-->  {}:更改状态成功  <--".format(str(omid)))
-    #             else:
-    #                 print("-->  {}:更改失败  <--".format(str(omid)))
-    #             print("--------------分割线----------------------")
-    #             print("--------------分割线----------------------")
-    #     print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
+
+def fix_evaluate_status_error():
+    """修改评价异常数据（已评价，未修改状态）"""
+    with db.auto_commit():
+        order_evaluations = OrderEvaluation.query.filter_by_().all()
+        count = 0
+        for oe in order_evaluations:
+            om = OrderMain.query.filter(OrderMain.OMid == oe.OMid, OrderMain.OMfrom.in_([OrderFrom.carts.value,
+                                                                                         OrderFrom.product_info.value]
+                                                                                        )).first()
+            if not om:
+                om_info = OrderMain.query.filter(OrderMain.OMid == oe.OMid).first()
+                print("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
+                continue
+            omid = om.OMid
+            omstatus = om.OMstatus
+            if int(omstatus) == OrderMainStatus.wait_comment.value:
+                print("-->  已存在评价的主单id为 {}，未修改前的主单状态为{}  <--".format(str(omid), str(omstatus)))
+                print("-->  开始更改状态  <--")
+                upinfo = OrderMain.query.filter_by_(OMid=omid).update({'OMstatus': OrderMainStatus.ready.value})
+                count += 1
+                if upinfo:
+                    print("-->  {}:更改状态成功  <--".format(str(omid)))
+                else:
+                    print("-->  {}:更改失败  <--".format(str(omid)))
+                print("--------------分割线----------------------")
+                print("--------------分割线----------------------")
+        print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
 if __name__ == '__main__':
