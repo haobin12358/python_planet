@@ -221,7 +221,7 @@ class COrder(CPay, CCoupon):
                         'PRsalesValue': Products.PRsalesValue + opnum,
                     })
                     s.query(ProductSku).filter_by_(SKUid=skuid).update({
-                        'SKUstock': ProductSku.SKUstock - opnum
+                        'SKUstock': ProductSku.SKUstock - opnum  # todo 是否要判断库存
                     })
                     # 月销量 修改或新增
                     today = datetime.now()
