@@ -15,10 +15,11 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
         expiration = current_app.config['TOKEN_EXPIRATION']
     s = Serializer(current_app.config['SECRET_KEY'], expires_in=expiration)
     return s.dumps({
+        'username': username,
         'id': id,
         'model': model,
         'level': level,
-        'username': username
+
     }).decode()
 
 
