@@ -71,7 +71,13 @@ def token_required(func):
 def get_current_user():
     usid = request.user.id
     from planet.models import User
-    return User.query.filter(User.USid == usid).first()
+    return User.query.filter(User.USid == usid, User.isdelete == False).first()
+
+
+def get_current_admin():
+    adid = request.user.id
+    from planet.models import Admin
+    return Admin.query.filter(Admin.ADid == adid, Admin.isdelete == False).first()
 
 
 

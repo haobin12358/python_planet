@@ -15,7 +15,7 @@ class CWechatShareParams(object):
         """设置微信分享参数"""
         # usid = request.user.id
         # admin = Admin.query.filter_by_(ADid=usid).first_('非管理员权限')
-        # current_app.logger("ADMIN {} is setting share params args".format(admin.ADname))
+        # current_app.logger.info("ADMIN {} is setting share params args".format(admin.ADname))
         data = parameter_required(('title', 'content', 'img'))
         title = data.get('title')
         content = data.get('content')
