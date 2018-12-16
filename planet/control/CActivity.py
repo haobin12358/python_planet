@@ -139,7 +139,7 @@ class CActivity(CUser):
                 if magic_box_join:
                     magic_apply.fill('current_price', magic_box_join.MBJcurrentPrice)
                     # 拆盒记录
-                    mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).limit(4).all()
+                    mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).order_by(MagicBoxOpen.createtime.desc()).limit(4).all()
                     magic_apply.fill('open_history', mbp_history)
 
         elif ac_type == 'guess_num':
