@@ -9,7 +9,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
 from planet.common.error_response import AuthorityError, ParamsError, DumpliError
-from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
 from planet.extensions.register_ext import db, conn

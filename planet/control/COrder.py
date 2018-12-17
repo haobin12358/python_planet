@@ -180,6 +180,7 @@ class COrder(CPay, CCoupon):
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
                     product_instance = s.query(Products).filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
@@ -212,7 +213,7 @@ class COrder(CPay, CCoupon):
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
-                    if  omfrom == OrderFrom.carts.value:
+                    if omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
@@ -223,10 +224,8 @@ class COrder(CPay, CCoupon):
                     s.query(ProductSku).filter_by_(SKUid=skuid).update({
                         'SKUstock': ProductSku.SKUstock - opnum
                     })
-                    # import ipdb
-                    # ipdb.set_trace()
-                    if ProductSku.SKUstock < opnum:
-                        raise StatusError('没货了')
+                    if sku_instance.SKUstock < opnum:
+                        raise StatusError('货源不足')
                     # 月销量 修改或新增
                     today = datetime.now()
                     month_sale_updated = s.query(ProductMonthSaleValue).filter_(
@@ -392,7 +391,6 @@ class COrder(CPay, CCoupon):
                 prid_dict[prid] = product_instance.PRfreight
         feight = max([x for x in prid_dict.values()])
         return Success(data=feight)
-
 
     @token_required
     def get(self):

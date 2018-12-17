@@ -38,7 +38,8 @@ alipay = AliPay(
     app_notify_url=alipay_notify,  # 默认回调url
     app_private_key_string=open(app_private_path).read(),
     alipay_public_key_string=open(alipay_public_key_path).read(),
-    sign_type="RSA",  # RSA 或者 RSA2
+    debug=True
+    # sign_type="RSA2",  # RSA 或者 RSA2
      )
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
