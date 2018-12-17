@@ -310,6 +310,7 @@ class CPay():
             raw = 'https://openapi.alipaydev.com/gateway.do?' + raw
         else:
             raise SystemError('请选用其他支付方式')
+        current_app.logger.info('pay response is {}'.format(raw))
         return raw
 
     def _pay_to_user(self, opaytype):
