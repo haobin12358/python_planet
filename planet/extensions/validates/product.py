@@ -45,6 +45,20 @@ class ProductOffshelvesForm(BaseForm):
         self.status = value
 
 
+class ProductOffshelvesListForm(BaseForm):
+    prids = FieldList(StringField(), validators=[DataRequired('prid不可为空')])
+    status = IntegerField()
+
+    def validate_status(self, value):
+        try:
+            if value.data in [ProductStatus.all.value, ProductStatus.auditing.value, None]:
+                raise Exception
+            ProductStatus(value.data)
+        except Exception as e:
+            raise ValidationError(message='status 参数错误')
+        self.status = value
+
+
 class SceneCreateForm(BaseForm):
     """场景创建"""
     pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])

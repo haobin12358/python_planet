@@ -13,6 +13,7 @@ class ProductStatus(Enum):
     usual = (0, '上架中')
     auditing = (10, '审核中')
     off_shelves = (60, '已下架')
+    sell_out = 40, '售罄'
     all = None
 
 

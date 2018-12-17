@@ -19,7 +19,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
-    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum
+    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -179,7 +179,10 @@ class COrder(CPay, CCoupon):
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
-                    product_instance = s.query(Products).filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+                    product_instance = s.query(Products).filter_by_({
+                        'PRid': prid,
+                        'PRstatus': ProductStatus.usual.value
+                    }).first_('商品不存在或已下架')
 
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
@@ -218,14 +221,17 @@ class COrder(CPay, CCoupon):
                     # body 信息
                     body.add(product_instance.PRtitle)
                     # 对应商品销量 + num sku库存 -num
-                    s.query(Products).filter_by_(PRid=prid).update({
-                        'PRsalesValue': Products.PRsalesValue + opnum,
-                    })
-                    s.query(ProductSku).filter_by_(SKUid=skuid).update({
-                        'SKUstock': ProductSku.SKUstock - opnum
-                    })
-                    if sku_instance.SKUstock < opnum:
+                    product_instance.PRsalesValue = product_instance.PRsalesValue + opnum
+                    product_instance.PRstocks = product_instance.PRstocks - opnum
+                    sku_instance.SKUstock = sku_instance.SKUstock - opnum
+                    if sku_instance.SKUstock < 0:
                         raise StatusError('货源不足')
+                    if product_instance.PRstocks <= 0:
+                        product_instance.PRstatus = ProductStatus.sell_out.value
+                    s.add(product_instance)
+                    s.add(sku_instance)
+                    s.flush()
+                    current_app.logger.info('商品剩余库存: {}'.format(product_instance.PRstocks))
                     # 月销量 修改或新增
                     today = datetime.now()
                     month_sale_updated = s.query(ProductMonthSaleValue).filter_(
@@ -549,8 +555,12 @@ class COrder(CPay, CCoupon):
             for order_part in order_parts:
                 skuid = order_part.SKUid
                 opnum = order_part.OPnum
+                prid = order_part.PRid
                 s.query(ProductSku).filter_by_(SKUid=skuid).update({
                     'SKUstock': ProductSku.SKUstock + opnum
+                })
+                s.query(Products).filter_by_(PRid=prid).update({
+                    'PRstocks': Products.PRstocks + opnum
                 })
             # 销量修改(暂不改)
         return Success('取消成功')
