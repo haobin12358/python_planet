@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import request
+from flask import request, current_app
 
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
@@ -13,8 +13,9 @@ class CIndex:
     def __init__(self):
         self.sindex = SIndex()
 
+    @cache.cached(timeout=60, key_prefix='index')
     def brand_recommend(self):
-        # todo 删除首页的几个数据表
+        current_app.logger.info('获取首页信息')
         data = {
             'brands': ProductBrand.query.join(
                 BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid

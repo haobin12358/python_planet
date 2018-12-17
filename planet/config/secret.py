@@ -33,7 +33,6 @@ mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/order/wechat_notify'
 # 支付宝
 alipay_appid = env.get('ALIPAY_APPID', "2018121428491070")
-print(alipay_appid)
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
 alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub1.pem')
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
@@ -44,7 +43,7 @@ ACCESS_KEY_SECRET = env.get('ACCESS_KEY_SECRET')
 # 数字签名
 SignName = env.get("SignName", "etech研发团队")
 # 短信模板
-TemplateCode =env.get("TemplateCode")
+TemplateCode = env.get("TemplateCode")
 # 身份实名认证
 ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 
@@ -65,7 +64,11 @@ if not os.path.isdir(server_dir):
 
 if not os.path.isdir(subscribe_dir):
     os.makedirs(subscribe_dir)
-#
+# cache
+cache_redis = {"CACHE_TYPE": "redis",
+              "CACHE_REDIS_HOST": "localhost",
+              "CACHE_REDIS_PORT": 6379,
+              "CACHE_REDIS_DB": 1}
 
 
 class DefaltSettig(object):
@@ -79,6 +82,7 @@ class DefaltSettig(object):
     # celery doc: http://docs.celeryproject.org/en/latest/userguide/periodic-tasks.html
     CELERY_BROKER_URL = 'redis://localhost:6379',
     CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+    CACHE_REDIS_URL = 'redis://localhost:6379/1'
     CELERY_TIMEZONE = 'Asia/Shanghai'
     CELERYBEAT_SCHEDULE = {
         'fetch_share_deal': {
@@ -95,6 +99,3 @@ class DefaltSettig(object):
 
 class TestSetting(object):
     pass
-
-
-
