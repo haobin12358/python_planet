@@ -123,6 +123,8 @@ img/*
 test/
 # pay pem
 *.pem
+pem/cert.zip
+pem2/cert.zip
 #
 templates/*
 wxservice/*
