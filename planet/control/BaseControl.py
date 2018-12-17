@@ -2,10 +2,13 @@ import uuid
 import datetime
 from decimal import Decimal
 
+from flask import request
+
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ApprovalType
 from planet.common.error_response import SystemError
 from planet.common.request_handler import gennerc_log
+from planet.extensions.register_ext import db
 from planet.models.approval import Approval, ApprovalNotes
 from planet.service.SApproval import SApproval
 
@@ -34,6 +37,27 @@ class BASEAPPROVAL():
             })
             s.add(av)
             s.add(aninstance)
+
+    def update_approval_no_commit(self, approval, agree, level=1, anabo=None):
+        if agree is True:
+            avstatus = 10  # todo 目前只有一级审批, 因此直接同意或拒绝
+            anaction = 1
+        else:
+            avstatus = -10
+            anaction = -1
+        approval.update({
+            'AVstatus': avstatus,
+            'AVlevel': level,
+        })
+        ap_notes = ApprovalNotes.create({
+            'ANid': str(uuid.uuid1()),
+            'AVid': approval.AVid,
+            'ADid': request.user.id,
+            'ANaction': anaction,
+            'ANabo': anabo
+        })
+        db.session.add(approval)
+        db.session.add(ap_notes)
 
 
 class Commsion:

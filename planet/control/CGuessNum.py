@@ -67,9 +67,9 @@ class CGuessNum(COrder):
             GuessNum.isdelete == False
         ).first_()
         if not join_history:
-            if form.date.data.date == date.today():
+            if form.date.data.date() == date.today():
                 return Success('今日未参与')
-            elif form.date.data.date == date.today() - timedelta(days=1):
+            elif form.date.data.date() == date.today() - timedelta(days=1):
                 raise NotFound('昨日未参与')
             else:
                 raise NotFound('未参与')

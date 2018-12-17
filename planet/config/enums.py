@@ -12,8 +12,9 @@ class ProductStatus(Enum):
     """商品状态"""
     usual = (0, '上架中')
     auditing = (10, '审核中')
-    off_shelves = (60, '已下架')
+    reject = 30, '审核失败',
     sell_out = 40, '售罄'
+    off_shelves = (60, '已下架')
     all = None
 
 

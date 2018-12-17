@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
@@ -9,14 +10,17 @@ from sqlalchemy import or_, and_, not_
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer
+from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
+    admin_required
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion
+from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
+    PermissionType, ApprovalType
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval
 from planet.service.SProduct import SProducts
-from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm
+from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
 
 class CProducts:
@@ -125,6 +129,7 @@ class CProducts:
         prstatus = data.get('prstatus')
         if not is_admin() and not is_supplizer():
             prstatus = prstatus or 'usual'  # 商品状态
+        if prstatus:
             prstatus = getattr(ProductStatus, prstatus).value
         product_order = order_enum.get(order)
         if desc_asc == 'desc':
@@ -140,7 +145,7 @@ class CProducts:
             Products.PRstatus == prstatus,
         ]
         # 标签位置和权限筛选
-        if not is_admin():
+        if not is_admin() and not is_supplizer():
             if not itid:
                 itposition = data.get('itposition')
                 itauthority = data.get('itauthority')
@@ -165,6 +170,7 @@ class CProducts:
         if is_supplizer():
             current_app.logger.info('供应商查看自己的商品')
             suid = request.user.id
+
         else:
             suid = data.get('suid')
         if suid and suid != 'planet':
@@ -326,13 +332,23 @@ class CProducts:
                     }
                     item_product_instance = ProductItems.create(item_product_dict)
                     session_list.append(item_product_instance)
-            # 供应商商品表
             if is_supplizer():
-                SupplizerProduct.create({
+                # 供应商商品表
+                session_list.append(SupplizerProduct.create({
                     'SPid': str(uuid.uuid1()),
                     'PRid': prid,
-                    'SUid': request.user.id
-                })
+                    'SUid': request.user.id,
+                }))
+                # 创建审批
+                session_list.append(Approval.create({
+                    'AVid': str(uuid.uuid1()),
+                    'AVname': 'topublish' + datetime.now().strftime('%Y%m%d%H%M%S'),
+                    'AVtype': PermissionType.topublish.value,
+                    'AVstartid': request.user.id,
+                    'AVstatus': 0,
+                    # 'AVlevel': '',
+                    'AVcontent': prid
+                }))
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
 
@@ -487,7 +503,6 @@ class CProducts:
                     session_list.append(sku_value_instance)
 
             # images, 有piid为修改, 无piid为新增
-            # todo
             if images:
                 piids = []
                 new_piids = []
@@ -562,6 +577,45 @@ class CProducts:
             s.query(Products).filter_by(PRid=prid).delete_()
         return Success('删除成功')
 
+    @admin_required
+    def agree_product(self):
+        form = ProductApplyAgreeForm().valid_data()
+        prids = form.prids.data
+        agree = form.agree.data
+        anabo = form.anabo.data
+        if agree:  # 同意或拒绝
+            msg = '已同意'
+            value = ProductStatus.usual.value
+        else:
+            msg = '已拒绝'
+            value = ProductStatus.reject.value
+        base_approval = BASEAPPROVAL()
+        with db.auto_commit():
+            for prid in prids:
+                # 可以直接同意, todo 后续需改进
+                product = Products.query.filter(
+                    Products.isdelete == False,
+                    Products.PRid == prid,
+                    Products.PRstatus == ProductStatus.auditing.value
+                ).update({
+                    'PRstatus': value
+                })
+                if not product:
+                    continue
+                approval = Approval.query.filter(
+                    Approval.isdelete == False,
+                    Approval.AVcontent == prid,
+                ).first()
+                if approval:
+                    base_approval.update_approval_no_commit(approval, agree, 1, anabo)
+            current_app.logger.info('success product count is {}'.format(product))
+        return Success(msg)
+
+    @token_required
+    def auditing_detail(self):
+        """查看审核详情"""
+        pass
+
     @token_required
     def delete_list(self):
         """删除, 供应商只可以删除自己的"""
@@ -620,9 +674,10 @@ class CProducts:
                 query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
                     SupplizerProduct.SUid == request.user.id
                 )
-            query.update({
+            offs = query.update({
                 'PRstatus': status
             }, synchronize_session=False)
+            current_app.logger.info('共下架了{}个商品'.format(offs))
             if ProductStatus(status).name == 'usual':
                 msg = '上架成功'
             else:

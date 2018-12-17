@@ -59,6 +59,13 @@ class ProductOffshelvesListForm(BaseForm):
         self.status = value
 
 
+class ProductApplyAgreeForm(BaseForm):
+    """商品同意或拒绝"""
+    prids = FieldList(StringField(), validators=[DataRequired('prids不可为空')])
+    agree = BooleanField()
+    anabo = StringField()
+
+
 class SceneCreateForm(BaseForm):
     """场景创建"""
     pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])
