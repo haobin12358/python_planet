@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
+import uuid
+
 from flask import request, current_app
 
+from planet.common.error_response import SystemError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
 from planet.extensions.register_ext import cache, db
-from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm
-from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems
+from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
+from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner
 from planet.service.SIndex import SIndex
 
 
@@ -35,14 +38,43 @@ class CIndex:
 
     @admin_required
     def set_banner(self):
+        current_app.logger.info("Admin {} set index banner".format(request.user.username))
         form = IndexSetBannerForm().valid_data()
+        prid = form.prid.data
+        ibid = str(uuid.uuid1())
+        Products.query.filter_by_(PRid=prid).first_('未找到该商品信息')
         with db.auto_commit():
-            # todo 设置主页显示信息
-            product = Products.query.filter(
-                Products.isdelete == False,
-                # Produ
-            )
+            banner = IndexBanner.create({
+                'IBid': ibid,
+                'PRid': prid,
+                'IBpic': form.ibpic.data,
+                'IBsort': form.ibsort.data,
+                'IBshow': form.ibshow.data
+            })
+            db.session.add(banner)
+        return Success('添加成功', {'ibid': ibid})
 
+    @admin_required
+    def update_banner(self):
+        current_app.logger.info("Admin {} update index banner".format(request.user.username))
+        form = IndexUpdateBannerForm().valid_data()
+        ibid, prid = form.ibid.data, form.prid.data
+        isdelete = form.isdelete.data
+        IndexBanner.query.filter_by_(IBid=ibid).first_('未找到该轮播图信息')
+        Products.query.filter_by_(PRid=prid).first_('未找到该商品信息')
+        with db.auto_commit():
+            banner_dict = {'IBid': ibid,
+                           'PRid': prid,
+                           'IBpic': form.ibpic.data,
+                           'IBsort': form.ibsort.data,
+                           'IBshow': form.ibshow.data,
+                           'isdelete': isdelete
+                           }
+            banner_dict = {k: v for k, v in banner_dict.items() if v is not None}
+            banner = IndexBanner.query.filter_by_(IBid=ibid).update(banner_dict)
+            if not banner:
+                raise SystemError('服务器繁忙 10000')
+        return Success('修改成功', {'ibid': ibid})
 
     def list_product(self, itid):
         products = Products.query.join(

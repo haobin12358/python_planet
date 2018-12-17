@@ -16,3 +16,10 @@ class AIndex(Resource):
         }
         return apis
 
+    def post(self, index):
+        apis = {
+            'set_banner': self.cindex.set_banner,
+            'update_banner': self.cindex.update_banner,
+        }
+        return apis
+
