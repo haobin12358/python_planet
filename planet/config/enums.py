@@ -169,14 +169,14 @@ class ApprovalType(Enum):
     topublish = 5
 
 
-# class PermissionType(Enum):
-#     """审批人类型"""
-#     #  1: 成为代理商审批 2:商品上架审批 3:订单退换货审批, 4: 提现审批 5: 用户资讯发布审批
-#     toagent = 1
-#     toshelves = 2
-#     toreturn = 3
-#     tocash = 4
-#     topublish = 5
+class PermissionType(Enum):
+    """审批人类型"""
+    #  1: 成为代理商审批 2:商品上架审批 3:订单退换货审批, 4: 提现审批 5: 用户资讯发布审批
+    toagent = 1
+    toshelves = 2
+    toreturn = 3
+    tocash = 4
+    topublish = 5
 
 
 class NewsStatus(Enum):
