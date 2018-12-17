@@ -32,9 +32,10 @@ mch_id = env.get('MCH_ID')
 mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/order/wechat_notify'
 # 支付宝
-alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
+alipay_appid = env.get('ALIPAY_APPID', "2018121428491070")
+print(alipay_appid)
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
-alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub.pem')
+alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub1.pem')
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
 # 阿里云短信
 # ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
