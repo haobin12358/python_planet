@@ -170,6 +170,7 @@ class CPay():
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
+            # 如果不是代理商
             if UserIdentityStatus.agent.value != user.USlevel:
                 continue
             if up1:
@@ -226,7 +227,6 @@ class CPay():
                         'UCendTime': UCendTime
                     }
                     s_list.append(UserCommission.create(user_commision_dict))
-                    # todo 新人首单奖励分发
         # 线上发货
         if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
             order_main.OMstatus = OrderMainStatus.ready.value
@@ -253,14 +253,16 @@ class CPay():
         return 'https://openapi.alipaydev.com/gateway.do?' + order_string
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
+        opaytype = int(opaytype)
+        omclient = int(omclient)
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         mount_price = 0.01
-        current_app.logger.info('openid is {}'.format(openid))
+        current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
             try:
                 body = body[:16] + '...'
-                current_app.logger.info('body is {}'.format(body))
+                current_app.logger.info('body is {}, wechatpay'.format(body))
                 wechat_pay_dict = {
                     'body': body,
                     'out_trade_no': opayno,
@@ -287,7 +289,7 @@ class CPay():
                 raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
 
         elif opaytype == PayType.alipay.value:
-            current_app.logger.info('选用alipay支付')
+            current_app.logger.info('body is {}, alipay'.format(body))
             if omclient == Client.wechat.value:
                 raise SystemError('请选用其他支付方式')
             else:

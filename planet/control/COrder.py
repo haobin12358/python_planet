@@ -212,7 +212,7 @@ class COrder(CPay, CCoupon):
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
-                    if omfrom == OrderFrom.carts.value:
+                    if  omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
@@ -221,8 +221,12 @@ class COrder(CPay, CCoupon):
                         'PRsalesValue': Products.PRsalesValue + opnum,
                     })
                     s.query(ProductSku).filter_by_(SKUid=skuid).update({
-                        'SKUstock': ProductSku.SKUstock - opnum  # todo 是否要判断库存
+                        'SKUstock': ProductSku.SKUstock - opnum
                     })
+                    # import ipdb
+                    # ipdb.set_trace()
+                    if ProductSku.SKUstock < opnum:
+                        raise StatusError('没货了')
                     # 月销量 修改或新增
                     today = datetime.now()
                     month_sale_updated = s.query(ProductMonthSaleValue).filter_(

@@ -31,7 +31,7 @@ class IndexBanner(Base):
     __tablename__ = 'IndexBanner'
     IBid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='跳转商品')
-    IBpic = Column(String(255), nullable=False, comment='图片')
+    IBpic = Column(String(255), nullable=False, comment='图片', url=True)
     IBsort = Column(Integer, comment='顺序')
     IBshow = Column(Boolean, default=True, comment='是否展示')
 

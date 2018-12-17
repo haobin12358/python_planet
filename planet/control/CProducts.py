@@ -121,9 +121,10 @@ class CProducts:
         pcids = self._sub_category_id(pcid)
         pcids = list(set(pcids))
         itid = data.get('itid')  # 场景下的标签id
-
-        prstatus = data.get('prstatus') or 'usual'  # 商品状态
-        prstatus = getattr(ProductStatus, prstatus).value
+        prstatus = data.get('prstatus')
+        if not is_admin() and not is_supplizer():
+            prstatus = prstatus or 'usual'  # 商品状态
+            prstatus = getattr(ProductStatus, prstatus).value
         product_order = order_enum.get(order)
         if desc_asc == 'desc':
             order_by = product_order.desc()

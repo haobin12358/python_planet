@@ -5,7 +5,7 @@ import json
 from threading import Thread
 
 from flask import current_app
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
 from planet.common.error_response import AuthorityError, ParamsError, DumpliError
@@ -14,7 +14,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
-    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerChangePasswordForm
+    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
 from planet.models import Supplizer
 
 
@@ -94,7 +94,28 @@ class CSupplizer:
 
     @token_required
     def change_password(self):
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
         form = SupplizerChangePasswordForm().valid_data()
+        old_password = form.oldpassword.data
+        supassword = form.supassword.data
+        suid = form.suid.data
+        with db.auto_commit():
+            supplizer = Supplizer.query.filter(
+                Supplizer.isdelete == False,
+                Supplizer.SUid == suid
+            ).first_('不存在的供应商')
+            if not is_admin() and not check_password_hash(supplizer.SUpassword, old_password):
+                raise AuthorityError('原密码错误')
+            supplizer.SUpassword = generate_password_hash(supassword)
+            db.session.add(supplizer)
+        return Success('修改成功')
+
+
+
+    @token_required
+    def reset_password(self):
+        form = SupplizerResetPasswordForm().valid_data()
         mobile = form.suloginphone.data
         password = form.supassword.data
         if is_supplizer():
@@ -117,7 +138,7 @@ class CSupplizer:
         return Success('修改成功')
 
     @token_required
-    def send_change_password_code(self):
+    def send_reset_password_code(self):
         """发送修改验证码"""
         if not is_supplizer():
             raise AuthorityError()

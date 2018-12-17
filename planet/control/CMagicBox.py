@@ -195,6 +195,7 @@ class CMagicBox(CUser, COrder):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
+                'PRcreateId': product.CreaterId,
             }
             order_main_instance = OrderMain.create(order_main_dict)
             db.session.add(order_main_instance)
@@ -214,7 +215,6 @@ class CMagicBox(CUser, COrder):
                 'OPsubTotal': price,
                 # 副单商品来源
                 'PRfrom': product.PRfrom,
-                'PRcreateId': product.CreaterId,
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
                 # todo 活动佣金设置

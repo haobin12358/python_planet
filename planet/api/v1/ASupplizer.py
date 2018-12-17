@@ -10,7 +10,7 @@ class ASupplizer(Resource):
         apis = {
             'list': self.csupplizer.list,
             'get': self.csupplizer.get,
-            'code': self.csupplizer.send_change_password_code,
+            'code': self.csupplizer.send_reset_password_code,
         }
         return apis
 
@@ -18,6 +18,7 @@ class ASupplizer(Resource):
         apis = {
             'create': self.csupplizer.create,
             'update': self.csupplizer.update,
+            'reset_password': self.csupplizer.reset_password,
             'change_password': self.csupplizer.change_password,
         }
         return apis
