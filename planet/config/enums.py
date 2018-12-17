@@ -468,6 +468,13 @@ class ApprovalAction(Enum):
     agree = 1, '同意'
     refuse = -1, '拒绝'
 
+
+class PermissionNotesType(Enum):
+    pt = 1, '审批流类型'
+    pi = 0, '权限标签'
+    pe = 2, '审批流处理身份及层级'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
