@@ -161,36 +161,6 @@ class ProductCategory(Base):
     PCtopPic = Column(String(255), url=True, comment='一级分类顶部图')
 
 
-# class WareHouse(Base):
-#     """仓库"""
-#     __tablename__ = 'WareHouse'
-#     WAid = Column(String(64), primary_key=True)
-#     WAname = Column(String(32), nullable=False, comment='仓库名字')
-#     WAphone = Column(String(11), nullable=False, comment='仓库电话')
-#     WAcontact = Column(String(16), nullable=False, comment='仓库联系人')
-#     WAaddress = Column(String(64), nullable=False, comment='地址')
-#     WAstatus = Column(Integer, default=0, comment='状态, 待用')
-#
-#
-# class WareHouseProduct(Base):
-#     """仓库库存表"""
-#     __tablename__ = 'WareHouseProduct'
-#     WHPid = Column(String(64), primary_key=True)
-#     PRid = Column(String(64), nullable=False, comment='商品id')
-#     WAid = Column(String(64), nullable=False, comment='仓库id')
-#     PRnum = Column(Integer, default=0, comment='当前商品数量')
-#
-#
-# class WareHouseInFlow(Base):
-#     """入库"""
-#     __tablename__ = 'WareHouseInFlow'
-#     WHIFid = Column(String(64), primary_key=True)
-#     PRid = Column(String(64), nullable=False, comment='商品id')
-#     SUid = Column(String(64), nullable=False, comment='供应商id')
-#     PRnum = Column(Integer, nullable=False, comment='数量')
-#     # sku?
-
-
 class Supplizer(Base):
     """供应商"""
     __tablename__ = 'Supplizer'
@@ -223,3 +193,32 @@ class SupplizerProduct(Base):
 #     SUBid = Column(String(64), primary_key=True)
 #     PBid = Column(String(64), nullable=False, comment='品牌id')
 #     SUid = Column(String(64), nullable=False, comment='供应商id')
+
+# class WareHouse(Base):
+#     """仓库"""
+#     __tablename__ = 'WareHouse'
+#     WAid = Column(String(64), primary_key=True)
+#     WAname = Column(String(32), nullable=False, comment='仓库名字')
+#     WAphone = Column(String(11), nullable=False, comment='仓库电话')
+#     WAcontact = Column(String(16), nullable=False, comment='仓库联系人')
+#     WAaddress = Column(String(64), nullable=False, comment='地址')
+#     WAstatus = Column(Integer, default=0, comment='状态, 待用')
+#
+#
+# class WareHouseProduct(Base):
+#     """仓库库存表"""
+#     __tablename__ = 'WareHouseProduct'
+#     WHPid = Column(String(64), primary_key=True)
+#     PRid = Column(String(64), nullable=False, comment='商品id')
+#     WAid = Column(String(64), nullable=False, comment='仓库id')
+#     PRnum = Column(Integer, default=0, comment='当前商品数量')
+#
+#
+# class WareHouseInFlow(Base):
+#     """入库"""
+#     __tablename__ = 'WareHouseInFlow'
+#     WHIFid = Column(String(64), primary_key=True)
+#     PRid = Column(String(64), nullable=False, comment='商品id')
+#     SUid = Column(String(64), nullable=False, comment='供应商id')
+#     PRnum = Column(Integer, nullable=False, comment='数量')
+#     # sku?
