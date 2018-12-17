@@ -51,12 +51,20 @@ ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 kd_api_code = env.get('KDApiKey', 'guess')
 kd_api_url = 'https://kdwlcxf.market.alicloudapi.com/kdwlcx'
 
-
+# 微信公众号的配置
 SERVICE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SERVICE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
 
 SUBSCRIBE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SUBSCRIBE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
+server_dir = os.path.join(BASEDIR, 'wxservice')
+subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
+if not os.path.isdir(server_dir):
+    os.makedirs(server_dir)
+
+if not os.path.isdir(subscribe_dir):
+    os.makedirs(subscribe_dir)
+#
 
 
 class DefaltSettig(object):

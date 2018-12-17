@@ -1,4 +1,4 @@
-from flask import request
+from flask import request, make_response, jsonify
 
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, usid_to_token
@@ -25,6 +25,15 @@ class CAuth:
         else:
             jwt = None
         return Success(data=jwt)
+
+    def cookie_test(self):
+        print(request.cookies.get('token'))
+        res = jsonify({
+            'hello': 1
+        })
+        res.set_cookie('token', 'i am cookie')
+        return res
+
 
 
 

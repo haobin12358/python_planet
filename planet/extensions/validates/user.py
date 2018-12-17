@@ -55,7 +55,7 @@ class SupplizerCreateForm(BaseForm):
 
     def validate_sulinkphone(self, raw):
         if raw.data:
-            if re.match('^1\d{11}$', raw.data):
+            if not re.match('^1\d{10}$', raw.data):
                 raise ParamsError('联系人手机号格'
                                   '式错误')
 
@@ -83,6 +83,20 @@ class SupplizerUpdateForm(SupplizerCreateForm):
         ).first()
         if is_exists:
             raise DumpliError('登陆手机号其他人重复')
+
+
+class SupplizerSendCodeForm(BaseForm):
+    suloginphone = StringField('登录手机号', validators=[
+        DataRequired('手机号不可以为空'),
+        Regexp('^1\d{10}$', message='手机号格式错误'),
+    ])
+
+
+class SupplizerChangePasswordForm(SupplizerSendCodeForm):
+    code = StringField('验证码')
+    supassword = StringField(validators=[DataRequired('验证码不可为空')])
+
+
 
 
 

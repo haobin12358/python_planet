@@ -30,7 +30,7 @@ def request_first_handler(app):
                 User = namedtuple('User', ('id', 'model', 'level', 'username'))
                 user = User(id, model, level, username)
                 setattr(request, 'user', user)
-                current_app.logger.info('current_user is {}, id is {},  model is {}'.format(username, id, model))
+                current_app.logger.info('current_user info : {}'.format(data))
             except BadSignature as e:
                 pass
             except SignatureExpired as e:
