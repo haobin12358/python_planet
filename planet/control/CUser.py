@@ -64,7 +64,6 @@ class CUser(SUser, BASEAPPROVAL):
     #         return ""
     #     return
 
-
     def __update_birthday_str(self, birthday_date):
         """变更用户生日展示"""
         if not isinstance(birthday_date, datetime.datetime):
