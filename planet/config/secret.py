@@ -32,9 +32,10 @@ mch_id = env.get('MCH_ID')
 mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/order/wechat_notify'
 # 支付宝
-alipay_appid = env.get('ALIPAY_APPID', "2016091900546396")
+alipay_appid = env.get('ALIPAY_APPID', "2018121428491070")
+print(alipay_appid)
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
-alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub.pem')
+alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub1.pem')
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
 # 阿里云短信
 # ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
@@ -51,12 +52,20 @@ ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 kd_api_code = env.get('KDApiKey', 'guess')
 kd_api_url = 'https://kdwlcxf.market.alicloudapi.com/kdwlcx'
 
-
+# 微信公众号的配置
 SERVICE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SERVICE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
 
 SUBSCRIBE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SUBSCRIBE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
+server_dir = os.path.join(BASEDIR, 'wxservice')
+subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
+if not os.path.isdir(server_dir):
+    os.makedirs(server_dir)
+
+if not os.path.isdir(subscribe_dir):
+    os.makedirs(subscribe_dir)
+#
 
 
 class DefaltSettig(object):

@@ -571,7 +571,8 @@ class COrder(CPay, CCoupon):
         """创建订单评价"""
         usid = request.user.id
         user = User.query.filter(User.USid == usid).first_('token错误，无此用户信息')
-        gennerc_log('user {0} is creating a evaluation'.format(user.USname))
+        usname, usheader = user.USname, user.USheader
+        current_app.logger.info('user {0} is creating a evaluation'.format(user.USname))
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
         OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
@@ -610,6 +611,8 @@ class COrder(CPay, CCoupon):
                     'OEid': oeid,
                     'OMid': omid,
                     'USid': usid,
+                    'USname': usname,
+                    'USheader': usheader,
                     'OPid': opid,
                     'OEtext': evaluation.get('oetext', '此用户没有填写评价。'),
                     'OEscore': int(oescore),
@@ -668,6 +671,8 @@ class COrder(CPay, CCoupon):
                         'OEid': oeid,
                         'OMid': omid,
                         'USid': usid,
+                        'USname': usname,
+                        'USheader': usheader,
                         'OPid': i,
                         'OEtext': '此用户没有填写评价。',
                         'OEscore': 5,
@@ -707,13 +712,20 @@ class COrder(CPay, CCoupon):
             filter_args = {'PRid': prid}
         order_evaluation = self.strade.get_order_evaluation(filter_args)
         for order in order_evaluation:
-            eva_user = User.query.filter(User.USid == order.USid).first()
-            eva_user.fields = ['USname', 'USheader']
+            if order.USname and order.USheader:
+                eva_user = {'usname': order['USname'], 'usheader': order['USheader']}
+            else:
+                eva_user = User.query.filter(User.USid == order.USid).first()
+                if eva_user:
+                    eva_user.fields = ['USname', 'USheader']
+                else:
+                    eva_user = {'usname': '神秘的客官', 'usheader': ''}
             order.fill('user', eva_user)
             order.SKUattriteDetail = json.loads(getattr(order, 'SKUattriteDetail') or '[]')
             image = self.strade.get_order_evaluation_image(order.OEid)
             video = self.strade.get_order_evaluation_video(order.OEid)
             zh_oescore = OrderEvaluationScore(order.OEscore).zh_value
+            order.hide('USid', 'USname', 'USheader')
             order.fill('zh_oescore', zh_oescore)
             order.fill('image', image)
             order.fill('video', video)

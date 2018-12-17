@@ -22,7 +22,8 @@ class AAuth(Resource):
 
     def get(self, auth):
         apis = {
-            'fresh': self.cauth.fresh
+            'fresh': self.cauth.fresh,
+            'cookie_test': self.cauth.cookie_test,
         }
         return apis
 

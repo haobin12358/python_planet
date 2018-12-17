@@ -1369,7 +1369,7 @@ class CUser(SUser, BASEAPPROVAL):
         mobile = form.mobile.data
         password = form.password.data
         supplizer = Supplizer.query.filter_by_({'SUloginPhone': mobile}).first_()
-        if not supplizer or supplizer.SUpassword != password:
+        if not supplizer or not check_password_hash(supplizer.SUpassword, password):
             raise NotFound('手机号或密码错误')
         if supplizer.SUstatus == UserStatus.forbidden.value:
             raise StatusError('账户禁用')

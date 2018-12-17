@@ -287,6 +287,7 @@ class CPay():
                 raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
 
         elif opaytype == PayType.alipay.value:
+            current_app.logger.info('选用alipay支付')
             if omclient == Client.wechat.value:
                 raise SystemError('请选用其他支付方式')
             else:

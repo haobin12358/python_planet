@@ -5,11 +5,10 @@ import uuid
 from datetime import datetime
 
 from flask import request, current_app
-from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError
+from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError, TokenError
 from planet.common.params_validates import parameter_required
-from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_tourist, admin_required
+from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin
 from planet.config.enums import ItemType, NewsStatus
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
@@ -30,7 +29,7 @@ class CNews(object):
         if not is_tourist():
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} is geting all news'.format(user.USname))
+            current_app.logger.info('User {0} is geting all news'.format(user.USname))
             tourist = 0
         else:
             usid = None
@@ -42,6 +41,8 @@ class CNews(object):
         nestatus = getattr(NewsStatus, nestatus).value
         userid = None
         if str(itid) == 'mynews':
+            if tourist == 1:
+                raise TokenError('未登录')
             userid = usid
             itid = None
             nestatus = None
@@ -113,7 +114,7 @@ class CNews(object):
         if not is_tourist():
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            gennerc_log('User {0} get news content'.format(user.USname))
+            current_app.logger.info('User {0} get news content'.format(user.USname))
             tourist = 0
         else:
             usid = None
@@ -134,11 +135,14 @@ class CNews(object):
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
         # news_author = self.snews.get_user_by_id(news.USid)
-        news_author = User.query.filter_by(USid=news.USid).first()
-        if news_author:
-            news_author.fields = ['USname', 'USheader']
+        if news.USheader and news.USname:
+            news_author = {'usname': news.USname, 'usheader': news['USheader']}
         else:
-            news_author = {'usname': '神秘的客官', 'usheader': ''}
+            news_author = User.query.filter_by(USid=news.USid).first()
+            if news_author:
+                news_author.fields = ['USname', 'USheader']
+            else:
+                news_author = {'usname': '神秘的客官', 'usheader': ''}
         # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
         news.fill('createtime', news.createtime)
@@ -211,9 +215,16 @@ class CNews(object):
     @token_required
     def create_news(self):
         """创建资讯"""
-        usid = request.user.id
-        user = self.snews.get_user_by_id(usid)
-        gennerc_log('User {0} create a news'.format(user.USname))
+        user = get_current_user()
+        admin = get_current_admin()
+        if user:
+            usid, usname, usheader = user.USid, user.USname, user.USheader
+            current_app.logger.info('User {0} create a news'.format(usname))
+        elif admin:
+            usid, usname, usheader = admin.ADid, admin.ADname, admin.ADheader
+            current_app.logger.info('Admin {0} create a news'.format(usname))
+        else:
+            raise TokenError('用户不存在')
         data = parameter_required(('netitle', 'netext', 'items', 'source'))
         neid = str(uuid.uuid1())
         images = data.get('images')  # [{niimg:'url', nisort:1},]
@@ -229,7 +240,7 @@ class CNews(object):
             session_list = []
             news_info = News.create({
                 'NEid': neid,
-                'USid': request.user.id,
+                'USid': usid,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
                 # 'NEstatus': NewsStatus.auditing.value,
@@ -238,7 +249,9 @@ class CNews(object):
                 'NEmainpic': data.get('nemainpic'),
                 'NEisrecommend': isrecommend,  # todo 管理员后台添加时设置/验证权限
                 'COid': coupon,
-                'PRid': product
+                'PRid': product,
+                'USname': usname,
+                'USheader': usheader
             })
             session_list.append(news_info)
             if images not in self.empty:
@@ -286,7 +299,7 @@ class CNews(object):
         # todo 管理是否只能修改自己发布的 待确认
         usid = request.user.id
         user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        gennerc_log("Admin {} update news".format(user.ADname))
+        current_app.logger.info("Admin {} update news".format(user.ADname))
         data = parameter_required(('neid',))
         neid = data.get('neid')
         images = data.get('images')  # [{niimg:'url', nisort:1},]
@@ -360,7 +373,7 @@ class CNews(object):
         """删除资讯"""
         usid = request.user.id
         user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        gennerc_log("Admin {} del news".format(user.ADname))
+        current_app.logger.info("Admin {} del news".format(user.ADname))
         data = parameter_required(('neid',))
         neid = data.get('neid')
         News.query.filter_by_(NEid=neid).first_('没有该资讯或已被删除')
@@ -382,7 +395,7 @@ class CNews(object):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is favorite news'.format(user.USname))
+            current_app.logger.info('User {0} is favorite/trample news'.format(user.USname))
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
@@ -443,7 +456,7 @@ class CNews(object):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                gennerc_log('User {0} is get news comment'.format(user.USname))
+                current_app.logger.info('User {0} is get news comment'.format(user.USname))
                 tourist = 0
         else:
             usid = None
@@ -466,11 +479,15 @@ class CNews(object):
                                                NewsComment.NCrootid == news_comment.NCid).count()
         favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
         for reply_comment in reply_comments:
-            re_user = self.fill_user_info(reply_comment.USid)
-            reply_comment.fill('commentuser', re_user['USname'])
+            if reply_comment.USname:
+                re_user_name = reply_comment.USname
+            else:
+                re_user = self.fill_user_info(reply_comment.USid)
+                re_user_name = re_user['USname']
+            reply_comment.fill('commentuser', re_user_name)
             replied_user = self.snews.get_comment_reply_user((NewsComment.NCid == reply_comment.NCparentid,))
             repliedusername = replied_user.USname if replied_user else '神秘的客官'
-            if repliedusername == re_user['USname']:
+            if repliedusername == re_user_name:
                 repliedusername = ''
             reply_comment.fill('replieduser', repliedusername)
             if usid:
@@ -478,11 +495,16 @@ class CNews(object):
             else:
                 is_own = 0
             reply_comment.fill('is_own', is_own)
+            reply_comment.hide('USid', 'USname', 'USheader')
         news_comment.fill('favorite_count', favorite_count)
         news_comment.fill('reply_count', reply_count)
         news_comment.fill('reply', reply_comments)
-        user_info = self.fill_user_info(news_comment.USid)
-        user_info = {k.lower(): v for k, v in dict(user_info).items()}  # 回复被删除的用户信息字段转小写
+        news_comment.hide('USname', 'USheader', 'USid')
+        if news_comment.USname and news_comment.USheader:
+            user_info = {"usname": news_comment.USname, "usheader": news_comment['USheader']}
+        else:
+            user_info = self.fill_user_info(news_comment.USid)
+            user_info = {k.lower(): v for k, v in dict(user_info).items()}  # 回复被删除的用户信息字段转小写
         news_comment.fill('user', user_info)
         if usid:
             is_favorite = self.snews.comment_is_favorite(news_comment.NCid, usid)
@@ -503,7 +525,8 @@ class CNews(object):
     def create_comment(self):
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        gennerc_log('User {0} is create comment'.format(user.USname))
+        usname, usheader = user.USname, user.USheader
+        current_app.logger.info('User {0} is create comment'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
         self.snews.get_news_content({'NEid': neid, 'isdelete': False})
@@ -517,6 +540,8 @@ class CNews(object):
                     'NCid': comment_ncid,
                     'NEid': neid,
                     'USid': usid,
+                    'USname': usname,
+                    'USheader': usheader,
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
@@ -536,6 +561,8 @@ class CNews(object):
                     'NCid': reply_ncid,
                     'NEid': neid,
                     'USid': usid,
+                    'USname': usname,
+                    'USheader': usheader,
                     'NCtext': data.get('nctext'),
                     'NCparentid': ncid,
                     'NCrootid': ncrootid,
@@ -551,7 +578,7 @@ class CNews(object):
         """评论点赞"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        gennerc_log('get user is {0}'.format(user.USname))
+        current_app.logger.info('get user is {0}, comment favorite'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
@@ -585,7 +612,7 @@ class CNews(object):
         """删除评论"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        gennerc_log('get user is {0}'.format(user.USname))
+        current_app.logger.info('get user is {0}, del news comment'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
@@ -607,7 +634,7 @@ class CNews(object):
             usinfo = User.query.filter_by(USid=usid).first()
             usinfo.fields = ['USname', 'USheader']
         except Exception as e:
-            gennerc_log("This User has been Deleted, ERROR is {}".format(e))
+            current_app.logger.info("This User has been Deleted, USid is {0}, {1}".format(usid, e))
             usinfo = {"USname": "神秘的客官", "USheader": ""}
         return usinfo
 
@@ -617,7 +644,7 @@ class CNews(object):
         # todo 关联到审批流(拒绝理由)
         usid = request.user.id
         user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        gennerc_log("Admin {} audit news".format(user.ADname))
+        current_app.logger.info("Admin {} audit news".format(user.ADname))
         data = parameter_required(('neid', 'nestatus'))
         neid = data.get('neid')
         nestatus = data.get('nestatus')

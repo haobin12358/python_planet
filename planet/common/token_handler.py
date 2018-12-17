@@ -15,10 +15,11 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
         expiration = current_app.config['TOKEN_EXPIRATION']
     s = Serializer(current_app.config['SECRET_KEY'], expires_in=expiration)
     return s.dumps({
+        'username': username,
         'id': id,
         'model': model,
         'level': level,
-        'username': username
+
     }).decode()
 
 
@@ -70,7 +71,13 @@ def token_required(func):
 def get_current_user():
     usid = request.user.id
     from planet.models import User
-    return User.query.filter(User.USid == usid).first()
+    return User.query.filter(User.USid == usid, User.isdelete == False).first()
+
+
+def get_current_admin():
+    adid = request.user.id
+    from planet.models import Admin
+    return Admin.query.filter(Admin.ADid == adid, Admin.isdelete == False).first()
 
 
 

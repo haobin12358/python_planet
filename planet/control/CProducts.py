@@ -160,7 +160,11 @@ class CProducts:
         ).outerjoin(Items, Items.ITid == ProductItems.ITid)
         # 后台的一些筛选条件
         # 供应源筛选
-        suid = data.get('suid')
+        if is_supplizer():
+            current_app.logger.info('供应商查看自己的商品')
+            suid = request.user.id
+        else:
+            suid = data.get('suid')
         if suid and suid != 'planet':
             query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid)
             filter_args.append(
@@ -317,6 +321,13 @@ class CProducts:
                     }
                     item_product_instance = ProductItems.create(item_product_dict)
                     session_list.append(item_product_instance)
+            # 供应商商品表
+            if is_supplizer():
+                SupplizerProduct.create({
+                    'SPid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'SUid': request.user.id
+                })
             s.add_all(session_list)
         return Success('添加成功', {'prid': prid})
 
@@ -605,10 +616,12 @@ class CProducts:
 
     def _can_add_product(self):
         if is_admin():
+            current_app.logger.info('管理员添加商品')
             self.product_from = ProductFrom.platform.value
             self.prstatus = None
         elif is_supplizer():  # 供应商添加的商品需要审核
-            self.product_from = ProductFrom.shop_keeper.value
+            current_app.logger.info('供应商添加商品')
+            self.product_from = ProductFrom.supplizer.value
             self.prstatus = ProductStatus.auditing.value
         else:
             raise AuthorityError()
