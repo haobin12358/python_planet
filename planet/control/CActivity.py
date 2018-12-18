@@ -138,9 +138,16 @@ class CActivity(CUser):
 
                 if magic_box_join:
                     magic_apply.fill('current_price', magic_box_join.MBJcurrentPrice)
+                    # 判断是否是自己的盒子:
+                    if not is_tourist() and request.user.id == magic_box_join.USid:
+                        can_buy = True
+                    else:
+                        can_buy = False
+                    magic_apply.fill('can_buy', can_buy)
                     # 拆盒记录
                     mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).order_by(MagicBoxOpen.createtime.desc()).limit(4).all()
                     magic_apply.fill('open_history', mbp_history)
+
 
         elif ac_type == 'guess_num':
             apply = Products.query.join(

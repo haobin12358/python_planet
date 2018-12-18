@@ -638,7 +638,7 @@ class CProducts:
 
     @token_required
     def off_shelves(self):
-        """上下架, 包括审核状态"""
+        """上下架, 包括审核状态, 不使用"""
         if not is_admin() and not is_supplizer():
             raise AuthorityError()
         form = ProductOffshelvesForm().valid_data()
@@ -660,6 +660,7 @@ class CProducts:
                 msg = '下架成功'
         return Success(msg)
 
+    @token_required
     def off_shelves_list(self):
         if not is_admin() and not is_supplizer():
             raise AuthorityError()
@@ -674,13 +675,21 @@ class CProducts:
                 query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
                     SupplizerProduct.SUid == request.user.id
                 )
+            product = query.first_('商品已删除')
+            if product.isdelete is True:
+                raise StatusError('商品: {}已删除'.format(product.PRtitle))
+            if ProductStatus(status).name == 'usual':
+                if not product.PCid:
+                    raise StatusError('商品: {}未指定分类'.format(product.PRtitle))  # 上架的商品需要有分类
             offs = query.update({
                 'PRstatus': status
             }, synchronize_session=False)
-            current_app.logger.info('共下架了{}个商品'.format(offs))
+
             if ProductStatus(status).name == 'usual':
+                current_app.logger.info('共上架了{}个商品'.format(offs))
                 msg = '上架成功'
             else:
+                current_app.logger.info('共下架了{}个商品'.format(offs))
                 msg = '下架成功'
         return Success(msg)
 

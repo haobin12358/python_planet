@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import current_app
 from sqlalchemy.dialects.postgresql import json
 
-from planet.common.error_response import StatusError, DumpliError
+from planet.common.error_response import StatusError, DumpliError, NotFound
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, get_current_user
 from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus, OrderFrom, PayType
@@ -38,6 +38,8 @@ class CMagicBox(CUser, COrder):
         magic_box_join = MagicBoxJoin.query.filter_by({'MBJid': mbjid}).first_('请点击好友发来邀请链接')
         if magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
             raise StatusError('已领奖或已过期')
+        if magic_box_join.USid == request.user.id:
+            raise NotFound('仅可打开好友分享的魔盒')
         mbaid = magic_box_join.MBAid
         # 活动是否在进行
         magic_box_apply = MagicBoxApply.query.filter_by_().filter(
@@ -53,9 +55,8 @@ class CMagicBox(CUser, COrder):
             ready_open = MagicBoxOpen.query.filter_by_({'USid': usid,
                                                         'MBJid': mbjid}).first()
             if ready_open:
-                # todo 加上限制
-                pass
-                # raise DumpliError('已经帮好友拆过')
+                raise DumpliError('已经帮好友拆过')
+
             # 价格变动随机
             current_level_str = getattr(magic_box_apply, levle_attr)
             current_level_json = json.loads(current_level_str)  # 列表 ["1-2", "3-4"]
@@ -146,7 +147,6 @@ class CMagicBox(CUser, COrder):
         opaytype = form.opaytype.data
         uaid = form.uaid.data
         usid = request.user.id
-
         magic_box_join = MagicBoxJoin.query.filter_by_({'MBAid': mbaid, 'USid': usid}).first_('未参与')
         if magic_box_join and magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
             raise StatusError('已领奖')

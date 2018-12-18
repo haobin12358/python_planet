@@ -6,7 +6,7 @@ from sqlalchemy import orm, Column as _Column, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base, AbstractConcreteBase
 from sqlalchemy import create_engine
 
-from planet.config.http_config import HTTP_HOST
+from planet.config.http_config import MEDIA_HOST
 from planet.extensions.register_ext import db
 from .error_response import NotFound
 from ..config.secret import DB_PARAMS
@@ -50,13 +50,13 @@ class Base(db.Model):
         res = getattr(self, item)
         if is_url:
             if isinstance(res, str) and not res.startswith('http'):
-                res = HTTP_HOST + res
+                res = MEDIA_HOST + res
         elif is_url_list:
             if res:
                 res = json.loads(res)
                 rs = []
                 for r in res:
-                    rs.append(HTTP_HOST + r if isinstance(r, str) and not r.startswith('http') else r)
+                    rs.append(MEDIA_HOST + r if isinstance(r, str) and not r.startswith('http') else r)
                 res = rs
             else:
                 res = []
@@ -121,15 +121,15 @@ class Base(db.Model):
             is_url_list = getattr(cls_attr, 'url_list', None)
             is_url = getattr(cls_attr, 'url', None)
             if is_url:
-                if isinstance(v, str) and v.startswith(HTTP_HOST):  # 如果链接中有httphost, 则需要去掉
-                    setattr(self, k, v[len(HTTP_HOST):])
+                if isinstance(v, str) and v.startswith(MEDIA_HOST):  # 如果链接中有httphost, 则需要去掉
+                    setattr(self, k, v[len(MEDIA_HOST):])
                 else:
                     setattr(self, k, v)
             elif isinstance(v, list) and is_url_list:
                 v_items = []
                 for v_item in v:
-                    if isinstance(v, str) and v.startswith(HTTP_HOST):
-                        v_items.append(v_item[len(HTTP_HOST):])
+                    if isinstance(v, str) and v.startswith(MEDIA_HOST):
+                        v_items.append(v_item[len(MEDIA_HOST):])
                     else:
                         v_items.append(v_item)
                 setattr(self, k, json.dumps(v_items))
