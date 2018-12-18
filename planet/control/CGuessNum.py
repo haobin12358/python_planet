@@ -63,7 +63,7 @@ class CGuessNum(COrder):
         usid = request.user.id
         join_history = GuessNum.query.filter_(
             GuessNum.USid == usid,
-            cast(GuessNum.createtime, Date) == form.date.data,
+            cast(GuessNum.createtime, Date) == form.date.data.date(),
             GuessNum.isdelete == False
         ).first_()
         if not join_history:
