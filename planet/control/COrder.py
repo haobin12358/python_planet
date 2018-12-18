@@ -77,7 +77,7 @@ class COrder(CPay, CCoupon):
             # 状态
             order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
             order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
-            order_main.add('OMstatus_en', 'OMstatus_zh').hide('OPayno', 'USid', )
+            order_main.add('OMstatus_en', 'OMstatus_zh', 'createtime').hide('OPayno', 'USid', )
             order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
             # 用户
             # todo 卖家订单

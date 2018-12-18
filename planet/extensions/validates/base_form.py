@@ -76,7 +76,7 @@ def _format_value(value):
         return ''
     if isinstance(value, datetime.datetime):
         return value.isoformat().split(".").pop(0)
-    if isinstance(value, int) or isinstance(value, float):
+    if not isinstance(value, int) and isinstance(value, int) or isinstance(value, float):
         # 若不把数字类型转换为 str ，InputValidator() 会把 0 值视为未赋值，导致验证失败
         return str(value)
     return value
