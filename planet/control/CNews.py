@@ -9,7 +9,8 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Aut
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin
-from planet.config.enums import ItemType, NewsStatus
+from planet.config.enums import ItemType, NewsStatus, ApprovalType
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
@@ -20,7 +21,7 @@ from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
 
 
-class CNews(object):
+class CNews(BASEAPPROVAL):
     def __init__(self):
         self.snews = SNews()
         self.empty = ['', {}, [], [''], None]
@@ -97,6 +98,12 @@ class CNews(object):
                     news.fill('netext', netext)
                     showtype = 'text'
             news.fill('showtype', showtype)
+            if news.USheader:
+                usheader = news['USheader']
+            else:
+                usinfo = self.fill_user_info(news.USid)
+                usheader = usinfo['USheader']
+            news.fill('usheader', usheader)
         # 增加搜索记录
         if kw not in self.empty and usid:
             with self.snews.auto_commit() as s:
@@ -291,6 +298,9 @@ class CNews(object):
                     })
                     session_list.append(news_item_info)
             s.add_all(session_list)
+
+            # 添加到审批流
+            self.create_approval(ApprovalType.topublish.value, usid, neid)
         return Success('添加成功', {'neid': neid})
 
     @admin_required

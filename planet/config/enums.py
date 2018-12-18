@@ -266,6 +266,7 @@ class WXLoginFrom(Enum):
     subscribe = 1, '订阅号'
     app = 2, '移动端'
 
+
 class BankName(Enum):
     SRCB = 0, "深圳农村商业银行"
     BGB = 1, "广西北部湾银行"
