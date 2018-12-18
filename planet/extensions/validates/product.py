@@ -18,8 +18,10 @@ class BrandsCreateForm(BaseForm):
     pblogo = StringField(validators=[DataRequired('logo不可为空'), Length(1, 255)])
     pbname = StringField(validators=[DataRequired('名字不可为空'), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
-    pblinks = StringField(validators=[Length(1, 255)])
+    pblinks = StringField()
     itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    pbbackgroud = StringField(validators=[Length(1, 255)])
+
 
 
 class BrandUpdateForm(BaseForm):

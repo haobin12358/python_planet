@@ -84,11 +84,11 @@ class ProductBrand(Base):
     """
     __tablename__ = 'ProductBrand'
     PBid = Column(String(64), primary_key=True)
-    PBlogo = Column(String(255), comment='logo')
+    PBlogo = Column(String(255), comment='logo', url=True)
     PBname = Column(String(32), comment='名字')
     PBdesc = Column(String(255), comment='简介')
     PBlinks = Column(String(255), comment='官网, 待用')
-    PBbackgroud = Column(String(255), comment='背景图')
+    PBbackgroud = Column(String(255), comment='背景图', url=True)
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
 
 

@@ -31,6 +31,8 @@ wxscope = 'snsapi_userinfo'
 mch_id = env.get('MCH_ID')
 mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/order/wechat_notify'
+apiclient_cert = os.path.join(BASEDIR, 'pem', 'apiclient_cert.pem')
+apiclient_key = os.path.join(BASEDIR, 'pem', 'apiclient_key.pem')
 # 支付宝
 alipay_appid = "2018111962237528"
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')

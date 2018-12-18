@@ -25,6 +25,7 @@ class CBrands(object):
         pbdesc = data.pbdesc.data
         pblinks = data.pblinks.data
         itids = data.itids.data
+        pbbackgroud = data.pbbackgroud.data
         with self.sproduct.auto_commit() as s:
             s_list = []
             pbid = str(uuid.uuid4())
@@ -34,6 +35,7 @@ class CBrands(object):
                 'PBname': pbname,
                 'PBdesc': pbdesc,
                 'PBlinks': pblinks,
+                'PBbackgroud': pbbackgroud
             }
             pb_instance = ProductBrand.create(pb_dict)
             s_list.append(pb_instance)

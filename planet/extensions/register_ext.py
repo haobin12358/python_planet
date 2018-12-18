@@ -9,7 +9,7 @@ from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
-    appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis
+    appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -41,7 +41,7 @@ alipay = AliPay(
     debug=True
     # sign_type="RSA2",  # RSA 或者 RSA2
      )
-wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url)
+wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 
 mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,
