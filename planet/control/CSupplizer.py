@@ -8,13 +8,15 @@ from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
-from planet.common.error_response import AuthorityError, ParamsError, DumpliError
+from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound
+from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
+from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer
+from planet.models import Supplizer, ProductBrand, Products
 
 
 class CSupplizer:
@@ -34,12 +36,23 @@ class CSupplizer:
         ).all_with_page()
         for supplizer in supplizers:
             supplizer.hide('SUpassword')
+            if is_admin():
+                pb = ProductBrand.query.filter(
+                    ProductBrand.isdelete == False,
+                    ProductBrand.SUid == supplizer.SUid
+                ).first()
+                if not pb:
+                    continue
+                pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
+                pb.add('pbstatus_zh')
+                supplizer.fill('brand', pb)
         return Success(data=supplizers)
 
     @admin_required
     def create(self):
         """添加"""
         form = SupplizerCreateForm().valid_data()
+        pbids = form.pbids.data
         with db.auto_commit():
             supperlizer = Supplizer.create({
                 'SUid': str(uuid.uuid1()),
@@ -55,6 +68,18 @@ class CSupplizer:
                 'SUcontract': form.sucontract.data,
             })
             db.session.add(supperlizer)
+            if pbids:
+                for pbid in pbids:
+                    product_brand = ProductBrand.query.filter(
+                        ProductBrand.isdelete == False,
+                        ProductBrand.PBid == pbid
+                    ).first()
+                    if not product_brand:
+                        raise NotFound('品牌不存在')
+                    if product_brand.SUid:
+                        raise DumpliError('品牌已有供应商')
+                    product_brand.SUid = supperlizer.SUid
+                    db.session.add(product_brand)
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
     def update(self):
@@ -62,6 +87,7 @@ class CSupplizer:
         if not is_admin() and not is_supplizer():
             raise AuthorityError()
         form = SupplizerUpdateForm().valid_data()
+        pbids = form.pbids.data
         with db.auto_commit():
             supplizer = Supplizer.query.filter(
                 Supplizer.isdelete == False,
@@ -80,6 +106,28 @@ class CSupplizer:
                 'SUcontract': form.sucontract.data,
             }, null='dont ignore')
             db.session.add(supplizer)
+            if pbids and is_admin():
+                for pbid in pbids:
+                    product_brand = ProductBrand.query.filter(
+                        ProductBrand.isdelete == False,
+                        ProductBrand.PBid == pbid
+                    ).first()
+                    if not product_brand:
+                        raise NotFound('品牌不存在')
+                    if product_brand.SUid and product_brand.SUid != supplizer.SUid:
+                        raise DumpliError('品牌已有供应商')
+                    # if product_brand.PBstatus ==
+                    # todo 品牌已下架
+                    product_brand.SUid = form.suid.data
+                    db.session.add(product_brand)
+                # 删除其他的关联
+                ProductBrand.query.filter(
+                    ProductBrand.isdelete == False,
+                    ProductBrand.SUid == form.suid.data,
+                    ProductBrand.PBid.notin_(pbids)
+                ).update({
+                    'SUid': None
+                }, synchronize_session=False)
         return Success('更新成功')
 
     @token_required
@@ -90,6 +138,43 @@ class CSupplizer:
         supplizer = form.supplizer
         supplizer.hide('SUpassword')
         return Success(data=supplizer)
+
+    @admin_required
+    def offshelves(self):
+        current_app.logger.info('下架供应商')
+        data = parameter_required(('suid', ))
+        suid = data.get('suid')
+        with db.auto_commit():
+            supplizer = Supplizer.query.filter(
+                Supplizer.isdelete == False,
+                Supplizer.SUid == suid
+            ).first_('供应商不存在')
+            supplizer.SUstatus = UserStatus.forbidden.value
+            db.session.add(supplizer)
+            # 供应商的品牌也下架
+            brand_count = ProductBrand.query.filter(
+                ProductBrand.isdelete == False,
+                ProductBrand.PBstatus == ProductBrandStatus.upper.value,
+                ProductBrand.SUid == suid
+            ).update({
+                'PBstatus':  ProductBrandStatus.off_shelves.value
+            })
+            current_app.logger.info('共下架了 {}个品牌'.format(brand_count))
+            # 供应商的商品下架
+            products_count = Products.query.filter(
+                Products.isdelete == False,
+                Products.PRstatus != ProductStatus.off_shelves.value,
+                Products.CreaterId == suid
+            ).update({
+                'PRstatus': ProductStatus.off_shelves.value,
+            })
+            current_app.logger.info('共下架了 {}个商品'.format(products_count))
+        return Success('供应商下架成功')
+
+
+
+
+
 
     @token_required
     def change_password(self):
@@ -109,8 +194,6 @@ class CSupplizer:
             supplizer.SUpassword = generate_password_hash(supassword)
             db.session.add(supplizer)
         return Success('修改成功')
-
-
 
     @token_required
     def reset_password(self):

@@ -20,5 +20,6 @@ class ASupplizer(Resource):
             'update': self.csupplizer.update,
             'reset_password': self.csupplizer.reset_password,
             'change_password': self.csupplizer.change_password,
+            'offshelves': self.csupplizer.offshelves,
         }
         return apis

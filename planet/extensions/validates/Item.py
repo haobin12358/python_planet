@@ -27,7 +27,7 @@ class ItemListForm(BaseForm):
 
 class ItemCreateForm(BaseForm):
     """创建标签"""
-    psid = StringField('场景id')
+    psid = FieldList(StringField())
     itname = StringField('标签名字', validators=[DataRequired('itname不可为空')])
     itsort = IntegerField()
     itdesc = StringField()
@@ -52,4 +52,11 @@ class ItemCreateForm(BaseForm):
                 ItemAuthrity(raw.data)
             except Exception as e:
                 raise ParamsError('itauthority权限设置不合法')
+
+
+class ItemUpdateForm(ItemCreateForm):
+    ITid = StringField(validators=[DataRequired('标签不可为空')])
+
+
+
 

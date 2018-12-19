@@ -217,7 +217,6 @@ class CProducts:
 
     @token_required
     def add_product(self):
-        # todo 详细介绍
         self._can_add_product()
         data = parameter_required((
             'pcid', 'pbid', 'prtitle', 'prprice', 'prattribute',
@@ -230,6 +229,8 @@ class CProducts:
         prdescription = data.get('prdescription')  # 简要描述
         product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
+        if is_supplizer() and product_brand.SUid == request.user.id:
+            raise AuthorityError('仅可添加至指定品牌')
         prstocks = 0
         with self.sproduct.auto_commit() as s:
             session_list = []
@@ -343,7 +344,7 @@ class CProducts:
                 session_list.append(Approval.create({
                     'AVid': str(uuid.uuid1()),
                     'AVname': 'topublish' + datetime.now().strftime('%Y%m%d%H%M%S'),
-                    'AVtype': PermissionType.topublish.value,
+                    'AVtype': PermissionType.toshelves.value,
                     'AVstartid': request.user.id,
                     'AVstatus': 0,
                     # 'AVlevel': '',

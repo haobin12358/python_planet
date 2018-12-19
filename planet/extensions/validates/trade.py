@@ -2,7 +2,7 @@
 from wtforms.ext.sqlalchemy.orm import model_form
 
 from planet.common.error_response import AuthorityError, StatusError
-from planet.common.token_handler import is_admin
+from planet.common.token_handler import is_admin, is_supplizer
 from planet.config.enums import OrderMainStatus, OrderRefundOrstatus
 from planet.models import Products, ProductBrand, ProductCategory
 from planet.models.trade import OrderMain, Coupon, OrderRefund, LogisticsCompnay
@@ -39,15 +39,8 @@ class OrderListForm(BaseForm):
             raise e
 
     def validate_usid(self, raw):
-        if not is_admin():  # 非管理员, 不可以制定他人usid
-            if not raw.data:
-                raw.data = request.user.id
-            if raw.data != request.user.id:
-                raise AuthorityError()
-            usid = raw.data
-        else:
-            usid = raw.data  # 管理员可以任意筛选usid
-        self.usid.data = usid
+        if not is_admin() and not is_supplizer():  # 非管理员, 不可以制定他人usid
+            self.usid.data = request.user.id
 
     def validate_issaler(self, raw):
         """是否卖家"""

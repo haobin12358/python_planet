@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 import uuid
 
+from flask import current_app
 from sqlalchemy import or_
 
 from planet.common.params_validates import parameter_required
 from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType
+from planet.extensions.register_ext import db
 from planet.service.SProduct import SProducts
-from planet.models import ProductBrand, Products, Items, BrandWithItems
+from planet.models import ProductBrand, Products, Items, BrandWithItems, Supplizer
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
-from planet.extensions.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm
+from planet.common.token_handler import token_required, is_supplizer, is_admin
+from planet.extensions.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm, request
 
 
 class CBrands(object):
@@ -25,17 +27,19 @@ class CBrands(object):
         pbdesc = data.pbdesc.data
         pblinks = data.pblinks.data
         itids = data.itids.data
+        suid = data.suid.data
         pbbackgroud = data.pbbackgroud.data
         with self.sproduct.auto_commit() as s:
             s_list = []
-            pbid = str(uuid.uuid4())
+            pbid = str(uuid.uuid1())
             pb_dict = {
                 'PBid': pbid,
                 'PBlogo': pblogo,
                 'PBname': pbname,
                 'PBdesc': pbdesc,
                 'PBlinks': pblinks,
-                'PBbackgroud': pbbackgroud
+                'PBbackgroud': pbbackgroud,
+                'SUid': suid
             }
             pb_instance = ProductBrand.create(pb_dict)
             s_list.append(pb_instance)
@@ -50,18 +54,41 @@ class CBrands(object):
                         'PBid': pbid
                     })
                     s_list.append(brand_with_pbitem_instance)
+
             s.add_all(s_list)
         return Success('添加成功', {'pbid': pb_instance.PBid})
 
     def list(self):
         form = BrandsListForm().valid_data()
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
+        free = dict(form.free.choices).get(form.free.data)
         itid = form.itid.data
         itid = itid.split('|') if itid else []
-        print(itid)
-        brands = ProductBrand.query.join(
-            BrandWithItems, ProductBrand.PBid == BrandWithItems.PBid
-        ).filter_(ProductBrand.PBstatus == pbstatus).all_with_page()
+        brand_query = ProductBrand.query.filter_(
+            ProductBrand.isdelete == False,
+            ProductBrand.PBstatus == pbstatus
+        )
+        if itid:
+            brand_query = brand_query.join(
+                BrandWithItems, ProductBrand.PBid == BrandWithItems.PBid
+            ).filter(
+                BrandWithItems.isdelete == False,
+                BrandWithItems.ITid.in_(itid)
+            )
+        if is_supplizer():
+            current_app.logger.info('供应商查看品牌列表..')
+            brand_query = brand_query.filter(
+                ProductBrand.SUid == request.user.id
+            )
+        if free is True:
+            brand_query = brand_query.filter(
+                ProductBrand.SUid.is_(None)
+            )
+        elif free is False:
+            brand_query = brand_query.filter(
+                ProductBrand.SUid.isnot(None)
+            )
+        brands = brand_query.all_with_page()
         for brand in brands:
             brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
             brand.fill('PBstatus_zh', ProductBrandStatus(brand.PBstatus).zh_value)
@@ -72,6 +99,18 @@ class CBrands(object):
                 BrandWithItems.isdelete == False,
             ).all()
             brand.fill('items', pb_items)
+            if is_admin() and brand.SUid:
+                supplizer = Supplizer.query.filter(
+                    Supplizer.isdelete == False,
+                    Supplizer.SUid == brand.SUid
+                ).first()
+                if not supplizer:
+                    with db.auto_commit():
+                        brand.SUid = None
+                        db.session.add(brand)
+                    continue
+                supplizer.fields = ['SUloginPhone', 'SUlinkPhone', 'SUname', 'SUlinkman', 'SUheader']
+                brand.fill('supplizer', supplizer)
         return Success(data=brands)
 
     def get(self):
@@ -124,19 +163,28 @@ class CBrands(object):
 
     @token_required
     def update(self):
-        form = BrandUpdateForm().valid_data()
-        pbid = form.pbid.data
-        itids = form.itids.data
+        data = BrandUpdateForm().valid_data()
+        pblogo = data.pblogo.data
+        pbname = data.pbname.data
+        pbdesc = data.pbdesc.data
+        pblinks = data.pblinks.data
+        itids = data.itids.data
+        suid = data.suid.data
+        pbbackgroud = data.pbbackgroud.data
+        pbid = data.pbid.data
+
         with self.sproduct.auto_commit() as s:
             s_list = []
             product_brand_instance = s.query(ProductBrand).filter_by_({
                 'PBid': pbid
             }).first_('不存在的品牌')
             product_brand_instance.update({
-                'PBlogo': form.pblogo.data,
-                'PBname': form.pbname.data,
-                'pbdesc': form.pbdesc.data,
-                'pblinks': form.pblinks.data,
+                'PBlogo': pblogo,
+                'PBname': pbname,
+                'PBdesc': pbdesc,
+                'PBlinks': pblinks,
+                'PBbackgroud': pbbackgroud,
+                'SUid': suid
             })
             s_list.append(product_brand_instance)
             # 品牌已经关联的中间

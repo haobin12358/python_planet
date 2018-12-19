@@ -16,7 +16,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus
@@ -38,12 +38,9 @@ class COrder(CPay, CCoupon):
     def list(self):
         form = OrderListForm().valid_data()
         usid = form.usid.data
-        issaler = form.issaler.data  # 是否是卖家
         filter_args = form.omstatus.data  # 过滤参数
         omfrom = form.omfrom.data  # 来源
-        if issaler:  # 卖家
-            filter_args.append(OrderMain.PRcreateId == usid)  # todo
-        else:
+        if usid:
             filter_args.append(OrderMain.USid == usid)
         # 过滤下活动产生的订单
         if omfrom is None:
@@ -53,8 +50,15 @@ class COrder(CPay, CCoupon):
         else:
             filter_args.append(OrderMain.OMfrom == omfrom)
             filter_args.append(OrderMain.OMinRefund == False)
-        order_mains = self.strade.get_ordermain_list(filter_args)
 
+        order_main_query = OrderMain.query.filter_(*filter_args, OrderMain.isdelete == False
+                                 ).order_by(OrderMain.createtime.desc())
+        # order_mains = self.strade.get_ordermain_list(filter_args)
+        if is_supplizer():
+            order_main_query = order_main_query.filter(
+                OrderMain.PRcreateId == request.user.id
+            )
+        order_mains = order_main_query.all_with_page()
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
@@ -81,7 +85,7 @@ class COrder(CPay, CCoupon):
             order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
             # 用户
             # todo 卖家订单
-            if is_admin():
+            if is_admin() or is_supplizer():
                 user = User.query.filter_by_({'USid': usid}).first_()
                 if user:
                     user.fields = ['USname', 'USheader', 'USgender']
@@ -156,8 +160,14 @@ class COrder(CPay, CCoupon):
                 self.__buy_upgrade_gift(
                     infos, s, omfrom, omclient, omrecvaddress,
                     omrecvname, omrecvphone, opaytype, activation_code)
-                return Success('购买商品大礼包成功')
+                res = {
+                    'pay_type': PayType(opaytype).name,
+                    'opaytype': opaytype,
+                    'args': 'codepay'
+                }
+                return Success('购买商品大礼包成功', data=res)
             # 分订单
+            # todo 是否按照供应商拆分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
@@ -350,6 +360,7 @@ class COrder(CPay, CCoupon):
                     'OMrecvAddress': omrecvaddress,
                     'UseCoupon': bool(coupons),
                     'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
+                    'PRcreateId': product_brand_instance.SUid,
                 }
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
@@ -766,15 +777,14 @@ class COrder(CPay, CCoupon):
         """各状态订单的数量"""
         form = OrderListForm().valid_data()
         usid = form.usid.data
-        issaler = form.issaler.data  # 是否是卖家
         extentions = form.extentions.data  # 是否扩展的查询
         ordertype = form.ordertype.data  # 区分活动订单
-        if not issaler:
-            filter_args = [OrderMain.USid == usid]
-        else:
+        filter_args = []
+        if usid:
+            filter_args.append(OrderMain.USid == usid)
+        if is_supplizer():
             # 是卖家, 卖家订单显示有问题..
-            filter_args = [OrderMain.PRcreateId == usid]
-
+            filter_args.append(OrderMain.PRcreateId == usid)
         # 获取各类活动下的订单数量
         if ordertype == 'act':
             data = [
