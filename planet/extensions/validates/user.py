@@ -30,7 +30,6 @@ class SupplizerGetForm(BaseForm):
         self.supplizer = supplizer
 
 
-
 class SupplizerCreateForm(BaseForm):
     suloginphone = StringField('登录手机号', validators=[
         DataRequired('手机号不可以为空'),
@@ -45,6 +44,7 @@ class SupplizerCreateForm(BaseForm):
     supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
+    pbids = FieldList(StringField('品牌'))
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(

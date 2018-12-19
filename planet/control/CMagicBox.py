@@ -149,7 +149,7 @@ class CMagicBox(CUser, COrder):
         usid = request.user.id
         magic_box_join = MagicBoxJoin.query.filter_by_({'MBAid': mbaid, 'USid': usid}).first_('未参与')
         if magic_box_join and magic_box_join.MBJstatus != ActivityRecvStatus.wait_recv.value:
-            raise StatusError('已领奖')
+            raise StatusError('本期已领奖')
 
         with db.auto_commit():
             magic_box_apply = MagicBoxApply.query.filter_by_({"MBAid": mbaid}).first()

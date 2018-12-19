@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from planet.config.enums import ProductStatus, ItemType
-from planet.models import ProductBrand
+from planet.models import ProductBrand, Supplizer
 from .base_form import *
 
 
@@ -12,6 +12,7 @@ class BrandsListForm(BaseForm):
                              default='desc')
     pbstatus = SelectField('状态', choices=[('upper', 0), ('off_shelves', 10), ('all', None)], default='upper')
     itid = StringField('品牌标签id')
+    free = SelectField(choices=[('false', False), ('true', True), ('all', 'all')], default='all')
 
 
 class BrandsCreateForm(BaseForm):
@@ -20,17 +21,20 @@ class BrandsCreateForm(BaseForm):
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField()
     itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    suid = StringField()
     pbbackgroud = StringField(validators=[Length(1, 255)])
 
+    def validate_suid(self, raw):
+        if raw.data:
+            Supplizer.query.filter(
+                Supplizer.isdelete == False,
+                Supplizer.SUid == raw.data
+            ).first_('不存在的供应商')
 
 
-class BrandUpdateForm(BaseForm):
+
+class BrandUpdateForm(BrandsCreateForm):
     pbid = StringField(validators=[DataRequired('bpid不可为空'), Length(1, 64)])
-    pblogo = StringField()
-    pbname = StringField()
-    pbdesc = StringField()
-    pblinks = StringField()
-    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
 
 
 class ProductOffshelvesForm(BaseForm):

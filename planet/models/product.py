@@ -90,6 +90,7 @@ class ProductBrand(Base):
     PBlinks = Column(String(255), comment='官网, 待用')
     PBbackgroud = Column(String(255), comment='背景图', url=True)
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
+    SUid = Column(String(64), comment='品牌供应商, 为空则为平台')
 
 
 class BrandWithItems(Base):
