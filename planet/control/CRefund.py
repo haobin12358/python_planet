@@ -198,7 +198,7 @@ class CRefund(object):
         return Success(msg)
 
     @token_required
-    def confirm_to_refund(self):
+    def back_confirm(self):
         """执行退款退款中的最后一步退款"""
         data = parameter_required(('oraid', 'agree'))
         oraid = data.get('oraid')
@@ -237,6 +237,11 @@ class CRefund(object):
                 old_total_fee=order_pay_instance.OPayMount
             )
             msg = '已同意, 正在退款'
+
+    @token_required
+    def back_confirm(self):
+        """后台收货"""
+
 
 
     @token_required
