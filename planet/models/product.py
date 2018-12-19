@@ -157,7 +157,7 @@ class ProductCategory(Base):
     PCname = Column(String(16), nullable=False, comment='类别名')
     PCdesc = Column(String(125), comment='类别描述')
     ParentPCid = Column(String(64), comment='父类别id, 为空则为一级主类别')
-    PCsort = Column(String(64), comment='显示顺序')
+    PCsort = Column(Integer, comment='显示顺序')
     PCpic = Column(String(255), comment='图片', url=True)
     PCtopPic = Column(String(255), url=True, comment='一级分类顶部图')
 
@@ -171,7 +171,7 @@ class Supplizer(Base):
     SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
-    SUstatus = Column(Integer, default=0, comment='状态, 0 正常 10 禁用')
+    SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
