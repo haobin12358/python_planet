@@ -12,6 +12,8 @@ class ProductStatus(Enum):
     """商品状态"""
     usual = (0, '上架中')
     auditing = (10, '审核中')
+    reject = 30, '审核失败',
+    sell_out = 40, '售罄'
     off_shelves = (60, '已下架')
     all = None
 
@@ -263,6 +265,7 @@ class WXLoginFrom(Enum):
     service = 0, '服务号'
     subscribe = 1, '订阅号'
     app = 2, '移动端'
+
 
 class BankName(Enum):
     SRCB = 0, "深圳农村商业银行"

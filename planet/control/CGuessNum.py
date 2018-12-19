@@ -63,10 +63,16 @@ class CGuessNum(COrder):
         usid = request.user.id
         join_history = GuessNum.query.filter_(
             GuessNum.USid == usid,
-            cast(GuessNum.createtime, Date) == form.date.data,
+            cast(GuessNum.createtime, Date) == form.date.data.date(),
             GuessNum.isdelete == False
-        ).first_('未参与')
-
+        ).first_()
+        if not join_history:
+            if form.date.data.date() == date.today():
+                return Success('今日未参与')
+            elif form.date.data.date() == date.today() - timedelta(days=1):
+                raise NotFound('昨日未参与')
+            else:
+                raise NotFound('未参与')
         if join_history:
             correct_num = CorrectNum.query.filter(
                 CorrectNum.CNdate == join_history.GNdate

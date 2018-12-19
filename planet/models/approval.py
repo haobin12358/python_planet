@@ -12,7 +12,7 @@ class Approval(Base):
     # AVtype = Column(Integer, default=1, comment='审批流类型 1: 成为代理商审批 2:商品上架审批 3:订单退换货审批, 4: 提现审批 5: 用户资讯发布审批')
     AVstartid = Column(String(64), nullable=False, comment='发起人')
     AVlevel = Column(String(64), comment='当前审批人等级')
-    AVstatus = Column(Integer, default=1, comment='审批状态 -20已取消 -10 拒绝 0 未审核 10审核通过')
+    AVstatus = Column(Integer, default=0, comment='审批状态 -20已取消 -10 拒绝 0 未审核 10审核通过')
     AVcontent = Column(String(64), comment='待审批的对象')
     PTid = Column(String(64), comment='审批流类型id')
 

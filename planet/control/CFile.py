@@ -48,6 +48,8 @@ class CFile(object):
     def _upload_file(self, file, folder):
         filename = file.filename
         shuffix = os.path.splitext(filename)[-1]
+        current_app.logger.info(">>>  Upload File Shuffix is {0}  <<<".format(shuffix))
+        shuffix = shuffix.lower()
         if self.allowed_file(shuffix):
             img_name = self.new_name(shuffix)
             time_now = datetime.now()
@@ -62,7 +64,7 @@ class CFile(object):
             data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
                                                                           month=month, day=day,
                                                                           img_name=img_name)
-            if shuffix in ['.mp4', '.avi', '.wmv']:
+            if shuffix in ['.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']:
                 upload_type = 'video'
                 # 生成视频缩略图
                 thum_origin_name = img_name.split('.')[0]
@@ -91,9 +93,10 @@ class CFile(object):
                 # 生成压缩图
                 thumbnail_img = CompressPicture.resize_img(ori_img=newFile, ratio=0.5, save_q=45)
                 data += '_' + thumbnail_img.split('_')[-1]
+            current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(data))
             return data, video_thum, video_dur, upload_type
         else:
-            return SystemError(u'上传有误')
+            raise SystemError(u'上传有误, 不支持的文件类型 {}'.format(shuffix))
 
     def remove(self):
         data = parameter_required(('img_url', ))
@@ -112,7 +115,7 @@ class CFile(object):
 
     @staticmethod
     def allowed_file(shuffix):
-        return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv']
+        return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']
 
     @staticmethod
     def allowed_folder(folder):

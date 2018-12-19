@@ -16,7 +16,7 @@ User = namedtuple('User', ('id', 'model', 'level'))
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        current_app.logger.info('>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<'.format('before request'))
+        current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
         parameter = request.args.to_dict()
         token = parameter.get('token')
         if token:
@@ -78,16 +78,16 @@ def gennerc_log(data, info='info'):
     if isinstance(data, Exception):
         data = traceback.format_exc()
         info = 'bug'
-    current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
+    # current_app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format(info))
 
     if info == 'info':
         current_app.logger.info(data)
     else:
         current_app.logger.error(data)
-    try:
-        current_app.logger.info(request.detail)
-    except Exception as e:
-        current_app.logger.error(traceback.format_exc())
+    # try:
+    #     current_app.logger.info(request.detail)
+    # except Exception as e:
+    #     current_app.logger.error(traceback.format_exc())
 
 
 def check_mem():

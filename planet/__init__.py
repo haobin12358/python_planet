@@ -91,15 +91,16 @@ class Request(_Request):
 
     @property
     def detail(self):
-        return {
+        res = {
             'path': self.path,
             'method': self.method,
-            'args': self.args.to_dict(),
             'data': self.data.decode(),
-            'file': self.files,
-            'form': dict(self.form),
+            'query': self.args.to_dict(),
             'address': self.remote_addr
         }
+        if self.files:
+            res.setdefault('form', dict(self.files))
+        return res
 
     @property
     def remote_addr(self):

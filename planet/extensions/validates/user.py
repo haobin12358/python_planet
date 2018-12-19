@@ -92,9 +92,29 @@ class SupplizerSendCodeForm(BaseForm):
     ])
 
 
-class SupplizerChangePasswordForm(SupplizerSendCodeForm):
+class SupplizerResetPasswordForm(BaseForm):
+    suloginphone = StringField('登录手机号', validators=[
+        DataRequired('手机号不可以为空'),
+        Regexp('^1\d{10}$', message='手机号格式错误'),
+    ])
+    suid = StringField('供应商id')
     code = StringField('验证码')
     supassword = StringField(validators=[DataRequired('验证码不可为空')])
+
+    def validate_suid(self, raw):
+        if is_supplizer():
+            self.suid.data = request.user.id
+
+
+class SupplizerChangePasswordForm(BaseForm):
+    suid = StringField('供应商id')
+    supassword = StringField(validators=[DataRequired('验证码不可为空')])
+    oldpassword = StringField('旧密码')
+
+    def validate_suid(self, raw):
+        if is_supplizer():
+            self.suid.data = request.user.id
+
 
 
 

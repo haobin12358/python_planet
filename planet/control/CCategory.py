@@ -5,6 +5,7 @@ from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
+from planet.config.enums import ProductStatus
 from planet.extensions.register_ext import db
 from planet.models import ProductCategory, Products
 from .CProducts import CProducts
@@ -60,30 +61,25 @@ class CCategory(CProducts):
         pcid = data.get('pcid')
         with self.sproduct.auto_commit() as s:
             product_category_instance = s.query(ProductCategory).filter_by_({'PCid': pcid}).first_('该分类不存在')
-            # 遍历所有的下一级分类
-            sub_ids = self._sub_category_id(pcid)
-            # 下级所有的分类都删除
-            s.query(ProductCategory).filter_(ProductCategory.PCid.in_(sub_ids)).delete_(synchronize_session=False)
-            # 该分类下的商品挂在上一级
-            parent_catetgory_id = product_category_instance.ParentPCid
-            if not parent_catetgory_id:
-                # 如果没有父级目录, 商品状态改为无分类
-                s.query(Products).filter_(Products.PCid.in_(sub_ids)).update({
-                    'PCid': 'null'
-                }, synchronize_session=False)
-            else:
-                parent_catetgory_instance = s.query(ProductCategory).filter_by_({'PCid': parent_catetgory_id}).first_()
-                if not parent_catetgory_instance:   # 父级目录已删除
-                    s.query(Products).filter_(Products.PCid.in_(sub_ids)).update({
-                        'PCid': 'null'
-                    }, synchronize_session=False)
-                else:
-                    pass
-                    s.query(Products).filter_by_({
-                        'PCid': pcid
-                    }).update({
-                        'PCid': parent_catetgory_id
-                    }, synchronize_session=False)
+            product_category_instance.isdelete = True
+            s.add(product_category_instance)
+            s.query(Products).filter_(Products.PCid == product_category_instance.PCid).update({
+                'PRstatus': ProductStatus.off_shelves.value,
+                'PCid': None
+            }, synchronize_session=False)
+            # else:
+            #     parent_catetgory_instance = s.query(ProductCategory).filter_by_({'PCid': parent_catetgory_id}).first_()
+            #     if not parent_catetgory_instance:   # 父级目录已删除
+            #         s.query(Products).filter_(Products.PCid.in_(sub_ids)).update({
+            #             'PCid': 'null'
+            #         }, synchronize_session=False)
+            #     else:
+            #         pass
+            #         s.query(Products).filter_by_({
+            #             'PCid': pcid
+            #         }).update({
+            #             'PCid': parent_catetgory_id
+            #         }, synchronize_session=False)
         return Success('删除成功')
 
     def update(self):

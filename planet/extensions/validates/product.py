@@ -18,8 +18,10 @@ class BrandsCreateForm(BaseForm):
     pblogo = StringField(validators=[DataRequired('logo不可为空'), Length(1, 255)])
     pbname = StringField(validators=[DataRequired('名字不可为空'), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
-    pblinks = StringField(validators=[Length(1, 255)])
+    pblinks = StringField()
     itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    pbbackgroud = StringField(validators=[Length(1, 255)])
+
 
 
 class BrandUpdateForm(BaseForm):
@@ -43,6 +45,27 @@ class ProductOffshelvesForm(BaseForm):
         except Exception as e:
             raise ValidationError(message='status 参数错误')
         self.status = value
+
+
+class ProductOffshelvesListForm(BaseForm):
+    prids = FieldList(StringField(), validators=[DataRequired('prid不可为空')])
+    status = IntegerField()
+
+    def validate_status(self, value):
+        try:
+            if value.data in [ProductStatus.all.value, ProductStatus.auditing.value, None]:
+                raise Exception
+            ProductStatus(value.data)
+        except Exception as e:
+            raise ValidationError(message='status 参数错误')
+        self.status = value
+
+
+class ProductApplyAgreeForm(BaseForm):
+    """商品同意或拒绝"""
+    prids = FieldList(StringField(), validators=[DataRequired('prids不可为空')])
+    agree = BooleanField()
+    anabo = StringField()
 
 
 class SceneCreateForm(BaseForm):

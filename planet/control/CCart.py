@@ -112,7 +112,11 @@ class CCart(object):
                 continue
             product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
+            if not pb:
+                continue
             cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
+            if not cart_sku:
+                continue
             cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
             # skuvalue = self.sproduct.get_sku_value({'PRid': cart.PRid})   # 商品的skuvalue
             # 填充商品

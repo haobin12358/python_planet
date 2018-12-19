@@ -58,10 +58,10 @@ class GuessNumGetForm(BaseForm):
 
     def validate_date(self, raw):
         if raw.data == 'today':
-            raw.data = date.today()
+            self.date.data = datetime.datetime.today()
         else:
             try:
-                raw.data = datetime.datetime.strptime(raw.data, '%Y%m%d')
+                self.date.data = datetime.datetime.strptime(raw.data, '%Y%m%d')
             except ValueError as e:
                 raise ParamsError('请输入正确的日期')
 
