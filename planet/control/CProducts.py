@@ -344,7 +344,7 @@ class CProducts:
                 session_list.append(Approval.create({
                     'AVid': str(uuid.uuid1()),
                     'AVname': 'topublish' + datetime.now().strftime('%Y%m%d%H%M%S'),
-                    'AVtype': PermissionType.topublish.value,
+                    'AVtype': PermissionType.toshelves.value,
                     'AVstartid': request.user.id,
                     'AVstatus': 0,
                     # 'AVlevel': '',

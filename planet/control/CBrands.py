@@ -6,10 +6,11 @@ from sqlalchemy import or_
 
 from planet.common.params_validates import parameter_required
 from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType
+from planet.extensions.register_ext import db
 from planet.service.SProduct import SProducts
-from planet.models import ProductBrand, Products, Items, BrandWithItems
+from planet.models import ProductBrand, Products, Items, BrandWithItems, Supplizer
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_supplizer
+from planet.common.token_handler import token_required, is_supplizer, is_admin
 from planet.extensions.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm, request
 
 
@@ -98,6 +99,18 @@ class CBrands(object):
                 BrandWithItems.isdelete == False,
             ).all()
             brand.fill('items', pb_items)
+            if is_admin() and brand.SUid:
+                supplizer = Supplizer.query.filter(
+                    Supplizer.isdelete == False,
+                    Supplizer.SUid == brand.SUid
+                ).first()
+                if not supplizer:
+                    with db.auto_commit():
+                        brand.SUid = None
+                        db.session.add(brand)
+                    continue
+                supplizer.fields = ['SUloginPhone', 'SUlinkPhone', 'SUname', 'SUlinkman', 'SUheader']
+                brand.fill('supplizer', supplizer)
         return Success(data=brands)
 
     def get(self):
