@@ -156,7 +156,12 @@ class COrder(CPay, CCoupon):
                 self.__buy_upgrade_gift(
                     infos, s, omfrom, omclient, omrecvaddress,
                     omrecvname, omrecvphone, opaytype, activation_code)
-                return Success('购买商品大礼包成功')
+                res = {
+                    'pay_type': PayType(opaytype).name,
+                    'opaytype': opaytype,
+                    'args': 'codepay'
+                }
+                return Success('购买商品大礼包成功', data=res)
             # 分订单
             for info in infos:
                 order_price = Decimal()  # 订单实际价格

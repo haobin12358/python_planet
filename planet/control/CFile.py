@@ -17,6 +17,7 @@ from planet.config.http_config import API_HOST
 class CFile(object):
     @token_required
     def upload_img(self):
+        self.check_file_size()
         file = request.files.get('file')
         data = parameter_required()
         folder = self.allowed_folder(data.get('type'))
@@ -27,6 +28,7 @@ class CFile(object):
 
     @token_required
     def batch_upload(self):
+        self.check_file_size()
         files = request.files.to_dict()
         if len(files) > 9:
             raise ParamsError('最多可同时上传9张图片')
@@ -113,13 +115,19 @@ class CFile(object):
             raise NotFound()
         return Success(u'删除成功')
 
+    def check_file_size(self):
+        max_file_size = 20 * 1024 * 1024
+        if request.content_length > max_file_size:
+            raise ParamsError("上传文件过大，请上传小于20MB的文件")
+
     @staticmethod
     def allowed_file(shuffix):
-        return shuffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']
+        return shuffix in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']
 
     @staticmethod
     def allowed_folder(folder):
-        return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar', 'voucher'] else 'temp'
+        return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar',
+                                    'voucher', 'idcard'] else 'temp'
 
     def new_name(self, shuffix):
         import string, random  # import random
