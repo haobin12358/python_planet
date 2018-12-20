@@ -19,6 +19,7 @@ class CItems:
         form = ItemListForm().valid_data()
         ittype = form.ittype.data
         psid = form.psid.data
+        kw = form.kw.data
         recommend = form.recommend.data
         recommend = True if str(recommend) == '1' else None
 
@@ -28,7 +29,7 @@ class CItems:
                                           Items.ITposition != ItemPostion.other.value,
                                           ).order_by(Items.ITsort, Items.ITid)
 
-        if ittype == ItemType.product.value or psid:
+        if psid:
             items_query = items_query.outerjoin(SceneItem, SceneItem.ITid == Items.ITid
                                                 ).filter_(SceneItem.isdelete == False,
                                                           SceneItem.PSid == psid,
@@ -39,6 +40,10 @@ class CItems:
                                                                    ItemPostion.news_bind.value]
                                                                   )
                                              )
+        if kw:
+            items_query = items_query.filter(
+                Items.ITname.contains(kw)
+            )
         items = items_query.all()
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
