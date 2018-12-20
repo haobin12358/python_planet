@@ -13,6 +13,7 @@ class BrandsListForm(BaseForm):
     pbstatus = SelectField('状态', choices=[('upper', 0), ('off_shelves', 10), ('all', None)], default='upper')
     itid = StringField('品牌标签id')
     free = SelectField(choices=[('false', False), ('true', True), ('all', 'all')], default='all')
+    kw = StringField()
 
 
 class BrandsCreateForm(BaseForm):
