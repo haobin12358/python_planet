@@ -64,6 +64,7 @@ class CBrands(object):
         free = dict(form.free.choices).get(form.free.data)
         itid = form.itid.data
         itid = itid.split('|') if itid else []
+        kw = form.kw.data
         brand_query = ProductBrand.query.filter_(
             ProductBrand.isdelete == False,
             ProductBrand.PBstatus == pbstatus
@@ -88,6 +89,10 @@ class CBrands(object):
             brand_query = brand_query.filter(
                 ProductBrand.SUid.isnot(None)
             )
+        if kw:
+            brand_query = brand_query.filter(
+                ProductBrand.PBname.contains(kw)
+            )
         brands = brand_query.all_with_page()
         for brand in brands:
             brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
@@ -99,7 +104,7 @@ class CBrands(object):
                 BrandWithItems.isdelete == False,
             ).all()
             brand.fill('items', pb_items)
-            if is_admin() and brand.SUid:
+            if is_admin() or brand.SUid:
                 supplizer = Supplizer.query.filter(
                     Supplizer.isdelete == False,
                     Supplizer.SUid == brand.SUid
