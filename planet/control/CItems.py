@@ -120,7 +120,7 @@ class CItems:
                         db.session.add(scene_item_instance)
                     else:
                         old_psids.remove(psi)
-                [SceneItem.query.filter_by(PSid=droped_psid).delete_() for droped_psid in old_psids]
+                [SceneItem.query.filter_by(PSid=droped_psid, ITid=itid).delete_() for droped_psid in old_psids]
             else:
                 SceneItem.query.filter_by(ITid=itid).delete_()  # psid = [] 为空时，删除所有该标签场景的关联
         return Success('修改成功', {'itid': itid})
