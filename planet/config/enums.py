@@ -479,6 +479,10 @@ class PermissionNotesType(Enum):
     pe = 2, '审批流处理身份及层级'
 
 
+class UserMediaType(Enum):
+    umfront = 1, '身份证正面'
+    umback = 2, '身份证反面'
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
