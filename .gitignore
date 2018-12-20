@@ -130,3 +130,4 @@ templates/*
 wxservice/*
 wxsubscribe_dir/*
 *.db
+upload.sh

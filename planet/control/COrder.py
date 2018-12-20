@@ -127,8 +127,8 @@ class COrder(CPay, CCoupon):
         with self.strade.auto_commit() as s:
 
             user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
-            up1 = user.USopenid1
-            up2 = user.USopenid2
+            up1 = user.USsupper1
+            up2 = user.USsupper2
             body = set()  # 付款时候需要使用的字段
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')

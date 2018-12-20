@@ -5,7 +5,7 @@ from datetime import date
 from flask import request
 
 from planet.common.success_response import Success
-from planet.common.token_handler import is_tourist
+from planet.common.token_handler import is_tourist, is_admin, admin_required
 from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
@@ -18,47 +18,55 @@ class CActivity(CUser):
     def list(self):
         """获取正在进行中的活动"""
         # 判断是否是新人, 没有已付款的订单则为新人
-        if not is_tourist():
-            usid = request.user.id
-            exists_order = OrderMain.query.filter_(
-                OrderMain.USid == usid, OrderMain.OMstatus > OrderMainStatus.wait_pay.value
-            ).first()
-        else:
+        if is_tourist():
             exists_order = False
-        if exists_order:
-            activitys = Activity.query.filter_by_().filter_(
-                Activity.ACtype != ActivityType.fresh_man.value,
-                Activity.ACshow == True
-            ).order_by(Activity.ACsort).all()
+            filter_kwargs = dict(ACshow=True)
+        elif is_admin():
+            exists_order = False
+            filter_kwargs = dict()
         else:
-            activitys = Activity.query.filter_by_().order_by(Activity.ACsort).all()
+            usid = request.user.id
+            exists_order = OrderMain.query.filter_(OrderMain.USid == usid,
+                                                   OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+                                                   ).first()
+            filter_kwargs = dict(ACshow=True)
+        if exists_order:
+            activitys = Activity.query.filter_(Activity.ACtype != ActivityType.fresh_man.value,
+                                               Activity.ACshow == True,
+                                               Activity.isdelete == False
+                                               ).order_by(Activity.ACsort).all()
+        else:
+            activitys = Activity.query.filter_by_(filter_kwargs).order_by(Activity.ACsort).all()
         result = []
         for act in activitys:
-            act.fields = ['ACbackGround', 'ACbutton', 'ACtype', 'ACname']
+            act.fields = ['ACbackGround', 'ACbutton', 'ACtype', 'ACname', 'ACshow']
             act.fill('ACtype_zh', ActivityType(act.ACtype).zh_value)
-            # 活动是否有供应上参与
-            today = date.today()
-            if ActivityType(act.ACtype).name == 'guess_num':
-                lasting = GuessNumAwardApply.query.filter_by_().filter(
-                    GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
-                    GuessNumAwardApply.AgreeStartime <= today,
-                    GuessNumAwardApply.AgreeEndtime >= today,
-                ).first()
-                if lasting:
-                    result.append(act)
-            elif ActivityType(act.ACtype).name == 'magic_box':
-                lasting = MagicBoxApply.query.filter_by_().filter(
-                    MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                    GuessNumAwardApply.AgreeStartime <= today,
-                    GuessNumAwardApply.AgreeEndtime >= today,
-                ).first()
-                if lasting:
-                    result.append(act)
+            # 活动是否有供应商参与
+            if is_admin():
+                result = activitys
             else:
-                result.append(act)
-
+                today = date.today()
+                if ActivityType(act.ACtype).name == 'guess_num':
+                    lasting = GuessNumAwardApply.query.filter_by_().filter(
+                        GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                        GuessNumAwardApply.AgreeStartime <= today,
+                        GuessNumAwardApply.AgreeEndtime >= today,
+                        ).first()
+                    if lasting:
+                        result.append(act)
+                elif ActivityType(act.ACtype).name == 'magic_box':
+                    lasting = MagicBoxApply.query.filter_by_().filter(
+                        MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                        GuessNumAwardApply.AgreeStartime <= today,
+                        GuessNumAwardApply.AgreeEndtime >= today,
+                    ).first()
+                    if lasting:
+                        result.append(act)
+                else:
+                    result.append(act)
         return Success(data=result)
 
+    @admin_required
     def update(self):
         """设置活动的基本信息"""
         form = ActivityUpdateForm().valid_data()

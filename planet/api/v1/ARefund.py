@@ -15,6 +15,8 @@ class ARefund(Resource):
             'agree_apply': self.crefund.agree_apply,  # 同意售后申请
             'send': self.crefund.send,
             'cancle': self.crefund.cancle,
+            'back_confirm_recv': self.crefund.back_confirm_recv,
+            'back_confirm_refund': self.crefund.back_confirm_refund,
         }
         return apis
 
