@@ -16,7 +16,7 @@ from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType
 from planet.extensions.register_ext import wx_pay, alipay, db
-from planet.extensions.validates.trade import RefundSendForm
+from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay
 from planet.service.STrade import STrade
@@ -198,11 +198,11 @@ class CRefund(object):
         return Success(msg)
 
     @token_required
-    def back_confirm(self):
-        """执行退款退款中的最后一步退款"""
-        data = parameter_required(('oraid', 'agree'))
-        oraid = data.get('oraid')
-        agree = data.get('agree')
+    def back_confirm_refund(self):
+        """执行退款退款中的最后一步, 退款"""
+        form = RefundConfirmForm().valid_data()
+        oraid = form.oraid.data
+        agree = form.agree.data
         with db.auto_commit():
             refund_apply_instance = OrderRefundApply.query.filter(
                 OrderRefundApply.isdelete == False,
@@ -216,33 +216,60 @@ class CRefund(object):
             else:
                 order_part_instance = OrderPart.query.filter(OrderPart.OPid == refund_apply_instance.OPid).first()
                 order_main_instance = OrderMain.query.filter_by({'OMid': order_part_instance.OMid}).first()
-            order_pay_instance = OrderPay.query.filter(
-                OrderPay.isdelete == False,
-                OrderPay.OPayno == order_main_instance.OPayno
-            ).first()
-
             order_refund = OrderRefund.query.filter(
                 OrderRefund.isdelete == False,
-                OrderRefund.ORstatus == OrderRefundOrstatus.ready_recv.value,
+                OrderRefund.ORstatus == OrderRefundOrstatus.ready_recv.value,  # 确认收货后执行退款
                 OrderRefund.ORAid == oraid
-            ).first_('在确认收货后退款')
-            order_refund.ORstatus = OrderRefundOrstatus.ready_refund.value
-            db.session.add(order_refund)
-            # TODO 执行退款
-            self._refund_to_user(  # 执行退款, 待测试
-                out_trade_no=order_main_instance.OPayno,
-                out_request_no=oraid,
-                mount=refund_apply_instance.ORAmount,
-                opaytype=order_pay_instance.OPayType,
-                old_total_fee=order_pay_instance.OPayMount
-            )
-            msg = '已同意, 正在退款'
+            ).first_('请确认收货后退款')
+            if agree is True:
+                order_pay_instance = OrderPay.query.filter(
+                    OrderPay.isdelete == False,
+                    OrderPay.OPayno == order_main_instance.OPayno
+                ).first()
+                order_refund.ORstatus = OrderRefundOrstatus.ready_refund.value
+                db.session.add(order_refund)
+                # TODO 执行退款
+                # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
+                # old_total_fee = order_pay_instance.OPayMount
+                mount = 0.01
+                old_total_fee = 0.01
+                self._refund_to_user(  # 执行退款, 待测试
+                    out_trade_no=order_main_instance.OPayno,
+                    out_request_no=oraid,
+                    mount=mount,
+                    opaytype=order_pay_instance.OPayType,
+                    old_total_fee=old_total_fee
+                )
+                msg = '已同意, 正在退款'
+            elif agree is False:
+                order_refund.ORstatus = OrderRefundOrstatus.reject.value
+                db.session.add(order_refund)
+                msg = '已拒绝'
+            else:
+                raise ParamsError('agree 参数错误')
+        return Success(msg)
 
     @token_required
-    def back_confirm(self):
-        """后台收货"""
-
-
+    def back_confirm_recv(self):
+        """后台确认收货"""
+        form = RefundConfirmRecvForm().valid_data()
+        oraid = form.oraid.data
+        with db.auto_commit():
+            OrderRefundApply.query.filter(
+                OrderRefundApply.isdelete == False,
+                OrderRefundApply.ORAid == oraid,
+                OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
+                OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value
+            ).first_('对应的退货申请不存在或未同意')
+            order_refund = OrderRefund.query.filter(
+                OrderRefund.isdelete == False,
+                OrderRefund.ORstatus >= OrderRefundOrstatus.wait_recv.value,  # 确认收货后执行退款
+                OrderRefund.ORAid == oraid
+            ).first_('未发货')
+            order_refund.ORstatus = OrderRefundOrstatus.ready_recv.value
+            db.session.add(order_refund)
+            msg = '已收货'
+        return Success(msg)
 
     @token_required
     def send(self):

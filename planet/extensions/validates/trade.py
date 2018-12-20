@@ -128,6 +128,14 @@ class RefundSendForm(BaseForm):
     orlogisticsn = StringField('物流单号', validators=[DataRequired('单号不可为空'), Length(8, 64, message='单号长度不符规范')])
 
 
+class RefundConfirmForm(BaseForm):
+    oraid = StringField(validators=[DataRequired('oraid必须')])
+    agree = BooleanField()
+
+
+class RefundConfirmRecvForm(BaseForm):
+    oraid = StringField(validators=[DataRequired('oraid必须')])
+
 
 
 
