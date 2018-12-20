@@ -17,6 +17,7 @@ class AItems(Resource):
     def post(self, items):
         apis = {
             'create': self.citems.create,
+            'update': self.citems.update
         }
         return apis
 

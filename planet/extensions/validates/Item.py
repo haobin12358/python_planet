@@ -33,6 +33,7 @@ class ItemCreateForm(BaseForm):
     itdesc = StringField()
     ittype = IntegerField(default=ItemType.product.value)
     itauthority = IntegerField()
+    itrecommend = BooleanField()
 
     def validate_ittype(self, raw):
         try:
@@ -55,7 +56,12 @@ class ItemCreateForm(BaseForm):
 
 
 class ItemUpdateForm(ItemCreateForm):
-    ITid = StringField(validators=[DataRequired('标签不可为空')])
+    itid = StringField(validators=[DataRequired('缺少参数itid')])
+    itname = StringField()
+    isdelete = BooleanField(default=False)
+    ittype = IntegerField(validators=[DataRequired('缺少参数ittype')])
+
+
 
 
 
