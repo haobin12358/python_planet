@@ -72,11 +72,13 @@ def _flatten_json_list(json, parent_key='', separator='-'):
 def _format_value(value):
     """wtforms 有些 field 只能处理字符串格式的值，无法处理 python/json 类型的值
     此函数把这些无法被处理的值转换成每种字段对应的字符串形式"""
+    if isinstance(value, bool):
+        return value
     if value is None:
         return ''
     if isinstance(value, datetime.datetime):
         return value.isoformat().split(".").pop(0)
-    if not isinstance(value, int) and isinstance(value, int) or isinstance(value, float):
+    if isinstance(value, int) or isinstance(value, float):
         # 若不把数字类型转换为 str ，InputValidator() 会把 0 值视为未赋值，导致验证失败
         return str(value)
     return value
