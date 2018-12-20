@@ -171,11 +171,6 @@ class CSupplizer:
             current_app.logger.info('共下架了 {}个商品'.format(products_count))
         return Success('供应商下架成功')
 
-
-
-
-
-
     @token_required
     def change_password(self):
         if not is_supplizer() and not is_admin():

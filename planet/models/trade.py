@@ -143,7 +143,7 @@ class OrderRefund(Base):
     ORrecvname = Column(String(16), nullable=False, comment='收货人姓名')
     ORrecvphone = Column(String(11), nullable=False, comment='收货人手机')
     ORrecvaddress = Column(String(255), nullable=False, comment='收货地址')
-    ORstatus = Column(Integer, default=0, comment='退货状态, 0 等待买家发货 10 等待卖家收货 20 已收货, 30 已退款 -10 已取消')
+    ORstatus = Column(Integer, default=0, comment='退货状态, 0 等待买家发货 10 等待卖家收货 20 已收货, 30 已退款 -10 已取消, -20 收货后拒绝')
     # 物流信息
     ORlogisticCompany = Column(String(32), comment='物流公司')
     ORlogisticsn = Column(String(64), comment='物流单号')
