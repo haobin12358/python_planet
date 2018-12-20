@@ -62,10 +62,7 @@ class SupplizerCreateForm(BaseForm):
 
 class SupplizerUpdateForm(SupplizerCreateForm):
     suid = StringField('供应商id')
-    suloginphone = StringField('登录手机号', validators=[
-        DataRequired('手机号不可以为空'),
-        Regexp('^1\d{10}$', message='手机号格式错误'),
-    ])
+    suloginphone = StringField('登录手机号')
     supassword = StringField('密码')
 
     def validate_suid(self, raw):
@@ -74,15 +71,6 @@ class SupplizerUpdateForm(SupplizerCreateForm):
         else:
             if not raw.data:
                 raise ParamsError('供应商suid不可为空')
-
-    def validate_suloginphone(self, raw):
-
-        is_exists = Supplizer.query.filter_by_().filter_(
-            Supplizer.SUloginPhone == raw.data,
-            Supplizer.SUid != self.suid.data,
-        ).first()
-        if is_exists:
-            raise DumpliError('登陆手机号其他人重复')
 
 
 class SupplizerSendCodeForm(BaseForm):
