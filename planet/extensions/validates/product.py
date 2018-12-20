@@ -79,5 +79,10 @@ class SceneCreateForm(BaseForm):
     pssort = IntegerField('排序')
 
 
+class SceneUpdateForm(SceneCreateForm):
+    psid = StringField(validators=[DataRequired('场景id不可为空')])
+
+
+
 
 
