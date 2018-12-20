@@ -5,7 +5,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm
 from planet.extensions.register_ext import db
-from planet.models import ProductScene
+from planet.models import ProductScene, SceneItem
 from planet.service.SProduct import SProducts
 
 
@@ -37,19 +37,19 @@ class CScene(object):
     @admin_required
     def update(self):
         form = SceneUpdateForm().valid_data()
-        psid = form.psid.data
-        pspic = form.pspic.data
-        psname = form.psname.data
-        pssort = form.pssort.data
+        psid, pspic, psname, pssort = form.psid.data, form.pspic.data, form.psname.data, form.pssort.data
+        isdelete = form.isdelete.data
         with db.auto_commit():
-            product_scene = ProductScene.query.filter(
-                ProductScene.isdelete == False,
-                ProductScene.PSid == psid
-            ).first_('不存在的场景')
+            product_scene = ProductScene.query.filter(ProductScene.isdelete == False,
+                                                      ProductScene.PSid == psid
+                                                      ).first_('不存在的场景')
             product_scene.update({
                 "PSpic": pspic,
                 "PSname": psname,
-                "PSsort": pssort
+                "PSsort": pssort,
+                "isdelete": isdelete
             })
             db.session.add(product_scene)
-        return Success('更新成功')
+            if isdelete is True:
+                SceneItem.query.filter_by(PSid=psid).delete_()
+        return Success('更新成功', {'psid': psid})

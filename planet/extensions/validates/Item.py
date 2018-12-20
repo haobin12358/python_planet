@@ -60,7 +60,7 @@ class ItemUpdateForm(ItemCreateForm):
     itid = StringField(validators=[DataRequired('缺少参数itid')])
     itname = StringField()
     isdelete = BooleanField(default=False)
-    ittype = IntegerField(validators=[DataRequired('缺少参数ittype')])
+    ittype = IntegerField(validators=[InputRequired('缺少参数ittype')])
 
 
 
