@@ -15,9 +15,9 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus, UserIdentityStatus
+    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus
 from planet.control.BaseControl import Commsion
-from planet.extensions.register_ext import alipay, wx_pay
+from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
@@ -91,62 +91,52 @@ class CPay():
         out_trade_no = data.get('out_trade_no')
         # 交易成功
         with self.strade.auto_commit() as s:
-            s_list = []
             # 更改付款流水
-            order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
+            order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('gmt_payment')
             order_pay_instance.OPaysn = data.get('trade_no')   # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
-            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
-                s_list.append(order_main)
+                db.session.add(order_main)
                 # 添加佣金记录
                 current_app.logger.info('支付宝付款成功')
-                commion_instance_list = self._insert_usercommision(s, order_main)
-                s_list.extend(commion_instance_list)
-            s.add_all(s_list)
-            s.add_all(s_list)
-
+                self._insert_usercommision(order_main)
         return 'success'
 
     def wechat_notify(self):
         """微信支付回调"""
-        # 待测试
         data = self.wx_pay.to_dict(request.data)
         if not self.wx_pay.check(data):
             return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
-        with self.strade.auto_commit() as s:
-            s_list = []
+        with db.auto_commit():
             # 更改付款流水
-            order_pay_instance = s.query(OrderPay).filter_by_({'OPayno': out_trade_no}).first_()
+            order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('time_end')
             order_pay_instance.OPaysn = data.get('transaction_id')  # 微信支付订单号
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
-            order_mains = s.query(OrderMain).filter_by_({'OPayno': out_trade_no}).all()
+            order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
-                s_list.append(order_main)
+                # s_list.append(order_main)
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
-                commion_instance_list = self._insert_usercommision(s, order_main)
-                s_list.extend(commion_instance_list)
-            s.add_all(s_list)
+                self._insert_usercommision(order_main)
         return self.wx_pay.reply("OK", True).decode()
 
-    def _insert_usercommision(self, s, order_main):
+    def _insert_usercommision(self, order_main):
         """写入佣金流水表"""
         # todo 判断是否是代理商
-        s_list = []
         omid = order_main.OMid
-        user = s.query(User).filter_by_({'USid': order_main.USid}).first()  # 订单用户
+        user = User.query.filter_by_({'USid': order_main.USid}).first()  # 订单用户
         try:
             current_app.logger.info('当前付款人: {}, 状态: {}  '.format(user.USname, UserIdentityStatus(user.USlevel).zh_value))
         except Exception:
@@ -155,19 +145,23 @@ class CPay():
         user_level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
         user_level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
         planetcommision = cfg.get_item('integralbase', 'integral')  # todo 平台佣金计算 平台佣金比例
-        order_parts = s.query(OrderPart).filter_by_({
+        order_parts = OrderPart.query.filter_by_({
             'OMid': omid
         }).all()
+        UCstatus = None
+        UCtype = None
+        UCendTime = None
+        mount = None
         is_trial_commodity = order_main.OMfrom == OrderFrom.trial_commodity.value
         if is_trial_commodity:  # 试用, 试用商品特殊, 无佣金, 但是也要写入佣金表
-            trialcommodity = s.query(TrialCommodity).filter_by(TCid=order_parts[0]['PRid']).first()
+            trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
             UCendTime = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
             UCtype = UserCommissionType.deposit.value  # 类型是押金
             mount = order_main.OMtrueMount
-        else:
-            UCtype = None
-            UCendTime = None
-            mount = None
+        # 活动订单的佣金即时到账
+        elif order_main.OMfrom > OrderFrom.product_info.value:
+            current_app.logger.info('活动订单, 押金即时到账')
+            UCstatus = UserCommissionStatus.in_account.value
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
@@ -175,8 +169,8 @@ class CPay():
             if UserIdentityStatus.agent.value == user.USlevel and not is_trial_commodity:
                 up2 = up1  # 代理商自己也会有一部分佣金
                 up1 = user.USid
-            if up1 and not is_trial_commodity:
-                upper_user = s.query(User).filter(
+            if up1:
+                upper_user = User.query.filter(
                     User.isdelete == False,
                     User.USid == up1
                 ).first()
@@ -195,10 +189,10 @@ class CPay():
                     'UCtype': UCtype,
                     'PRtitle': order_part.PRtitle,
                     'SKUpic': order_part.SKUpic,
-                    'UCendTime': UCendTime
-
+                    'UCendTime': UCendTime,
+                    'UCstatus': UCstatus
                 }
-                s_list.append(UserCommission.create(user_commision_dict))
+                db.session.add(UserCommission.create(user_commision_dict))
                 current_app.logger.info('代理1: {}获得佣金{}'.format(upper_user.USname, user_commision_dict.get('UCcommission')))
             if up2 and not is_trial_commodity:
                 level2commision = order_part.USCommission2 or user_level2commision
@@ -213,8 +207,8 @@ class CPay():
                     'SKUpic': order_part.SKUpic,
                     'UCendTime': UCendTime
                 }
-                current_app.logger.info('代理2:获得佣金{}'.format(user_commision_dict.get('UCcommission')))
-                s_list.append(UserCommission.create(users_commision_dict))
+                current_app.logger.info('代理2:获得佣金{}'.format(users_commision_dict.get('UCcommission')))
+                db.session.add(UserCommission.create(users_commision_dict))
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
@@ -239,11 +233,11 @@ class CPay():
                         'UCtype': UserCommissionType.fresh_man.value,
                         'UCendTime': UCendTime
                     }
-                    s_list.append(UserCommission.create(user_commision_dict))
+                    db.session.add(UserCommission.create(user_commision_dict))
         # 线上发货
         if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
             order_main.OMstatus = OrderMainStatus.ready.value
-            s_list.append(order_main)
+            db.session.add(order_main)
             # 发货表
             orderlogistics = OrderLogistics.create({
                 'OLid': str(uuid.uuid1()),
@@ -254,8 +248,7 @@ class CPay():
                 'OLdata': '[]',
                 'OLlastresult': '{}'
             })
-            s_list.append(orderlogistics)
-        return s_list
+            db.session.add(orderlogistics)
 
     def test_pay(self, out_trade_no=1, mount_price=1):
         order_string = self.alipay.api_alipay_trade_page_pay(

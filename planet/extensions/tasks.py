@@ -8,10 +8,10 @@ from sqlalchemy import cast, Date
 
 from planet import create_app
 from planet.common.share_stock import ShareStock
-from planet.config.enums import OrderMainStatus, OrderFrom
+from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User
+    Products, User, UserCommission
 
 celery = Celery()
 
@@ -92,6 +92,13 @@ def auto_evaluate():
                     s_list.append(evaluation_instance)
                     count += 1
                     current_app.logger.info(">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
+                    # 佣金到账
+                    UserCommission.query.filter(
+                        UserCommission.isdelete == False,
+                        UserCommission.OPid == order_part.OPid
+                    ).update({
+                        'UCstatus': UserCommission.in_account.value
+                    })
 
                     # 商品总体评分变化
                     try:
