@@ -60,10 +60,16 @@ class SupplizerCreateForm(BaseForm):
                                   '式错误')
 
 
-class SupplizerUpdateForm(SupplizerCreateForm):
-    suid = StringField('供应商id')
-    suloginphone = StringField('登录手机号')
-    supassword = StringField('密码')
+class SupplizerUpdateForm(BaseForm):
+    sulinkphone = StringField('联系电话')
+    suname = StringField('供应商名字')
+    sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
+    suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
+    subanksn = StringField('卡号')
+    subankname = StringField('银行名字')
+    suheader = StringField('头像')
+    sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
+    pbids = FieldList(StringField('品牌'))
 
     def validate_suid(self, raw):
         if is_supplizer():
@@ -71,6 +77,13 @@ class SupplizerUpdateForm(SupplizerCreateForm):
         else:
             if not raw.data:
                 raise ParamsError('供应商suid不可为空')
+
+    def validate_sulinkphone(self, raw):
+        if raw.data:
+            if not re.match('^1\d{10}$', raw.data):
+                raise ParamsError('联系人手机号格'
+                                  '式错误')
+
 
 
 class SupplizerSendCodeForm(BaseForm):
