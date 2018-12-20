@@ -72,6 +72,10 @@ class ProductApplyAgreeForm(BaseForm):
     anabo = StringField()
 
 
+class SceneListForm(BaseForm):
+    kw = StringField(default='')
+
+
 class SceneCreateForm(BaseForm):
     """场景创建"""
     pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])
