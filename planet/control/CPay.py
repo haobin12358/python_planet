@@ -158,7 +158,8 @@ class CPay():
         order_parts = s.query(OrderPart).filter_by_({
             'OMid': omid
         }).all()
-        if order_main.OMfrom == OrderFrom.trial_commodity.value:  # 试用
+        is_trial_commodity = order_main.OMfrom == OrderFrom.trial_commodity.value
+        if is_trial_commodity:  # 试用, 试用商品特殊, 无佣金, 但是也要写入佣金表
             trialcommodity = s.query(TrialCommodity).filter_by(TCid=order_parts[0]['PRid']).first()
             UCendTime = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
             UCtype = UserCommissionType.deposit.value  # 类型是押金
@@ -170,10 +171,20 @@ class CPay():
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
-            # 如果不是代理商
-            if UserIdentityStatus.agent.value != user.USlevel:
-                continue
-            if up1:
+            # 如果付款用户是代理商
+            if UserIdentityStatus.agent.value == user.USlevel and not is_trial_commodity:
+                up2 = up1  # 代理商自己也会有一部分佣金
+                up1 = user.USid
+            if up1 and not is_trial_commodity:
+                upper_user = s.query(User).filter(
+                    User.isdelete == False,
+                    User.USid == up1
+                ).first()
+                if not upper_user and not is_trial_commodity:
+                    continue
+                # 如果上级不是代理商
+                if UserIdentityStatus.agent.value != upper_user.USlevel and not is_trial_commodity:
+                    continue
                 level1commision = order_part.USCommission1 or user_level1commision
                 user_commision_dict = {
                     'UCid': str(uuid.uuid1()),
@@ -188,7 +199,8 @@ class CPay():
 
                 }
                 s_list.append(UserCommission.create(user_commision_dict))
-            if up2:
+                current_app.logger.info('代理1: {}获得佣金{}'.format(upper_user.USname, user_commision_dict.get('UCcommission')))
+            if up2 and not is_trial_commodity:
                 level2commision = order_part.USCommission2 or user_level2commision
                 users_commision_dict = {
                     'UCid': str(uuid.uuid1()),
@@ -201,6 +213,7 @@ class CPay():
                     'SKUpic': order_part.SKUpic,
                     'UCendTime': UCendTime
                 }
+                current_app.logger.info('代理2:获得佣金{}'.format(user_commision_dict.get('UCcommission')))
                 s_list.append(UserCommission.create(users_commision_dict))
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
