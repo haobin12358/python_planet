@@ -3,7 +3,7 @@ import uuid
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
-from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm
+from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
 from planet.extensions.register_ext import db
 from planet.models import ProductScene, SceneItem
 from planet.service.SProduct import SProducts
@@ -15,7 +15,9 @@ class CScene(object):
 
     def list(self):
         """列出所有场景"""
-        scenes = self.sproducts.get_product_scenes()
+        form = SceneListForm().valid_data()
+        kw = form.kw.data
+        scenes = self.sproducts.get_product_scenes(kw)
         return Success(data=scenes)
 
     @admin_required

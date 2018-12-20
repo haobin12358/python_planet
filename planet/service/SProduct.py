@@ -77,9 +77,9 @@ class SProducts(SBase):
         return self.session.query(ProductScene).filter_by_(args).first_(error)
 
     @close_session
-    def get_product_scenes(self):
+    def get_product_scenes(self, kw):
         """获取所有场景"""
-        return self.session.query(ProductScene).order_by(ProductScene.PSsort, ProductScene.createtime.desc()).all()
+        return self.session.query(ProductScene).filter_(ProductScene.PSname.contains(kw)).order_by(ProductScene.PSsort, ProductScene.createtime.desc()).all()
 
     @close_session
     def get_items(self, args, order=(Items.ITsort, )):
