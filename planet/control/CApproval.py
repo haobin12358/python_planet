@@ -10,7 +10,7 @@ from flask import request
 
 from planet.common.base_service import get_session
 from planet.config.enums import ApprovalStatus, ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
-    AdminStatus, UserLoginTimetype
+    AdminStatus, UserLoginTimetype, UserMediaType
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
@@ -19,8 +19,9 @@ from planet.common.token_handler import token_required, is_admin, is_hign_level_
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
-from planet.models.user import Admin, AdminNotes, User, UserLoginTime
-from planet.models.product import Products
+from planet.models.user import Admin, AdminNotes, User, UserLoginTime, CashNotes, UserMedia
+from planet.models.product import Products, Supplizer, ProductScene, SceneItem, ProductItems, ProductBrand, ProductSku, \
+    ProductSkuValue, Items
 from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
@@ -282,6 +283,72 @@ class CApproval(BASEAPPROVAL):
             ).all()
             pt.fill('approval_list', ap_list)
 
+    def __fill_pttype(self, pt, startid, contentid):
+        # todo 通过类型id 不能自动找到对应的身份和审批类容，后期修改
+        if pt.PTid == 'tocash':
+            # 提现操作
+            # start_model = User.query.filter_by_(USid=startid).first_('用户不存在')
+            content = CashNotes.query.filter_by_(CNid=contentid).first()
+            # pt.fill('start', start_model)
+            pt.fill('content', content)
+
+        elif pt.PTid == 'toagent':
+            # 成为代理商
+            start_model = User.query.filter_by_(USid=startid).first_('用户不存在')
+            umfront = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umfront.value).first()
+            umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
+            start_model.fill('umfront', umfront['UMurl'])
+            start_model.fill('umback', umback['UMurl'])
+            pt.fill('start', start_model)
+        elif pt.PTid == 'toshelves':
+            # 商品上架
+            start_model = Supplizer.query.filter_by_(SUid=startid).frist_('供应商不存在')
+            content = Products.query.filter_by_(PRid=contentid).first()
+            content.PRattribute = json.loads(content.PRattribute)
+            content.PRremarks = json.loads(getattr(content, 'PRremarks') or '{}')
+            pb = ProductBrand.query.filter_by_(PBid=content.PBid)
+            # ps = ProductScene.query.filter(
+            #     ProductScene.PSid == SceneItem.PSid, SceneItem.ITid == ProductItems.ITid,
+            #     ProductItems.PRid == contentid).first()
+            # skus = self.sproduct.get_sku({'PRid': prid})
+            skus = ProductSku.query.filter_by_(PRid=contentid).all()
+            sku_value_item = []
+            for sku in skus:
+                sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+                sku_value_item.append(sku.SKUattriteDetail)
+            sku_value_instance = ProductSkuValue.query.filter_by_({
+                'PRid': contentid
+            }).first()
+            if not sku_value_instance:
+                sku_value_item_reverse = []
+                for index, name in enumerate(content.PRattribute):
+                    value = list(set([attribute[index] for attribute in sku_value_item]))
+                    value = sorted(value)
+                    temp = {
+                        'name': name,
+                        'value': value
+                    }
+                    sku_value_item_reverse.append(temp)
+            else:
+                sku_value_item_reverse = []
+                pskuvalue = json.loads(sku_value_instance.PSKUvalue)
+                for index, value in enumerate(pskuvalue):
+                    sku_value_item_reverse.append({
+                        'name': content.PRattribute[index],
+                        'value': value
+                    })
+
+            # item = Items.query.filter()
+            content.fill('SkuValue', sku_value_item_reverse)
+            content.fill('brand', pb)
+            content.fill('skus', skus)
+
+        elif pt.PTid == 'toreturn':
+            # 退货
+            pass
+        elif pt.PTid == 'topublish':
+            # 发布评论
+            pass
 
     def get_submit_approval(self):
         """代理商查看自己提交的所有审批流"""
