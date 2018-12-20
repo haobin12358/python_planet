@@ -2,7 +2,9 @@
 import uuid
 
 from planet.common.success_response import Success
-from planet.extensions.validates.product import SceneCreateForm
+from planet.common.token_handler import admin_required
+from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm
+from planet.extensions.register_ext import db
 from planet.models import ProductScene
 from planet.service.SProduct import SProducts
 
@@ -16,6 +18,7 @@ class CScene(object):
         scenes = self.sproducts.get_product_scenes()
         return Success(data=scenes)
 
+    @admin_required
     def create(self):
         """创建场景"""
         form = SceneCreateForm().valid_data()
@@ -27,4 +30,26 @@ class CScene(object):
                 'PSsort': form.pssort.data,
             })
             s.add(product_scene_instance)
-        return Success('创建成功')
+        return Success('创建成功', data={
+            'psid': product_scene_instance.PSid
+        })
+
+    @admin_required
+    def update(self):
+        form = SceneUpdateForm().valid_data()
+        psid = form.psid.data
+        pspic = form.pspic.data
+        psname = form.psname.data
+        pssort = form.pssort.data
+        with db.auto_commit():
+            product_scene = ProductScene.query.filter(
+                ProductScene.isdelete == False,
+                ProductScene.PSid == psid
+            ).first_('不存在的场景')
+            product_scene.update({
+                "PSpic": pspic,
+                "PSname": psname,
+                "PSsort": pssort
+            })
+            db.session.add(product_scene)
+        return Success('更新成功')

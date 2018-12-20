@@ -61,6 +61,7 @@ class SupplizerCreateForm(BaseForm):
 
 
 class SupplizerUpdateForm(BaseForm):
+    suid = StringField()
     sulinkphone = StringField('联系电话')
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
