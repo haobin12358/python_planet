@@ -16,6 +16,7 @@ class AScene(Resource):
 
     def post(self, scene):
         apis = {
-            'create': self.cscene.create
+            'create': self.cscene.create,
+            'update': self.cscene.update,
         }
         return apis

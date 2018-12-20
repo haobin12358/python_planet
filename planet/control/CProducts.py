@@ -796,7 +796,8 @@ class CProducts:
             'PCid': pcid,
             'isdelete': False,
         }).first()
-        if p_category in pc_list:
+
+        if not p_category or p_category in pc_list:
             return pc_list
         pc_list.insert(0, p_category)
         if not p_category.ParentPCid:

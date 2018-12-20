@@ -95,7 +95,6 @@ class CSupplizer:
             ).first_('供应商不存在')
             supplizer.update({
                 'SUlinkPhone': form.sulinkphone.data,
-                'SUloginPhone': form.suloginphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
                 'SUaddress': form.suaddress.data,

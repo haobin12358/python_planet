@@ -442,6 +442,13 @@ class UserCommissionType(Enum):
     deposit = 3, '押金'
 
 
+class UserCommissionStatus(Enum):
+    error = -1, '异常'
+    preview = 0, '预计到账'
+    in_account = 1, '已到账'
+    out_count = 2, '已提现'
+
+
 class ApprovalStatus(Enum):
     """审批流状态"""
     cancel = -20, '已取消'
