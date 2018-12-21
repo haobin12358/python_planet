@@ -99,7 +99,7 @@ class Request(_Request):
             'address': self.remote_addr
         }
         if self.files:
-            res.setdefault('form', dict(self.files))
+            res.setdefault('files', dict(self.files))
         return res
 
     @property
