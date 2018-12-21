@@ -69,9 +69,18 @@ def auto_evaluate():
                 for order_part in order_parts:
                     exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                     if exist_evaluation:
-                        current_app.logger.info(">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
                         continue
                     user = User.query.filter_by(USid=order_main.USid).first()
+                    if order_part.OPisinORA:
+                        continue
+                    # 佣金到账
+                    user_commision = UserCommission.query.filter(
+                        UserCommission.isdelete == False,
+                        UserCommission.OPid == order_part.OPid
+                    ).update({
+                            'UCstatus': UserCommissionStatus.in_account.value
+                        })
+                    current_app.logger.info('佣金到账数量 {}'.format(user_commision))
                     if user:
                         usname, usheader = user.USname, user.USheader
                     else:
@@ -93,13 +102,6 @@ def auto_evaluate():
                     count += 1
                     current_app.logger.info(">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
                     # 佣金到账
-                    UserCommission.query.filter(
-                        UserCommission.isdelete == False,
-                        UserCommission.OPid == order_part.OPid
-                    ).update({
-                        'UCstatus': UserCommission.in_account.value
-                    })
-
                     # 商品总体评分变化
                     try:
                         product_info = Products.query.filter_by_(PRid=order_part.PRid).first()

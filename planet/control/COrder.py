@@ -607,8 +607,6 @@ class COrder(CPay, CCoupon):
         oeid_list = []
         get_opid_list = []  # 从前端获取到的所有opid
         with db.auto_commit():
-            # 先反佣金
-
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
