@@ -69,6 +69,7 @@ def auto_evaluate():
                 for order_part in order_parts:
                     exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                     if exist_evaluation:
+                        current_app.logger.info(">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
                         continue
                     user = User.query.filter_by(USid=order_main.USid).first()
                     if order_part.OPisinORA:
