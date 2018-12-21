@@ -104,7 +104,7 @@ class CActivity(CUser):
         today = date.today()
         act_instance.hide('ACid', 'ACbackGround', 'ACbutton', 'ACtopPic')
         if ac_type == 'magic_box':  # 魔盒
-            if not mbaid:
+            if not mbjid:
                 product, magic_apply = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
@@ -115,6 +115,10 @@ class CActivity(CUser):
                     MagicBoxApply.isdelete == False,
                 ).first_('活动未在进行')
             else:
+                magic_box_join = MagicBoxJoin.query.filter(
+                    MagicBoxJoin.isdelete == False,
+                    MagicBoxJoin.MBJid == mbjid,
+                ).first_('活动不存在')
                 product, magic_apply = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
@@ -122,8 +126,8 @@ class CActivity(CUser):
                 ).filter_(
                     # MagicBoxApply.AgreeStartime <= today,
                     # MagicBoxApply.AgreeEndtime >= today,
-                    MagicBoxApply.MBAid == mbaid,
-                    MagicBoxApply.isdelete == False,
+                    MagicBoxApply.MBAid == magic_box_join.MBAid,
+                    MagicBoxApply.isdelete == False
                 ).first_('活动不存在')
 
             act_instance.fill('prpic', product.PRmainpic)

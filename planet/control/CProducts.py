@@ -235,7 +235,7 @@ class CProducts:
         if product_brand.PBstatus == ProductBrandStatus.off_shelves.value:
             raise StatusError('品牌已下架')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
-        if is_supplizer() and product_brand.SUid == request.user.id:
+        if is_supplizer() and product_brand.SUid != request.user.id:
             raise AuthorityError('仅可添加至指定品牌')
         prstocks = 0
         with self.sproduct.auto_commit() as s:
@@ -786,7 +786,7 @@ class CProducts:
             'PCid': pcid,
             'isdelete': False,
         }).first()
-        if not category.ParentPCid or category.PCid in pc_list:
+        if not category.ParentPCid or category.ParentPCid in pc_list:
             return pc_list
         return self._up_category_id(category.ParentPCid, pc_list)
 
