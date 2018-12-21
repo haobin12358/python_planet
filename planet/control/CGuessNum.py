@@ -26,6 +26,8 @@ class CGuessNum(COrder):
         date_now = datetime.now()
         if date_now.hour > 15:
             raise StatusError('15点以后不开放')
+        if date_now.weekday() in [0, 6]:
+            raise StatusError('周六周日不开放')
         form = GuessNumCreateForm().valid_data()
         gnnum = form.gnnum.data
         usid = request.user.id

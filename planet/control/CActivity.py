@@ -55,10 +55,11 @@ class CActivity(CUser):
                     if lasting:
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':
-                    lasting = MagicBoxApply.query.filter_by_().filter(
+                    lasting = MagicBoxApply.query.filter(
+                        MagicBoxApply.isdelete == False,
                         MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                        GuessNumAwardApply.AgreeStartime <= today,
-                        GuessNumAwardApply.AgreeEndtime >= today,
+                        MagicBoxApply.AgreeStartime <= today,
+                        MagicBoxApply.AgreeEndtime >= today,
                     ).first()
                     if lasting:
                         result.append(act)
