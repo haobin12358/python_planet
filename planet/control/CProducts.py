@@ -56,10 +56,19 @@ class CProducts:
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
         sku_value_item = []
+        sku_price = []
         for sku in skus:
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
+            sku_price.append(sku.SKUprice)
         product.fill('skus', skus)
+        min_price = min(sku_price)
+        max_price = max(sku_price)
+        if min_price != max_price:
+
+            product.fill('price_range', '{}-{}'.format('%.2f' % min, '%.2f' % max))
+        else:
+            product.fill('price_range', "%.2f" % min_price)
         # sku value
         # 是否有skuvalue, 如果没有则自行组装
         sku_value_instance = ProductSkuValue.query.filter_by_({
