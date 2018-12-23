@@ -16,12 +16,13 @@ from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin
+from planet.models import News
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
 from planet.models.user import Admin, AdminNotes, User, UserLoginTime, CashNotes, UserMedia
 from planet.models.product import Products, Supplizer, ProductScene, SceneItem, ProductItems, ProductBrand, ProductSku, \
-    ProductSkuValue, Items
+    ProductSkuValue, Items, ProductCategory
 from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
@@ -339,16 +340,34 @@ class CApproval(BASEAPPROVAL):
                     })
 
             # item = Items.query.filter()
+            categorys = ' > '.join(self.__get_category(content.PCid))
             content.fill('SkuValue', sku_value_item_reverse)
             content.fill('brand', pb)
             content.fill('skus', skus)
+            content.fill('categorys', categorys)
 
         elif pt.PTid == 'toreturn':
             # 退货
             pass
         elif pt.PTid == 'topublish':
             # 发布评论
+            start = User.query.filter_by_(USid=startid).first_('用户已被注销')
+            content = News.query.filter_by_(NEid=contentid).first()
+        elif pt.PTid == 'toactivite':
+            # todo
             pass
+
+    def __get_category(self, pcid, pclist=None):
+        if not pclist:
+            pclist = []
+        if not pcid:
+            return pclist
+        pc = ProductCategory.query.filter_by_(PCid=pcid).first()
+        # pc_list = []
+        if not pc:
+            return pclist
+        return self.__get_category(pc.ParentPCid, pclist)
+
 
     def get_submit_approval(self):
         """代理商查看自己提交的所有审批流"""

@@ -483,6 +483,7 @@ class UserMediaType(Enum):
     umfront = 1, '身份证正面'
     umback = 2, '身份证反面'
 
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
