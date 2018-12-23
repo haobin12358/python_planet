@@ -37,6 +37,10 @@ class TrialCommodity(Base):
     TCremarks = Column(String(255), comment='备注')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PBid = Column(String(64), comment='品牌id')
+    ApplyStartTime = Column(DateTime, nullable=False, comment='申请开始时间')
+    ApplyEndTime = Column(DateTime, nullable=False, comment='申请结束时间')
+    AgreeStartTime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndTime = Column(Date, comment='最终确认结束时间')
 
 
 class TrialCommodityImage(Base):
@@ -99,7 +103,7 @@ class GuessNumAwardApply(Base):
     """申请参与猜数字"""
     __tablename__ = 'GuessNumAward'
     GNAAid = Column(String(64), primary_key=True)
-    SUid = Column(String(64), nullable=False, comment='供应商id')
+    SUid = Column(String(64), comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     PRid = Column(String(64), nullable=False, comment='商品id')
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')

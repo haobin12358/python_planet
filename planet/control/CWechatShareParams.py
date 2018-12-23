@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-from flask import request, current_app
-
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import admin_required
 from planet.config.cfgsetting import ConfigSettings
-from planet.models import Admin
 
 
 class CWechatShareParams(object):

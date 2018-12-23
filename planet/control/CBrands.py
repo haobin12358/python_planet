@@ -62,8 +62,10 @@ class CBrands(object):
         form = BrandsListForm().valid_data()
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
         free = dict(form.free.choices).get(form.free.data)
+        time_order = dict(form.time_order.choices).get(form.time_order.data)
         itid = form.itid.data
         itid = itid.split('|') if itid else []
+        kw = form.kw.data
         brand_query = ProductBrand.query.filter_(
             ProductBrand.isdelete == False,
             ProductBrand.PBstatus == pbstatus
@@ -88,10 +90,15 @@ class CBrands(object):
             brand_query = brand_query.filter(
                 ProductBrand.SUid.isnot(None)
             )
-        brands = brand_query.all_with_page()
+        if kw:
+            brand_query = brand_query.filter(
+                ProductBrand.PBname.contains(kw)
+            )
+        brands = brand_query.order_by(time_order).all_with_page()
         for brand in brands:
             brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
             brand.fill('PBstatus_zh', ProductBrandStatus(brand.PBstatus).zh_value)
+            brand.add('createtime')
             # 标签
             print(brand.PBid)
             pb_items = Items.query.filter_by().join(BrandWithItems, Items.ITid == BrandWithItems.ITid).filter_(
@@ -99,7 +106,7 @@ class CBrands(object):
                 BrandWithItems.isdelete == False,
             ).all()
             brand.fill('items', pb_items)
-            if is_admin() and brand.SUid:
+            if is_admin() or brand.SUid:
                 supplizer = Supplizer.query.filter(
                     Supplizer.isdelete == False,
                     Supplizer.SUid == brand.SUid

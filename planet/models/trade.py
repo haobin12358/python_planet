@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Integer, String, Text, Float, DateTime, Boolean, orm
+from sqlalchemy import Integer, String, Text, Float, DateTime, Boolean, orm, DECIMAL
 
 from planet.common.base_model import Base, Column
 
@@ -32,8 +32,8 @@ class OrderMain(Base):
     PBid = Column(String(64), nullable=False, comment='品牌id')
     OMclient = Column(Integer, default=0, comment='下单设备: 0: 微信, 10: app')
     OMfreight = Column(Float, default=0, comment='运费')
-    OMmount = Column(Float, nullable=False, comment='总价')
-    OMtrueMount = Column(Float, nullable=False, comment='实际总价')
+    OMmount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='总价')
+    OMtrueMount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='实际总价')
     OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 35 待评价, 30完成 -40取消交易')
     OMinRefund = Column(Boolean, default=False, comment='主单是否在售后状态')
     OMmessage = Column(String(255), comment='留言')
@@ -82,12 +82,12 @@ class OrderPart(Base):
     PRid = Column(String(64),  nullable=False, comment='商品id')
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     SKUattriteDetail = Column(Text, nullable=False, comment='sku详情[]')
-    SKUprice = Column(Float, nullable=False, comment='单价')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='单价')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
     PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     OPnum = Column(Integer, default=1, comment='数量')
-    OPsubTotal = Column(Float, default=SKUprice, comment='价格小计')
-    OPsubTrueTotal = Column(Float, default=OPsubTotal, comment='依照价格比例计算出的使用优惠券后的价格')
+    OPsubTotal = Column(DECIMAL(precision=28, scale=2), default=SKUprice, comment='价格小计')
+    OPsubTrueTotal = Column(DECIMAL(precision=28, scale=2), default=OPsubTotal, comment='依照价格比例计算出的使用优惠券后的价格')
     # OPsubReducePriceFrom = Column(String(64), comment='减少金额的成本承担者(代理商), 为空则为平台')
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息

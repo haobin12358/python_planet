@@ -13,6 +13,7 @@ class BrandsListForm(BaseForm):
     pbstatus = SelectField('状态', choices=[('upper', 0), ('off_shelves', 10), ('all', None)], default='upper')
     itid = StringField('品牌标签id')
     free = SelectField(choices=[('false', False), ('true', True), ('all', 'all')], default='all')
+    kw = StringField()
 
 
 class BrandsCreateForm(BaseForm):
@@ -72,6 +73,10 @@ class ProductApplyAgreeForm(BaseForm):
     anabo = StringField()
 
 
+class SceneListForm(BaseForm):
+    kw = StringField(default='')
+
+
 class SceneCreateForm(BaseForm):
     """场景创建"""
     pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])
@@ -79,9 +84,12 @@ class SceneCreateForm(BaseForm):
     pssort = IntegerField('排序')
 
 
-class SceneUpdateForm(SceneCreateForm):
+class SceneUpdateForm(BaseForm):
     psid = StringField(validators=[DataRequired('场景id不可为空')])
-
+    pspic = StringField('图片')
+    psname = StringField('场景名')
+    pssort = IntegerField('排序')
+    isdelete = BooleanField(default=False)
 
 
 

@@ -17,7 +17,7 @@ def make_items():
             'ITauthority': ItemAuthrity.no_limit.value,
             'ITposition': ItemPostion.index.value
         })
-        # s_list.append(index_hot_items)
+        s_list.append(index_hot_items)
 
         news_bind_product = Items.create({
             'ITid': 'news_bind_product',
@@ -27,7 +27,7 @@ def make_items():
             'ITauthority': ItemAuthrity.other.value,
             'ITposition': ItemPostion.news_bind.value
         })
-        # s_list.append(news_bind_product)
+        s_list.append(news_bind_product)
 
         news_bind_coupon = Items.create({
             'ITid': 'news_bind_coupon',
@@ -37,7 +37,7 @@ def make_items():
             'ITauthority': ItemAuthrity.other.value,
             'ITposition': ItemPostion.news_bind.value
         })
-        # s_list.append(news_bind_coupon)
+        s_list.append(news_bind_coupon)
 
         new_user_items = Items.create({  # 新人推荐标签
             'ITid': 'new_user',
@@ -47,7 +47,7 @@ def make_items():
             'ITauthority': ItemAuthrity.new_user.value,
             'ITposition': ItemPostion.new_user_page.value
         })
-        # s_list.append(new_user_items)
+        s_list.append(new_user_items)
         index_brands_items = Items.create({
             'ITid': 'index_brand',
             'ITname': '品牌推荐',
@@ -55,14 +55,14 @@ def make_items():
             'ITtype': ItemType.brand.value,
             'ITposition': ItemPostion.index.value
         })
-        # s_list.append(index_brands_items)
+        s_list.append(index_brands_items)
         index_brands_product_items = Items.create({
             'ITid': 'index_brand_product',
             'ITname': '品牌推荐商品',
             'ITdesc': '这是首页才会出现的品牌商品',
             'ITposition': ItemPostion.index.value
         })
-        # s_list.append(index_brands_product_items)
+        s_list.append(index_brands_product_items)
 
         index_recommend_product_for_you_items = Items.create({
             'ITid': 'index_recommend_product_for_you',
@@ -70,7 +70,7 @@ def make_items():
             'ITdesc': '首页的为您推荐的商品',
             'ITposition': ItemPostion.index.value
         })
-
+        s_list.append(index_recommend_product_for_you_items)
         upgrade_product = Items.create({
             'ITid': 'upgrade_product',
             'ITname': '开店大礼包',
@@ -80,7 +80,7 @@ def make_items():
         })
 
         # s_list.append(guess_num_award)
-        # db.session.add_all(s_list)
+        db.session.add_all(s_list)
         s_list.append(upgrade_product)
         db.session.add_all(s_list)
 
@@ -138,6 +138,7 @@ if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         make_items()
+        make_acvitity()
 
 
 

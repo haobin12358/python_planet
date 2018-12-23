@@ -55,10 +55,11 @@ class CActivity(CUser):
                     if lasting:
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':
-                    lasting = MagicBoxApply.query.filter_by_().filter(
+                    lasting = MagicBoxApply.query.filter(
+                        MagicBoxApply.isdelete == False,
                         MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                        GuessNumAwardApply.AgreeStartime <= today,
-                        GuessNumAwardApply.AgreeEndtime >= today,
+                        MagicBoxApply.AgreeStartime <= today,
+                        MagicBoxApply.AgreeEndtime >= today,
                     ).first()
                     if lasting:
                         result.append(act)
@@ -103,7 +104,7 @@ class CActivity(CUser):
         today = date.today()
         act_instance.hide('ACid', 'ACbackGround', 'ACbutton', 'ACtopPic')
         if ac_type == 'magic_box':  # 魔盒
-            if not mbaid:
+            if not mbjid:
                 product, magic_apply = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
@@ -114,6 +115,10 @@ class CActivity(CUser):
                     MagicBoxApply.isdelete == False,
                 ).first_('活动未在进行')
             else:
+                magic_box_join = MagicBoxJoin.query.filter(
+                    MagicBoxJoin.isdelete == False,
+                    MagicBoxJoin.MBJid == mbjid,
+                ).first_('活动不存在')
                 product, magic_apply = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
@@ -121,8 +126,8 @@ class CActivity(CUser):
                 ).filter_(
                     # MagicBoxApply.AgreeStartime <= today,
                     # MagicBoxApply.AgreeEndtime >= today,
-                    MagicBoxApply.MBAid == mbaid,
-                    MagicBoxApply.isdelete == False,
+                    MagicBoxApply.MBAid == magic_box_join.MBAid,
+                    MagicBoxApply.isdelete == False
                 ).first_('活动不存在')
 
             act_instance.fill('prpic', product.PRmainpic)

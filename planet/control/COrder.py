@@ -19,7 +19,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
-    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus
+    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -603,13 +603,10 @@ class COrder(CPay, CCoupon):
                                ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
         order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
-        orderpartid_list = []
-        for op in order_part_with_main:
-            orderpartid_list.append(op.OPid)
-        evaluation_list = []
+        orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
         oeid_list = []
         get_opid_list = []  # 从前端获取到的所有opid
-        with self.strade.auto_commit() as oe:
+        with db.auto_commit():
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -620,16 +617,13 @@ class COrder(CPay, CCoupon):
                 if opid not in orderpartid_list:
                     raise NotFound('无此订单商品信息')
                 orderpartid_list.remove(opid)
-                exist_evaluation = oe.query(OrderEvaluation).filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
-
+                exist_evaluation = OrderEvaluation.query.filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
                 if exist_evaluation:
-                    # exist_evaluation.fields = '__all__'
-                    # current_app.logger.info('已存在的评论 {}'.format(dict(exist_evaluation)))
                     raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
                 if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
-                order_part_info = oe.query(OrderPart).filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first()
+                order_part_info = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first()
                 evaluation_dict = OrderEvaluation.create({
                     'OEid': oeid,
                     'OMid': omid,
@@ -642,12 +636,12 @@ class COrder(CPay, CCoupon):
                     'PRid': order_part_info.PRid,
                     'SKUattriteDetail': order_part_info.SKUattriteDetail
                 })
-                evaluation_list.append(evaluation_dict)
+                db.session.add(evaluation_dict)
                 # 商品总体评分变化
                 try:
-                    product_info = oe.query(Products).filter_by_(PRid=order_part_info.PRid).first()
+                    product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
                     average_score = round((float(product_info.PRaverageScore) + float(oescore) * 2) / 2)
-                    oe.query(Products).filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
+                    Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
                 except Exception as e:
                     gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
                 image_list = evaluation.get('image')
@@ -661,7 +655,7 @@ class COrder(CPay, CCoupon):
                             'OEImg': image.get('oeimg'),
                             'OEIsort': image.get('oeisort', 0)
                         })
-                        evaluation_list.append(image_evaluation)
+                        db.session.add(image_evaluation)
                 video = evaluation.get('video')
                 if video:
                     video_evaluation = OrderEvaluationVideo.create({
@@ -670,25 +664,22 @@ class COrder(CPay, CCoupon):
                         'OEVideo': video.get('oevideo'),
                         'OEVthumbnail': video.get('oevthumbnail')
                     })
-                    evaluation_list.append(video_evaluation)
+                    db.session.add(video_evaluation)
                 oeid_list.append(oeid)
-            oe.add_all(evaluation_list)
-
-        # 更改订单主单待评价状态为已完成
-        update_status = self.strade.update_ordermain_one([OrderMain.OMid == omid, OrderMain.isdelete == False,
-                                                          OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                                          ], {'OMstatus': OrderMainStatus.ready.value})
-        if not update_status:
-            raise StatusError('服务器繁忙 - 10001')
-
-        # 如果提交时主单中还有未评价的副单，默认好评
-        if len(orderpartid_list) > 0:
-            other_evaluation_list = []
-            with self.strade.auto_commit() as s:
-                for i in orderpartid_list:
-                    other_order_part_info = OrderPart.query.filter(OrderPart.OPid == i,
-                                                                   OrderPart.isdelete == False
-                                                                   ).first()
+            # oe.add_all(evaluation_list)
+            OrderMain.query.filter(
+                OrderMain.OMid == omid, OrderMain.isdelete == False,
+                OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+            ).update({
+                'OMstatus': OrderMainStatus.ready.value
+            })
+            if len(orderpartid_list) > 0:
+                other_evaluation_list = []
+                for order_part_id in orderpartid_list:
+                    other_order_part_info = OrderPart.query.filter(
+                        OrderPart.OPid == order_part_id,
+                        OrderPart.isdelete == False
+                    ).first()
                     oeid = str(uuid.uuid1())
                     other_evaluation = OrderEvaluation.create({
                         'OEid': oeid,
@@ -696,7 +687,7 @@ class COrder(CPay, CCoupon):
                         'USid': usid,
                         'USname': usname,
                         'USheader': usheader,
-                        'OPid': i,
+                        'OPid': order_part_id,
                         'OEtext': '此用户没有填写评价。',
                         'OEscore': 5,
                         'PRid': other_order_part_info.PRid,
@@ -706,12 +697,11 @@ class COrder(CPay, CCoupon):
                     other_evaluation_list.append(other_evaluation)
                     try:
                         # 商品总体评分变化
-                        other_product_info = oe.query(Products).filter_by_(PRid=other_order_part_info.PRid).first()
+                        other_product_info = Products.query.filter_by_(PRid=other_order_part_info.PRid).first()
                         other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
-                        oe.query(Products).filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
+                        Products.query.filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
                     except Exception as e:
                         gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
-                s.add_all(other_evaluation_list)
         return Success('评价成功', data={'oeid': oeid_list})
 
     def get_evaluation(self):
@@ -1194,5 +1184,20 @@ class COrder(CPay, CCoupon):
         }
         order_pay_instance = OrderPay.create(order_pay_dict)
         s.add(order_pay_instance)
+
+    def _commsion_into_count(self, order_part):
+        """佣金到账"""
+        opid = order_part.OPid
+        if order_part.OPisinORA:
+            return opid
+        # 佣金到账
+        user_commision = UserCommission.query.filter(
+            UserCommission.isdelete == False,
+            UserCommission.OPid == opid
+        ).update({
+                'UCstatus': UserCommissionStatus.in_account.value
+            })
+        current_app.logger.info('佣金到账数量 {}'.format(user_commision))
+        return opid
 
 

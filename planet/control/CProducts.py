@@ -14,7 +14,7 @@ from planet.common.token_handler import token_required, is_admin, is_shop_keeper
     admin_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
-    PermissionType, ApprovalType
+    PermissionType, ApprovalType, ProductBrandStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
@@ -56,10 +56,19 @@ class CProducts:
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
         sku_value_item = []
+        sku_price = []
         for sku in skus:
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
+            sku_price.append(sku.SKUprice)
         product.fill('skus', skus)
+        min_price = min(sku_price)
+        max_price = max(sku_price)
+        if min_price != max_price:
+
+            product.fill('price_range', '{}-{}'.format('%.2f' % min, '%.2f' % max))
+        else:
+            product.fill('price_range', "%.2f" % min_price)
         # sku value
         # 是否有skuvalue, 如果没有则自行组装
         sku_value_instance = ProductSkuValue.query.filter_by_({
@@ -103,7 +112,7 @@ class CProducts:
         product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
-                product.fill('pcids', self._up_category(product.PCid))
+                product.fill('pcids', self._up_category_id(product.PCid))
         return Success(data=product)
 
     def get_produt_list(self):
@@ -193,16 +202,20 @@ class CProducts:
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
-            # 供应商
-            supplizer = Supplizer.query.join(
-                SupplizerProduct, SupplizerProduct.SUid == Supplizer.SUid
-            ).filter_(
-                SupplizerProduct.PRid == product.PRid
-            ).first()
-            if not supplizer:
-                product.fill('supplizer', '平台')
-            else:
-                product.fill('supplizer', supplizer.SUname)
+            if is_supplizer() or is_admin():
+                # 供应商
+                supplizer = Supplizer.query.join(
+                    SupplizerProduct, SupplizerProduct.SUid == Supplizer.SUid
+                ).filter_(
+                    SupplizerProduct.PRid == product.PRid
+                ).first()
+                if not supplizer:
+                    product.fill('supplizer', '平台')
+                else:
+                    product.fill('supplizer', supplizer.SUname)
+                # 分类
+                category = self._up_category(product.PCid)
+                product.fill('category', category)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw != [''] and not is_tourist():
@@ -228,8 +241,10 @@ class CProducts:
         skus = data.get('skus')
         prdescription = data.get('prdescription')  # 简要描述
         product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
+        if product_brand.PBstatus == ProductBrandStatus.off_shelves.value:
+            raise StatusError('品牌已下架')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
-        if is_supplizer() and product_brand.SUid == request.user.id:
+        if is_supplizer() and product_brand.SUid != request.user.id:
             raise AuthorityError('仅可添加至指定品牌')
         prstocks = 0
         with self.sproduct.auto_commit() as s:
@@ -772,7 +787,7 @@ class CProducts:
                         pcid = sub.PCid
                         queue.append(pcid)
 
-    def _up_category(self, pcid, pc_list=()):
+    def _up_category_id(self, pcid, pc_list=()):
         """遍历上级分类至一级"""
         pc_list = list(pc_list)
         pc_list.insert(0, pcid)
@@ -780,9 +795,23 @@ class CProducts:
             'PCid': pcid,
             'isdelete': False,
         }).first()
-        if not category.ParentPCid or category in pc_list:
+        if not category.ParentPCid or category.ParentPCid in pc_list:
             return pc_list
-        return self._up_category(category.ParentPCid, pc_list)
+        return self._up_category_id(category.ParentPCid, pc_list)
+
+    def _up_category(self, pcid, pc_list=()):
+        pc_list = list(pc_list)
+        p_category = ProductCategory.query.filter_by({
+            'PCid': pcid,
+            'isdelete': False,
+        }).first()
+
+        if not p_category or p_category in pc_list:
+            return pc_list
+        pc_list.insert(0, p_category)
+        if not p_category.ParentPCid:
+            return pc_list
+        return self._up_category(p_category.ParentPCid, pc_list)
 
 
 

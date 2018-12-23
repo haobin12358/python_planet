@@ -9,6 +9,7 @@ class ItemListForm(BaseForm):
     recommend = IntegerField()
     itauthority = IntegerField(default=ItemAuthrity.no_limit.value)  # 查看权限
     itposition = IntegerField(default=ItemPostion.scene.value)  # 标签位置
+    kw = StringField(default='')
 
     def validate_psid(self, raw):
         if raw.data and self.ittype.data is not None:
@@ -33,6 +34,7 @@ class ItemCreateForm(BaseForm):
     itdesc = StringField()
     ittype = IntegerField(default=ItemType.product.value)
     itauthority = IntegerField()
+    itrecommend = BooleanField()
 
     def validate_ittype(self, raw):
         try:
@@ -55,7 +57,12 @@ class ItemCreateForm(BaseForm):
 
 
 class ItemUpdateForm(ItemCreateForm):
-    ITid = StringField(validators=[DataRequired('标签不可为空')])
+    itid = StringField(validators=[DataRequired('缺少参数itid')])
+    itname = StringField()
+    isdelete = BooleanField(default=False)
+    ittype = IntegerField(validators=[InputRequired('缺少参数ittype')])
+
+
 
 
 

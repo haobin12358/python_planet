@@ -1444,6 +1444,7 @@ class CUser(SUser, BASEAPPROVAL):
             'CNbankDetail': data.get('cnbankdetail'),
             'CNcardNo': data.get('cncardno'),
             'CNcashNum': data.get('cncashnum'),
+            'CNcardName': data.get('cncardname')
         })
         db.session.add(cn)
         # 创建审批流
