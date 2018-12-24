@@ -8,10 +8,11 @@ from flask import request
 from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin
+from planet.common.token_handler import token_required, is_admin, admin_required
 from planet.config.enums import UserActivationCodeStatus
 from planet.extensions.register_ext import db
 from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply
+from planet.extensions.validates.trade import ActRuleSetFrom
 
 
 class CActivationCode:
@@ -75,6 +76,29 @@ class CActivationCode:
             user_act_code.fill('uacstatus_zh',
                                UserActivationCodeStatus(user_act_code.UACstatus).zh_value)
         return Success(data=user_act_codes)
+
+    @admin_required
+    def set_rule(self):
+        """设置一些规则"""
+        form = ActRuleSetFrom().valid_data()
+        with db.auto_commit():
+            deleted = ActivationCodeRule.query.delete_()
+            rule_instance = ActivationCodeRule.create({
+                'ACRid': str(uuid.uuid1()),
+                'ACRrule': form.acrrule.data,
+                'ACRphone': form.acrphone.data,
+                'ACRaddress': form.acraddress.data,
+                'ACRname': form.acrname.data,
+                'ACRbankSn': form.acrbanksn.data,
+                'ACRbankAddress': form.acrbankaddress.data
+            })
+            db.session.add(rule_instance)
+        return Success('添加成功', rule_instance.ACRid)
+
+    @admin_required
+    def send_code(self):
+        # todo 发放激活码
+        pass
 
     def _generate_activaty_code(self, num=10):
         """生成激活码"""

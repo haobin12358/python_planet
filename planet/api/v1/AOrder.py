@@ -20,6 +20,7 @@ class AOrder(Resource):
             'order_coupons': self.corder.get_can_use_coupon,  # 创建订单时可以使用的优惠券
             'order_feight': self.corder.get_order_feight,
             'confirm': self.corder.confirm,
+            'update_price': self.corder.update_price,
             'test_to_pay': self.corder.test_to_pay,   # 测试接口 注意删除
             'test_to_send': self.corder.test_to_send,   # 测试接口 注意删除
         }

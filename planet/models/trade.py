@@ -41,7 +41,7 @@ class OrderMain(Base):
     OMrecvPhone = Column(String(11), nullable=False, comment='收货电话')
     OMrecvName = Column(String(11), nullable=False, comment='收货人姓名')
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
-    PRcreateId = Column(String(64), comment='发布者id')  # 不用
+    PRcreateId = Column(String(64), comment='发布者id')  # 为品牌所属供应商id, 无表示平台
     OMlogisticType = Column(Integer, default=0, comment='发货类型 0 正常发货, 10线上发货(无物流)')
 
 

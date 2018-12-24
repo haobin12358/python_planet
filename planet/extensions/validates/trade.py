@@ -16,6 +16,11 @@ class OrderListForm(BaseForm):
     extentions = StringField('一些扩展的查询')
     omfrom = IntegerField('来源')
     ordertype = StringField('区分活动订单')
+    omno = StringField('订单编号')
+    omrecvname = StringField('收件人')
+    prtitle = StringField('商品名')
+    createtime_start = DateField('开始时间')
+    createtime_end = DateField('结束时间')
 
     def validate_omstatus(self, raw):
         try:
@@ -30,11 +35,12 @@ class OrderListForm(BaseForm):
                 ]
         except ValueError as e:
             if raw.data in ['inrefund', 'refund', 40, '40']:
-                self.omstatus.data = [
-                    OrderMain.OMinRefund == True,
-                ]
-            else:
-                raise ValidationError('status 参数错误')
+                self.omstatus.data = 'refund'  # 标志一下, 需要查售后中的订单
+            #     self.omstatus.data = [
+            #         OrderMain.OMinRefund == True,
+            #     ]
+            # else:
+            #     raise ValidationError('status 参数错误')
         except Exception as e:
             raise e
 
@@ -135,6 +141,15 @@ class RefundConfirmForm(BaseForm):
 
 class RefundConfirmRecvForm(BaseForm):
     oraid = StringField(validators=[DataRequired('oraid必须')])
+
+
+class ActRuleSetFrom(BaseForm):
+    acrrule = StringField()
+    acrphone = StringField()
+    acraddress = StringField()
+    acrname = StringField(validators=[DataRequired('姓名不可为空')])
+    acrbanksn = StringField(validators=[DataRequired('卡号不可为空')])
+    acrbankaddress = StringField()
 
 
 
