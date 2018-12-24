@@ -281,7 +281,8 @@ class CProducts:
                     'SKUpic': sku.get('skupic'),
                     'SKUprice': round(skuprice, 2),
                     'SKUstock': int(skustock),
-                    'SKUattriteDetail': json.dumps(skuattritedetail)
+                    'SKUattriteDetail': json.dumps(skuattritedetail),
+                    'SKUsn': sku.get('skusn')
                 }
                 sku_instance = ProductSku.create(sku_dict)
                 session_list.append(sku_instance)
@@ -419,7 +420,7 @@ class CProducts:
                             'SKUpic': sku.get('skupic'),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             'SKUstock': int(skustock),
-                            'SKUsn': data.get('skusn')
+                            'SKUsn': sku.get('skusn')
                         })
                         session_list.append(sku_instance)
                     else:
@@ -432,7 +433,7 @@ class CProducts:
                             'SKUstock': int(skustock),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             # 'isdelete': sku.get('isdelete'),
-                            'SKUsn': data.get('skusn')
+                            'SKUsn': sku.get('skusn')
                         })
                         new_sku.append(sku_instance)
                         session_list.append(sku_instance)

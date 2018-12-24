@@ -8,7 +8,8 @@ from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError, TokenError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin
+from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
+    is_admin
 from planet.config.enums import ItemType, NewsStatus, ApprovalType
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
@@ -27,14 +28,20 @@ class CNews(BASEAPPROVAL):
         self.empty = ['', {}, [], [''], None]
 
     def get_all_news(self):
-        if not is_tourist():
+        if is_tourist():
+            usid = None
+            tourist = 1
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {0} is geting all news'.format(admin.ADname))
+            tourist = 'admin'
+        else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
             current_app.logger.info('User {0} is geting all news'.format(user.USname))
             tourist = 0
-        else:
-            usid = None
-            tourist = 1
+
         args = parameter_required(('page_num', 'page_size'))
         itid = args.get('itid')
         kw = args.get('kw', '').split() or ['']  # 关键词
@@ -76,7 +83,7 @@ class CNews(BASEAPPROVAL):
             favoritnumber = self.snews.get_news_favorite_count(news.NEid)
             news.fill('favoritnumber', favoritnumber)
             video = self.snews.get_news_video(news.NEid)
-            if video:
+            if video and not news.NEmainpic:
                 video_source = video['NVvideo']
                 showtype = 'video'
                 video_thumbnail = video['NVthumbnail']
@@ -118,14 +125,19 @@ class CNews(BASEAPPROVAL):
 
     def get_news_content(self):
         """资讯详情"""
-        if not is_tourist():
-            usid = request.user.id
-            user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} get news content'.format(user.USname))
-            tourist = 0
-        else:
+        if is_tourist():
             usid = None
             tourist = 1
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {0} is geting all news'.format(admin.ADname))
+            tourist = 'admin'
+        else:
+            usid = request.user.id
+            user = self.snews.get_user_by_id(usid)
+            current_app.logger.info('User {0} is geting all news'.format(user.USname))
+            tourist = 0
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
@@ -239,10 +251,13 @@ class CNews(BASEAPPROVAL):
         video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
         product = data.get('product')  # ['prid1', 'prid2']
+        mainpic = data.get('nemainpic')
         coupon = json.dumps(coupon) if coupon not in self.empty else None
         product = json.dumps(product) if product not in self.empty else None
         isrecommend = data.get('neisrecommend', 0)
         isrecommend = True if str(isrecommend) == '1' else False
+        if isrecommend and not mainpic:
+            raise ParamsError("被推荐的资讯必须上传封面图")
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = News.create({
@@ -253,7 +268,7 @@ class CNews(BASEAPPROVAL):
                 # 'NEstatus': NewsStatus.auditing.value,
                 'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
                 'NEsource': data.get('source'),
-                'NEmainpic': data.get('nemainpic'),
+                'NEmainpic': mainpic,
                 'NEisrecommend': isrecommend,  # todo 管理员后台添加时设置/验证权限
                 'COid': coupon,
                 'PRid': product,
@@ -637,6 +652,10 @@ class CNews(BASEAPPROVAL):
         else:
             raise AuthorityError('只能删除自己发布的评论')
         return Success('删除成功', {'ncid': ncid})
+
+    @staticmethod
+    def _check_admin(usid):
+        return Admin.query.filter_by_(ADid=usid).first_('用户不存在')
 
     @staticmethod
     def fill_user_info(usid):

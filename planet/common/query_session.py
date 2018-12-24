@@ -36,6 +36,7 @@ class Query(_Query):
     def filter_by_(self, *args, **kwargs):
         """
         不提取isdelete为True的记录
+        执行delete操作的时候不要使用
         """
         for arg in args:
             kwargs.update(arg)
@@ -58,7 +59,6 @@ class Query(_Query):
         raise NotFound(error)
 
     def delete_(self, synchronize_session='evaluate', update_args=None):
-        """执行delete操作的时候不要使用"""
         return self.update({'isdelete': True}, synchronize_session=synchronize_session, update_args=update_args)
 
     def delete(self, synchronize_session='evaluate'):
