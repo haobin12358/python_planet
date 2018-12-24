@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 from datetime import datetime, date
+from decimal import Decimal
 
 from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
 from werkzeug.exceptions import HTTPException
@@ -57,6 +58,8 @@ class JSONEncoder(_JSONEncoder):
             raise o()
         if isinstance(o, HTTPException):
             raise o
+        if isinstance(o, Decimal):
+            return round(float(o), 2)
         raise TypeError(repr(o) + " is not JSON serializable")
 
 
@@ -94,12 +97,12 @@ class Request(_Request):
         res = {
             'path': self.path,
             'method': self.method,
-            'data': self.data.decode(),
+            'data': self.data,
             'query': self.args.to_dict(),
             'address': self.remote_addr
         }
-        if self.files:
-            res.setdefault('files', dict(self.files))
+        # if self.files:
+        #     res.setdefault('files', dict(self.files))
         return res
 
     @property

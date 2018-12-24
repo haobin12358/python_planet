@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime
+from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL
 
 from planet.common.base_model import Base, Column
 
@@ -11,9 +11,9 @@ class Products(Base):
     __tablename__ = "Products"
     PRid = Column(String(64), primary_key=True)
     PRtitle = Column(String(255), nullable=False, comment='标题')
-    PRprice = Column(Float, nullable=False, comment='价格')
-    PRlinePrice = Column(Float, comment='划线价格')
-    PRfreight = Column(Float, default=0, comment='运费')
+    PRprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
+    PRlinePrice = Column(DECIMAL(precision=28, scale=2), comment='划线价格')
+    PRfreight = Column(Float(precision=10, scale=2), default=0, comment='运费')
     PRstocks = Column(Integer, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
     PRstatus = Column(Integer, default=0, comment='状态  0 正常, 10 审核中 60下架')
@@ -52,7 +52,7 @@ class ProductSku(Base):
     PRid = Column(String(64), nullable=False, comment='产品id')
     SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
-    SKUprice = Column(Float, nullable=False, comment='价格')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
     SKUstock = Column(Integer, comment='库存')
     SKUsn = Column(String(64), default=SKUid, nullable=False, comment='sku编码')
 
@@ -168,7 +168,7 @@ class Supplizer(Base):
     SUid = Column(String(64), primary_key=True)
     SUloginPhone = Column(String(11), nullable=False, index=True, unique=True, comment='登录手机号')
     SUlinkPhone = Column(String(11), default=SUloginPhone, comment='供应商联系电话')
-    SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
+    SUname = Column(String(32), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
