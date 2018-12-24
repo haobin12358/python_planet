@@ -16,7 +16,7 @@ class CIndex:
     def __init__(self):
         self.sindex = SIndex()
 
-    @cache.cached(timeout=30, key_prefix='index')
+    # @cache.cached(timeout=30, key_prefix='index')
     def brand_recommend(self):
         current_app.logger.info('获取首页信息')
         data = {
@@ -30,7 +30,7 @@ class CIndex:
         }
         return Success(data=data)
 
-    @cache.cached(timeout=30, key_prefix='index_banner')
+    # @cache.cached(timeout=30, key_prefix='index_banner')
     def list_banner(self):
         form = IndexListBannerForm().valid_data()
         ibshow = dict(form.ibshow.choices).get(form.ibshow.data)

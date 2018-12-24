@@ -64,12 +64,12 @@ class CProducts:
         product.fill('skus', skus)
         min_price = min(sku_price)
         max_price = max(sku_price)
-        if min_price != max_price:
-
-            product.fill('price_range', '{}-{}'.format('%.2f' % min, '%.2f' % max))
-        else:
-            product.fill('price_range', "%.2f" % min_price)
-        # sku value
+        # if min_price != max_price:
+        #
+        #     product.fill('price_range', '{}-{}'.format('%.2f' % min, '%.2f' % max))
+        # else:
+        #     product.fill('price_range', "%.2f" % min_price)
+        # # sku value
         # 是否有skuvalue, 如果没有则自行组装
         sku_value_instance = ProductSkuValue.query.filter_by_({
             'PRid': prid
@@ -557,22 +557,32 @@ class CProducts:
                 for item in items:
                     itid = item.get('itid')
                     itids.append(itid)
-                    item_instance = s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在{}'.format(itid))
-                    product_item_instance = s.query(ProductItems).join(Items, ProductItems.ITid == Items.ITid).filter_by_({'ITid': itid}).first_()
-                    if product_item_instance:
-                        piid = product_item_instance.PIid
-                        item_product_instance = s.query(ProductItems).filter_by_({'PIid': piid}).first_('piid不存在')
-                    else:
+                    s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在{}'.format(itid))
+
+                    product_item_instance = s.query(ProductItems).join(Items, ProductItems.ITid == Items.ITid).filter(
+                        Items.isdelete == False,
+                        ProductItems.isdelete == False,
+                        Items.ITid == itid
+                    ).first_()
+                    # product_item_instance.fields = '__all__'
+                    # current_app.logger.info('>>>>>>>product_item_instance is {}'.format(dict(product_item_instance)))
+                    # # if product_item_instance:
+                    #     # current_app.logger.info('>>>piid is {}'.format(piid))
+                    #     item_product_instance = s.query(ProductItems).filter(
+                    #         ProductItems.isdelete == False,
+                    #         ProductItems.PIid == product_item_instance.PIid
+                    #     ).first_('piid不存在')
+                    if not product_item_instance:
                         piid = str(uuid.uuid1())
                         item_product_instance = ProductItems()
-                    item_product_dict = {
-                        'PIid': piid,
-                        'PRid': prid,
-                        'ITid': itid,
-                        'isdelete': item.get('isdelete')
-                    }
-                    [setattr(item_product_instance, k, v) for k, v in item_product_dict.items() if v is not None]
-                    session_list.append(item_product_instance)
+                        item_product_dict = {
+                            'PIid': piid,
+                            'PRid': prid,
+                            'ITid': itid,
+                            'isdelete': item.get('isdelete')
+                        }
+                        [setattr(item_product_instance, k, v) for k, v in item_product_dict.items() if v is not None]
+                        session_list.append(item_product_instance)
                 # 删除不需要的
                 current_app.logger.info(itids)
                 ProductItems.query.filter(
