@@ -168,7 +168,7 @@ class Supplizer(Base):
     SUid = Column(String(64), primary_key=True)
     SUloginPhone = Column(String(11), nullable=False, index=True, unique=True, comment='登录手机号')
     SUlinkPhone = Column(String(11), default=SUloginPhone, comment='供应商联系电话')
-    SUname = Column(String(16), default=SUlinkPhone, comment='供应商名字')
+    SUname = Column(String(32), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')

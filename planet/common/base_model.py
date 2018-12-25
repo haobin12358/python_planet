@@ -128,7 +128,7 @@ class Base(db.Model):
             elif isinstance(v, list) and is_url_list:
                 v_items = []
                 for v_item in v:
-                    if isinstance(v, str) and v.startswith(MEDIA_HOST):
+                    if isinstance(v_item, str) and v_item.startswith(MEDIA_HOST):
                         v_items.append(v_item[len(MEDIA_HOST):])
                     else:
                         v_items.append(v_item)

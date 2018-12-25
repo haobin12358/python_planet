@@ -5,6 +5,7 @@ import random
 import re
 import datetime
 import uuid
+from decimal import Decimal
 
 import requests
 from flask import request
@@ -15,7 +16,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -1512,3 +1513,40 @@ class CUser(SUser, BASEAPPROVAL):
             'sub_detail': sub_salesvolume_list,
         }
         return Success('获取收益详情成功', data=data)
+
+    @token_required
+    def list_user_commison(self):
+        """查看代理商获取的佣金列表"""
+        data = parameter_required()
+        mobile = data.get('mobile')
+        name = data.get('name')
+        user_query = User.query.filter(
+            User.isdelete == False,
+            User.USlevel >= 2
+        )
+        if mobile:
+            user_query = user_query.filter(User.UStelphone.contains(mobile.strip()))
+        if name:
+            user_query = user_query.filter(User.USname.contains(name.strip()))
+        users = user_query.all_with_page()
+        for user in users:
+            # 佣金
+            user.fields = ['USid', 'UStelphone', 'USname', 'USheader']
+            usid = request.user.id
+
+            wallet = UserWallet.query.filter(
+                UserWallet.isdelete == False,
+                UserWallet.USid == usid,
+            ).first()
+            remain = getattr(wallet, 'UWbalance', 0)
+            total = getattr(wallet, 'UWtotal', 0)
+            user.fill('remain', remain)
+            user.fill('total', total)
+            # 粉丝数
+            fans_num = User.query.filter(
+                User.isdelete == False,
+                User.USsupper1 == usid,
+            ).count()
+            user.fill('fans_num', fans_num)
+        return Success(data=users)
+

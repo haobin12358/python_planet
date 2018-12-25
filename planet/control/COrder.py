@@ -8,12 +8,12 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import extract
+from sqlalchemy import extract, or_, and_, cast, Date
 
 from planet.common.logistics import Logistics
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, NotFound, StatusError, DumpliError, TokenError, \
-    AuthorityError
+    AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
@@ -27,9 +27,9 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode
-from planet.models.trade import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
+from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
-    OrderRefund
+    OrderRefund, UserWallet
 
 
 class COrder(CPay, CCoupon):
@@ -38,41 +38,69 @@ class COrder(CPay, CCoupon):
     def list(self):
         form = OrderListForm().valid_data()
         usid = form.usid.data
-        filter_args = form.omstatus.data  # 过滤参数
+        omstatus = form.omstatus.data  # 过滤参数
         omfrom = form.omfrom.data  # 来源
+        omno = form.omno.data
+        omrecvname = form.omrecvname.data
+        prtitle = form.prtitle.data
+        createtime_start = form.createtime_start.data
+        createtime_end = form.createtime_end.data
+        order_main_query = OrderMain.query.filter(OrderMain.isdelete == False)
         if usid:
-            filter_args.append(OrderMain.USid == usid)
+            order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
         if omfrom is None:
-            filter_args.append(
-                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
-            )
+            order_main_query = order_main_query.filter(
+                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
         else:
-            filter_args.append(OrderMain.OMfrom == omfrom)
-            filter_args.append(OrderMain.OMinRefund == False)
-
-        order_main_query = OrderMain.query.filter_(*filter_args, OrderMain.isdelete == False
-                                 ).order_by(OrderMain.createtime.desc())
-        # order_mains = self.strade.get_ordermain_list(filter_args)
+            order_main_query = order_main_query.filter(OrderMain.OMfrom == omfrom, OrderMain.OMinRefund == False)
+        if omstatus == 'refund':
+            # 后台获得售后订单(获取主单售后和附单售后)
+            if is_admin() or is_supplizer():
+                order_main_query = order_main_query.join(
+                    OrderPart, OrderMain.OMid == OrderPart.OMid
+                ).filter(
+                    or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
+                        (OrderMain.OMinRefund == True))
+                )
+            else:
+                order_main_query = order_main_query.filter(
+                    OrderMain.OMinRefund == True
+                )
+        elif omstatus:
+            order_main_query = order_main_query.filter(*omstatus)
         if is_supplizer():
+            # 供应商仅看自己出售的
             order_main_query = order_main_query.filter(
                 OrderMain.PRcreateId == request.user.id
             )
-        order_mains = order_main_query.all_with_page()
+        if omno:
+            order_main_query = order_main_query.filter(OrderMain.OMno.contains(omno))
+        if omrecvname:
+            order_main_query = order_main_query.filter(OrderMain.OMrecvName.contains(omrecvname))
+        if prtitle:
+            if OrderPart not in order_main_query._joinpoint.values():
+                order_main_query = order_main_query.join(OrderPart, OrderMain.OMid == OrderPart.OMid)
+            order_main_query = order_main_query.filter(
+                OrderPart.PRtitle.contains(prtitle)
+            )
+        if createtime_start:
+            order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
+        if createtime_end:
+            order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) <= createtime_end)
+        order_mains = order_main_query.order_by(OrderMain.createtime.desc()).all_with_page()
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
                 order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
                 order_part.PRattribute = json.loads(order_part.PRattribute)
                 # 状态
-                # order_part.OPstatus_en = OrderPartStatus(order_part.OPstatus).name
-                # order_part.add('OPstatus_en')
-
+                if is_supplizer() or is_admin() and order_part.OPisinORA:
+                    order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
+                    self._fill_order_refund(order_part, order_refund_apply_instance, False)
                 # 如果是试用商品，订单信息中添加押金到期信息
                 if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
-                                        OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
-                    # trialcommodity = TrialCommodity.query.filter_by_(TCid=order_part.PRid).first()
-                    # deposit_expires = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
+                    OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
                     usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
                     deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
                     order_main.fill('deposit_expires', deposit_expires)
@@ -94,17 +122,7 @@ class COrder(CPay, CCoupon):
             if order_main.OMinRefund is True:
                 omid = order_main.OMid
                 order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
-                order_refund_apply_instance.fields = ['ORAproductStatus', 'ORAstatus', 'ORAstate',
-                                                      'orastate_zh', 'ORAstatus_zh', 'ORAproductStatus_zh',
-                                                      'createtime', 'ORAid']
-                order_main.fill('order_refund_apply', order_refund_apply_instance)
-                # 售后发货状态
-                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
-                        order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
-                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
-                    order_refund_instance.fields = ['ORstatus', 'ORstatus_zh', 'ORlogisticSignStatus_zh', 'createtime']
-                    order_main.fill('order_refund', order_refund_instance)
-
+                self._fill_order_refund(order_main, order_refund_apply_instance, False)
         return Success(data=order_mains)
 
     @token_required
@@ -172,12 +190,13 @@ class COrder(CPay, CCoupon):
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid1())  # 主单id
-                info = parameter_required(('pbid', 'skus', ), datafrom=info)
+                info = parameter_required(('pbid', 'skus',), datafrom=info)
                 pbid = info.get('pbid')
                 skus = info.get('skus')
                 coupons = info.get('coupons')
                 ommessage = info.get('ommessage')
-                product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+                product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_(
+                    '品牌id: {}不存在'.format(pbid))
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
                 freight_list = []  # 快递费
@@ -276,7 +295,8 @@ class COrder(CPay, CCoupon):
                 # 使用优惠券
                 if coupons:
                     for coid in coupons:
-                        coupon_user = s.query(CouponUser).filter_by_({"COid": coid, 'USid': usid, 'UCalreadyUse': False}).first_('用户优惠券{}不存在'.format(coid))
+                        coupon_user = s.query(CouponUser).filter_by_(
+                            {"COid": coid, 'USid': usid, 'UCalreadyUse': False}).first_('用户优惠券{}不存在'.format(coid))
                         coupon = s.query(Coupon).filter_by_({"COid": coupon_user.COid}).first_('优惠券不可用')
                         # 是否过期或者已使用过
                         can_use = self._isavalible(coupon, coupon_user)
@@ -301,26 +321,30 @@ class COrder(CPay, CCoupon):
                                 raise StatusError('优惠券{}仅可用于指定商品'.format(coid))
 
                             coupon_for_in_this = {
-                                prid: Decimal(str(price)) for prid, price in coupon_for_in_this.items() if prid in coupon_for_prids
+                                prid: Decimal(str(price)) for prid, price in coupon_for_in_this.items() if
+                            prid in coupon_for_prids
                             }
                             coupon_for_sum = sum(coupon_for_in_this.values())  # 优惠券支持的商品的总价
                             if coupon.COdownLine > coupon_for_sum:
                                 raise StatusError('优惠券{}未达到指定商品满减'.format(coid))
-                            reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
+                            reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(
+                                str(coupon.COsubtration))
                             order_price = order_price - reduce_price
                             if order_price <= 0:
                                 order_price = 0.01
                         else:
                             coupon_for_sum = order_old_price
-                            order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                            order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(
+                                str(coupon.COsubtration))
                             reduce_price = order_old_price - order_price
                             if order_price <= 0:
                                 order_price = 0.01
                         # 副单按照比例计算'实际价格'
                         for order_part in order_part_list:
                             if order_part.PRid in coupon_for_in_this:
-                                order_part.OPsubTrueTotal = Decimal(order_part.OPsubTrueTotal) -\
-                                                            (reduce_price * coupon_for_in_this[order_part.PRid] / coupon_for_sum)
+                                order_part.OPsubTrueTotal = Decimal(order_part.OPsubTrueTotal) - \
+                                                            (reduce_price * coupon_for_in_this[
+                                                                order_part.PRid] / coupon_for_sum)
                                 if order_part.OPsubTrueTotal <= 0:
                                     order_part.OPsubTrueTotal = 0.01
                                 s.add(order_part)
@@ -412,9 +436,12 @@ class COrder(CPay, CCoupon):
     @token_required
     def get(self):
         """单个订单"""
-        data = parameter_required(('omid', ))
+        data = parameter_required(('omid',))
         omid = data.get('omid')
-        order_main = self.strade.get_ordermain_one({'OMid': omid, 'USid': request.user.id}, '该订单不存在')
+        if is_admin() or is_supplizer():
+            order_main = self.strade.get_ordermain_one({'OMid': omid}, '该订单不存在')
+        else:
+            order_main = self.strade.get_ordermain_one({'OMid': omid, 'USid': request.user.id}, '该订单不存在')
         order_parts = self.strade.get_orderpart_list({'OMid': omid})
         for order_part in order_parts:
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
@@ -424,99 +451,12 @@ class COrder(CPay, CCoupon):
             if order_part.OPisinORA is True:
                 opid = order_part.OPid
                 order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
-                order_part.fill('order_refund_apply', order_refund_apply_instance)
-                # 售后发货状态
-                if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
-                        order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
-                    order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
-                    order_part.fill('order_refund', order_refund_instance)
-                    # 已发货
-                    time_now = datetime.now()
-                    if order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
-                        if (not order_refund_instance.ORlogisticData or (
-                                time_now - order_refund_instance.updatetime).total_seconds() > 6 * 3600) \
-                                and order_refund_instance.ORlogisticLostResult != 3:  # 没有data信息或超过6小时 并且状态不是已签收
-                            l = Logistics()
-                            current_app.logger.info('正在查询售后物流信息')
-                            response = l.get_logistic(order_refund_instance.ORlogisticsn, order_refund_instance.ORlogisticCompany)
-
-                            if response:
-                                # 插入数据库
-                                with db.auto_commit():
-                                    code = response.get('status')
-                                    if code == '0':
-
-                                        result = response.get('result')
-                                        order_refund_instance.update({
-                                            'ORlogisticSignStatus': int(result.get('deliverystatus')),
-                                            'ORlogisticData':  json.dumps(result),
-                                            'ORlogisticLostResult': json.dumps(result.get('list')[0])
-                                        })
-                                        db.session.add(order_refund_instance)
-                                        #
-                                    else:
-                                        current_app.logger.error('获取售后物流异常')
-                                        OrderLogisticsDict = {
-                                            'ORlogisticSignStatus': -1,
-                                            'ORlogisticData': json.dumps(response),  # 结果原字符串
-                                            'ORlogisticLostResult': '{}'
-                                        }
-                                        order_refund_instance.update(OrderLogisticsDict)
-                                        db.session.add(order_refund_instance)
-                        try:
-                            order_refund_instance.ORlogisticLostResult = json.loads(order_refund_instance.ORlogisticLostResult)
-                            order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
-                        except Exception:
-                            current_app.logger.error('售后物流出错')
+                self._fill_order_refund(order_part, order_refund_apply_instance)
         # 主单售后状态信息
         if order_main.OMinRefund is True:
             omid = order_main.OMid
             order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
-            order_main.fill('order_refund_apply', order_refund_apply_instance)
-            # 售后发货状态
-            if order_refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value and \
-                    order_refund_apply_instance.ORAstatus == ApplyStatus.agree.value:
-                order_refund_instance = self._get_order_refund({'ORAid': order_refund_apply_instance.ORAid})
-                order_main.fill('order_refund', order_refund_instance)
-
-                # 已发货
-                time_now = datetime.now()
-                if order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
-                    if (not order_refund_instance.ORlogisticData or (
-                            time_now - order_refund_instance.updatetime).total_seconds() > 6 * 3600) \
-                            and order_refund_instance.ORlogisticLostResult != 3:  # 没有data信息或超过6小时 并且状态不是已签收
-                        l = Logistics()
-                        current_app.logger.info('正在查询售后物流信息')
-                        response = l.get_logistic(order_refund_instance.ORlogisticsn, order_refund_instance.ORlogisticCompany)
-
-                        if response:
-                            # 插入数据库
-                            with db.auto_commit():
-                                code = response.get('status')
-                                if code == '0':
-                                    result = response.get('result')
-                                    order_refund_instance.update({
-                                        'ORlogisticSignStatus': int(result.get('deliverystatus')),
-                                        'ORlogisticData': json.dumps(result),
-                                        'ORlogisticLostResult': json.dumps(result.get('list')[0])
-                                    })
-                                    db.session.add(order_refund_instance)
-                                    #
-                                else:
-                                    current_app.logger.error('获取售后物流异常')
-                                    OrderLogisticsDict = {
-                                        'ORlogisticSignStatus': -1,
-                                        'ORlogisticData': json.dumps(response),  # 结果原字符串
-                                        'ORlogisticLostResult': '{}'
-                                    }
-                                    order_refund_instance.update(OrderLogisticsDict)
-                                    db.session.add(order_refund_instance)
-                    try:
-                        order_refund_instance.ORlogisticLostResult = json.loads(
-                            order_refund_instance.ORlogisticLostResult)
-                        order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
-                    except Exception:
-                        current_app.logger.error('售后物流出错')
+            self._fill_order_refund(order_main, order_refund_apply_instance)
         order_main.fill('order_part', order_parts)
         # 状态
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
@@ -539,7 +479,7 @@ class COrder(CPay, CCoupon):
     @token_required
     def cancle(self):
         """付款前取消订单"""
-        data = parameter_required(('omid', ))
+        data = parameter_required(('omid',))
         omid = data.get('omid')
         usid = request.user.id
         with self.strade.auto_commit() as s:
@@ -547,9 +487,13 @@ class COrder(CPay, CCoupon):
             # 主单状态修改
             order_main = s.query(OrderMain).filter_by_({
                 'OMid': omid,
-                'USid': usid,
+                # 'USid': usid,
                 'OMstatus': OrderMainStatus.wait_pay.value
             }).first_('指定订单不存在')
+            if is_supplizer() and order_main.OMcreateId != usid:
+                raise AuthorityError()
+            if not is_admin() and not is_supplizer() and order_main.USid != usid:
+                raise NotFound('订单订单不存在')
             order_main.OMstatus = OrderMainStatus.cancle.value
             s_list.append(order_main)
             # 优惠券返回
@@ -579,7 +523,7 @@ class COrder(CPay, CCoupon):
     @token_required
     def delete(self):
         """删除已取消的订单"""
-        data = parameter_required(('omid', ))
+        data = parameter_required(('omid',))
         omid = data.get('omid')
         usid = request.user.id
         User.query.filter_by_(USid=usid).first_('用户不存在')
@@ -603,10 +547,10 @@ class COrder(CPay, CCoupon):
                                ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
         order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
-        orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
         oeid_list = []
         get_opid_list = []  # 从前端获取到的所有opid
         with db.auto_commit():
+            orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -617,7 +561,8 @@ class COrder(CPay, CCoupon):
                 if opid not in orderpartid_list:
                     raise NotFound('无此订单商品信息')
                 orderpartid_list.remove(opid)
-                exist_evaluation = OrderEvaluation.query.filter(OrderEvaluation.OPid == opid, OrderEvaluation.isdelete == False).first()
+                exist_evaluation = OrderEvaluation.query.filter(OrderEvaluation.OPid == opid,
+                                                                OrderEvaluation.isdelete == False).first()
                 if exist_evaluation:
                     raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
@@ -699,7 +644,8 @@ class COrder(CPay, CCoupon):
                         # 商品总体评分变化
                         other_product_info = Products.query.filter_by_(PRid=other_order_part_info.PRid).first()
                         other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
-                        Products.query.filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
+                        Products.query.filter_by_(PRid=other_product_info.PRid).update(
+                            {'PRaverageScore': other_average_score})
                     except Exception as e:
                         gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
         return Success('评价成功', data={'oeid': oeid_list})
@@ -790,14 +736,22 @@ class COrder(CPay, CCoupon):
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
-            data = [  # 获取各状态的数量, '已完成'和'已取消'除外
-                {'count': self._get_order_count(filter_args, k),
-                 'name': getattr(OrderMainStatus, k).zh_value,
-                 'status': getattr(OrderMainStatus, k).value}
-                for k in OrderMainStatus.all_member() if k not in [
-                    OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+            if not is_admin() and not is_supplizer():
+                data = [  # 获取各状态的数量, '已完成'和'已取消'除外
+                    {'count': self._get_order_count(filter_args, k),
+                     'name': getattr(OrderMainStatus, k).zh_value,
+                     'status': getattr(OrderMainStatus, k).value}
+                    for k in OrderMainStatus.all_member() if k not in [
+                        OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+                    ]
                 ]
-            ]
+            else:
+                data = [  # 获取各状态的数量
+                    {'count': self._get_order_count(filter_args, k),
+                     'name': getattr(OrderMainStatus, k).zh_value,
+                     'status': getattr(OrderMainStatus, k).value}
+                    for k in OrderMainStatus.all_member()
+                ]
             data.insert(  #
                 0,
                 {
@@ -807,12 +761,21 @@ class COrder(CPay, CCoupon):
                 }
             )
             if extentions == 'refund':
+                if not is_admin() and not is_supplizer():
+                    refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid,
+                                                           OrderMain.OMfrom.in_(
+                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]
+                                                           )).count()
+                else:
+                    refund_count = OrderMain.query.join().filter_(
+                        or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
+                            (OrderMain.OMinRefund == True)),
+                        OrderMain.OMfrom.in_(
+                            [OrderFrom.carts.value, OrderFrom.product_info.value]
+                        )).count()
                 data.append(  #
                     {
-                        'count': OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid,
-                                                         OrderMain.OMfrom.in_(
-                                                             [OrderFrom.carts.value, OrderFrom.product_info.value]
-                                                         )).count(),
+                        'count': refund_count,
                         'name': '售后中',
                         'status': 40,  # 售后表示数字
                     }
@@ -888,10 +851,12 @@ class COrder(CPay, CCoupon):
                         [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
                     if coupon.COdownLine > coupon_for_sum:
                         continue
-                    reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(str(coupon.COsubtration))
+                    reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(
+                        str(coupon.COsubtration))
 
                 else:
-                    order_price = order_old_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(str(coupon.COsubtration))
+                    order_price = order_old_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(
+                        str(coupon.COsubtration))
                     reduce_price = order_old_price - order_price
                 title_sub_title = self._title_subtitle(coupon)
                 coupon.fill('title_subtitle', title_sub_title)
@@ -940,8 +905,8 @@ class COrder(CPay, CCoupon):
     @staticmethod
     def _generic_omno():
         """生成订单号"""
-        return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) +\
-                 str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
+        return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
+               str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
 
     def _coupon_can_use_in_order(self, coupon, coupon_user, order_price):
         pass
@@ -976,7 +941,7 @@ class COrder(CPay, CCoupon):
         return order_refund_instance
 
     def _coupon_for(self, coid):
-        return CouponFor.query.filter_by({'COid': coid}).all(   )
+        return CouponFor.query.filter_by({'COid': coid}).all()
 
     @staticmethod
     def _coupon_for_pbids(coupon_for):
@@ -1014,6 +979,34 @@ class COrder(CPay, CCoupon):
                 })
 
         return Success('success {}'.format(order_pay_instance))
+
+    def update_price(self):
+        """订单付款前改价格"""
+        # 修改后附单价格处理 佣金需要调整
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
+        data = parameter_required(('omid', 'price'))
+        omid = data.get('omid')
+        price = data.get('price')
+        try:
+            price = float(price)
+            if price <= 0:
+                raise TypeError()
+            price = round(price, 2)
+        except TypeError:
+            raise ParamsError('价格参数不正确')
+        order_main = OrderMain.query.filter(
+            OrderMain.isdelete == False,
+            OrderMain.OMid == omid
+        ).first_('订单不存在')
+        if is_supplizer() and order_main.OMcreateId != request.user.id:
+            raise AuthorityError()
+        if order_main.OMstatus != OrderMainStatus.wait_pay.value:
+            raise StatusError('订单{}'.format(OrderMainStatus(order_main.OMstatus).zh_value))
+        with db.auto_commit():
+            order_main.OMtrueMount = price
+            db.session.add(order_main)
+        return Success('修改成功')
 
     def test_to_send(self):
         data = parameter_required(('phone',))
@@ -1191,13 +1184,85 @@ class COrder(CPay, CCoupon):
         if order_part.OPisinORA:
             return opid
         # 佣金到账
-        user_commision = UserCommission.query.filter(
+        user_commisions = UserCommission.query.filter(
             UserCommission.isdelete == False,
             UserCommission.OPid == opid
-        ).update({
+        ).all()
+        for user_commision in user_commisions:
+            user_commision.update({
                 'UCstatus': UserCommissionStatus.in_account.value
             })
+            db.session.add(user_commision)
+            # 余额
+            user_wallet = UserWallet.query.filter(
+                UserWallet.isdelete == False,
+                User.USid == user_commision.USid
+            ).first()
+            if user_wallet:
+                user_wallet.UWbalance += user_commision.UCcommission
+                user_wallet.UWtotal += user_commision.UCcommission
+                db.session.add(user_wallet)
+            else:
+                user_wallet_instance = UserWallet.create({
+                    'UWid': str(uuid.uuid1()),
+                    'USid': user_commision.USid,
+                    'UWbalance': user_commision.UCcommission,
+                    'UWtotal': user_commision.UCcommission,
+                })
+                db.session.add(user_wallet_instance)
         current_app.logger.info('佣金到账数量 {}'.format(user_commision))
         return opid
 
+    def _fill_order_refund(self, o, apply, detail=True):
+        """
+        填充售后物流等相关信息
+        :param o: 主单或附单对象
+        :param apply: 对应的申请单对象
+        :return:
+        """
+        # order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
+        o.fill('order_refund_apply', apply)
+        # 售后发货状态
+        if apply.ORAstate == OrderRefundORAstate.goods_money.value and \
+                apply.ORAstatus == ApplyStatus.agree.value:
+            order_refund_instance = self._get_order_refund({'ORAid': apply.ORAid})
+            o.fill('order_refund', order_refund_instance)
+            # 已发货
+            time_now = datetime.now()
+            if detail and order_refund_instance.ORstatus > OrderRefundOrstatus.wait_send.value:
+                if (not order_refund_instance.ORlogisticData or (
+                        time_now - order_refund_instance.updatetime).total_seconds() > 6 * 3600) \
+                        and order_refund_instance.ORlogisticLostResult != 3:  # 没有data信息或超过6小时 并且状态不是已签收
+                    l = Logistics()
+                    current_app.logger.info('正在查询售后物流信息')
+                    response = l.get_logistic(order_refund_instance.ORlogisticsn,
+                                              order_refund_instance.ORlogisticCompany)
+                    if response:
+                        # 插入数据库
+                        with db.auto_commit():
+                            code = response.get('status')
+                            if code == '0':
 
+                                result = response.get('result')
+                                order_refund_instance.update({
+                                    'ORlogisticSignStatus': int(result.get('deliverystatus')),
+                                    'ORlogisticData': json.dumps(result),
+                                    'ORlogisticLostResult': json.dumps(result.get('list')[0])
+                                })
+                                db.session.add(order_refund_instance)
+                                #
+                            else:
+                                current_app.logger.error('获取售后物流异常')
+                                OrderLogisticsDict = {
+                                    'ORlogisticSignStatus': -1,
+                                    'ORlogisticData': json.dumps(response),  # 结果原字符串
+                                    'ORlogisticLostResult': '{}'
+                                }
+                                order_refund_instance.update(OrderLogisticsDict)
+                                db.session.add(order_refund_instance)
+                try:
+                    order_refund_instance.ORlogisticLostResult = json.loads(
+                        order_refund_instance.ORlogisticLostResult)
+                    order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
+                except Exception:
+                    current_app.logger.error('售后物流出错')

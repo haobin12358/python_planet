@@ -18,5 +18,7 @@ class ATrialCommodity(Resource):
         apis = {
             'add': self.ctrialcommodity.add_commodity,
             'create_order': self.ctrialcommodity.create_order,
+            'update': self.ctrialcommodity.update_commodity,
+            'del': self.ctrialcommodity.del_commodity,
         }
         return apis

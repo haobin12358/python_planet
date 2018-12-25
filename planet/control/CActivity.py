@@ -6,11 +6,11 @@ from flask import request
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, is_admin, admin_required
-from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus
+from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, TrialCommodityStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
-    MagicBoxOpen
+    MagicBoxOpen, TrialCommodity
 from .CUser import CUser
 
 
@@ -61,6 +61,13 @@ class CActivity(CUser):
                         MagicBoxApply.AgreeStartime <= today,
                         MagicBoxApply.AgreeEndtime >= today,
                     ).first()
+                    if lasting:
+                        result.append(act)
+                elif ActivityType(act.ACtype).name == 'free_use':
+                    lasting = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
+                                                          TrialCommodity.AgreeStartTime <= today,
+                                                          TrialCommodity.AgreeEndTime >= today
+                                                          ).first()
                     if lasting:
                         result.append(act)
                 else:
@@ -158,7 +165,6 @@ class CActivity(CUser):
                     # 拆盒记录
                     mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).order_by(MagicBoxOpen.createtime.desc()).limit(4).all()
                     magic_apply.fill('open_history', mbp_history)
-
 
         elif ac_type == 'guess_num':
             apply = Products.query.join(

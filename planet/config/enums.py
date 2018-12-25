@@ -96,7 +96,7 @@ class OrderRefundOrstatus(Enum):
     wait_recv = 10, '等待卖家收货'
     ready_recv = 20, '卖家已收货'
     ready_refund = 30, '已退款'
-    cancle = -10, '已取消'
+    cancle = -10, '已取消'  # 未用
     reject = -20, '已拒绝'
 
 

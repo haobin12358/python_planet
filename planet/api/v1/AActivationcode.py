@@ -16,5 +16,6 @@ class AActivationCode(Resource):
     def post(self, act_code):
         apis = {
             'apply': self.cact_code.create_apply,
+            'rule': self.cact_code.set_rule,
         }
         return apis
