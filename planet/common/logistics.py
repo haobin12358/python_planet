@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import requests
+from flask import current_app
 
 from planet.config.secret import kd_api_url, kd_api_code
 
@@ -18,8 +19,14 @@ class Logistics(object):
         else:
             response = requests.post(url, data=arg, headers=self.headers)
         if json:
-            return response.json()
-        return response.text
+            try:
+                res = response.json()
+            except Exception as e:
+                res = response.text
+                current_app.logger.error('返回物流数据异常 >>> {}'.format(e))
+        else:
+            res = response.text
+        return res
 
     def get_logistic(self, no, type=None):
         """

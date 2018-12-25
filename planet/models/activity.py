@@ -37,8 +37,8 @@ class TrialCommodity(Base):
     TCremarks = Column(String(255), comment='备注')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PBid = Column(String(64), comment='品牌id')
-    ApplyStartTime = Column(DateTime, nullable=False, comment='申请开始时间')
-    ApplyEndTime = Column(DateTime, nullable=False, comment='申请结束时间')
+    ApplyStartTime = Column(Date, nullable=False, comment='申请开始时间')
+    ApplyEndTime = Column(Date, nullable=False, comment='申请结束时间')
     AgreeStartTime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndTime = Column(Date, comment='最终确认结束时间')
 
