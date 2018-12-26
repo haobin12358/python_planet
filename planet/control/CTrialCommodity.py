@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_
 
-from planet.common.error_response import ParamsError, SystemError
+from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin
@@ -24,16 +24,22 @@ class CTrialCommodity(COrder):
         if is_tourist():
             usid = None
             tourist = 1
+            time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
+                           TrialCommodity.AgreeEndTime >= datetime.now())
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
             current_app.logger.info('Admin {0} get commodity list'.format(admin.ADname))
             tourist = 'admin'
+            time_filter = tuple()
         else:
             usid = request.user.id
-            user = self.snews.get_user_by_id(usid)
+            user = self._verify_user(usid)
             current_app.logger.info('User {0} get commodity list'.format(user.USname))
             tourist = 0
+            time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
+                           TrialCommodity.AgreeEndTime >= datetime.now())
+
         args = parameter_required(('page_num', 'page_size'))
         kw = args.get('kw', '').split() or ['']
         tcstatus = args.get('tcstatus', 'upper')
@@ -41,12 +47,11 @@ class CTrialCommodity(COrder):
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
         commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
-                                                          and_(*[ProductBrand.PBname.contains(x) for x in kw])),
+                                                          and_(*[ProductBrand.PBname.contains(x) for x in kw]),
+                                                          ),
                                                       TrialCommodity.isdelete == False,
                                                       TrialCommodity.TCstatus == tcstatus,
-                                                      TrialCommodity.AgreeStartTime <= datetime.now(),
-                                                      TrialCommodity.AgreeEndTime >= datetime.now()
-                                                      ).all_with_page()
+                                                      *time_filter).all_with_page()
         for commodity in commodity_list:
             # commodity.fields = ['TCid', 'TCtitle', 'TCdescription', 'TCdeposit', 'TCmainpic']
             # mouth = round(commodity.TCdeadline / 31)
@@ -84,7 +89,7 @@ class CTrialCommodity(COrder):
             tourist = 'admin'
         else:
             usid = request.user.id
-            user = self.snews.get_user_by_id(usid)
+            user = self._verify_user(usid)
             current_app.logger.info('User {} get commodity details'.format(user.USname))
             tourist = 0
         args = parameter_required(('tcid',))

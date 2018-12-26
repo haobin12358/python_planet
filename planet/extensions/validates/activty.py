@@ -35,7 +35,6 @@ class ActivityGetForm(BaseForm):
         self.activity = activiy
 
 
-
 class GuessNumCreateForm(BaseForm):
     gnnum = StringField('猜测的数字', validators=[DataRequired('请输入数字')])
 

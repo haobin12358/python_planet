@@ -79,7 +79,10 @@ class SProducts(SBase):
     @close_session
     def get_product_scenes(self, kw):
         """获取所有场景"""
-        return self.session.query(ProductScene).filter_(ProductScene.PSname.contains(kw)).order_by(ProductScene.PSsort, ProductScene.createtime.desc()).all()
+        return self.session.query(ProductScene).filter_(ProductScene.PSname.contains(kw),
+                                                        ProductScene.isdelete == False
+                                                        ).order_by(ProductScene.PSsort,
+                                                                   ProductScene.createtime.desc()).all()
 
     @close_session
     def get_items(self, args, order=(Items.ITsort, )):
