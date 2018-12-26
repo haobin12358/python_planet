@@ -539,7 +539,7 @@ class COrder(CPay, CCoupon):
         usid = request.user.id
         user = User.query.filter(User.USid == usid).first_('token错误，无此用户信息')
         usname, usheader = user.USname, user.USheader
-        current_app.logger.info('user {0} is creating a evaluation'.format(user.USname))
+        current_app.logger.info('User {0} created order evaluations'.format(user.USname))
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
         OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
@@ -547,8 +547,9 @@ class COrder(CPay, CCoupon):
                                ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
         order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
-        oeid_list = []
-        get_opid_list = []  # 从前端获取到的所有opid
+        evaluation_instance_list = list()
+        oeid_list = list()
+        get_opid_list = list()  # 从前端获取到的所有opid
         with db.auto_commit():
             orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
             for evaluation in data['evaluation']:
@@ -581,14 +582,15 @@ class COrder(CPay, CCoupon):
                     'PRid': order_part_info.PRid,
                     'SKUattriteDetail': order_part_info.SKUattriteDetail
                 })
-                db.session.add(evaluation_dict)
+                evaluation_instance_list.append(evaluation_dict)
                 # 商品总体评分变化
                 try:
                     product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
                     average_score = round((float(product_info.PRaverageScore) + float(oescore) * 2) / 2)
                     Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
                 except Exception as e:
-                    gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
+                    gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
+                # 评价中的图片
                 image_list = evaluation.get('image')
                 if image_list:
                     if len(image_list) > 5:
@@ -600,7 +602,8 @@ class COrder(CPay, CCoupon):
                             'OEImg': image.get('oeimg'),
                             'OEIsort': image.get('oeisort', 0)
                         })
-                        db.session.add(image_evaluation)
+                        evaluation_instance_list.append(image_evaluation)
+                # 评价中的视频
                 video = evaluation.get('video')
                 if video:
                     video_evaluation = OrderEvaluationVideo.create({
@@ -609,17 +612,18 @@ class COrder(CPay, CCoupon):
                         'OEVideo': video.get('oevideo'),
                         'OEVthumbnail': video.get('oevthumbnail')
                     })
-                    db.session.add(video_evaluation)
+                    evaluation_instance_list.append(video_evaluation)
                 oeid_list.append(oeid)
-            # oe.add_all(evaluation_list)
-            OrderMain.query.filter(
-                OrderMain.OMid == omid, OrderMain.isdelete == False,
-                OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-            ).update({
-                'OMstatus': OrderMainStatus.ready.value
-            })
+
+            # 更改订单主单中待评价状态为已完成
+            update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
+                                                   OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                                                   ).update({'OMstatus': OrderMainStatus.ready.value})
+            if not update_status:
+                current_app.logger.info("Order Evaluation Update Main Status Error, OMid is >>> {}".format(omid))
+
+            # 如果提交时主单还有未评价的副单，默认好评
             if len(orderpartid_list) > 0:
-                other_evaluation_list = []
                 for order_part_id in orderpartid_list:
                     other_order_part_info = OrderPart.query.filter(
                         OrderPart.OPid == order_part_id,
@@ -639,15 +643,16 @@ class COrder(CPay, CCoupon):
                         'SKUattriteDetail': other_order_part_info.SKUattriteDetail
                     })
                     oeid_list.append(oeid)
-                    other_evaluation_list.append(other_evaluation)
+                    evaluation_instance_list.append(other_evaluation)
                     try:
                         # 商品总体评分变化
                         other_product_info = Products.query.filter_by_(PRid=other_order_part_info.PRid).first()
                         other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
-                        Products.query.filter_by_(PRid=other_product_info.PRid).update(
-                            {'PRaverageScore': other_average_score})
+                        Products.query.filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
                     except Exception as e:
-                        gennerc_log("order evaluation , update product score ERROR, is {}".format(e))
+                        gennerc_log("Other Evaluation ERROR: Update Product Score OPid >>> {0}, "
+                                    "ERROR >>> {1}".format(order_part_id, e))
+            db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
 
     def get_evaluation(self):
@@ -1210,7 +1215,7 @@ class COrder(CPay, CCoupon):
                     'UWtotal': user_commision.UCcommission,
                 })
                 db.session.add(user_wallet_instance)
-        current_app.logger.info('佣金到账数量 {}'.format(user_commision))
+            current_app.logger.info('佣金到账数量 {}'.format(user_commision))
         return opid
 
     def _fill_order_refund(self, o, apply, detail=True):
@@ -1223,8 +1228,7 @@ class COrder(CPay, CCoupon):
         # order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
         o.fill('order_refund_apply', apply)
         # 售后发货状态
-        if apply.ORAstate == OrderRefundORAstate.goods_money.value and \
-                apply.ORAstatus == ApplyStatus.agree.value:
+        if apply.ORAstate == OrderRefundORAstate.goods_money.value and apply.ORAstatus == ApplyStatus.agree.value:
             order_refund_instance = self._get_order_refund({'ORAid': apply.ORAid})
             o.fill('order_refund', order_refund_instance)
             # 已发货

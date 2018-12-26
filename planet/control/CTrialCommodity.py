@@ -4,39 +4,51 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from flask import request, current_app
+from sqlalchemy import or_, and_
+
 from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import is_tourist, admin_required, token_required
+from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin
 from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
-    UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay, TrialCommoditySkuValue
+    UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay, TrialCommoditySkuValue, \
+    Admin
 
 
 class CTrialCommodity(COrder):
 
     def get_commodity_list(self):
-        if not is_tourist():
-            usid = request.user.id
-            user = self._verify_user(usid)
-            current_app.logger.info('get commodity list, User is {}'.format(user.USname))
-            tourist = 0
-        else:
+        if is_tourist():
+            usid = None
             tourist = 1
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {0} get commodity list'.format(admin.ADname))
+            tourist = 'admin'
+        else:
+            usid = request.user.id
+            user = self.snews.get_user_by_id(usid)
+            current_app.logger.info('User {0} get commodity list'.format(user.USname))
+            tourist = 0
         args = parameter_required(('page_num', 'page_size'))
+        kw = args.get('kw', '').split() or ['']
         tcstatus = args.get('tcstatus', 'upper')
         if str(tcstatus) not in ['upper', 'off_shelves', 'auditing', 'all']:
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
-        commodity_list = TrialCommodity.query.filter_(TrialCommodity.isdelete == False,
+        commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
+                                                          and_(*[ProductBrand.PBname.contains(x) for x in kw])),
+                                                      TrialCommodity.isdelete == False,
                                                       TrialCommodity.TCstatus == tcstatus,
                                                       TrialCommodity.AgreeStartTime <= datetime.now(),
                                                       TrialCommodity.AgreeEndTime >= datetime.now()
                                                       ).all_with_page()
         for commodity in commodity_list:
-            commodity.fields = ['TCid', 'TCtitle', 'TCdescription', 'TCdeposit', 'TCmainpic']
+            # commodity.fields = ['TCid', 'TCtitle', 'TCdescription', 'TCdeposit', 'TCmainpic']
             # mouth = round(commodity.TCdeadline / 31)
             # 押金天数处理
             # deadline = commodity.TCdeadline
@@ -46,6 +58,11 @@ class CTrialCommodity(COrder):
             # mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
             # commodity.fill('zh_remarks', mouth_deadline + day_deadline + "{}元".format(int(commodity.TCdeposit)))
             commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, int(commodity.TCdeposit)))
+            prbrand = ProductBrand.query.filter_by_(PBid=commodity.PBid).first()
+            commodity.fill('brand', prbrand)
+            commodity.TCattribute = json.loads(commodity.TCattribute)
+            commodity.fill('zh_tcstatus', TrialCommodityStatus(commodity.TCstatus).zh_value)
+            commodity.hide('CreaterId', 'PBid')
         background = Activity.query.filter_by_(ACtype=ActivityType.free_use.value, ACshow=True).first()
         banner = background["ACtopPic"] if background else ""
         remarks = getattr(background, "ACdesc", "体验专区") if background else "体验专区"
@@ -57,13 +74,19 @@ class CTrialCommodity(COrder):
         return Success(data=data).get_body(tourist=tourist)
 
     def get_commodity(self):
-        if not is_tourist():
-            usid = request.user.id
-            user = self._verify_user(usid)
-            current_app.logger.info('get commodity details, User is {}'.format(user.USname))
-            tourist = 0
-        else:
+        if is_tourist():
+            usid = None
             tourist = 1
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} get commodity details'.format(admin.ADname))
+            tourist = 'admin'
+        else:
+            usid = request.user.id
+            user = self.snews.get_user_by_id(usid)
+            current_app.logger.info('User {} get commodity details'.format(user.USname))
+            tourist = 0
         args = parameter_required(('tcid',))
         tcid = args.get('tcid')
         commodity = TrialCommodity.query.filter_(TrialCommodity.TCid == tcid, TrialCommodity.isdelete == False
@@ -335,6 +358,7 @@ class CTrialCommodity(COrder):
                 })
             session_list.append(upinfo)
             db.session.add_all(session_list)
+        return Success('修改成功', {'tcid': tcid})
 
     @admin_required
     def del_commodity(self):
@@ -469,3 +493,6 @@ class CTrialCommodity(COrder):
     def _verify_user(usid):
         return User.query.filter_by_(USid=usid).first_('用户信息不存在')
 
+    @staticmethod
+    def _check_admin(usid):
+        return Admin.query.filter_by_(ADid=usid).first_('用户不存在')

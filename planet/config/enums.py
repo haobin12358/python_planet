@@ -237,9 +237,11 @@ class ActivityRecvStatus(Enum):
 
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
-    upper = (0, '上架')
-    off_shelves = (10, '下架')
-    auditing = (20, '审核中')
+    upper = 0, '上架中'
+    off_shelves = 10, '已下架'
+    auditing = 20, '审核中'
+    reject = 30, '审核失败'
+    sell_out = 40, '已售罄'
     all = None
 
 
