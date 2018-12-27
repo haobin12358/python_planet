@@ -18,7 +18,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -286,8 +286,8 @@ class CUser(SUser, BASEAPPROVAL):
             }
         else:
             return {
-                'appid': SERVICE_APPID,
-                'appsecret': SERVICE_APPSECRET,
+                'appid': appid,
+                'appsecret': appsecret,
                 'url': PLANET_SERVICE,
                 'usfilter': 'USopenid1',
                 'apptype': WXLoginFrom.app.value
@@ -1043,8 +1043,8 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_password(password)
 
         adname = data.get('adname')
-        adlevel = getattr(AdminLevel, data.get('adlevel', '普通管理员'), 2).value
-        adlevel = 2 if not adlevel else int(adlevel)
+        adlevel = getattr(AdminLevel, data.get('adlevel', ''))
+        adlevel = 2 if not adlevel else int(adlevel.value)
         header = data.get('adheader') or GithubAvatarGenerator().save_avatar(adid)
         # 等级校验
         if adlevel not in [1, 2, 3]:
@@ -1052,10 +1052,11 @@ class CUser(SUser, BASEAPPROVAL):
 
         # 账户名校验
         self.__check_adname(adname, adid)
-
+        adnum = self.__get_adnum()
         # 创建管理员
         adinstance = Admin.create({
             'ADid': adid,
+            'ADnum': adnum,
             'ADname': adname,
             'ADtelphone': data.get('adtelphone'),
             'ADfirstpwd': adname,
@@ -1391,14 +1392,17 @@ class CUser(SUser, BASEAPPROVAL):
         })
 
     def get_admin_all_type(self):
-
         """获取后台管理员所有身份"""
-        data = {level.name: level.zh_value for level in AdminLevel}
+        # todo 自动获取可以添加的身份
+        # data = [{'value': level.name, 'lable': level.zh_value } for level in AdminLevel]
+        data = [{'value': 'common_admin', 'lable': '普通管理员'}]
+        # data = {level.name: level.zh_value for level in AdminLevel}
         return Success('获取所有身份成功', data=data)
 
     def get_admin_all_status(self):
         """获取后台管理员所有状态"""
-        data = {status.name: status.zh_value for status in AdminStatus}
+        # data = {status.name: status.zh_value for status in AdminStatus}
+        data = [{'value': status.name, 'lable': status.zh_value} for status in AdminStatus]
         return Success('获取所有状态成功', data=data)
 
     @get_session
@@ -1550,3 +1554,8 @@ class CUser(SUser, BASEAPPROVAL):
             user.fill('fans_num', fans_num)
         return Success(data=users)
 
+    def __get_adnum(self):
+        admin = Admin.query.order_by(Admin.ADnum.desc()).first()
+        if not admin:
+            return 100000
+        return admin.ADnum + 1
