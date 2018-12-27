@@ -10,7 +10,7 @@ from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, Tria
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
-    MagicBoxOpen, TrialCommodity
+    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply
 from .CUser import CUser
 
 
@@ -39,8 +39,8 @@ class CActivity(CUser):
             activitys = Activity.query.filter_by_(filter_kwargs).order_by(Activity.ACsort).all()
         result = []
         for act in activitys:
-            act.fields = ['ACbackGround', 'ACbutton', 'ACtype', 'ACname', 'ACshow']
-            act.fill('ACtype_zh', ActivityType(act.ACtype).zh_value)
+            act.fields = ['ACbackGround', 'ACbutton', 'ACtype', 'ACname', 'ACshow', 'ACsort', 'ACdesc', 'ACtopPic']
+            act.fill('actype_zh', ActivityType(act.ACtype).zh_value)
             # 活动是否有供应商参与
             if is_admin():
                 result = activitys
@@ -53,6 +53,13 @@ class CActivity(CUser):
                         GuessNumAwardApply.AgreeEndtime >= today,
                         ).first()
                     if lasting:
+                        guess_num_count = GuessNumAwardApply.query.filter(
+                            GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                            GuessNumAwardApply.AgreeStartime <= today,
+                            GuessNumAwardApply.AgreeEndtime >= today,
+                            GuessNumAwardApply.isdelete == False
+                        ).count()
+                        act.fill('prcount', guess_num_count)
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':
                     lasting = MagicBoxApply.query.filter(
@@ -62,6 +69,13 @@ class CActivity(CUser):
                         MagicBoxApply.AgreeEndtime >= today,
                     ).first()
                     if lasting:
+                        magic_box_count = MagicBoxApply.query.filter(
+                            MagicBoxApply.isdelete == False,
+                            MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                            MagicBoxApply.AgreeStartime <= today,
+                            MagicBoxApply.AgreeEndtime >= today,
+                        ).count()
+                        act.fill('prcount', magic_box_count)
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'free_use':
                     lasting = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
@@ -69,8 +83,23 @@ class CActivity(CUser):
                                                           TrialCommodity.AgreeEndTime >= today
                                                           ).first()
                     if lasting:
+                        free_use_count = TrialCommodity.query.filter(
+                            TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
+                            TrialCommodity.AgreeStartTime <= today,
+                            TrialCommodity.AgreeEndTime >= today
+                        ).count()
+                        act.fill('prcount', free_use_count)
                         result.append(act)
                 else:
+                    fresh_man_count = FreshManFirstProduct.query.outerjoin(
+                        FreshManFirstApply, FreshManFirstProduct.FMFAid == FreshManFirstApply.FMFAid
+                    ).filter_(
+                        FreshManFirstProduct.isdelete == False,
+                        FreshManFirstApply.AgreeStartime <= today,
+                        FreshManFirstApply.AgreeEndtime >= today,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                            ).count()
+                    act.fill('prcount', fresh_man_count)
                     result.append(act)
         return Success(data=result)
 
