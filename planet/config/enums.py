@@ -235,6 +235,13 @@ class ActivityRecvStatus(Enum):
     expired = 20, '已过期'
 
 
+class GuessNumAwardStatus(Enum):
+    """猜数字奖品状态"""
+    auditing = 0, '审核中'
+    upper = 10, '通过'
+    reject = -10, '拒绝'
+
+
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
     upper = 0, '上架中'
