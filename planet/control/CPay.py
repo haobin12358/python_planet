@@ -21,6 +21,7 @@ from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
+from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
 
@@ -134,17 +135,17 @@ class CPay():
 
     def _insert_usercommision(self, order_main):
         """写入佣金流水表"""
-        # todo 判断是否是代理商
         omid = order_main.OMid
         user = User.query.filter_by_({'USid': order_main.USid}).first()  # 订单用户
         try:
             current_app.logger.info('当前付款人: {}, 状态: {}  '.format(user.USname, UserIdentityStatus(user.USlevel).zh_value))
         except Exception:
             pass
-        cfg = ConfigSettings()
-        user_level1commision = user.USCommission1 or cfg.get_item('commission', 'level1commision')
-        user_level2commision = user.USCommission2 or cfg.get_item('commission', 'level2commision')
-        planetcommision = cfg.get_item('integralbase', 'integral')  # todo 平台佣金计算 平台佣金比例
+        commision = Commision.query.filter(Commision.isdelete == False).first()
+        default_level1commision, default_level2commision, default_level3commision, planetcommision = json.loads(
+            commision.Levelcommision
+        )
+
         order_parts = OrderPart.query.filter_by_({
             'OMid': omid
         }).all()
@@ -160,15 +161,15 @@ class CPay():
             mount = order_main.OMtrueMount
         # 活动订单的佣金即时到账
         elif order_main.OMfrom > OrderFrom.product_info.value:
-            current_app.logger.info('活动订单, 押金即时到账')
+            current_app.logger.info('活动订单和押金即时到账')
             UCstatus = UserCommissionStatus.in_account.value
         for order_part in order_parts:
             up1 = order_part.UPperid
             up2 = order_part.UPperid2
+            up3 = order_part.UPperid3
             # 如果付款用户是代理商
             if UserIdentityStatus.agent.value == user.USlevel and not is_trial_commodity:
-                up2 = up1  # 代理商自己也会有一部分佣金
-                up1 = user.USid
+                up1, up2, up3 = user.USid, up1, up2  # 代理商自己也会有一部分佣金
             if up1:
                 upper_user = User.query.filter(
                     User.isdelete == False,
@@ -190,7 +191,8 @@ class CPay():
                     'PRtitle': order_part.PRtitle,
                     'SKUpic': order_part.SKUpic,
                     'UCendTime': UCendTime,
-                    'UCstatus': UCstatus
+                    'UCstatus': UCstatus,
+                    'FromUsid': order_main.USid
                 }
                 db.session.add(UserCommission.create(user_commision_dict))
                 current_app.logger.info('代理1: {}获得佣金{}'.format(upper_user.USname, user_commision_dict.get('UCcommission')))
@@ -205,7 +207,8 @@ class CPay():
                     'UCtype': UCtype,
                     'PRtitle': order_part.PRtitle,
                     'SKUpic': order_part.SKUpic,
-                    'UCendTime': UCendTime
+                    'UCendTime': UCendTime,
+                    'FromUsid': order_main.USid
                 }
                 current_app.logger.info('代理2:获得佣金{}'.format(users_commision_dict.get('UCcommission')))
                 db.session.add(UserCommission.create(users_commision_dict))
@@ -250,13 +253,25 @@ class CPay():
             })
             db.session.add(orderlogistics)
 
-    def test_pay(self, out_trade_no=1, mount_price=1):
-        order_string = self.alipay.api_alipay_trade_page_pay(
-            out_trade_no=out_trade_no,
-            total_amount=mount_price,
-            subject='testestestestestestestestsetestsetsetest',
+    def _caculate_commsion(self, user, up1, up2, up3, commision, order_part, **kwargs):
+        """计算各级佣金"""
+        default_level1commision, default_level2commision, default_level3commision, planetcommision = json.loads(
+            commision.Levelcommision
         )
-        return 'https://openapi.alipaydev.com/gateway.do?' + order_string
+        reduce_ratio = json.loads(commision.ReduceRatio)
+        increase_ratio = json.loads(commision.IncreaseRatio)
+        # 基础佣金比
+        user_level1commision = order_part.USCommission1 or user.USCommission1 or default_level1commision
+        user_level2commision = order_part.USCommission2 or user.USCommission2 or default_level2commision
+        user_level3commision = order_part.USCommission3 or user.USCommission3 or default_level3commision
+        # 偏移
+        up1_up2 = up1.
+
+
+
+
+
+
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         opaytype = int(opaytype)

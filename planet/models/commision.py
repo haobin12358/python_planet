@@ -6,7 +6,7 @@ from planet.common.base_model import Base, Column
 class Commision(Base):
     __tablename__ = 'Commision'
     COid = Column(String(64), primary_key=True)
-    Levelcommision = Column(String(32), default='["0", "0", "0", "0"]', comment='佣金比例: 1, 2, 3, 平台')
+    Levelcommision = Column(String(32), default='["0", "0", "0", "0"]', comment='佣金比例: 1级, 2级, 3级, 平台')
     # 升级相关
     InviteNum = Column(Integer, default=0, comment='升级所需人数')
     GroupSale = Column(DECIMAL(precision=28, scale=2), comment='升级所需团队总额')
