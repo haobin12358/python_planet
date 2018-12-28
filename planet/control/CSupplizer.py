@@ -100,7 +100,7 @@ class CSupplizer:
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
-                # 'SUpassword': generate_password_hash(form.supassword.data),
+                # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
             }, null='dont ignore')

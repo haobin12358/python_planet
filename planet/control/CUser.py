@@ -1536,7 +1536,7 @@ class CUser(SUser, BASEAPPROVAL):
         for user in users:
             # 佣金
             user.fields = ['USid', 'UStelphone', 'USname', 'USheader']
-            usid = request.user.id
+            usid = user.USid
 
             wallet = UserWallet.query.filter(
                 UserWallet.isdelete == False,

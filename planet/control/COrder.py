@@ -63,9 +63,11 @@ class COrder(CPay, CCoupon):
                 order_main_query = order_main_query.join(
                     OrderPart, OrderMain.OMid == OrderPart.OMid
                 ).filter(
-                    or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
+                    or_(and_(OrderPart.isdelete == False,
+                             OrderPart.OPisinORA == True),
                         (OrderMain.OMinRefund == True))
                 )
+
                 if orastatus is not None:  # 售后的审核状态
                     order_main_query = order_main_query.filter(
                         or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
@@ -108,8 +110,6 @@ class COrder(CPay, CCoupon):
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
         if createtime_end:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) <= createtime_end)
-
-
         order_mains = order_main_query.order_by(OrderMain.createtime.desc()).all_with_page()
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
@@ -780,26 +780,29 @@ class COrder(CPay, CCoupon):
                     for k in OrderMainStatus.all_member()
                 ]
             data.insert(  #
-                0,
-                {
-                    'count': OrderMain.query.filter_(OrderMain.isdelete == False, *filter_args).count(),
+                0, {
+                    'count': OrderMain.query.filter_(OrderMain.isdelete == False, *filter_args).distinct().count(),
                     'name': '全部',
                     'status': None
                 }
             )
             if extentions == 'refund':
                 if not is_admin() and not is_supplizer():
-                    refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True, OrderMain.USid == usid,
+                    refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
+                                                           OrderMain.USid == usid,
+                                                           OrderMain.isdelete == False,
                                                            OrderMain.OMfrom.in_(
                                                                [OrderFrom.carts.value, OrderFrom.product_info.value]
-                                                           )).count()
+                                                           )).distinct().count()
                 else:
                     refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
-                        or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
+                        OrderMain.isdelete == False,
+                        or_(and_(OrderPart.isdelete == False,
+                                 OrderPart.OPisinORA == True),
                             (OrderMain.OMinRefund == True)),
                         OrderMain.OMfrom.in_(
                             [OrderFrom.carts.value, OrderFrom.product_info.value]
-                        )).count()
+                        )).distinct().count()
                 data.append(  #
                     {
                         'count': refund_count,
@@ -919,7 +922,7 @@ class COrder(CPay, CCoupon):
                                        OrderMain.OMinRefund == False,
                                        OrderMain.isdelete == False,
                                        *arg
-                                       ).count()
+                                       ).distinct().count()
 
     @staticmethod
     def _get_act_order_count(arg, k):
@@ -927,7 +930,7 @@ class COrder(CPay, CCoupon):
                                        OrderMain.OMinRefund == False,
                                        OrderMain.isdelete == False,
                                        *arg
-                                       ).count()
+                                       ).distinct().count()
 
     @staticmethod
     def _generic_omno():
