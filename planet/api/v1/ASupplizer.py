@@ -18,6 +18,7 @@ class ASupplizer(Resource):
         apis = {
             'create': self.csupplizer.create,
             'update': self.csupplizer.update,
+            'delete': self.csupplizer.delete,
             'reset_password': self.csupplizer.reset_password,
             'change_password': self.csupplizer.change_password,
             'offshelves': self.csupplizer.offshelves,

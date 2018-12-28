@@ -10,7 +10,7 @@ from planet.extensions.register_ext import db
 from planet.service.SProduct import SProducts
 from planet.models import ProductBrand, Products, Items, BrandWithItems, Supplizer
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_supplizer, is_admin
+from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required
 from planet.extensions.validates.product import BrandsListForm, BrandsCreateForm, BrandUpdateForm, request
 
 
@@ -218,6 +218,24 @@ class CBrands(object):
                 s.query(BrandWithItems).filter_(BrandWithItems.ITid.in_(old_item_id)).delete_(synchronize_session=False)
             s.add_all(s_list)
         return Success('更新成功')
+
+    @admin_required
+    def delete(self):
+        data = parameter_required(('pbid', ))
+        pbid = data.get('pbid')
+        with db.auto_commit():
+            brand = ProductBrand.query.filter(
+                ProductBrand.PBid == pbid,
+                ProductBrand.isdelete == False
+            ).first_('品牌不存在')
+            brand.isdelete = True
+            db.session.add(brand)
+            # 商品删除
+            delete_products = Products.query.filter(
+                Products.isdelete == False,
+                Products.PBid == pbid
+            ).delete_()
+        return Success('删除成功')
 
     def _get_brand_list(self, s, itid, pbstatus, time_order=(), pb_in_sub=True, page=True):
         itid = itid.split('|') if itid else []
