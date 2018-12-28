@@ -119,7 +119,7 @@ class GuessNumAwardApply(Base):
 class MagicBoxApply(Base):
     __tablename__ = 'MagicBoxApply'
     MBAid = Column(String(64), primary_key=True)
-    SUid = Column(String(64), nullable=False, comment='供应商id')
+    SUid = Column(String(64), comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     PRid = Column(String(64), nullable=False, comment='商品id')
     PBid = Column(String(64), nullable=False, comment='品牌id')

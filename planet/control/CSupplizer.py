@@ -100,7 +100,7 @@ class CSupplizer:
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
-                # 'SUpassword': generate_password_hash(form.supassword.data),
+                # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
             }, null='dont ignore')
@@ -169,6 +169,34 @@ class CSupplizer:
             })
             current_app.logger.info('共下架了 {}个商品'.format(products_count))
         return Success('供应商下架成功')
+
+    def delete(self):
+        """删除"""
+        data = parameter_required(('suid', ))
+        suid = data.get('suid')
+        with db.auto_commit():
+            supplizer = Supplizer.query.filter(
+                Supplizer.isdelete == False,
+                Supplizer.SUid == suid
+            ).first_('供应商不存在')
+            supplizer.isdelete = True
+            db.session.add(supplizer)
+            # 品牌删除
+            productbrands = ProductBrand.query.filter(
+                ProductBrand.isdelete == False,
+                ProductBrand.SUid == suid
+            ).all()
+            current_app.logger.info('删除供应商{}'.format(supplizer.SUname))
+            for pb in productbrands:
+                pb.isdelete = True
+                db.session.add(pb)
+                # 商品删除
+                delete_product = Products.query.filter(
+                    Products.isdelete == False,
+                    Products.PBid == pb.PBid
+                ).delete()
+        return Success('删除成功')
+
 
     @token_required
     def change_password(self):
