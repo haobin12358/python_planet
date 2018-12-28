@@ -11,7 +11,7 @@ import requests
 from flask import request
 
 from flask import current_app
-from sqlalchemy import extract, or_
+from sqlalchemy import extract, or_, func
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
@@ -25,7 +25,8 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
     WXLoginError, StatusError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
-from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin
+from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
+    admin_required
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -1552,6 +1553,29 @@ class CUser(SUser, BASEAPPROVAL):
                 User.USsupper1 == usid,
             ).count()
             user.fill('fans_num', fans_num)
+        return Success(data=users)
+
+    @admin_required
+    def list_fans(self):
+        data = parameter_required(('usid', ))
+        usid = data.get('usid')
+        users = User.query.filter(
+            User.isdelete == False,
+            User.USsupper1 == usid
+        ).all_with_page()
+        for user in users:
+            user.fields = self.USER_FIELDS[:]
+            # 从该下级获得的佣金
+            total = UserCommission.query.with_entities(func.sum(UserCommission.UCcommission)).\
+                filter(
+                    UserCommission.isdelete == False,
+                    UserCommission.USid == usid,
+                    UserCommission.FromUsid == user.USid,
+                    UserCommission.UCstatus >= 0
+            ).all()
+            total = total[0][0] or 0
+
+            user.fill('commision_from', total)
         return Success(data=users)
 
     def __get_adnum(self):
