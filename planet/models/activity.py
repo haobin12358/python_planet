@@ -109,6 +109,8 @@ class GuessNumAwardApply(Base):
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
     SKUprice = Column(Float, default=0.01, comment='参与价格')
+    SKUstock = Column(Integer, comment='库存')
+    GNAAfrom = Column(Integer, comment='申请来源, 0:供应商, 1: 平台管理员')
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     GNAArejectReason = Column(String(64), comment='拒绝理由')
