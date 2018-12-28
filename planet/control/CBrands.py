@@ -150,23 +150,31 @@ class CBrands(object):
 
     @token_required
     def off_shelves(self):
-        """下架"""
-        data = parameter_required(('pbid',))
+        """上下架"""
+        data = parameter_required(('pbid', 'up'))
         pbid = data.get('pbid')
+        pbstatus = data.get('pbstatus', 'up')
         with self.sproduct.auto_commit() as s:
-            s_list = []
-            # 下架品牌
             product_brand_instance = s.query(ProductBrand).filter_by_({
                 'PBid': pbid
             }).first_('品牌不存在')
-            product_brand_instance.PBstatus = ProductBrandStatus.off_shelves.value
-            s_list.append(product_brand_instance)
-            # 下架商品
-            s.query(Products).filter_by_({'PBid': pbid}).update({
-                'PRstatus': ProductStatus.off_shelves.value
-            })
+            s_list = []
+            if pbstatus == 'up':
+                # 上架
+                product_brand_instance.PBstatus = ProductBrandStatus.upper.value
+                s_list.append(product_brand_instance)
+                msg = '上架成功'
+            else:
+                # 下架品牌
+                product_brand_instance.PBstatus = ProductBrandStatus.off_shelves.value
+                s_list.append(product_brand_instance)
+                # 下架商品
+                s.query(Products).filter_by_({'PBid': pbid}).update({
+                    'PRstatus': ProductStatus.off_shelves.value
+                })
+                msg = '下架成功'
             s.add_all(s_list)
-        return Success('下架成功')
+        return Success(msg)
 
     @token_required
     def update(self):
@@ -221,6 +229,7 @@ class CBrands(object):
 
     @admin_required
     def delete(self):
+        # todo 记录删除操作管理员
         data = parameter_required(('pbid', ))
         pbid = data.get('pbid')
         with db.auto_commit():

@@ -12,6 +12,7 @@ class ABrands(Resource):
             'create': self.cbrands.create,
             'off_shelves': self.cbrands.off_shelves,
             'update': self.cbrands.update,
+            'delete': self.cbrands.delete
         }
         return apis
 
