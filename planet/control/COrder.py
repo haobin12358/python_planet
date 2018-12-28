@@ -42,7 +42,10 @@ class COrder(CPay, CCoupon):
         omfrom = form.omfrom.data  # 来源
         omno = form.omno.data
         omrecvname = form.omrecvname.data
+        omrecvphone = form.omrecvphone.data
         prtitle = form.prtitle.data
+        orastatus = form.orastatus.data
+        orstatus = form.orstatus.data
         createtime_start = form.createtime_start.data
         createtime_end = form.createtime_end.data
         order_main_query = OrderMain.query.filter(OrderMain.isdelete == False)
@@ -63,10 +66,23 @@ class COrder(CPay, CCoupon):
                     or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
                         (OrderMain.OMinRefund == True))
                 )
+                if orastatus is not None:  # 售后的审核状态
+                    order_main_query = order_main_query.filter(
+                        or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
+                        OrderRefundApply.ORAstatus == orastatus,
+                        OrderRefundApply.isdelete == False
+                    )
+                if orstatus is not None:  # 售后的物流状态
+                    order_main_query = order_main_query.filter(
+                        or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
+                        OrderRefundApply.ORAid == OrderRefund.ORAid,
+                        OrderRefund.ORstatus == orstatus
+                    )
             else:
                 order_main_query = order_main_query.filter(
                     OrderMain.OMinRefund == True
                 )
+
         elif omstatus:
             order_main_query = order_main_query.filter(*omstatus)
         if is_supplizer():
@@ -84,10 +100,16 @@ class COrder(CPay, CCoupon):
             order_main_query = order_main_query.filter(
                 OrderPart.PRtitle.contains(prtitle)
             )
+        if omrecvphone:
+            order_main_query = order_main_query.filter(
+                OrderMain.OMrecvPhone.contains(omrecvname)
+            )
         if createtime_start:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
         if createtime_end:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) <= createtime_end)
+
+
         order_mains = order_main_query.order_by(OrderMain.createtime.desc()).all_with_page()
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
@@ -772,7 +794,7 @@ class COrder(CPay, CCoupon):
                                                                [OrderFrom.carts.value, OrderFrom.product_info.value]
                                                            )).count()
                 else:
-                    refund_count = OrderMain.query.join().filter_(
+                    refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
                         or_(and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
                             (OrderMain.OMinRefund == True)),
                         OrderMain.OMfrom.in_(

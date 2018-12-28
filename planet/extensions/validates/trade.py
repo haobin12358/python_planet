@@ -18,9 +18,12 @@ class OrderListForm(BaseForm):
     ordertype = StringField('区分活动订单')
     omno = StringField('订单编号')
     omrecvname = StringField('收件人')
+    omrecvphone = StringField('收件手机号码')
     prtitle = StringField('商品名')
     createtime_start = DateField('开始时间')
     createtime_end = DateField('结束时间')
+    orastatus = IntegerField('审核处理状态')
+    orstatus = IntegerField('售后物流处理状态')
 
     def validate_omstatus(self, raw):
         try:
