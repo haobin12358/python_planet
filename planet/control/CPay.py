@@ -6,6 +6,8 @@ import time
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+from functools import reduce
+from operator import mul
 
 from flask import request, current_app
 
@@ -16,7 +18,6 @@ from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus
-from planet.control.BaseControl import Commsion
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics
@@ -36,7 +37,7 @@ class CPay():
     @token_required
     def pay(self):
         """订单发起支付"""
-        data = parameter_required(('omid', ))
+        data = parameter_required(('omid',))
         omid = data.get('omid')
         usid = request.user.id
         try:
@@ -72,7 +73,8 @@ class CPay():
             session_list.append(order_pay_instance)
             s.add_all(session_list)
         user = User.query.filter(User.USid == order_main.USid).first()
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body, openid=user.USopenid1 or user.USopenid2)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body,
+                                    openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
@@ -86,7 +88,7 @@ class CPay():
         data = request.form.to_dict()
         signature = data.pop("sign")
         success = self.alipay.verify(data, signature)
-        if not(success and data["trade_status"] in ("TRADE_SUCCESS", "TRADE_FINISHED")):
+        if not (success and data["trade_status"] in ("TRADE_SUCCESS", "TRADE_FINISHED")):
             return
         print("trade succeed")
         out_trade_no = data.get('out_trade_no')
@@ -95,7 +97,7 @@ class CPay():
             # 更改付款流水
             order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
             order_pay_instance.OPaytime = data.get('gmt_payment')
-            order_pay_instance.OPaysn = data.get('trade_no')   # 支付宝交易凭证号
+            order_pay_instance.OPaysn = data.get('trade_no')  # 支付宝交易凭证号
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
@@ -127,7 +129,6 @@ class CPay():
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
-                # s_list.append(order_main)
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
                 self._insert_usercommision(order_main)
@@ -138,80 +139,45 @@ class CPay():
         omid = order_main.OMid
         user = User.query.filter_by_({'USid': order_main.USid}).first()  # 订单用户
         try:
-            current_app.logger.info('当前付款人: {}, 状态: {}  '.format(user.USname, UserIdentityStatus(user.USlevel).zh_value))
+            current_app.logger.info(
+                '当前付款人: {}, 状态: {}  '.format(user.USname, UserIdentityStatus(user.USlevel).zh_value))
         except Exception:
             pass
         commision = Commision.query.filter(Commision.isdelete == False).first()
-        default_level1commision, default_level2commision, default_level3commision, planetcommision = json.loads(
-            commision.Levelcommision
-        )
-
         order_parts = OrderPart.query.filter_by_({
             'OMid': omid
         }).all()
         UCstatus = None
-        UCtype = None
         UCendTime = None
-        mount = None
         is_trial_commodity = order_main.OMfrom == OrderFrom.trial_commodity.value
-        if is_trial_commodity:  # 试用, 试用商品特殊, 无佣金, 但是也要写入佣金表
-            trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
-            UCendTime = order_main.createtime + timedelta(days=trialcommodity.TCdeadline)
-            UCtype = UserCommissionType.deposit.value  # 类型是押金
-            mount = order_main.OMtrueMount
-        # 活动订单的佣金即时到账
-        elif order_main.OMfrom > OrderFrom.product_info.value:
-            current_app.logger.info('活动订单和押金即时到账')
-            UCstatus = UserCommissionStatus.in_account.value
         for order_part in order_parts:
-            up1 = order_part.UPperid
-            up2 = order_part.UPperid2
-            up3 = order_part.UPperid3
-            # 如果付款用户是代理商
-            if UserIdentityStatus.agent.value == user.USlevel and not is_trial_commodity:
-                up1, up2, up3 = user.USid, up1, up2  # 代理商自己也会有一部分佣金
-            if up1:
-                upper_user = User.query.filter(
-                    User.isdelete == False,
-                    User.USid == up1
-                ).first()
-                if not upper_user and not is_trial_commodity:
-                    continue
-                # 如果上级不是代理商
-                if UserIdentityStatus.agent.value != upper_user.USlevel and not is_trial_commodity:
-                    continue
-                level1commision = order_part.USCommission1 or user_level1commision
+            if is_trial_commodity:
+                trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
                 user_commision_dict = {
                     'UCid': str(uuid.uuid1()),
                     'OMid': omid,
                     'OPid': order_part.OPid,
-                    'UCcommission': mount or Decimal(level1commision) * Decimal(order_part.OPsubTrueTotal) / Decimal(100),
-                    'USid': up1,
-                    'UCtype': UCtype,
+                    'UCcommission': order_main.OMtrueMount,
+                    'USid': user.USid,
+                    'UCtype': UserCommissionType.deposit.value,  # 类型是押金
                     'PRtitle': order_part.PRtitle,
                     'SKUpic': order_part.SKUpic,
-                    'UCendTime': UCendTime,
+                    'UCendTime': order_main.createtime + timedelta(days=trialcommodity.TCdeadline),
                     'UCstatus': UCstatus,
                     'FromUsid': order_main.USid
                 }
                 db.session.add(UserCommission.create(user_commision_dict))
-                current_app.logger.info('代理1: {}获得佣金{}'.format(upper_user.USname, user_commision_dict.get('UCcommission')))
-            if up2 and not is_trial_commodity:
-                level2commision = order_part.USCommission2 or user_level2commision
-                users_commision_dict = {
-                    'UCid': str(uuid.uuid1()),
-                    'OMid': omid,
-                    'OPid': order_part.OPid,
-                    'UCcommission': Decimal(level2commision) * Decimal(order_main.OMtrueMount) / Decimal(100),
-                    'USid': up2,
-                    'UCtype': UCtype,
-                    'PRtitle': order_part.PRtitle,
-                    'SKUpic': order_part.SKUpic,
-                    'UCendTime': UCendTime,
-                    'FromUsid': order_main.USid
-                }
-                current_app.logger.info('代理2:获得佣金{}'.format(users_commision_dict.get('UCcommission')))
-                db.session.add(UserCommission.create(users_commision_dict))
+                continue
+            up1 = order_part.UPperid
+            up2 = order_part.UPperid2
+            up3 = order_part.UPperid3
+            # 如果付款用户是代理商
+            if UserIdentityStatus.agent.value == user.USlevel:
+                up1, up2, up3 = user.USid, up1, up2  # 代理商自己也会有一部分佣金
+            up1_user = User.query.filter(User.isdelete == False, User.USid == up1).first()
+            up2_user = User.query.filter(User.isdelete == False, User.USid == up2).first()
+            up3_user = User.query.filter(User.isdelete == False, User.USid == up3).first()
+            self._caculate_commsion(user, up1_user, up2_user, up3_user, commision, order_part)
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
@@ -253,25 +219,122 @@ class CPay():
             })
             db.session.add(orderlogistics)
 
-    def _caculate_commsion(self, user, up1, up2, up3, commision, order_part, **kwargs):
+    def _caculate_commsion(self, user, up1, up2, up3, commision, order_part, is_act=False):
         """计算各级佣金"""
-        default_level1commision, default_level2commision, default_level3commision, planetcommision = json.loads(
+        # 活动佣金即时到账
+        if is_act:
+            current_app.logger.info('活动订单和押金即时到账')
+            UCstatus = UserCommissionStatus.in_account.value
+        else:
+            UCstatus = None
+        default_level1commision, default_level2commision, default_level3commision, default_planetcommision = json.loads(
             commision.Levelcommision
         )
         reduce_ratio = json.loads(commision.ReduceRatio)
         increase_ratio = json.loads(commision.IncreaseRatio)
         # 基础佣金比
-        user_level1commision = order_part.USCommission1 or user.USCommission1 or default_level1commision
-        user_level2commision = order_part.USCommission2 or user.USCommission2 or default_level2commision
-        user_level3commision = order_part.USCommission3 or user.USCommission3 or default_level3commision
-        # 偏移
-        up1_up2 = up1.
+        user_level1commision = Decimal(
+            str(order_part.USCommission1 or user.USCommission1 or default_level1commision)) / 100
+        user_level2commision = Decimal(
+            str(order_part.USCommission2 or user.USCommission2 or default_level2commision)) / 100
+        user_level3commision = Decimal(
+            str(order_part.USCommission3 or user.USCommission3 or default_level3commision)) / 100
+        planet_commision = Decimal(str(default_planetcommision)) / 100
+        # 用户佣金和平台佣金
+        commision_total = order_part.OPsubTrueTotal * (
+                    user_level1commision + user_level2commision + user_level3commision + planet_commision)
+        # 正常应该获得佣金
+        up1_base = up2_base = up3_base = 0
+        if up1 and up1.USlevel > 1:
+            up1_base = order_part.OPsubTrueTotal * user_level1commision
+            if up2 and up2.USlevel > 1:
+                up2_base = order_part.OPsubTrueTotal * user_level2commision
+                # 偏移
+                up1_up2 = up1.CommisionLevel - up2.CommisionLevel
+                up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, reduce_ratio, increase_ratio)
+                if up3 and up3.USlevel > 0:
+                    up3_base = order_part.OPsubTrueTotal * user_level3commision
+                    up2_up3 = up2.CommisionLevel - up3.CommisionLevel
+                    up2_base, up3_base = self._caculate_offset(up2_up3, up2_base, up3_base, reduce_ratio, increase_ratio)
+        if up1_base:
+            commision_account = UserCommission.create({
+                'UCid': str(uuid.uuid1()),
+                'OMid': order_part.OMid,
+                'OPid': order_part.OPid,
+                'UCcommission': up1_base,
+                'USid': up1.USid,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCstatus': UCstatus,
+                'FromUsid': user.USid
+            })
+            db.session.add(commision_account)
+        if up2_base:
+            commision_account = UserCommission.create({
+                'UCid': str(uuid.uuid1()),
+                'OMid': order_part.OMid,
+                'OPid': order_part.OPid,
+                'UCcommission': up2_base,
+                'USid': up2.USid,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCstatus': UCstatus,
+                'FromUsid': user.USid
+            })
+            db.session.add(commision_account)
+        if up3_base:
+            commision_account = UserCommission.create({
+                'UCid': str(uuid.uuid1()),
+                'OMid': order_part.OMid,
+                'OPid': order_part.OPid,
+                'UCcommission': up3_base,
+                'USid': up3.USid,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCstatus': UCstatus,
+                'FromUsid': user.USid
+            })
+            db.session.add(commision_account)
+        # 平台剩余佣金
+        planet_remain = commision_total - up1_base - up2_base - up3_base
+        commision_account = UserCommission.create({
+            'UCid': str(uuid.uuid1()),
+            'OMid': order_part.OMid,
+            'OPid': order_part.OPid,
+            'UCcommission': planet_remain,
+            'USid': '0',
+            'PRtitle': order_part.PRtitle,
+            'SKUpic': order_part.SKUpic,
+            'UCstatus': UCstatus,
+            'FromUsid': user.USid
+        })
+        db.session.add(commision_account)
+        # 供应商获取佣金
+        supplizer_remain = order_part.OPsubTrueTotal - commision_total
+        commision_account = UserCommission.create({
+            'UCid': str(uuid.uuid1()),
+            'OMid': order_part.OMid,
+            'OPid': order_part.OPid,
+            'UCcommission': supplizer_remain,
+            'USid': '1',
+            'PRtitle': order_part.PRtitle,
+            'SKUpic': order_part.SKUpic,
+            'UCstatus': UCstatus,
+            'FromUsid': user.USid
+        })
+        db.session.add(commision_account)
 
-
-
-
-
-
+    def _caculate_offset(self, low_high, user_low_base, user_hign_base, reduce_ratio, increase_ratio):
+        """计算偏移后的佣金"""
+        if low_high <= 0:
+            return user_low_base, user_hign_base
+        low_ratio = Decimal('1')
+        hign_ratio = Decimal()
+        for index in range(low_high):
+            up1_comm_base = user_low_base * low_ratio  # 本级的基础佣金比
+            low_ratio *= (1 - Decimal(reduce_ratio[index]) / 100)
+            hign_ratio += (up1_comm_base * Decimal(increase_ratio[index]) / 100)
+        return low_ratio * user_low_base, hign_ratio + user_hign_base
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         opaytype = int(opaytype)
@@ -348,4 +411,5 @@ class CPay():
                str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
 
 
-
+if __name__ == '__main__':
+    res = CPay()

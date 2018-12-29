@@ -49,7 +49,7 @@ class UserCommission(Base):
     __tablename__ = 'UserCommission'
     UCid = Column(String(64), primary_key=True)
     UCcommission = Column(DECIMAL(precision=28, scale=2), comment='获取佣金')
-    USid = Column(String(64), comment='用户id')
+    USid = Column(String(64), comment='用户id 0 表示平台 1 表示供应商')
     FromUsid = Column(String(64), comment='订单来源用户')
     UCstatus = Column(Integer, default=0, comment='佣金状态{-1: 异常, 0：预期到账, 1: 已到账, 2: 已提现}')
     UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金')

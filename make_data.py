@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import json
+
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity
+from planet.models import Items, ProductBrand, Activity, Commision
 
 
 # 添加一些默认的数据
@@ -134,11 +136,29 @@ def make_acvitity():
         db.session.add(free)
 
 
+def make_commsion():
+    with db.auto_commit():
+        comm = Commision.create({
+            'COid': 'coid1',
+            'Levelcommision': json.dumps(["0", "10", "5", "2"]),
+            'InviteNum': 20,
+            'GroupSale': 3000000,
+            'PesonalSale': 300000,
+            'InviteNumScale': 200,
+            'GroupSaleScale': 200,
+            'PesonalSaleScale': 200,
+            'ReduceRatio': json.dumps(['10', '10', '10', '10']),
+            'IncreaseRatio': json.dumps(['10', '10', '10', '10'])
+        })
+        db.session.add(comm)
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        make_items()
-        make_acvitity()
+        # make_items()
+        # make_acvitity()
+        make_commsion()
 
 
 
