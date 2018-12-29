@@ -18,7 +18,7 @@ from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryTyp
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -107,8 +107,13 @@ class CProducts:
         product.fill('month_sale_value', month_sale_value)
         product.fill('items', items)
         # 预计佣金
-        cfg = ConfigSettings()
-        level1commision = cfg.get_item('commission', 'level1commision')
+        comm = Commision.query.filter(Commision.isdelete == False).first()
+        try:
+            level1commision = json.loads(comm.Levelcommision)[0]
+        except ValueError:
+            current_app.logger.info('ValueError error')
+        except IndexError:
+            current_app.logger.info('IndexError error')
         product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
@@ -455,7 +460,7 @@ class CProducts:
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
-                'PRlinePrice': data.get('prlinePrice'),
+                'PRlinePrice': data.get('prlineprice'),
                 'PRfreight': data.get('prfreight'),
                 'PRstocks': prstock,
                 'PRmainpic': data.get('prmainpic'),

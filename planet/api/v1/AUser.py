@@ -52,6 +52,7 @@ class AUser(Resource):
             'get_bankname': self.user.get_bankname,  # 获取银行名
             'get_salesvolume_all': self.user.get_salesvolume_all,  # 获取团队销售额
             'list_user_commison': self.user.list_user_commison,  # 销售商列表(后台佣金)
+            'list_fans': self.user.list_fans,  # 获取某人粉丝列表
 
         }
         return apis

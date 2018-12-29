@@ -64,37 +64,5 @@ class BASEAPPROVAL():
         db.session.add(ap_notes)
 
 
-class Commsion:
-    def __init__(self, user, total_price=None):
-        """
-        :param total_price: 总价(元)
-        :param user 用户
-        """
-        self.total_price = total_price
-        self.user = user
-
-    def default_commision(self, level=1):
-        """
-        :return: string
-        """
-        cfg = ConfigSettings()
-        if level == 1:
-            return cfg.get_item('commission', 'level1commision')
-        elif level == 2:
-            return cfg.get_item('commission', 'level2commision')
-
-    @property
-    def level1commision(self):
-        return self.user.USCommission1 or self.default_commision(1)
-
-    @property
-    def level2commision(self):
-        return self.user.USCommission2 or self.default_commision(2)
-
-
-
-
-
-
 
 
