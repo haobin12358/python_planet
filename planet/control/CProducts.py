@@ -455,7 +455,7 @@ class CProducts:
             product_dict = {
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
-                'PRlinePrice': data.get('prlinePrice'),
+                'PRlinePrice': data.get('prlineprice'),
                 'PRfreight': data.get('prfreight'),
                 'PRstocks': prstock,
                 'PRmainpic': data.get('prmainpic'),
