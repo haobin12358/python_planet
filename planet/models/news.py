@@ -86,3 +86,13 @@ class NewsTag(Base):
     ITid = Column(String(64), nullable=False, comment='标签id')
 
 
+class NewsChangelog(Base):
+    """资讯修改记录"""
+    __tablename__ = 'NewsChangelog'
+    NCLid = Column(String(64), primary_key=True)
+    NEid = Column(String(64), nullable=False, comment='资讯id')
+    ADid = Column(String(64), nullable=False, comment='管理员id')
+    NCLoperation = Column(String(255), comment='进行操作')
+
+
+
