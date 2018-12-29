@@ -9,15 +9,16 @@ from decimal import Decimal
 from flask import request
 
 from planet.common.base_service import get_session
-from planet.config.enums import ApprovalStatus, ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
-    AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction
+from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
+    AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
+    GuessNumAwardStatus, TrialCommodityStatus
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
-    FreshManFirstProduct, UserWallet
+    FreshManFirstProduct, UserWallet, UserInvitation
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -45,6 +46,12 @@ class CApproval(BASEAPPROVAL):
             tras_dict = {k: self.__trim_string(v) for k, v in s.items()}
             return tras_dict
         return s
+
+    def create(self):
+        data = parameter_required(('ptid', 'startid', 'avcontentid'))
+        self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
+        return Success('创建审批流成功')
+
 
     @get_session
     @token_required
@@ -344,13 +351,24 @@ class CApproval(BASEAPPROVAL):
             raise AuthorityError('权限不足')
         data = parameter_required(('avid', 'anaction', 'anabo'))
         admin = Admin.query.filter_by_(ADid=data.get("adid")).first_("该管理员已被删除")
-        approval_model = Approval.query.filter_by_(AVid=data.get('avid')).first_('审批不存在')
+        approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
         Permission.query.filter(
             Permission.PIid == AdminPermission.PIid,
             AdminPermission.ADid == request.user.id,
             Permission.PTid == approval_model.PTid,
             Permission.PELevel == approval_model.AVlevel
         ).first_('权限不足')
+        # 审批流水记录
+        approvalnote_dict = {
+            "ANid": str(uuid.uuid1()),
+            "AVid": data.get("avid"),
+            "AVadname": admin.ADname,
+            "ADid": admin.ADid,
+            "ANaction": data.get('anaction'),
+            "ANabo": data.get("anabo")
+        }
+        apn_instance = ApprovalNotes.create(approvalnote_dict)
+        db.add(apn_instance)
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -363,40 +381,43 @@ class CApproval(BASEAPPROVAL):
                 approval_model.AVlevel += 1
             else:
                 # 没有下一级审批人了
-                approval_model.AVstatus = ApprovalStatus.complate.value
-                # todo 完成后的后续操作
+                approval_model.AVstatus = ApplyStatus.agree.value
+                self.agree_action(approval_model)
         else:
-            # 审批操作为拒绝 等级回退到最低级
-            approval_model.AVstatus = ApprovalStatus.refuse.value
-            approval_model.AVlevel = 1
-            # todo 拒绝的后续操作
+            # 审批操作为拒绝
+            approval_model.AVstatus = ApplyStatus.reject.value
+            # approval_model.AVlevel = 1
+            self.refuse_action(approval_model, data.get('anabo'))
             if approval_model.AVtype == ApprovalType.toagent.value:
                 User.query.filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
 
-            # 审批流水记录
-            approvalnote_dict = {
-                "ANid": str(uuid.uuid1()),
-                "AVid": data.get("avid"),
-                "AVadname": admin.ADname,
-                "ADid": admin.ADid,
-                "ANaction": data.get('anaction'),
-                "ANabo": data.get("anabo")
-            }
-            apn_instance = ApprovalNotes.create(approvalnote_dict)
-            db.add(apn_instance)
+
         return Success("审批操作完成")
 
     @token_required
     def cancel(self):
         """用户取消申请"""
-        # todo
-        pass
+        if not is_supplizer():
+            raise AuthorityError('权限不够')
+
+        data = parameter_required(('avid'))
+        av = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_('审批已取消')
+        if av.AVstartid != request.user.id:
+            raise AuthorityError('操作账号有误')
+        av.AVstatus = ApplyStatus.wait_check.value
+        return Success('取消成功')
+
 
     @token_required
     def get_approvalnotes(self):
         """查看审批的所有流程"""
-        # todo 注意增加发起记录
-        pass
+        if not is_admin():
+            raise AuthorityError('权限不足')
+        data = parameter_required(('avid',))
+        an_list = ApprovalNotes.query.filter_by_(AVid=data.get('avid')).all()
+        for an in an_list:
+            an.fill('anaction', ApprovalAction(an.ANaction).zh_value)
+        return Success('获取审批记录成功', data=an_list)
 
     def __fill_publish(self, ap_list):
         """填充资讯发布"""
@@ -546,9 +567,11 @@ class CApproval(BASEAPPROVAL):
             if not start_model or not content:
                 ap_list.remove(ap)
                 continue
-            product = Products.query.filter_by_(PRid=content.PRid).first()
-            self.__fill_product_detail(product, content.SKUid)
-            content.fill('product', product)
+            # product = TrialCommodity.query.filter_by_(PRid=content.PRid).first()
+            # self.__fill_product_detail(content, content.SKUid)
+            # todo 试用商品字段名不对应
+
+            # content.fill('product', content)
             ap.fill('start', start_model)
             ap.fill('content', content)
 
@@ -581,19 +604,19 @@ class CApproval(BASEAPPROVAL):
         if approval_model.PTid == 'tocash':
             self.agree_cash(approval_model)
         elif approval_model.PTid == 'toagent':
-            self.__fill_cash(approval_model)
+            self.agree_agent(approval_model)
         elif approval_model.PTid == 'toshelves':
-            self.__fill_cash(approval_model)
+            self.agree_shelves(approval_model)
         elif approval_model.PTid == 'topublish':
-            self.__fill_cash(approval_model)
+            self.agree_publish(approval_model)
         elif approval_model.PTid == 'toguessnum':
-            self.__fill_cash(approval_model)
+            self.agree_guessnum(approval_model)
         elif approval_model.PTid == 'tomagicbox':
-            self.__fill_cash(approval_model)
+            self.agree_magicbox(approval_model)
         elif approval_model.PTid == 'tofreshmanfirstproduct':
-            self.__fill_cash(approval_model)
+            self.agree_freshmanfirstproduct(approval_model)
         elif approval_model.PTid == 'totrialcommodity':
-            self.__fill_cash(approval_model)
+            self.agree_trialcommodity(approval_model)
         elif approval_model.PTid == 'toreturn':
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
@@ -601,25 +624,25 @@ class CApproval(BASEAPPROVAL):
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
-    def refuse_action(self, approval_model):
+    def refuse_action(self, approval_model, refuse_abo):
         if not approval_model:
             return
         if approval_model.PTid == 'tocash':
-            self.refuse_cash(approval_model)
+            self.refuse_cash(approval_model, refuse_abo)
         elif approval_model.PTid == 'toagent':
-            self.__fill_cash(approval_model)
+            self.refuse_agent(approval_model, refuse_abo)
         elif approval_model.PTid == 'toshelves':
-            self.__fill_cash(approval_model)
+            self.refuse_shelves(approval_model, refuse_abo)
         elif approval_model.PTid == 'topublish':
-            self.__fill_cash(approval_model)
+            self.refuse_publish(approval_model, refuse_abo)
         elif approval_model.PTid == 'toguessnum':
-            self.__fill_cash(approval_model)
+            self.refuse_guessnum(approval_model, refuse_abo)
         elif approval_model.PTid == 'tomagicbox':
-            self.__fill_cash(approval_model)
+            self.refuse_magicbox(approval_model, refuse_abo)
         elif approval_model.PTid == 'tofreshmanfirstproduct':
-            self.__fill_cash(approval_model)
+            self.refuse_freshmanfirstproduct(approval_model, refuse_abo)
         elif approval_model.PTid == 'totrialcommodity':
-            self.__fill_cash(approval_model)
+            self.refuse_trialcommodity(approval_model, refuse_abo)
         elif approval_model.PTid == 'toreturn':
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
@@ -637,13 +660,14 @@ class CApproval(BASEAPPROVAL):
         cn.CNstatus = ApprovalAction.agree.value
         uw.UWbalance = float('%.2f' %(uw.UWbalance - cn.CNcashNum))
 
-    def refuse_cash(self, approval_model):
+    def refuse_cash(self, approval_model, refuse_abo):
         if not approval_model:
             return
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         if not cn:
             raise SystemError('提现数据异常,请处理')
         cn.CNstatus = ApprovalAction.refuse.value
+        cn.CNrejectReason = refuse_abo
 
     def agree_agent(self, approval_model):
         user = User.query.filter_by_(USid=approval_model.AVstartid).first_('数据异常')
@@ -657,3 +681,86 @@ class CApproval(BASEAPPROVAL):
                 'UWtotal': 0
             }))
         # todo 增加用户成为代理商之前邀请的未成为其他代理商或其他代理商粉丝的用户为自己的粉丝
+        fens_list = UserInvitation.query.filter_by_(USInviter=user.USid).all()
+        for fens in fens_list:
+            fens.isdelete = True
+            fen_model = User.query.filter_by_(USid=fens.USInvited).first()
+            if not fen_model or fen_model.USlevel != UserIdentityStatus.ordinary.value or fen_model.USsupper1:
+
+                continue
+            fen_model.USsupper1 = user.USid
+            if user.USsupper1:
+                fen_model.USsupper2 = user.USsupper1
+
+    def refuse_agent(self, approval_model, refuse_abo):
+        user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')
+        user.USlevel = UserIdentityStatus.ordinary.value
+
+    def agree_shelves(self, approval_model):
+        # sup = Supplizer.query.filter_by_(SUid=approval_model.AVstartid).first_('商品上架数据异常')
+        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        product.PRstatus = ProductStatus.usual.value
+
+    def refuse_shelves(self, approval_model, refuse_abo):
+        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        product.PRstatus = ProductStatus.reject.value
+
+    def agree_publish(self, approval_model):
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        news.NEstatus = NewsStatus.usual.value
+
+    def refuse_publish(self, approval_model, refuse_abo):
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        news.NEstatus = NewsStatus.refuse.value
+
+    def agree_guessnum(self, approval_model):
+        gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
+        gnaa.GNAAstatus = ApplyStatus.agree.value
+        gnaa_other = GuessNumAwardApply.query.filter(
+            GuessNumAwardApply.GNAAid != gnaa.GNAAid,
+            GuessNumAwardApply.GNAAstarttime == gnaa.GNAAstarttime,
+            GuessNumAwardApply.GNAAendtime == gnaa.GNAAendtime,
+            GuessNumAwardApply.isdelete == False
+        ).all()
+        for other in gnaa_other:
+            other.GNAAstatus = ApplyStatus.reject.value
+            other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
+
+    def refuse_guessnum(self, approval_model, refuse_abo):
+        gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
+        gnaa.GNAAstatus = ApplyStatus.reject.value
+        gnaa.GNAArejectReason = refuse_abo
+
+    def agree_magicbox(self, approval_model):
+        mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        mba.MBAstatus = ApplyStatus.agree.value
+        mba_other = MagicBoxApply.query.filter(
+            MagicBoxApply.MBAid != mba.MBAid,
+            MagicBoxApply.MBAstarttime == mba.MBAstarttime,
+            MagicBoxApply.MBAendtime == mba.MBAendtime
+        ).all()
+        for other in mba_other:
+            other.MBAstatus = ApplyStatus.reject.value
+            other.MBArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(mba.MBAstarttime)
+
+    def refuse_magicbox(self, approval_model, refuse_abo):
+        mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        mba.MBAstatus = ApplyStatus.reject.value
+        mba.MBArejectReason = refuse_abo
+
+    def agree_freshmanfirstproduct(self, approval_model):
+        ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
+        ffa.FMFAstatus = ApplyStatus.agree.value
+
+    def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):
+        ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
+        ffa.FMFAstatus = ApplyStatus.reject.value
+        ffa.FMFArejectReson = refuse_abo
+
+    def agree_trialcommodity(self, approval_model):
+        tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
+        tc.TCstatus = TrialCommodityStatus.upper.value
+
+    def refuse_trialcommodity(self, approval_model, refuse_abo):
+        tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
+        tc.TCstatus = TrialCommodityStatus.reject.value

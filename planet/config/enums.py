@@ -457,13 +457,13 @@ class UserCommissionStatus(Enum):
     in_account = 1, '已到账'
     out_count = 2, '已提现'
 
-
-class ApprovalStatus(Enum):
-    """审批流状态"""
-    cancel = -20, '已取消'
-    refuse = -10, '拒绝'
-    approvaling = 0, '审批中'
-    complate = 10, '审批通过'
+#
+# class ApprovalStatus(Enum):
+#     """审批流状态"""
+#     cancel = -20, '已取消'
+#     refuse = -10, '拒绝'
+#     approvaling = 0, '审批中'
+#     complate = 10, '审批通过'
 
 
 # 激活码相关
@@ -487,7 +487,8 @@ class OMlogisticTypeEnum(Enum):
 class ApprovalAction(Enum):
     agree = 1, '同意'
     refuse = -1, '拒绝'
-
+    submit = 0, '提交'
+    cancle = -10, '取消'
 
 class PermissionNotesType(Enum):
     pt = 1, '审批流类型'
@@ -499,7 +500,7 @@ class UserMediaType(Enum):
     umfront = 1, '身份证正面'
     umback = 2, '身份证反面'
 
-
+# class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
