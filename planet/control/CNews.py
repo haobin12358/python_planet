@@ -316,7 +316,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
             # 添加到审批流
-            # super().create_approval(ApprovalType.topublish.value, usid, neid)
+            super().create_approval('topublish', usid, neid)
         return Success('添加成功', {'neid': neid})
 
     @admin_required
@@ -366,7 +366,7 @@ class CNews(BASEAPPROVAL):
                             'NIimage': image.get('niimage'),
                             'NIsort': image.get('nisort')
                         })
-                        operation.append('增加图片')
+                        operation.append(' / 增加图片')
                         session_list.append(news_image_info)
                 [s.query(NewsImage).filter_by(NIid=old_niid).delete_() for old_niid in exist_niid]  # 删除原有的但修改后不需要的图片
 
@@ -389,7 +389,7 @@ class CNews(BASEAPPROVAL):
                         'NVthumbnail': video.get('nvthumbnail'),
                         'NVduration': video.get('nvduration')
                     })
-                    operation.append('增加视频')
+                    operation.append(' / 增加视频')
                     session_list.append(news_video_info)
             if items not in self.empty:
                 s.query(NewsTag).filter_by(NEid=neid).delete_()  # 删除原有的标题
