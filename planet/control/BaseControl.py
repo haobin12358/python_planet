@@ -5,11 +5,12 @@ from decimal import Decimal
 from flask import request
 
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ApprovalType
+from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction
 from planet.common.error_response import SystemError
 from planet.common.request_handler import gennerc_log
 from planet.extensions.register_ext import db
-from planet.models.approval import Approval, ApprovalNotes
+from planet.models import User
+from planet.models.approval import Approval, ApprovalNotes, Permission
 from planet.service.SApproval import SApproval
 
 
@@ -17,26 +18,30 @@ class BASEAPPROVAL():
     sapproval = SApproval()
 
     def create_approval(self, avtype, startid, avcontentid):
-        avtype = int(avtype)
-
+        # avtype = int(avtype)
+        pt = Permission.query.filter_by_(PTid=avtype).first_('参数异常')
         av = Approval.create({
             "AVid": str(uuid.uuid1()),
             "AVname": ApprovalType(avtype).name + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
-            "AVtype": avtype,
+            "PTid": avtype,
             "AVstartid": startid,
             "AVlevel": 1,
-            "AVstatus": 0,
+            "AVstatus": ApplyStatus.wait_check.value,
             "AVcontent": avcontentid
         })
         with self.sapproval.auto_commit() as s:
+            user = User.query.filter_by_(USId=startid).first_('数据异常')
             aninstance = ApprovalNotes.create({
                 "ANid": str(uuid.uuid1()),
                 "AVid": av.AVid,
-                "ANaction": 0,
+                "ADid": startid,
+                "ANaction": ApprovalAction.submit.value,
+                "AVadname": user.USname,
                 "ANabo": "发起申请"
             })
             s.add(av)
             s.add(aninstance)
+        return av.AVid
 
     def update_approval_no_commit(self, approval, agree, level=1, anabo=None):
         if agree is True:

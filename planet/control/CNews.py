@@ -15,7 +15,7 @@ from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -162,7 +162,6 @@ class CNews(BASEAPPROVAL):
                 news_author.fields = ['USname', 'USheader']
             else:
                 news_author = {'usname': '神秘的客官', 'usheader': ''}
-        # todo 待完善管理员发布时作者显示情况
         news.fill('author', news_author)
         news.fill('createtime', news.createtime)
         commentnumber = self.snews.get_news_comment_count(neid)
@@ -256,6 +255,8 @@ class CNews(BASEAPPROVAL):
         product = json.dumps(product) if product not in self.empty else None
         isrecommend = data.get('neisrecommend', 0)
         isrecommend = True if str(isrecommend) == '1' else False
+        if user:
+            isrecommend = False
         if isrecommend and not mainpic:
             raise ParamsError("被推荐的资讯必须上传封面图")
         with self.snews.auto_commit() as s:
@@ -269,7 +270,7 @@ class CNews(BASEAPPROVAL):
                 'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
                 'NEsource': data.get('source'),
                 'NEmainpic': mainpic,
-                'NEisrecommend': isrecommend,  # todo 管理员后台添加时设置/验证权限
+                'NEisrecommend': isrecommend,
                 'COid': coupon,
                 'PRid': product,
                 'USname': usname,
@@ -321,13 +322,12 @@ class CNews(BASEAPPROVAL):
     @admin_required
     def update_news(self):
         """修改资讯"""
-        # todo 管理是否只能修改自己发布的 待确认
-        usid = request.user.id
-        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        current_app.logger.info("Admin {} update news".format(user.ADname))
+        adid = request.user.id
+        admin = Admin.query.filter_by_(ADid=adid).first_('没有该管理账号信息')
+        current_app.logger.info("Admin {} update news".format(admin.ADname))
         data = parameter_required(('neid',))
         neid = data.get('neid')
-        images = data.get('images')  # [{niimg:'url', nisort:1},]
+        images = data.get('image')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2']
         video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
@@ -336,12 +336,12 @@ class CNews(BASEAPPROVAL):
         product = json.dumps(product) if product not in self.empty else None
         isrecommend = data.get('neisrecommend')
         isrecommend = True if str(isrecommend) == '1' else False
+        operation = list()
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = {
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                'NEstatus': NewsStatus.auditing.value,
                 # 'NEstatus': NewsStatus.usual.value,
                 'NEsource': 'web',
                 'COid': coupon,
@@ -351,35 +351,46 @@ class CNews(BASEAPPROVAL):
             }
             news_info = {k: v for k, v in news_info.items() if v is not None}
             s.query(News).filter_by_(NEid=neid).update(news_info)
+            operation.append('修改基础内容')
             if images not in self.empty:
                 if len(images) > 4:
                     raise ParamsError('最多只能上传四张图片')
-                s.query(NewsImage).filter_by(NEid=neid).delete_()  # 删除原来的图片
+                exist_niid = [img.NIid for img in s.query(NewsImage).filter_by_(NEid=neid).all()]
                 for image in images:
-                    news_image_info = NewsImage.create({
-                        'NIid': str(uuid.uuid1()),
-                        'NEid': neid,
-                        'NIimage': image.get('niimg'),
-                        'NIsort': image.get('nisort')
-                    })
-                    session_list.append(news_image_info)
+                    if 'niid' in image:
+                        exist_niid.remove(image.get('niid'))
+                    else:
+                        news_image_info = NewsImage.create({
+                            'NIid': str(uuid.uuid1()),
+                            'NEid': neid,
+                            'NIimage': image.get('niimage'),
+                            'NIsort': image.get('nisort')
+                        })
+                        operation.append('增加图片')
+                        session_list.append(news_image_info)
+                [s.query(NewsImage).filter_by(NIid=old_niid).delete_() for old_niid in exist_niid]  # 删除原有的但修改后不需要的图片
+
             if video not in self.empty:
-                parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
+                parameter_required(('nvvideo', 'nvthumbnail', 'nvduration'), datafrom=video)
                 duration_time = video.get('nvdur') or "10"
                 second = int(duration_time[-2:])
                 if second < 3:
                     raise ParamsError('上传视频时间不能少于3秒')
                 elif second > 59:
                     raise ParamsError('上传视频时间不能大于1分钟')
-                s.query(NewsVideo).filter_by(NEid=neid).delete_()  # 删除原有的视频
-                news_video_info = NewsVideo.create({
-                    'NVid': str(uuid.uuid1()),
-                    'NEid': neid,
-                    'NVvideo': video.get('nvurl'),
-                    'NVthumbnail': video.get('nvthum'),
-                    'NVduration': video.get('nvdur')
-                })
-                session_list.append(news_video_info)
+                if 'nvid' in video:
+                    pass
+                else:
+                    s.query(NewsVideo).filter_by(NEid=neid).delete_()  # 删除原有的视频
+                    news_video_info = NewsVideo.create({
+                        'NVid': str(uuid.uuid1()),
+                        'NEid': neid,
+                        'NVvideo': video.get('nvvideo'),
+                        'NVthumbnail': video.get('nvthumbnail'),
+                        'NVduration': video.get('nvduration')
+                    })
+                    operation.append('增加视频')
+                    session_list.append(news_video_info)
             if items not in self.empty:
                 s.query(NewsTag).filter_by(NEid=neid).delete_()  # 删除原有的标题
                 for item in items:
@@ -390,6 +401,15 @@ class CNews(BASEAPPROVAL):
                         'ITid': item
                     })
                     session_list.append(news_item_info)
+
+            # 记录修改日志
+            changelog = NewsChangelog.create({
+                'NCLid': str(uuid.uuid1()),
+                'NEid': neid,
+                'ADid': adid,
+                'NCLoperation': operation,
+            })
+            session_list.append(changelog)
             s.add_all(session_list)
         return Success('修改成功', {'neid': neid})
 

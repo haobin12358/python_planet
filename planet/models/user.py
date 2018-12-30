@@ -220,4 +220,4 @@ class CashNotes(Base):
     CNcashNum = Column(DECIMAL(precision=28, scale=2), comment='提现金额')
     CNcardName = Column(String(32), comment='开户人')
     CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
-
+    CNrejectReason = Column(Text, comment='拒绝理由')

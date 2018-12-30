@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL
+from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL, BIGINT
 
 from planet.common.base_model import Base, Column
 
@@ -14,7 +14,7 @@ class Products(Base):
     PRprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
     PRlinePrice = Column(DECIMAL(precision=28, scale=2), comment='划线价格')
     PRfreight = Column(Float(precision=10, scale=2), default=0, comment='运费')
-    PRstocks = Column(Integer, comment='库存')
+    PRstocks = Column(BIGINT, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
     PRstatus = Column(Integer, default=0, comment='状态  0 正常, 10 审核中 60下架')
     PRmainpic = Column(String(255), comment='主图', url=True)
@@ -40,7 +40,7 @@ class ProductMonthSaleValue(Base):
     __tablename__ = 'ProductMonthSaleValue'
     PMSVid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='商品id')
-    PMSVnum = Column(Integer, default=0)
+    PMSVnum = Column(BIGINT, default=0)
 
 
 class ProductSku(Base):
@@ -53,7 +53,7 @@ class ProductSku(Base):
     SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
     SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
-    SKUstock = Column(Integer, comment='库存')
+    SKUstock = Column(BIGINT, comment='库存')
     SKUsn = Column(String(64), default=SKUid, nullable=False, comment='sku编码')
 
 

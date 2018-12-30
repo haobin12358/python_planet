@@ -206,7 +206,6 @@ class CCoupon(object):
             s.add_all(s_list)
         return Success('领取成功')
 
-
     def update(self):
         pass
 
