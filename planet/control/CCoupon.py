@@ -3,9 +3,10 @@ import uuid
 from datetime import datetime
 
 from flask import request
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from planet.common.error_response import StatusError
+from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required
 from planet.config.cfgsetting import ConfigSettings
@@ -38,6 +39,7 @@ class CCoupon(object):
             items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
                 CouponItem.COid == coupon.COid
             ).all()
+            # 优惠券时候对象
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
             coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first()
@@ -103,15 +105,14 @@ class CCoupon(object):
     @admin_required
     def create(self):
         form = CouponCreateForm().valid_data()
+        pbids = form.pbids.data
+        prids = form.prids.data
         with self.strade.auto_commit() as s:
             s_list = []
-            coid = str(uuid.uuid4())
+            coid = str(uuid.uuid1())
             itids = form.itids.data
             coupon_instance = Coupon.create({
                 'COid': coid,
-                'PCid': form.pcid.data,
-                'PRid': form.prid.data,
-                'PBid': form.pbid.data,
                 'COname': form.coname.data,
                 'COisAvailable': form.coisavailable.data,
                 'COcanCollect': form.coiscancollect.data,
@@ -126,6 +127,7 @@ class CCoupon(object):
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
+                'ADid': request.user.id
             })
             s_list.append(coupon_instance)
             for itid in itids:
@@ -137,21 +139,37 @@ class CCoupon(object):
                     'ITid': itid
                 })
                 s_list.append(couponitem_instance)
+            # 优惠券和应用对象的中间表
+            for pbid in pbids:
+                coupon_for = CouponFor.create({
+                    'CFid': str(uuid.uuid1()),
+                    'PBid': pbid,
+                    'COid': coupon_instance.COid,
+                })
+                s_list.append(coupon_for)
+            for prid in prids:
+                coupon_for = CouponFor.create({
+                    'CFid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'COid': coupon_instance.COid,
+                })
+                s_list.append(coupon_for)
             s.add_all(s_list)
-        return Success('添加成功')
+        return Success('添加成功', data=coid)
 
     @admin_required
     def update(self):
         form = CouponUpdateForm().valid_data()
+        itids = form.itids.data
+        coid = form.coid.data
+        pbids = form.pbids.data
+        prids = form.prids.data
         with db.auto_commit():
             coupon = Coupon.query.filter(
-                Coupon.COid == form.coid.data,
+                Coupon.COid == coid,
                 Coupon.isdelete == False
             ).first_('优惠券不存在')
             coupon.update({
-                'PCid': form.pcid.data,
-                'PRid': form.prid.data,
-                'PBid': form.pbid.data,
                 'COname': form.coname.data,
                 'COisAvailable': form.coisavailable.data,
                 'COcanCollect': form.coiscancollect.data,
@@ -167,7 +185,60 @@ class CCoupon(object):
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
             }, 'dont ignore')
+            db.session.add(coupon)
+            for itid in itids:
+                Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
+                coupon_items = CouponItem.query.filter(CouponItem.ITid == itid, CouponItem.isdelete == False,
+                                                       CouponItem.COid == coid).first()
+                if not coupon_items:
+                    # 优惠券标签中间表
+                    couponitem_instance = CouponItem.create({
+                        'CIid': str(uuid.uuid4()),
+                        'COid': coupon.COid,
+                        'ITid': itid
+                    })
+                    db.session.add(couponitem_instance)
+            # 删除原有的标签
+            CouponItem.query.filter(CouponItem.isdelete == False, CouponItem.ITid.notin_(itids),
+                                    CouponItem.COid == coid).delete_(synchronize_session=False)
+            # 优惠券和应用对象的中间表
+            for pbid in pbids:
+                coupon_for = CouponFor.create({
+                    'CFid': str(uuid.uuid1()),
+                    'PBid': pbid,
+                    'COid': coid
+                })
+                db.session.add(coupon_for)
+            for prid in prids:
+                coupon_for = CouponFor.create({
+                    'CFid': str(uuid.uuid1()),
+                    'PRid': prid,
+                    'COid': coid
+                })
+                db.session.add(coupon_for)
+            # 删除无用的
+            CouponFor.query.filter(
+                CouponFor.isdelete == False,
+                CouponFor.COid == coid,
+                and_(CouponFor.PBid.notin_(pbids),
+                     CouponFor.PRid.notin_(prids))
+            ).delete_(synchronize_session=False)
         return Success('修改成功')
+
+    @admin_required
+    def delete(self):
+        data = parameter_required(('coid', ))
+        coid = data.get('coid')
+        with db.auto_commit():
+            coupon = Coupon.query.filter(
+                Coupon.isdelete == False,
+                Coupon.COid == coid,
+            ).first_('优惠券不存在')
+            coupon.isdelete = True
+            db.session.add(coupon)
+        return Success('删除成功')
+
+
 
     @token_required
     def fetch(self):
@@ -206,9 +277,6 @@ class CCoupon(object):
             s.add_all(s_list)
         return Success('领取成功')
 
-    def update(self):
-        pass
-
     @staticmethod
     def _title_subtitle(coupon):
         # 使用对象限制
@@ -224,11 +292,13 @@ class CCoupon(object):
                 title = '{}品牌专用'.format(brand.PBname)
                 left_logo = brand['PBlogo']
                 left_text = brand.PBname
+                coupon.fill('brands', [brand])
             elif coupon_fors[0].PRid:
                 product = Products.query.filter_by_({'PRid': coupon_fors[0].PRid}).first()
                 title = '单品专用'.format(product.PRtitle)
                 left_logo = product['PRmainpic']
                 left_text = product.PRtitle
+                coupon.fill('products', [product])
         elif coupon_fors:
             # 多品牌
             cfg = ConfigSettings()
@@ -237,22 +307,28 @@ class CCoupon(object):
             if pbids:
                 title = '多品牌专用'
                 for_brand = []
+                brands = []
                 for pbid in pbids:
                     brand = ProductBrand.query.filter(ProductBrand.PBid == pbid).first()
                     if brand:
+                        brands.append(brand)
                         for_brand.append(brand.PBname)
                 left_text = '{}通用'.format('/'.join(for_brand))
+                coupon.fill('brands', brands)
             # 多商品
             else:
                 prids = [x.PRid for x in coupon_fors if x.PRid]
                 left_logo = cfg.get_item('planet', 'logo')
                 title = '多商品专用'
                 for_product = []
+                products = []
                 for prid in prids:
                     product = Products.query.filter_by_({'PRid': prid}).first()
                     if product:
+                        products.append(product)
                         for_product.append(product.PRtitle)
                 left_text = '{}通用'.format('/'.join(for_product))
+                coupon.fill('products', products)
             # 多类目 暂时没有多类目优惠券
             pass
         else:
