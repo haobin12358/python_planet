@@ -15,7 +15,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
-    ProductSkuValue
+    ProductSkuValue, ProductImage
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus
 from planet.extensions.register_ext import alipay, wx_pay
@@ -258,6 +258,17 @@ class CGuessNum(COrder, BASEAPPROVAL):
         }
         return Success('创建订单成功', data=response)
 
+    def list(self):
+        """查看自己的申请列表"""
+        if is_supplizer():
+            suid = request.user.id
+        elif is_admin():
+            suid = None
+        else:
+            raise AuthorityError()
+        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).all_with_page()
+        return Success(data=award_list)
+
     def apply_award(self):
         """申请添加奖品"""
         if not (is_supplizer() or is_admin()):
@@ -267,7 +278,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnaafrom = 0 if is_supplizer() else 1
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                              Products.PRstatus.in_(ProductStatus.usual.value, ProductStatus.auditing.value)
+                              Products.PRstatus == ProductStatus.usual.value
                               ).first_('当前商品状态不允许进行申请')
         assert sku.PRid == prid, 'sku与商品信息不对应'
 
@@ -285,7 +296,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                     'SKUid': skuid,
                     'PRid': prid,
                     'GNAAstarttime': day,
-                    'GNAAendtime':day,
+                    'GNAAendtime': day,
                     'SKUprice': float(data.get('skuprice', 0.01)),
                     'SKUstock': int(skustock),
                     'GNAAstatus': ApplyStatus.wait_check.value,
@@ -296,7 +307,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             db.session.add_all(award_instance_list)
 
             # todo 添加到审批流
-        super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        # super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'])
 
         return Success('申请添加成功', {'gnaaid': award_dict['GNAAid']})
 
@@ -332,18 +343,26 @@ class CGuessNum(COrder, BASEAPPROVAL):
             GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).update(award_dict)
 
             #todo 添加到审批流
-        super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        # super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
 
         return Success('修改成功', {'gnaaid': gnaaid})
 
     def award_detail(self):
         """查看申请详情"""
         if not (is_supplizer() or is_admin()):
-            args = parameter_required('gnaaid')
+            args = parameter_required(('gnaaid',))
             gnaaid = args.get('gnaaid')
             award = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('该申请已被删除')
-            product = Products.query.filter_by_(PRid=award.PRid).first()
-            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first()
+            product = Products.query.filter_by_(PRid=award.PRid).first_('商品已下架')
+            product.PRattribute = json.loads(product.PRattribute)
+            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+            # 顶部图
+            images = ProductImage.query.filter_by_(PRid=product.PRid).order_by(ProductImage.PIsort).all()
+            product.fill('images', images)
+            # 品牌
+            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first() or {}
+            product.fill('brand', brand)
+            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first_('没有该skuid信息')
             sku_value = ProductSkuValue.query.filter_by_(PRid=award.PRid).first()
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             product.fill('sku', sku)
@@ -372,16 +391,18 @@ class CGuessNum(COrder, BASEAPPROVAL):
             return Success('获取成功', award)
 
     def shelf_award(self):
-        """下架申请"""
+        """撤销申请"""
         if not (is_supplizer() or is_admin()):
             raise AuthorityError()
         data = parameter_required(('gnaaid',))
         gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
-        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid, GNAAstatus=ApplyStatus.agree.value
-                                                         ).first_('只有下架状态的申请可以进行修改')
+        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
+        if apply_info.GNAAstatus == ApplyStatus.agree.value:
+            raise StatusError('只有审核状态的申请可以撤销')
         if apply_info.SUid != request.user.id:
-            raise AuthorityError('仅可修改自己提交的申请')
-        apply_info.GNAAstatus = ApplyStatus.reject.value
+            raise AuthorityError('仅可撤销自己提交的申请')
+        # todo 同时将正在进行的审批流 取消掉
+        apply_info.GNAAstatus = ApplyStatus.cancle.value
         db.session.commit()
         return Success('下架成功', {'gnaaid': gnaaid})
 

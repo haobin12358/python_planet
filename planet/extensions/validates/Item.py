@@ -58,8 +58,10 @@ class ItemCreateForm(BaseForm):
 
 class ItemUpdateForm(ItemCreateForm):
     itid = StringField(validators=[DataRequired('缺少参数itid')])
-    itname = StringField()
+    itname = StringField(validators=[DataRequired('缺少参数itname')])
+    itsort = IntegerField(validators=[InputRequired('缺少参数itsort')])
     isdelete = BooleanField(default=False)
+    itrecommend = BooleanField(default=False)
     ittype = IntegerField(validators=[InputRequired('缺少参数ittype')])
 
 

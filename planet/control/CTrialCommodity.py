@@ -6,10 +6,10 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_
 
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin
+from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
 from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
@@ -100,7 +100,8 @@ class CTrialCommodity(COrder):
         commodity.TCstatus = TrialCommodityStatus(commodity.TCstatus).zh_value
         # 品牌
         brand = ProductBrand.query.filter_by_(PBid=commodity.PBid, isdelete=False).first()
-        brand.hide('PBlinks', 'PBbackgroud')
+        if brand:
+            brand.hide('PBlinks', 'PBbackgroud')
         commodity.fill('brand', brand)
         # 商品图片
         image_list = TrialCommodityImage.query.filter_by_(TCid=tcid, isdelete=False).all()
@@ -146,9 +147,10 @@ class CTrialCommodity(COrder):
         commodity.fill('skuvalue', sku_value_item_reverse)
         return Success(data=commodity).get_body(tourist=tourist)
 
-    @admin_required
     def add_commodity(self):
         """添加试用商品"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
         data = parameter_required(('tctitle', 'tcdescription', 'tcdeposit', 'tcdeadline', 'tcfreight',
                                    'tcmainpic', 'tcattribute', 'tcdesc', 'pbid', 'images', 'skus',
                                    'tskuvalue', 'applystarttime', 'applyendtime'
@@ -261,7 +263,7 @@ class CTrialCommodity(COrder):
         commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到该试用商品信息')  # todo 审核中或拒绝能否修改
         if not isinstance(images, list) or not isinstance(skus, list):
             raise ParamsError('images/skus, 参数错误')
-        ProductBrand.query.filter_by_(PBid=pbid).first_('pbid 参数错误, 未找到相应品牌')
+        ProductBrand.query.filter_by_(PBid=pbid).first_('未找到该品牌信息')
         with db.auto_commit():
             session_list = []
             if images:

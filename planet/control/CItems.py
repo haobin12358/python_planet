@@ -105,7 +105,7 @@ class CItems:
                          'ITrecommend': form.itrecommend.data,
                          'isdelete': form.isdelete.data
                          }
-            item_dict = {k: v for k, v in item_dict.items() if v is not None}
+            # item_dict = {k: v for k, v in item_dict.items() if v is not None}
             Items.query.filter_by_(ITid=itid).update(item_dict)
 
             # 标签场景标签表
