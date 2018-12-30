@@ -2,7 +2,7 @@
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval
 
 
 # 添加一些默认的数据
@@ -195,9 +195,16 @@ def make_permissiontype():
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        # make_items()
-        # make_acvitity()
-        make_permissiontype()
+    #     # make_items()
+    #     # make_acvitity()
+    #     make_permissiontype()
+    #     with db.auto_commit():
+    #         aps = Approval.query.all()
+    #         for ap in aps:
+    #             pt = ap.AVname.split('2018')[0]
+    #             ap.PTid = pt
+        pass
+
 
 
 

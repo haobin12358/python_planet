@@ -190,7 +190,7 @@ class CApproval(BASEAPPROVAL):
         permission_instence = Permission.create({
             "PEid": str(uuid.uuid1()),
             "PIid": data.get("piid"),
-            "PTid": data.get("PTid"),
+            "PTid": data.get("ptid"),
             "PELevel": data.get("pelevel")
         })
         db.session.add(permission_instence)
@@ -224,7 +224,7 @@ class CApproval(BASEAPPROVAL):
             'ADPid': str(uuid.uuid1()),
             'ADid': data.get('adid'),
             'PIid': data.get('piid'),
-            'PTid': data.get('ptid')
+            # 'PTid': data.get('ptid')
         })
         db.session.add(adp)
         return Success('创建管理员权限成功', data={'adpid': adp.ADPid})
@@ -347,32 +347,50 @@ class CApproval(BASEAPPROVAL):
 
     @token_required
     def get_approval_list(self):
-        admin = Admin.query.filter_by_(ADid=request.user.id).first_()
-        if not admin:
-            gennerc_log('get admin failed id is {0}'.format(admin.ADid))
-            raise NotFound("该管理员已被删除")
-
         data = parameter_required(('ptid',))
-        pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
-        # ptytype = ActivityType(int(data.get('pttype'))).name
-        ap_list = Approval.query.filter(
-                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
-                Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
-                Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
-            ).order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
-        # for ap in ap_list:
+        if is_admin():
+            admin = Admin.query.filter_by_(ADid=request.user.id).first_()
+            if not admin:
+                gennerc_log('get admin failed id is {0}'.format(admin.ADid))
+                raise NotFound("该管理员已被删除")
+
+            pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
+            # ptytype = ActivityType(int(data.get('pttype'))).name
+            ap_list = Approval.query.filter(
+                    Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
+                    Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
+                    Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
+                ).order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+        else:
+            pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
+            sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
+            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         self.__fill_approval(pt, ap_list)
-        return Success('获取待审批列表成功', data=ap_list)
+        page = int(data.get('page_num', 0)) or 1
+        count = data.get('page_size', 15) or 15
+        total_count = len(ap_list)
+        if page < 1:
+            page = 1
+        total_page = int(total_count / count) or 1
+        start = (page - 1) * count
+        # end =
+        if start > total_count:
+            start = 0
+        if total_count / (page * count) < 0:
+            ap_return_list = ap_list[start:]
+        else:
+            ap_return_list = ap_list[start: (page * count)]
+        request.page_all = total_page
+        request.mount = total_count
+        return Success('获取待审批列表成功', data=ap_return_list)
 
-    @token_required
-    def get_submit_approval(self):
-        """供应商查看自己提交的所有审批流"""
-        data = parameter_required(('ptid',))
-        pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
-        sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
-        aplist = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
-        self.__fill_approval(pt, aplist)
-        return Success('获取审批流成功', data=aplist)
+    # @token_required
+    # def get_submit_approval(self):
+    #     """供应商查看自己提交的所有审批流"""
+    #     data = parameter_required(('ptid',))
+    #
+    #     self.__fill_approval(pt, aplist)
+    #     return Success('获取审批流成功', data=aplist)
 
     @token_required
     def deal_approval(self):
@@ -398,7 +416,7 @@ class CApproval(BASEAPPROVAL):
             "ANabo": data.get("anabo")
         }
         apn_instance = ApprovalNotes.create(approvalnote_dict)
-        db.add(apn_instance)
+        db.session.add(apn_instance)
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -686,9 +704,9 @@ class CApproval(BASEAPPROVAL):
             self.__fill_trialcommodity(ap_list)
         elif pt.PTid == 'toreturn':
             # todo 退货申请目前没有图
-            return ParamsError('退货申请前往订单页面实现')
+            raise ParamsError('退货申请前往订单页面实现')
         else:
-            return ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
+            raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
     def agree_action(self, approval_model):
         if not approval_model:
