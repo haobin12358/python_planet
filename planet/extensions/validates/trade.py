@@ -86,12 +86,11 @@ class CouponFetchForm(BaseForm):
     coid = StringField('优惠券id', validators=[DataRequired('coid不可为空')])
 
 
-
 class CouponCreateForm(BaseForm):
     """创建优惠券"""
-    pcid = StringField()
-    prid = StringField()
-    pbid = StringField()
+    pcids = FieldList(StringField())
+    prids = FieldList(StringField())
+    pbids = FieldList(StringField())
     coname = StringField(validators=[DataRequired('coname不可为空'), Length(1, 32)])
     coisavailable = BooleanField('可用', default=True)
     coiscancollect = BooleanField('可以领取', default=True)
@@ -109,14 +108,12 @@ class CouponCreateForm(BaseForm):
     cousenum = IntegerField('可叠加使用数量', default=1)
 
     def valid_data(self):
-        if self.pcid.data is not None and self.prid.data is not None and self.pbid.data is not None:
-            raise ValidationError('pbid pcid prid 不可以同时存在')
-        if self.prid.data:
-            product = Products.query.filter_by_({"PRid": self.prid.data}).first_('商品不存在')
-        if self.pbid.data:
-            brand = ProductBrand.query.filter_by_({"PBid": self.pbid.data}).first_('品牌不存在')
-        if self.pcid.data:
-            category = ProductCategory.query.filter_by_({'PCid': self.pcid.data}).first_('分类不存在')
+        if self.prids.data and self.pbids.data:
+            raise ValidationError('不可以同时指定品牌和商品')
+        for prid in self.prids.data:
+            product = Products.query.filter_by_({"PRid": prid}).first_('商品不存在')
+        for pbid in self.pbids.data:
+            brand = ProductBrand.query.filter_by_({"PBid": pbid}).first_('品牌不存在')
         return super(CouponCreateForm, self).valid_data()
 
     def validate_cosubtration(self, raw):

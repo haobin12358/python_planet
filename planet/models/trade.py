@@ -247,7 +247,8 @@ class Coupon(Base):
     COdesc = Column(String(255), comment='描述')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
-    SUid = Column(String(64), comment='来源供应商, 如为空则为平台')
+    SUid = Column(String(64), comment='来源供应商, 如为0则为平台')
+    ADid = Column(String(64), comment='创建人')
 
 
 class CouponItem(Base):
