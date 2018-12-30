@@ -18,7 +18,7 @@ from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
-    FreshManFirstProduct, UserWallet, UserInvitation
+    FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -36,7 +36,7 @@ from .BaseControl import BASEAPPROVAL
 class CApproval(BASEAPPROVAL):
     def __trim_string(self, s):
         if isinstance(s, str):
-            return re.sub(r'\s+', s)
+            return re.sub(r'\s+', '', s)
 
         if isinstance(s, list):
             trans_list = [self.__trim_string(s_item) for s_item in s]
@@ -49,8 +49,8 @@ class CApproval(BASEAPPROVAL):
 
     def create(self):
         data = parameter_required(('ptid', 'startid', 'avcontentid'))
-        self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
-        return Success('创建审批流成功')
+        avid = self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
+        return Success('创建审批流成功', data=avid)
 
 
     @get_session
@@ -83,7 +83,7 @@ class CApproval(BASEAPPROVAL):
             ptn.setdefault('PINaction', '更新权限标签 {} 为 {}'.format(pi.PIname, piname))
             pi.PIname = piname
             db.session.add(PermissionNotes.create(ptn))
-            return Success('修改权限标名成功')
+            return Success('修改权限标名成功', data={'piid':pi.PIid})
         pi = PermissionItems.create({
             'PIid': str(uuid.uuid1()),
             'PIname': piname,
@@ -92,7 +92,7 @@ class CApproval(BASEAPPROVAL):
         ptn.setdefault('PNcontent', pi.PIid)
         ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
         db.session.add(PermissionNotes.create(ptn))
-        return Success('创建权限标签成功')
+        return Success('创建权限标签成功', data={'piid': pi.PIid})
 
     @get_session
     @token_required
@@ -112,7 +112,8 @@ class CApproval(BASEAPPROVAL):
             'ADid': admin.ADid,
             'PNType': PermissionNotesType.pt.value
         }
-        ptname = re.sub(r'\s+', data.get('ptname'))
+        # ptname = re.sub(r'\s+', data.get('ptname'))
+        ptname = self.__trim_string(data.get('ptname'))
         if not ptname:
             raise ParamsError('ptname 不能为空')
 
@@ -130,16 +131,19 @@ class CApproval(BASEAPPROVAL):
                 ptn.setdefault('PTNaction', '修改 {} 权限类型为 {}'.format(pt.PTname, ptname))
                 pt.PTname = ptname
                 db.session.add(PermissionNotes.create(ptn))
-                return Success('修改审批流类型名成功')
+                return Success('修改审批流类型名成功', data={'ptid': pt.PTid})
 
         pt_dict = {
             'PTid': str(uuid.uuid1()),
-            'PTname': str(data.get('ptname')).strip()
+            'PTname': ptname,
         }
+        if data.get('ptmodelname'):
+            pt_dict.setdefault('PTmodelName', data.get('ptmodelname'))
         ptn.setdefault('PNcontent', pt_dict.get('PTid'))
         ptn.setdefault('PINaction', '创建 {} 审批类型'.format(ptname))
+        db.session.add(PermissionNotes.create(ptn))
         db.session.add(PermissionType.create(pt_dict))
-        return Success('创建审批类型成功')
+        return Success('创建审批类型成功', data={'ptid': pt.PTid})
 
     @get_session
     @token_required
@@ -158,10 +162,10 @@ class CApproval(BASEAPPROVAL):
         ptn = {
             'PNid': str(uuid.uuid1()),
             'ADid': admin.ADid,
-            'PNtype': PermissionNotesType.pe.value
+            'PNType': PermissionNotesType.pe.value
         }
-        pt_after = PermissionType.query.filter_by_(PTid=data.get('ptid'))
-        pi_after = PermissionItems.query.filter_by_(PIid=data.get('piid'))
+        pt_after = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
+        pi_after = PermissionItems.query.filter_by_(PIid=data.get('piid')).first()
         if not pt_after or not pi_after:
             raise ParamsError('修改的类型已被删除')
 
@@ -182,21 +186,49 @@ class CApproval(BASEAPPROVAL):
                 db.session.add(PermissionNotes.create(ptn))
                 return Success('权限变更成功')
 
-            # 插入操作
-            permission_instence = Permission.create({
-                "PEid": str(uuid.uuid1()),
-                "PIid": data.get("piid"),
-                "PTid": data.get("PTid"),
-                "PElevel": data.get("pelevel")
-            })
-            db.session.add(permission_instence)
-            # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
-            #     pt_after.PTname, data.get("pelevel"))
-            ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
-                pt_after.PTname, data.get("pelevel"), pi_after.PIname))
-            ptn.setdefault('PNcontent', permission_instence.PEid)
-            db.session.add(PermissionNotes.create(ptn))
-            return Success('创建权限成功')
+        # 插入操作
+        permission_instence = Permission.create({
+            "PEid": str(uuid.uuid1()),
+            "PIid": data.get("piid"),
+            "PTid": data.get("PTid"),
+            "PELevel": data.get("pelevel")
+        })
+        db.session.add(permission_instence)
+        # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
+        #     pt_after.PTname, data.get("pelevel"))
+        ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
+            pt_after.PTname, data.get("pelevel"), pi_after.PIname))
+        ptn.setdefault('PNcontent', permission_instence.PEid)
+        db.session.add(PermissionNotes.create(ptn))
+        return Success('创建权限成功', data={'peid': permission_instence.PEid})
+
+    @get_session
+    @token_required
+    def add_adminpermission(self):
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_("权限被回收")
+        if admin.ADlevel != AdminLevel.super_admin.value:
+            raise AuthorityError('权限不够')
+        data = parameter_required(('adid', 'piid'))
+        check_admin = Admin.query.filter_by(ADid=data.get('adid')).first_('管理员id异常')
+        check_pi = PermissionItems.query.filter_by_(PIid=data.get('piid')).first_('权限标签失效')
+        if not check_admin or not check_pi:
+            raise ParamsError('参数异常')
+        if data.get('adpid'):
+            adp = AdminPermission.query.filter_by_(ADPid=data.get('adpid')).first()
+            if adp:
+                adp.ADid = data.get('adid')
+                adp.PIid = data.get('piid')
+
+                return Success('修改管理员权限成功', data={'adpid': adp.ADPid})
+        adp = AdminPermission.create({
+            'ADPid': str(uuid.uuid1()),
+            'ADid': data.get('adid'),
+            'PIid': data.get('piid'),
+            'PTid': data.get('ptid')
+        })
+        db.session.add(adp)
+        return Success('创建管理员权限成功', data={'adpid': adp.ADPid})
+
 
     @token_required
     def get_permission_type_list(self):
@@ -208,7 +240,7 @@ class CApproval(BASEAPPROVAL):
         if not admin:
             gennerc_log('get admin failed id is {0}'.format(admin.ADid))
             raise NotFound("该管理员已被删除")
-        if admin.ADlevel == AdminLevel.super_admin:
+        if admin.ADlevel == AdminLevel.super_admin.value:
             pt_list = PermissionType.query.filter_by_().order_by(PermissionType.createtime.desc()).all()
             for pt in pt_list:
                 pm_num = Permission.query.filter_by_(PTid=pt.PTid).count()
@@ -231,7 +263,7 @@ class CApproval(BASEAPPROVAL):
 
     @token_required
     def get_permission_list(self):
-
+        """获取管理员下所有审批类型"""
         data = parameter_required(('ptid', ))
         admin = Admin.query.filter_by_(ADid=request.user.id).first()
         if not admin:
@@ -243,9 +275,9 @@ class CApproval(BASEAPPROVAL):
         pm_list = Permission.query.filter_by_(
             PTid=pt.PTid).order_by(Permission.createtime.desc()).all_with_page()
         for pm in pm_list:
-            pi = PermissionItems.query.filter_by_(PIid=pm.PIid).first('审批权限已被回收')
+            pi = PermissionItems.query.filter_by_(PIid=pm.PIid).first_('审批权限已被回收')
             pm.fill('piname', pi.PIname)
-        return Success('获取审批权限成功')
+        return Success('获取审批权限成功', data=pm_list)
 
     @token_required
     def get_permission_admin_list(self):
@@ -255,7 +287,8 @@ class CApproval(BASEAPPROVAL):
         if not admin:
             gennerc_log('get admin failed id is {0}'.format(admin.ADid))
             raise NotFound("该管理员已被删除")
-        ad_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
+        ad_list = Admin.query.filter(
+            AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == data.get('piid')).all()
         for ad in ad_list:
             ad.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             ad.fill('adlevel', AdminLevel(ad.ADlevel).zh_value)
@@ -278,7 +311,7 @@ class CApproval(BASEAPPROVAL):
     def get_dealing_approval(self):
         """管理员查看自己名下可以处理的审批流 概览"""
         if is_admin():
-            admin = Admin.query.filter_by_(ADid=request.user.id).fist_('管理员账号已被回收')
+            admin = Admin.query.filter_by_(ADid=request.user.id).first_('管理员账号已被回收')
             if not admin:
                 gennerc_log('get admin failed id is {0}'.format(admin.ADid))
                 raise NotFound("该管理员已被删除")
@@ -289,7 +322,7 @@ class CApproval(BASEAPPROVAL):
             ).order_by(PermissionType.createtime.desc()).all()
             # pi_list = AdminPermission.query.filter_by_(ADid=admin.ADid).all()
             for pt in pt_list:
-                ap_num = Approval.query.filter_by_(
+                ap_num = Approval.query.filter(
                     Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
                     Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                     Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
@@ -298,10 +331,19 @@ class CApproval(BASEAPPROVAL):
                 pt.fill('approval_num', ap_num)
         elif is_supplizer():
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商账号已回收')
-            pt_list = PermissionType.query.filter(PermissionType.PTid == Approval.PTid, )
+            pt_list = PermissionType.query.filter(
+                PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid).all()
             # todo 供应商的审批类型筛选
+            for pt in pt_list:
+                ap_num = Approval.query.filter(
+                    Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
+                    Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
+                    Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
+                ).count()
 
-        return pt_list
+                pt.fill('approval_num', ap_num)
+
+        return Success('获取审批流类型成功', data=pt_list)
 
     @token_required
     def get_approval_list(self):
@@ -311,9 +353,9 @@ class CApproval(BASEAPPROVAL):
             raise NotFound("该管理员已被删除")
 
         data = parameter_required(('ptid',))
-        pt = Permission.query.filter_by_(PTid=data.get('ptid'))
+        pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
         # ptytype = ActivityType(int(data.get('pttype'))).name
-        ap_list = Approval.query.filter_by_(
+        ap_list = Approval.query.filter(
                 Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
                 Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                 Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
@@ -321,18 +363,6 @@ class CApproval(BASEAPPROVAL):
         # for ap in ap_list:
         self.__fill_approval(pt, ap_list)
         return Success('获取待审批列表成功', data=ap_list)
-
-    def __get_category(self, pcid, pclist=None):
-        if not pclist:
-            pclist = []
-        if not pcid:
-            return pclist
-        pc = ProductCategory.query.filter_by_(PCid=pcid).first()
-        # pc_list = []
-        if not pc:
-            return pclist
-        pclist.append(pc.PCname)
-        return self.__get_category(pc.ParentPCid, pclist)
 
     @token_required
     def get_submit_approval(self):
@@ -388,9 +418,8 @@ class CApproval(BASEAPPROVAL):
             approval_model.AVstatus = ApplyStatus.reject.value
             # approval_model.AVlevel = 1
             self.refuse_action(approval_model, data.get('anabo'))
-            if approval_model.AVtype == ApprovalType.toagent.value:
-                User.query.filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
-
+            # if approval_model.AVtype == ApprovalType.toagent.value:
+            #     User.query.filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
 
         return Success("审批操作完成")
 
@@ -445,28 +474,36 @@ class CApproval(BASEAPPROVAL):
 
     def __fill_agent(self, ap_list):
         # 填充成为代理商内容
+        ap_remove_list = []
         for ap in ap_list:
             start_model = User.query.filter_by_(USid=ap.AVstartid).first()
+
             umfront = UserMedia.query.filter_by_(USid=ap.AVstartid, UMtype=UserMediaType.umfront.value).first()
             umback = UserMedia.query.filter_by_(USid=ap.AVstartid, UMtype=UserMediaType.umback.value).first()
             if not start_model or not umback or not umfront:
-                ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             start_model.fill('umfront', umfront['UMurl'])
             start_model.fill('umback', umback['UMurl'])
             ap.fill('start', start_model)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_shelves(self, ap_list):
         # 填充上架申请
+        ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             content = Products.query.filter_by_(PRid=ap.AVcontent).first()
             if not start_model or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             self.__fill_product_detail(content)
             ap.fill('content', content)
             ap.fill('start', start_model)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_product_detail(self, product, skuid):
         # 填充商品详情
@@ -522,58 +559,113 @@ class CApproval(BASEAPPROVAL):
         product.fill('categorys', categorys)
 
     def __fill_guessnum(self, ap_list):
+        ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
             if not start_model or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             product = Products.query.filter_by_(PRid=content.PRid).first()
             self.__fill_product_detail(product, content.SKUid)
             content.fill('product', product)
             ap.fill('start', start_model)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_magicbox(self, ap_list):
+        ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             content = MagicBoxApply.query.filter_by_(MBAid=ap.AVcontent).first()
             if not start_model or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             product = Products.query.filter_by_(PRid=content.PRid).first()
             self.__fill_product_detail(product, content.SKUid)
             content.fill('product', product)
             ap.fill('start', start_model)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_freshmanfirstproduct(self, ap_list):
+        ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
             if not start_model or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             product = Products.query.filter_by_(PRid=content.PRid).first()
             self.__fill_product_detail(product)
             content.fill('product', product)
             ap.fill('start', start_model)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_trialcommodity(self, ap_list):
+        ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             content = TrialCommodity.query.filter_by_(TCid=ap.AVcontent).first()
             if not start_model or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             # product = TrialCommodity.query.filter_by_(PRid=content.PRid).first()
             # self.__fill_product_detail(content, content.SKUid)
             # todo 试用商品字段名不对应
+            content.fill("zh_remarks", "{0}天{1}元".format(content.TCdeadline, int(content.TCdeposit)))
+            prbrand = ProductBrand.query.filter_by_(PBid=content.PBid).first()
+            content.fill('brand', prbrand)
+            content.TCattribute = json.loads(content.TCattribute)
+            content.fill('zh_tcstatus', TrialCommodityStatus(content.TCstatus).zh_value)
+            content.hide('CreaterId', 'PBid')
+            # 商品图片
+            image_list = TrialCommodityImage.query.filter_by_(TCid=ap.AVcontent, isdelete=False).all()
+            [image.hide('TCid') for image in image_list]
+            content.fill('image', image_list)
+            # 填充sku
+            skus = TrialCommoditySku.query.filter_by_(TCid=ap.AVcontent).all()
+            sku_value_item = []
+            for sku in skus:
+                sku.SKUattriteDetail = json.loads(getattr(sku, 'SKUattriteDetail') or '[]')
+                sku.SKUprice = content.TCdeposit
+                sku_value_item.append(sku.SKUattriteDetail)
+                content.fill('skus', skus)
+            # 拼装skuvalue
+            sku_value_instance = TrialCommoditySkuValue.query.filter_by_(TCid=ap.AVcontent).first()
+            if not sku_value_instance:
+                sku_value_item_reverse = []
+                for index, name in enumerate(content.TCattribute):
+                    value = list(set([attribute[index] for attribute in sku_value_item]))
+                    value = sorted(value)
+                    combination = {
+                        'name': name,
+                        'value': value
+                    }
+                    sku_value_item_reverse.append(combination)
+            else:
+                sku_value_item_reverse = []
+                tskuvalue = json.loads(sku_value_instance.TSKUvalue)
+                for index, value in enumerate(tskuvalue):
+                    sku_value_item_reverse.append({
+                        'name': content.TCattribute[index],
+                        'value': value
+                    })
 
+            content.fill('skuvalue', sku_value_item_reverse)
             # content.fill('product', content)
             ap.fill('start', start_model)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_approval(self, pt, ap_list):
         if pt.PTid == 'tocash':
@@ -764,3 +856,15 @@ class CApproval(BASEAPPROVAL):
     def refuse_trialcommodity(self, approval_model, refuse_abo):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
         tc.TCstatus = TrialCommodityStatus.reject.value
+
+    def __get_category(self, pcid, pclist=None):
+        if not pclist:
+            pclist = []
+        if not pcid:
+            return pclist
+        pc = ProductCategory.query.filter_by_(PCid=pcid).first()
+        # pc_list = []
+        if not pc:
+            return pclist
+        pclist.append(pc.PCname)
+        return self.__get_category(pc.ParentPCid, pclist)

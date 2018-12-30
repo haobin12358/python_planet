@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import json
-
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, Commision
+from planet.models import Items, ProductBrand, Activity, PermissionType
 
 
 # 添加一些默认的数据
@@ -135,22 +133,63 @@ def make_acvitity():
         })
         db.session.add(free)
 
-
-def make_commsion():
+def make_permissiontype():
     with db.auto_commit():
-        comm = Commision.create({
-            'COid': 'coid1',
-            'Levelcommision': json.dumps(["0", "10", "5", "2"]),
-            'InviteNum': 20,
-            'GroupSale': 3000000,
-            'PesonalSale': 300000,
-            'InviteNumScale': 200,
-            'GroupSaleScale': 200,
-            'PesonalSaleScale': 200,
-            'ReduceRatio': json.dumps(['10', '10', '10', '10']),
-            'IncreaseRatio': json.dumps(['10', '10', '10', '10'])
+        toagent = PermissionType.create({
+            'PTid': 'toagent',
+            'PTname': '代理商申请',
+            'PTmodelName': 'User'
         })
-        db.session.add(comm)
+        db.session.add(toagent)
+
+        tocash = PermissionType.create({
+            'PTid': 'tocash',
+            'PTname': '提现申请',
+            'PTmodelName': 'CashNotes'
+        })
+        db.session.add(tocash)
+        toshelves = PermissionType.create({
+            'PTid': 'toshelves',
+            'PTname': '商品上架申请',
+            'PTmodelName': 'Products'
+        })
+        db.session.add(toshelves)
+        topublish = PermissionType.create({
+            'PTid': 'topublish',
+            'PTname': '资讯发布申请',
+            'PTmodelName': 'News'
+        })
+        db.session.add(topublish)
+        toguessnum = PermissionType.create({
+            'PTid': 'toguessnum',
+            'PTname': '猜数字活动申请',
+            'PTmodelName': 'GuessNumAwardApply'
+        })
+        db.session.add(toguessnum)
+        tomagicbox = PermissionType.create({
+            'PTid': 'tomagicbox',
+            'PTname': '魔盒活动申请',
+            'PTmodelName': 'MagicBoxApply'
+        })
+        db.session.add(tomagicbox)
+        tofreshmanfirstproduct = PermissionType.create({
+            'PTid': 'tofreshmanfirstproduct',
+            'PTname': '新人首单商品活动申请',
+            'PTmodelName': 'FreshManFirstApply'
+        })
+        db.session.add(tofreshmanfirstproduct)
+        totrialcommodity = PermissionType.create({
+            'PTid': 'totrialcommodity',
+            'PTname': '试用商品上架申请',
+            'PTmodelName': 'TrialCommodity'
+        })
+        db.session.add(totrialcommodity)
+        toreturn = PermissionType.create({
+            'PTid': 'toreturn',
+            'PTname': '退货审请',
+            'PTmodelName': 'TrialCommodity'
+        })
+        db.session.add(toreturn)
 
 
 if __name__ == '__main__':
@@ -158,7 +197,7 @@ if __name__ == '__main__':
     with app.app_context():
         # make_items()
         # make_acvitity()
-        make_commsion()
+        make_permissiontype()
 
 
 

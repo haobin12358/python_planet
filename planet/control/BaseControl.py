@@ -26,7 +26,7 @@ class BASEAPPROVAL():
             "PTid": avtype,
             "AVstartid": startid,
             "AVlevel": 1,
-            "AVstatus": 0,
+            "AVstatus": ApplyStatus.wait_check.value,
             "AVcontent": avcontentid
         })
         with self.sapproval.auto_commit() as s:
@@ -41,6 +41,7 @@ class BASEAPPROVAL():
             })
             s.add(av)
             s.add(aninstance)
+        return av.AVid
 
     def update_approval_no_commit(self, approval, agree, level=1, anabo=None):
         if agree is True:
