@@ -316,7 +316,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
             # 添加到审批流
-            super().create_approval(ApprovalType.topublish.value, usid, neid)
+            # super().create_approval(ApprovalType.topublish.value, usid, neid)
         return Success('添加成功', {'neid': neid})
 
     @admin_required
