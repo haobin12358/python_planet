@@ -28,6 +28,7 @@ class Aapproval(Resource):
             'get_permission_admin_list': self.approval.get_permission_admin_list,
             'get_dealing_approval': self.approval.get_dealing_approval,
             'get_approval_list': self.approval.get_approval_list,
+            'get_all_permissiontype': self.approval.get_all_permissiontype,
             # 'get_submit_approval': self.approval.get_submit_approval,
 
             'get_approvalnotes': self.approval.get_approvalnotes,

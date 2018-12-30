@@ -22,7 +22,7 @@ class BASEAPPROVAL():
         pt = Permission.query.filter_by_(PTid=avtype).first_('参数异常')
         av = Approval.create({
             "AVid": str(uuid.uuid1()),
-            "AVname": ApprovalType(avtype).name + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
+            "AVname": avtype + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
             "PTid": avtype,
             "AVstartid": startid,
             "AVlevel": 1,
@@ -30,7 +30,7 @@ class BASEAPPROVAL():
             "AVcontent": avcontentid
         })
         with self.sapproval.auto_commit() as s:
-            user = User.query.filter_by_(USId=startid).first_('数据异常')
+            user = User.query.filter_by_(USid=startid).first_('数据异常')
             aninstance = ApprovalNotes.create({
                 "ANid": str(uuid.uuid1()),
                 "AVid": av.AVid,

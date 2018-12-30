@@ -47,10 +47,11 @@ class CApproval(BASEAPPROVAL):
             return tras_dict
         return s
 
+    @get_session
     def create(self):
         data = parameter_required(('ptid', 'startid', 'avcontentid'))
         avid = self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
-        return Success('创建审批流成功', data=avid)
+        return Success('创建审批流成功', data={'avid': avid})
 
 
     @get_session
@@ -209,24 +210,26 @@ class CApproval(BASEAPPROVAL):
         if admin.ADlevel != AdminLevel.super_admin.value:
             raise AuthorityError('权限不够')
         data = parameter_required(('adid', 'piid'))
-        check_admin = Admin.query.filter_by(ADid=data.get('adid')).first_('管理员id异常')
-        check_pi = PermissionItems.query.filter_by_(PIid=data.get('piid')).first_('权限标签失效')
-        if not check_admin or not check_pi:
-            raise ParamsError('参数异常')
-        if data.get('adpid'):
-            adp = AdminPermission.query.filter_by_(ADPid=data.get('adpid')).first()
-            if adp:
-                adp.ADid = data.get('adid')
-                adp.PIid = data.get('piid')
 
-                return Success('修改管理员权限成功', data={'adpid': adp.ADPid})
-        adp = AdminPermission.create({
-            'ADPid': str(uuid.uuid1()),
-            'ADid': data.get('adid'),
-            'PIid': data.get('piid'),
-            # 'PTid': data.get('ptid')
-        })
-        db.session.add(adp)
+        check_pi = PermissionItems.query.filter_by_(PIid=data.get('piid')).first_('权限标签失效')
+        for adid in data.get('adid'):
+            check_admin = Admin.query.filter_by(ADid=adid).first_('管理员id异常')
+            if not check_admin or not check_pi:
+                raise ParamsError('参数异常')
+            if data.get('adpid'):
+                adp = AdminPermission.query.filter_by_(ADPid=data.get('adpid')).first()
+                if adp:
+                    adp.ADid = data.get('adid')
+                    adp.PIid = data.get('piid')
+
+                    return Success('修改管理员权限成功', data={'adpid': adp.ADPid})
+            adp = AdminPermission.create({
+                'ADPid': str(uuid.uuid1()),
+                'ADid': data.get('adid'),
+                'PIid': data.get('piid'),
+                # 'PTid': data.get('ptid')
+            })
+            db.session.add(adp)
         return Success('创建管理员权限成功', data={'adpid': adp.ADPid})
 
 
@@ -392,6 +395,7 @@ class CApproval(BASEAPPROVAL):
     #     self.__fill_approval(pt, aplist)
     #     return Success('获取审批流成功', data=aplist)
 
+    @get_session
     @token_required
     def deal_approval(self):
         """管理员处理审批流"""
@@ -423,10 +427,10 @@ class CApproval(BASEAPPROVAL):
             pm_model = Permission.query.filter(
                 Permission.PTid == approval_model.PTid,
                 Permission.PELevel == int(approval_model.AVlevel) + 1
-            )
+            ).first()
             if pm_model:
                 # 如果还有下一级审批人
-                approval_model.AVlevel += 1
+                approval_model.AVlevel = str(int(approval_model.AVlevel) + 1)
             else:
                 # 没有下一级审批人了
                 approval_model.AVstatus = ApplyStatus.agree.value
@@ -440,7 +444,7 @@ class CApproval(BASEAPPROVAL):
             #     User.query.filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
 
         return Success("审批操作完成")
-
+    @get_session
     @token_required
     def cancel(self):
         """用户取消申请"""
@@ -454,7 +458,6 @@ class CApproval(BASEAPPROVAL):
         av.AVstatus = ApplyStatus.wait_check.value
         return Success('取消成功')
 
-
     @token_required
     def get_approvalnotes(self):
         """查看审批的所有流程"""
@@ -465,6 +468,20 @@ class CApproval(BASEAPPROVAL):
         for an in an_list:
             an.fill('anaction', ApprovalAction(an.ANaction).zh_value)
         return Success('获取审批记录成功', data=an_list)
+
+    @get_session
+    @token_required
+    def get_all_permissiontype(self):
+        if not is_admin():
+            raise AuthorityError('权限不足')
+
+        pt_list = PermissionType.query.filter_by_().all()
+        for pt in pt_list:
+            pe = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+
+            pt.fill('pemission', pe)
+
+        return Success('获取所有审批流类型成功', data=pt_list)
 
     def __fill_publish(self, ap_list):
         """填充资讯发布"""
