@@ -206,5 +206,9 @@ if __name__ == '__main__':
         pass
 
 
+        # make_items()
+        # make_commsion()
+        # make_acvitity()
+        make_permissiontype()
 
 

@@ -64,12 +64,12 @@ class CProducts:
         product.fill('skus', skus)
         min_price = min(sku_price)
         max_price = max(sku_price)
-        # if min_price != max_price:
-        #
-        #     product.fill('price_range', '{}-{}'.format('%.2f' % min, '%.2f' % max))
-        # else:
-        #     product.fill('price_range', "%.2f" % min_price)
-        # # sku value
+        if min_price != max_price:
+
+            product.fill('price_range', '{}-{}'.format('%.2f' % min_price, '%.2f' % max_price))
+        else:
+            product.fill('price_range', "%.2f" % min_price)
+        # sku value
         # 是否有skuvalue, 如果没有则自行组装
         sku_value_instance = ProductSkuValue.query.filter_by_({
             'PRid': prid
