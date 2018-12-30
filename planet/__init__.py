@@ -11,6 +11,7 @@ from flask_cors import CORS
 from planet.api.v1.AActivationcode import AActivationCode
 from planet.api.v1.AActivity import AActivity
 from planet.api.v1.AAuth import AAuth
+from planet.api.v1.ACommision import ACommission
 from planet.api.v1.AFreshManFirstOrder import AFreshManFirstOrder
 from planet.api.v1.AMagicBox import AMagicBox
 from planet.api.v1.ASupplizer import ASupplizer
@@ -146,6 +147,7 @@ def register_v1(app):
     v1.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
     v1.add_url_rule('/auth/<string:auth>', view_func=AAuth.as_view('auth'))
     v1.add_url_rule('/act_code/<string:act_code>', view_func=AActivationCode.as_view('act_code'))  # 激活码
+    v1.add_url_rule('/commision/<string:comm>', view_func=ACommission.as_view('comm'))  # 佣金设置
 
 
     # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

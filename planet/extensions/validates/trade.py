@@ -131,6 +131,11 @@ class CouponCreateForm(BaseForm):
             raise ValidationError('可叠加数量错误')
 
 
+class CouponUpdateForm(CouponCreateForm):
+    """更新优惠券"""
+    coid = StringField('优惠券id', validators=[DataRequired('优惠券id不可以为空')])
+
+
 class RefundSendForm(BaseForm):
     oraid = StringField('售后申请单id', validators=[DataRequired('申请单id不可为空')])
     orlogisticcompany = StringField('物流公司编码', validators=[DataRequired('物流公司不可为空')])

@@ -7,10 +7,12 @@ from sqlalchemy import or_
 
 from planet.common.error_response import StatusError
 from planet.common.success_response import Success
-from planet.common.token_handler import is_admin, token_required, is_tourist
+from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
-from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm
+from planet.extensions.register_ext import db
+from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm, \
+    CouponUpdateForm
 from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
@@ -98,6 +100,7 @@ class CCoupon(object):
             user_coupon.fill('item', item)
         return Success(data=user_coupons)
 
+    @admin_required
     def create(self):
         form = CouponCreateForm().valid_data()
         with self.strade.auto_commit() as s:
@@ -136,6 +139,35 @@ class CCoupon(object):
                 s_list.append(couponitem_instance)
             s.add_all(s_list)
         return Success('添加成功')
+
+    @admin_required
+    def update(self):
+        form = CouponUpdateForm().valid_data()
+        with db.auto_commit():
+            coupon = Coupon.query.filter(
+                Coupon.COid == form.coid.data,
+                Coupon.isdelete == False
+            ).first_('优惠券不存在')
+            coupon.update({
+                'PCid': form.pcid.data,
+                'PRid': form.prid.data,
+                'PBid': form.pbid.data,
+                'COname': form.coname.data,
+                'COisAvailable': form.coisavailable.data,
+                'COcanCollect': form.coiscancollect.data,
+                'COlimitNum': form.colimitnum.data,
+                'COcollectNum': form.cocollectnum.data,
+                'COsendStarttime': form.cosendstarttime.data,
+                'COsendEndtime': form.cosendendtime.data,
+                'COvalidStartTime': form.covalidstarttime.data,
+                'COvalidEndTime': form.covalidendtime.data,
+                'COdiscount': form.codiscount.data,
+                'COdownLine': form.codownline.data,
+                'COsubtration': form.cosubtration.data,
+                'COdesc': form.codesc.data,
+                'COuseNum': form.cousenum.data,
+            }, 'dont ignore')
+        return Success('修改成功')
 
     @token_required
     def fetch(self):

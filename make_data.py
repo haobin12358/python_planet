@@ -157,8 +157,8 @@ if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         # make_items()
-        # make_acvitity()
-        make_commsion()
+        make_acvitity()
+        # make_commsion()
 
 
 
