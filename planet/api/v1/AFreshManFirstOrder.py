@@ -10,12 +10,16 @@ class AFreshManFirstOrder(Resource):
         apis = {
             'list': self.creshman.list,
             'get': self.creshman.get,
+            'award_detail': self.creshman.award_detail,
+            'list_apply': self.creshman.list_apply,
         }
         return apis
 
     def post(self, fresh_man):
         apis = {
             'add_order': self.creshman.add_order,
+            'apply_award': self.creshman.apply_award,
+            'update_award': self.creshman.update_award,
         }
         return apis
 

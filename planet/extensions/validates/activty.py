@@ -110,4 +110,8 @@ class MagicBoxRecvAwardForm(BaseForm):
         PayType(raw.data)
 
 
+class ListFreshmanFirstOrderApply(BaseForm):
+    suid = StringField()
+    adid = StringField()
+    status = IntegerField()
 

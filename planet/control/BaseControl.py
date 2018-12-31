@@ -43,27 +43,5 @@ class BASEAPPROVAL():
             s.add(aninstance)
         return av.AVid
 
-    def update_approval_no_commit(self, approval, agree, level=1, anabo=None):
-        if agree is True:
-            avstatus = 10  # todo 目前只有一级审批, 因此直接同意或拒绝
-            anaction = 1
-        else:
-            avstatus = -10
-            anaction = -1
-        approval.update({
-            'AVstatus': avstatus,
-            'AVlevel': level,
-        })
-        ap_notes = ApprovalNotes.create({
-            'ANid': str(uuid.uuid1()),
-            'AVid': approval.AVid,
-            'ADid': request.user.id,
-            'ANaction': anaction,
-            'ANabo': anabo
-        })
-        db.session.add(approval)
-        db.session.add(ap_notes)
-
-
 
 

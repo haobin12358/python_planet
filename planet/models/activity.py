@@ -168,14 +168,14 @@ class FreshManFirstApply(Base):
     __tablename__ = 'FreshManFirstApply'
     FMFAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), primary_key=True, comment='供应商')
-    FMFAstartTime = Column(DateTime, nullable=False, comment='申请开始时间')
-    FMFAendTime = Column(DateTime, nullable=False, comment='申请结束时间')
+    FMFAstartTime = Column(Date, nullable=False, comment='申请开始时间')
+    FMFAendTime = Column(Date, nullable=False, comment='申请结束时间')
     FMFAfrom = Column(Integer, comment='来源 0: 供应商, 1平台管理员')
     FMFAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     FMFArejectReson = Column(String(255), comment='拒绝理由')
-    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
-    AgreeEndtime = Column(Date, comment='最终确认结束时间')
+    AgreeStartime = Column(Date, default=FMFAstartTime, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, default=FMFAendTime, comment='最终确认结束时间')
 
 
 class FreshManFirstProduct(Base):
