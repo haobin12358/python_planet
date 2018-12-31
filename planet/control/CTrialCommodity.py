@@ -161,6 +161,7 @@ class CTrialCommodity(COrder):
         tcdesc = data.get('tcdesc')
         tcdeposit = data.get('tcdeposit')
         # tcstocks = data.get('tcstocks')
+        tcfrom = 0 if is_supplizer() else 1
         tcstocks = 0
         pbid = data.get('pbid')
         images = data.get('images')
@@ -236,6 +237,7 @@ class CTrialCommodity(COrder):
                 'TCremarks': data.get('tcremarks'),
                 'CreaterId': request.user.id,
                 'PBid': pbid,
+                'TCfrom': tcfrom,
                 'ApplyStartTime': data.get('applystarttime'),
                 'ApplyEndTime': data.get('applyendtime')
             })

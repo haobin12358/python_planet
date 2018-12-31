@@ -6,6 +6,13 @@ class AMagicBox(Resource):
     def __init__(self):
         self.cmagicbox = CMagicBox()
 
+    def get(self, magicbox):
+        apis = {
+            'list': self.cmagicbox.list,
+
+        }
+        return apis
+
     def post(self, magicbox):
         apis = {
             'open': self.cmagicbox.open,
