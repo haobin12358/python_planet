@@ -288,6 +288,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         time_list = self._getBetweenDay(begin_time, end_time)
 
         award_instance_list = list()
+        gnaaid_list = list()
         with db.auto_commit():
             for day in time_list:
                 award_dict = {
@@ -303,13 +304,14 @@ class CGuessNum(COrder, BASEAPPROVAL):
                     'GNAAfrom': gnaafrom,
                 }
                 award_instance = GuessNumAwardApply.create(award_dict)
+                gnaaid_list.append(award_dict['GNAAid'])
                 award_instance_list.append(award_instance)
             db.session.add_all(award_instance_list)
 
             # todo 添加到审批流
         # super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'])
 
-        return Success('申请添加成功', {'gnaaid': award_dict['GNAAid']})
+        return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):
         """修改申请"""
@@ -365,11 +367,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
             sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first_('没有该skuid信息')
             sku_value = ProductSkuValue.query.filter_by_(PRid=award.PRid).first()
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            if sku.SKUstock:
+                sku.hide('SKUstock')
             product.fill('sku', sku)
             # # sku value
             # 是否有skuvalue, 如果没有则自行组装
+            sku_value_item_reverse = []
             if not sku_value:
-                sku_value_item_reverse = []
                 for index, name in enumerate(product.PRattribute):
                     value = list(set([attribute[index] for attribute in list(sku.SKUattriteDetail,)]))
                     value = sorted(value)
@@ -386,7 +390,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                         'name': product.PRattribute[index],
                         'value': value
                     })
-            product.fill('SkuValue', sku_value_item_reverse)
+            product.fill('skuvalue', sku_value_item_reverse)
             award.fill('product', product)
             return Success('获取成功', award)
 
