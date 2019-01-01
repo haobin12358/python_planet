@@ -27,11 +27,14 @@ class CCoupon(object):
         """获取优惠券列表"""
         form = CouponListForm().valid_data()
         itid = form.itid.data
-        coupons = Coupon.query
+        coupons = Coupon.query.filter(
+            Coupon.isdelete == False
+        )
         usid = 'tourist' if is_tourist() else request.user.id
         if itid:
-            coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter_(
-                CouponItem.ITid == itid
+            coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter(
+                CouponItem.ITid == itid,
+                CouponItem.isdelete == False
             )
         coupons = coupons.order_by(Coupon.createtime.desc(), Coupon.COid).all_with_page()
         for coupon in coupons:
@@ -52,35 +55,42 @@ class CCoupon(object):
         form = CouponUserListForm().valid_data()
         usid = form.usid.data
         itid = form.itid.data
-        can_use = dict(form.canuse.choices).get(form.canuse.data)   # 是否可用
+        can_use = dict(form.canuse.choices).get(form.canuse.data)  # 是否可用
         ucalreadyuse = dict(form.ucalreadyuse.choices).get(form.ucalreadyuse.data)  # 是否已经使用
-        user_coupon = CouponUser.query.filter_by_({'USid': usid}).filter_(
-            CouponUser.UCalreadyUse == ucalreadyuse
+        user_coupon = CouponUser.query.filter(
+            CouponUser.USid == usid,
+            CouponUser.UCalreadyUse == ucalreadyuse,
+            CouponUser.isdelete == False
         )
         # 过滤标签
         if itid:
-            user_coupon = user_coupon.join(CouponItem, CouponItem.COid == CouponUser.COid).filter_(CouponItem.ITid == itid)
+            user_coupon = user_coupon.join(
+                CouponItem, CouponItem.COid == CouponUser.COid
+            ).filter(
+                CouponItem.ITid == itid,
+                CouponItem.isdelete == False)
         # 过滤是否可用
+        user_coupon = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter(Coupon.isdelete == False)
         time_now = datetime.now()
         if can_use:
-            user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter_(
+            user_coupons = user_coupon.filter_(
                 or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
                 or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
                 Coupon.COisAvailable == True,  # 可用
                 # CouponUser.UCalreadyUse == False,  # 未用
-            ).all_with_page()
+            ).order_by(CouponUser.createtime.desc()).all_with_page()
         elif can_use is False:
-            user_coupons = user_coupon.join(Coupon, Coupon.COid == CouponUser.COid).filter(
+            user_coupons =user_coupon.filter(
                 or_(
                     Coupon.COisAvailable == False,
                     # CouponUser.UCalreadyUse == True,
-                    Coupon.COvalidEndTime < time_now,   # 已经结束
+                    Coupon.COvalidEndTime < time_now,  # 已经结束
                     # Coupon.COvalidStartTime > time_now ,  # 未开始
                 ),
 
-            ).all_with_page()
+            ).order_by(CouponUser.createtime.desc()).all_with_page()
         else:
-            user_coupons = user_coupon.all_with_page()
+            user_coupons = user_coupon.order_by(CouponUser.createtime.desc()).all_with_page()
         for user_coupon in user_coupons:
             if is_admin():
                 # 填用户
@@ -227,7 +237,7 @@ class CCoupon(object):
 
     @admin_required
     def delete(self):
-        data = parameter_required(('coid', ))
+        data = parameter_required(('coid',))
         coid = data.get('coid')
         with db.auto_commit():
             coupon = Coupon.query.filter(
@@ -237,8 +247,6 @@ class CCoupon(object):
             coupon.isdelete = True
             db.session.add(coupon)
         return Success('删除成功')
-
-
 
     @token_required
     def fetch(self):
@@ -369,4 +377,3 @@ class CCoupon(object):
         else:
             avalible = not (ended or not_start or not coupon.COisAvailable)
         return avalible
-
