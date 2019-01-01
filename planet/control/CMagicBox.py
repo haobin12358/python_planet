@@ -1,15 +1,16 @@
 import random
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from flask import current_app
 from sqlalchemy.dialects.postgresql import json
 
-from planet.common.error_response import StatusError, DumpliError, NotFound
+from planet.common.error_response import StatusError, DumpliError, NotFound, AuthorityError
+from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, get_current_user
-from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus, OrderFrom, PayType
+from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin
+from planet.config.enums import ApplyStatus, ActivityType, ActivityRecvStatus, OrderFrom, PayType, ProductStatus
 from planet.extensions.register_ext import db, wx_pay
 from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, MagicBoxJoinForm, request, \
     MagicBoxRecvAwardForm
@@ -244,5 +245,182 @@ class CMagicBox(CUser, COrder):
         }
         return Success('创建订单成功', data=response)
 
+    def list(self):
+        """查看自己的申请列表"""
+        if is_supplizer():
+            suid = request.user.id
+        elif is_admin():
+            suid = None
+        else:
+            raise AuthorityError()
+        award_list = MagicBoxApply.query.filter_by_(SUid=suid).all_with_page()
+        for award in award_list:
+            award.Gearsone = json.loads(award.Gearsone)
+            award.Gearstwo = json.loads(award.Gearstwo)
+            award.Gearsthree = json.loads(award.Gearsthree)
+        return Success(data=award_list)
 
+    def apply_award(self):
+        """申请添加奖品"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('skuid', 'prid', 'skustock', 'mbastarttime', 'mbaendtime', 'skuprice',
+                                   'skuminprice', 'gearsone', 'gearstwo', 'gearsthree'))
+        skuid, prid, skustock = data.get('skuid'), data.get('prid'), data.get('skustock', 1)
+        gearsone, gearstwo, gearsthree = data.get('gearsone'), data.get('gearstwo'), data.get('gearsthree')
+        if not isinstance(gearsone, list):
+            raise ParamsError('gearsone格式错误')
+        elif not isinstance(gearstwo, list):
+            raise ParamsError('gearstwo格式错误')
+        elif not isinstance(gearsthree, list):
+            raise ParamsError('gearsthree格式错误')
+        gearsone, gearstwo, gearsthree = json.dumps(gearsone), json.dumps(gearstwo), json.dumps(gearsthree)
+        mbafrom = 0 if is_supplizer() else 1
+        sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
+        Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+                              Products.PRstatus == ProductStatus.usual.value
+                              ).first_('当前商品状态不允许进行申请')
+        assert sku.PRid == prid, 'sku与商品信息不对应'
 
+        # 将申请事物时间分割成每天单位
+        begin_time = str(data.get('mbastarttime'))[:10]
+        end_time = str(data.get('mbaendtime'))[:10]
+        time_list = self._getBetweenDay(begin_time, end_time)
+
+        award_instance_list = list()
+        mbaid_list = list()
+        with db.auto_commit():
+            for day in time_list:
+                award_dict = {
+                    'MBAid': str(uuid.uuid1()),
+                    'SUid': request.user.id,
+                    'SKUid': skuid,
+                    'PRid': prid,
+                    'PBid': '待我思考一下再添加', # todo
+                    'MBAstarttime': day,
+                    'MBAendtime': day,
+                    'SKUprice': float(data.get('skuprice', 0.01)),
+                    'SKUminPrice': float(data.get('skuminprice', 0.01)),
+                    'Gearsone': gearsone,
+                    'Gearstwo': gearstwo,
+                    'Gearsthree': gearsthree,
+                    'SKUstock': int(skustock),
+                    'MBAstatus': ApplyStatus.wait_check.value,
+                    'MBAfrom': mbafrom,
+                }
+                award_instance = MagicBoxApply.create(award_dict)
+                award_instance_list.append(award_instance)
+                mbaid_list.append(award_dict['MBAid'])
+            db.session.add_all(award_instance_list)
+
+            # todo 添加到审批流
+        # super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'])
+
+        return Success('申请添加成功', {'mbaid': mbaid_list})
+
+    def update_apply(self):
+        """修改申请"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('skuid', 'prid', 'skustock', 'mbastarttime', 'mbaendtime', 'skuprice',
+                                   'skuminprice', 'gearsone', 'gearstwo', 'gearsthree'))
+        gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
+        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid, GNAAstatus=ApplyStatus.reject.value
+                                                         ).first_('只有下架状态的申请可以进行修改')
+        if apply_info.SUid != request.user.id:
+            raise AuthorityError('仅可修改自己提交的申请')
+        gnaafrom = 0 if is_supplizer() else 1
+        sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
+        Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+                              Products.PRstatus == ProductStatus.usual.value
+                              ).first_('当前商品状态不允许进行申请')  # 仅可将上架中的商品用于申请
+
+        assert sku.PRid == prid, 'sku与商品信息不对应'
+        with db.auto_commit():
+            award_dict = {
+                'SKUid': skuid,
+                'PRid': prid,
+                'GNAAstarttime': data.get('gnaastarttime'),
+                'GNAAendtime': data.get('gnaaendtime'),
+                'SKUprice': float(data.get('skuprice', 0.01)),
+                'SKUstock': int(skustock),
+                'GNAAstatus': ApplyStatus.wait_check.value,
+                'GNAAfrom': gnaafrom,
+            }
+            award_dict = {k: v for k, v in award_dict.items() if v is not None}
+            GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).update(award_dict)
+
+            #todo 添加到审批流
+        # super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+
+        return Success('修改成功', {'gnaaid': gnaaid})
+
+    def award_detail(self):
+        """查看申请详情"""
+        if not (is_supplizer() or is_admin()):
+            args = parameter_required(('gnaaid',))
+            gnaaid = args.get('gnaaid')
+            award = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('该申请已被删除')
+            product = Products.query.filter_by_(PRid=award.PRid).first_('商品已下架')
+            product.PRattribute = json.loads(product.PRattribute)
+            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+            # 顶部图
+            images = ProductImage.query.filter_by_(PRid=product.PRid).order_by(ProductImage.PIsort).all()
+            product.fill('images', images)
+            # 品牌
+            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first() or {}
+            product.fill('brand', brand)
+            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first_('没有该skuid信息')
+            sku_value = ProductSkuValue.query.filter_by_(PRid=award.PRid).first()
+            sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            product.fill('sku', sku)
+            # # sku value
+            # 是否有skuvalue, 如果没有则自行组装
+            if not sku_value:
+                sku_value_item_reverse = []
+                for index, name in enumerate(product.PRattribute):
+                    value = list(set([attribute[index] for attribute in list(sku.SKUattriteDetail,)]))
+                    value = sorted(value)
+                    temp = {
+                        'name': name,
+                        'value': value
+                    }
+                    sku_value_item_reverse.append(temp)
+            else:
+                sku_value_item_reverse = []
+                pskuvalue = json.loads(sku_value.PSKUvalue)
+                for index, value in enumerate(pskuvalue):
+                    sku_value_item_reverse.append({
+                        'name': product.PRattribute[index],
+                        'value': value
+                    })
+            product.fill('SkuValue', sku_value_item_reverse)
+            award.fill('product', product)
+            return Success('获取成功', award)
+
+    def shelf_award(self):
+        """撤销申请"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('gnaaid',))
+        gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
+        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
+        if apply_info.GNAAstatus == ApplyStatus.agree.value:
+            raise StatusError('只有审核状态的申请可以撤销')
+        if apply_info.SUid != request.user.id:
+            raise AuthorityError('仅可撤销自己提交的申请')
+        # todo 同时将正在进行的审批流 取消掉
+        apply_info.GNAAstatus = ApplyStatus.cancle.value
+        db.session.commit()
+        return Success('下架成功', {'gnaaid': gnaaid})
+
+    @staticmethod
+    def _getBetweenDay(begin_date, end_date):
+        date_list = []
+        begin_date = datetime.strptime(begin_date, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d")
+        while begin_date <= end_date:
+            date_str = begin_date.strftime("%Y-%m-%d")
+            date_list.append(date_str)
+            begin_date += timedelta(days=1)
+        return date_list
