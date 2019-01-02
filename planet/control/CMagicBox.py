@@ -17,7 +17,7 @@ from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, M
     MagicBoxRecvAwardForm
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity, ProductBrand, \
     AddressArea, UserAddress, AddressCity, AddressProvince, OrderMain, Products, OrderPart, ProductSku, OrderPay, \
-    Approval, ProductImage, ProductSkuValue
+    Approval, ProductImage, ProductSkuValue, Supplizer, Admin
 from .CUser import CUser
 from .COrder import COrder
 
@@ -260,6 +260,24 @@ class CMagicBox(CUser, COrder):
             award.Gearsone = json.loads(award.Gearsone)
             award.Gearstwo = json.loads(award.Gearstwo)
             award.Gearsthree = json.loads(award.Gearsthree)
+            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first()
+            award.fill('skupic', sku['SKUpic'])
+            product = Products.query.filter_by_(PRid=award.PRid).first()
+            award.fill('prtitle', product.PRtitle)
+            award.fill('prmainpic', product['PRmainpic'])
+            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+            award.fill('pbname', brand.PBname)
+            award.fill('mbastatus_zh', ApplyStatus(award.MBAstatus).zh_value)
+            if award.MBAfrom == ApplyFrom.supplizer.value:
+                sup = Supplizer.query.filter_by_(SUid=award.SUid).first()
+                name = getattr(sup, 'SUname', '')
+            elif award.MBAfrom == ApplyFrom.platform.value:
+                admin = Admin.query.filter_by_(ADid=award.SUid).first()
+                name = getattr(admin, 'ADname', '')
+            else:
+                name = ''
+            award.fill('authname', name)
+
         return Success(data=award_list)
 
     def apply_award(self):

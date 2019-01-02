@@ -15,7 +15,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
-    ProductSkuValue, ProductImage, Approval
+    ProductSkuValue, ProductImage, Approval, Supplizer, Admin
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay
@@ -267,6 +267,24 @@ class CGuessNum(COrder, BASEAPPROVAL):
         else:
             raise AuthorityError()
         award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).all_with_page()
+        for award in award_list:
+            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first()
+            award.fill('skupic', sku['SKUpic'])
+            product = Products.query.filter_by_(PRid=award.PRid).first()
+            award.fill('prtitle', product.PRtitle)
+            award.fill('prmainpic', product['PRmainpic'])
+            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+            award.fill('pbname', brand.PBname)
+            award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
+            if award.GNAAfrom == ApplyFrom.supplizer.value:
+                sup = Supplizer.query.filter_by_(SUid=award.SUid).first()
+                name = getattr(sup, 'SUname', '')
+            elif award.GNAAfrom == ApplyFrom.platform.value:
+                admin = Admin.query.filter_by_(ADid=award.SUid).first()
+                name = getattr(admin, 'ADname', '')
+            else:
+                name = ''
+            award.fill('authname', name)
         return Success(data=award_list)
 
     def apply_award(self):
