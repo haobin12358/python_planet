@@ -15,9 +15,9 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
-    ProductSkuValue, ProductImage
+    ProductSkuValue, ProductImage, Approval
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
-    ApprovalType, ApplyStatus
+    ApprovalType, ApplyStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
 
@@ -273,24 +273,35 @@ class CGuessNum(COrder, BASEAPPROVAL):
         """申请添加奖品"""
         if not (is_supplizer() or is_admin()):
             raise AuthorityError()
-        data = parameter_required(('skuid', 'prid', 'gnaastarttime', 'gnaaendtime', 'skuprice'))
+        data = parameter_required(('skuid', 'prid', 'gnaastarttime', 'skuprice'))
         skuid, prid, skustock = data.get('skuid'), data.get('prid'), data.get('skustock', 1)
-        gnaafrom = 0 if is_supplizer() else 1
+        gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                               Products.PRstatus == ProductStatus.usual.value
                               ).first_('当前商品状态不允许进行申请')
         assert sku.PRid == prid, 'sku与商品信息不对应'
 
+        time_list = data.get('gnaastarttime')
+        if not isinstance(time_list, list):
+            raise ParamsError('参数 gnaastarttime 格式错误')
+
         # 将申请事物时间分割成每天单位
-        begin_time = str(data.get('gnaastarttime'))[:10]
-        end_time = str(data.get('gnaaendtime'))[:10]
-        time_list = self._getBetweenDay(begin_time, end_time)
+        # begin_time = str(data.get('gnaastarttime'))[:10]
+        # end_time = str(data.get('gnaaendtime'))[:10]
+        # time_list = self._getBetweenDay(begin_time, end_time)
 
         award_instance_list = list()
         gnaaid_list = list()
         with db.auto_commit():
             for day in time_list:
+                # 先检测是否存在相同skuid，相同日期的申请
+                exist_apply_sku = GuessNumAwardApply.query.filter(GuessNumAwardApply.SKUid == skuid,
+                                                                  GuessNumAwardApply.isdelete == False,
+                                                                  GuessNumAwardApply.SUid == request.user.id,
+                                                                  GuessNumAwardApply.GNAAstarttime == day).first()
+                if exist_apply_sku:
+                    raise ParamsError('您已添加过{}日的申请'.format(day))
                 award_dict = {
                     'GNAAid': str(uuid.uuid1()),
                     'SUid': request.user.id,
@@ -306,28 +317,28 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 award_instance = GuessNumAwardApply.create(award_dict)
                 gnaaid_list.append(award_dict['GNAAid'])
                 award_instance_list.append(award_instance)
+                # 添加到审批流
+                super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'], gnaafrom)
             db.session.add_all(award_instance_list)
-
-            # todo 添加到审批流
-        # super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'])
-
         return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):
-        """修改申请"""
+        """修改猜数字奖品申请"""
         if not (is_supplizer() or is_admin()):
             raise AuthorityError()
         data = parameter_required(('gnaaid', 'skuprice', 'skustock'))
         gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
-        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid, GNAAstatus=ApplyStatus.reject.value
-                                                         ).first_('只有下架状态的申请可以进行修改')
+        apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == gnaaid,
+                                                     GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.reject.value,
+                                                                                       ApplyStatus.cancle.value])
+                                                     ).first_('只有下架或撤销状态的申请可以进行修改')
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可修改自己提交的申请')
-        gnaafrom = 0 if is_supplizer() else 1
+        gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                               Products.PRstatus == ProductStatus.usual.value
-                              ).first_('当前商品状态不允许进行申请')  # 仅可将上架中的商品用于申请
+                              ).first_('仅可将上架中的商品用于申请')  # 当前商品状态不允许进行申请
 
         assert sku.PRid == prid, 'sku与商品信息不对应'
         with db.auto_commit():
@@ -335,7 +346,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'SKUid': skuid,
                 'PRid': prid,
                 'GNAAstarttime': data.get('gnaastarttime'),
-                'GNAAendtime': data.get('gnaaendtime'),
+                'GNAAendtime': data.get('gnaastarttime'),
                 'SKUprice': float(data.get('skuprice', 0.01)),
                 'SKUstock': int(skustock),
                 'GNAAstatus': ApplyStatus.wait_check.value,
@@ -343,9 +354,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             }
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).update(award_dict)
-
-            #todo 添加到审批流
-        # super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
 
         return Success('修改成功', {'gnaaid': gnaaid})
 
@@ -365,7 +374,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
             brand = ProductBrand.query.filter_by_(PBid=product.PBid).first() or {}
             product.fill('brand', brand)
             sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first_('没有该skuid信息')
-            sku_value = ProductSkuValue.query.filter_by_(PRid=award.PRid).first()
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             if sku.SKUstock:
                 sku.hide('SKUstock')
@@ -373,23 +381,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
             # # sku value
             # 是否有skuvalue, 如果没有则自行组装
             sku_value_item_reverse = []
-            if not sku_value:
-                for index, name in enumerate(product.PRattribute):
-                    value = list(set([attribute[index] for attribute in list(sku.SKUattriteDetail,)]))
-                    value = sorted(value)
-                    temp = {
-                        'name': name,
-                        'value': value
-                    }
-                    sku_value_item_reverse.append(temp)
-            else:
-                sku_value_item_reverse = []
-                pskuvalue = json.loads(sku_value.PSKUvalue)
-                for index, value in enumerate(pskuvalue):
-                    sku_value_item_reverse.append({
-                        'name': product.PRattribute[index],
-                        'value': value
-                    })
+            for index, name in enumerate(product.PRattribute):
+                value = sku.SKUattriteDetail[index]
+                temp = {
+                    'name': name,
+                    'value': value
+                }
+                sku_value_item_reverse.append(temp)
             product.fill('skuvalue', sku_value_item_reverse)
             award.fill('product', product)
             return Success('获取成功', award)
@@ -399,16 +397,19 @@ class CGuessNum(COrder, BASEAPPROVAL):
         if not (is_supplizer() or is_admin()):
             raise AuthorityError()
         data = parameter_required(('gnaaid',))
-        gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
+        gnaaid = data.get('gnaaid')
         apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
-        if apply_info.GNAAstatus == ApplyStatus.agree.value:
-            raise StatusError('只有审核状态的申请可以撤销')
+        if apply_info.MBAstatus != ApplyStatus.wait_check.value:
+            raise StatusError('只有在审核状态的申请可以撤销')
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可撤销自己提交的申请')
-        # todo 同时将正在进行的审批流 取消掉
         apply_info.GNAAstatus = ApplyStatus.cancle.value
+        # 同时将正在进行的审批流改为取消
+        approval_info = Approval.query.filter_by_(AVcontent=gnaaid, AVstartid=request.user.id,
+                                                  AVstatus=ApplyStatus.wait_check.value).first()
+        approval_info.AVstatus = ApplyStatus.cancle.value
         db.session.commit()
-        return Success('下架成功', {'gnaaid': gnaaid})
+        return Success('取消成功', {'gnaaid': gnaaid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
