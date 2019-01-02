@@ -1454,7 +1454,7 @@ class CUser(SUser, BASEAPPROVAL):
         })
         db.session.add(cn)
         # 创建审批流
-        self.create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        self.create_approval('tocash', request.user.id, cn.CNid)
         return Success('已成功提交提现申请， 我们将在3个工作日内完成审核，请及时关注您的账户余额')
 
     def get_bankname(self):
@@ -1549,7 +1549,7 @@ class CUser(SUser, BASEAPPROVAL):
         for user in users:
             # 佣金
             user.fields = ['USid', 'UStelphone', 'USname', 'USheader', 'USCommission1',
-                           'USCommission2', 'USCommission3']
+                           'USCommission2', 'USCommission3', 'USlevel']
             usid = user.USid
 
             wallet = UserWallet.query.filter(
@@ -1606,7 +1606,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission1': commision1,
                 'USCommission2': commision2,
                 'USCommission3': commision3,
-            })
+            }, 'dont ignore')
             db.session.add(user)
         return Success('设置成功')
 

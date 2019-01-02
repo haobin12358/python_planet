@@ -234,28 +234,36 @@ class CPay():
         increase_ratio = json.loads(commision.IncreaseRatio)
         # 基础佣金比
         user_level1commision = Decimal(
-            str(order_part.USCommission1 or user.USCommission1 or default_level1commision)) / 100
+            str(self._current_commission(order_part.USCommission1, default_level1commision))
+        )
         user_level2commision = Decimal(
-            str(order_part.USCommission2 or user.USCommission2 or default_level2commision)) / 100
+            str(self._current_commission(order_part.USCommission2, default_level2commision))
+        )
         user_level3commision = Decimal(
-            str(order_part.USCommission3 or user.USCommission3 or default_level3commision)) / 100
-        planet_commision = Decimal(str(default_planetcommision)) / 100
+            str(self._current_commission(order_part.USCommission3, default_level3commision))
+        )
+
+        planet_commision = Decimal(str(default_planetcommision))
         # 用户佣金和平台佣金
         commision_total = order_part.OPsubTrueTotal * (
-                    user_level1commision + user_level2commision + user_level3commision + planet_commision)
+                user_level1commision + user_level2commision + user_level3commision + planet_commision) / 100
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
+            user_level1commision = self._current_commission(up1.USCommission1, user_level1commision) / 100  # 个人佣金比
             up1_base = order_part.OPsubTrueTotal * user_level1commision
             if up2 and up2.USlevel > 1:
+                user_level2commision = self._current_commission(up2.USCommission2, user_level2commision) / 100  # 个人佣金比
                 up2_base = order_part.OPsubTrueTotal * user_level2commision
                 # 偏移
                 up1_up2 = up1.CommisionLevel - up2.CommisionLevel
                 up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, reduce_ratio, increase_ratio)
                 if up3 and up3.USlevel > 0:
+                    user_level3commision = self._current_commission(up3.USCommission3, user_level3commision) / 100  # 个人佣金比
                     up3_base = order_part.OPsubTrueTotal * user_level3commision
                     up2_up3 = up2.CommisionLevel - up3.CommisionLevel
-                    up2_base, up3_base = self._caculate_offset(up2_up3, up2_base, up3_base, reduce_ratio, increase_ratio)
+                    up2_base, up3_base = self._caculate_offset(up2_up3, up2_base, up3_base, reduce_ratio,
+                                                               increase_ratio)
         if up1_base:
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
@@ -409,6 +417,13 @@ class CPay():
         """生成订单号"""
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
                str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
+
+    @staticmethod
+    def _current_commission(*args):
+        for comm in args:
+            if comm is not None:
+                return comm
+        return 0
 
 
 if __name__ == '__main__':

@@ -115,3 +115,7 @@ class ListFreshmanFirstOrderApply(BaseForm):
     adid = StringField()
     status = IntegerField()
 
+
+class ShelfFreshManfirstOrder(BaseForm):
+    fmfaid = StringField()
+

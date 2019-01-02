@@ -35,6 +35,8 @@ class CCommision:
             [setattr(commision, k, v) for k, v in commission_dict.items() if v is not None and v != '[]']
             if not commision.InviteNum and not commision.PesonalSale and not commision.GroupSale:
                 raise ParamsError('升级条件不可全为0')
+            if sum(commision.Levelcommision) >= 100:
+                raise ParamsError('总佣金比大于100')
             db.session.add(commision)
         return Success('修改成功')
 

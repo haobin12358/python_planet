@@ -13,10 +13,10 @@ from planet.common.error_response import StatusError, ParamsError, AuthorityErro
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
-from planet.extensions.validates.activty import ListFreshmanFirstOrderApply
+from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
-    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin
+    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval
 from .CUser import CUser
 
 
@@ -329,7 +329,6 @@ class CFreshManFirstOrder(COrder, CUser):
                     'SKUprice': float(skuprice),
                 })
                 db.session.add(fresh_first_sku)
-            # todo 添加到审批流
         BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
                                        fresh_first_apply.FMFAid, apply_from)
         return Success('申请添加成功', data=fresh_first_apply.FMFAid)
@@ -341,14 +340,17 @@ class CFreshManFirstOrder(COrder, CUser):
         data = parameter_required(('prid', 'prprice', 'skus', 'fmfaid'))
         prid = data.get('prid')
         fmfaid = data.get('fmfaid')
+        apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                                     Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
                                   ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
         with db.auto_commit():
-            fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid, FreshManFirstApply.isdelete == False).first_('申请单不存在')
+            fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid,
+                                                                FreshManFirstApply.isdelete == False).first_('申请单不存在')
             fresh_first_apply.update({
                 'SUid': request.user.id,
+                'FMFAfrom': apply_from
             })
             db.session.add(fresh_first_apply)
             # 商品, 暂时只可以添加一个商品
@@ -408,9 +410,13 @@ class CFreshManFirstOrder(COrder, CUser):
                 FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                 FreshManFirstSku.SKUid.notin_(skuids)
             ).delete_(synchronize_session=False)
-            # todo 添加到审批流
-            # todo 是否需要删除以前的审批流
-        # super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+
+        Approval.query.filter(
+            Approval.isdelete == False,
+            Approval.AVcontent == fmfaid
+        ).delete_()
+        BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
+                                       fresh_first_apply.FMFAid, apply_from)
         return Success('申请添加成功', data=fresh_first_apply.FMFAid)
 
     def award_detail(self):
@@ -444,6 +450,8 @@ class CFreshManFirstOrder(COrder, CUser):
             raise AuthorityError()
         form = ListFreshmanFirstOrderApply().valid_data()
         suid = form.suid.data
+        if is_supplizer():
+            suid = request.user.id
         adid = form.adid.data
         status = form.status.data
         query = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False)
@@ -458,20 +466,29 @@ class CFreshManFirstOrder(COrder, CUser):
         applys = query.all_with_page()
         return Success(data=applys)
 
-
     def shelf_award(self):
         """撤销申请"""
-        if not (is_supplizer() or is_admin()):
+        if not is_supplizer() and not is_admin():
             raise AuthorityError()
-        data = parameter_required(('gnaaid',))
-        gnaaid, skuid, prid, skustock = data.get('gnaaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
-        apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid, GNAAstatus=ApplyStatus.agree.value
-                                                         ).first_('只有下架状态的申请可以进行修改')
-        if apply_info.SUid != request.user.id:
-            raise AuthorityError('仅可修改自己提交的申请')
-        apply_info.GNAAstatus = ApplyStatus.reject.value
-        db.session.commit()
-        return Success('下架成功', {'gnaaid': gnaaid})
+        form = ShelfFreshManfirstOrder().valid_data()
+        fmfaid = form.fmfaid.data
+        with db.auto_commit():
+            apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.isdelete == False,
+                FreshManFirstApply.SUid == request.user.id,
+                FreshManFirstApply.FMFAid == fmfaid,
+                FreshManFirstApply.FMFAstatus != ApplyStatus.wait_check.value
+            ).first_('申请已处理或不存在')
+            apply.FMFAstatus = ApplyStatus.cancle.value
+            db.session.add(apply)
+            # 相应的审批流
+            Approval.query.filter(
+                Approval.isdelete == False,
+                Approval.AVcontent == fmfaid
+            ).update({
+                'AVstatus': ApplyStatus.cancle.value
+            })
+        return Success('撤销成功')
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
