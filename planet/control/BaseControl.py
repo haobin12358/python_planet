@@ -17,7 +17,7 @@ from planet.service.SApproval import SApproval
 class BASEAPPROVAL():
     sapproval = SApproval()
 
-    def create_approval(self, avtype, startid, avcontentid):
+    def create_approval(self, avtype, startid,  avcontentid, applyfrom=None):
         # avtype = int(avtype)
         pt = Permission.query.filter_by_(PTid=avtype).first_('参数异常')
         av = Approval.create({
@@ -30,13 +30,14 @@ class BASEAPPROVAL():
             "AVcontent": avcontentid
         })
         with self.sapproval.auto_commit() as s:
-            user = User.query.filter_by_(USid=startid).first_('数据异常')
+            # user = User.query.filter_by_(USid=startid).first_('数据异常')
+
             aninstance = ApprovalNotes.create({
                 "ANid": str(uuid.uuid1()),
                 "AVid": av.AVid,
                 "ADid": startid,
                 "ANaction": ApprovalAction.submit.value,
-                "AVadname": user.USname,
+                # "AVadname": user.USname,
                 "ANabo": "发起申请"
             })
             s.add(av)

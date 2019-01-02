@@ -83,6 +83,13 @@ class OrderEvaluationScore(Enum):
     worst = 1, '非常差'
 
 
+class ApplyFrom(Enum):
+    """申请来源"""
+    supplizer = 0, '供应商'
+    platform = 1, '平台'
+    user = 2, '普通用户'
+
+
 class ApplyStatus(Enum):
     cancle = -20, '已撤销'
     reject = -10, '已拒绝'
