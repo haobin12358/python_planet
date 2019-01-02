@@ -18,7 +18,9 @@ class News(Base):
     COid = Column(Text, comment='优惠券id [coid1, coid2, coid3]')
     PRid = Column(Text, comment='商品id [prid1, prid2, prid3]')
     NEmainpic = Column(String(255), url=True, comment='封面图')
+    NEfrom = Column(Integer, comment='作者角色')
     NEisrecommend = Column(Boolean, default=False, comment='是否推荐到圈子首页轮播')
+    NErefusereason = Column(String(125), comment='审批拒绝理由')
 
 
 class NewsImage(Base):

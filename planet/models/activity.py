@@ -28,7 +28,7 @@ class TrialCommodity(Base):
     TCdeposit = Column(Float, nullable=False, comment='押金')
     TCdeadline = Column(Integer, nullable=False, default=31, comment='押金期限{单位:天}')
     TCfreight = Column(Float, default=0, comment='运费')
-    TCfrom = Column(Integer, comment='申请来源, 0:供应商, 1: 平台管理员')
+    TCfrom = Column(Integer, comment='申请来源')
     TCstocks = Column(Integer, comment='库存')
     TCsalesValue = Column(Integer, default=0, comment='销量')
     TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10 下架, 20 审核中')
@@ -42,6 +42,7 @@ class TrialCommodity(Base):
     ApplyEndTime = Column(Date, nullable=False, comment='申请结束时间')
     AgreeStartTime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndTime = Column(Date, comment='最终确认结束时间')
+    TCrejectReason = Column(String(125), comment='拒绝理由')
 
 
 class TrialCommodityImage(Base):
@@ -125,7 +126,7 @@ class MagicBoxApply(Base):
     SUid = Column(String(64), comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     SKUstock = Column(Integer, comment='库存')
-    MBAfrom = Column(Integer, comment='申请来源, 0:供应商, 1: 平台管理员')
+    MBAfrom = Column(Integer, comment='申请来源')
     PRid = Column(String(64), nullable=False, comment='商品id')
     PBid = Column(String(64), nullable=False, comment='品牌id')
     MBAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
@@ -173,7 +174,7 @@ class FreshManFirstApply(Base):
     SUid = Column(String(64), primary_key=True, comment='供应商')
     FMFAstartTime = Column(Date, nullable=False, comment='申请开始时间')
     FMFAendTime = Column(Date, nullable=False, comment='申请结束时间')
-    FMFAfrom = Column(Integer, comment='来源 0: 供应商, 1平台管理员')
+    FMFAfrom = Column(Integer, comment='来源 0平台管理员, 10: 供应商')
     FMFAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     FMFArejectReson = Column(String(255), comment='拒绝理由')
