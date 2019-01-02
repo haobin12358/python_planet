@@ -52,11 +52,15 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
+
         if omfrom is None:
             order_main_query = order_main_query.filter(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
         else:
-            order_main_query = order_main_query.filter(OrderMain.OMfrom == omfrom, OrderMain.OMinRefund == False)
+            order_main_query = order_main_query.filter(
+                OrderMain.OMfrom.in_(omfrom),
+                OrderMain.OMinRefund == False
+            )
         if omstatus == 'refund':
             # 后台获得售后订单(获取主单售后和附单售后)
             if is_admin() or is_supplizer():
@@ -750,16 +754,24 @@ class COrder(CPay, CCoupon):
             filter_args.append(OrderMain.PRcreateId == usid)
         # 获取各类活动下的订单数量
         if ordertype == 'act':
+            act_value = [getattr(ActivityOrderNavigation, k).value for k in ActivityOrderNavigation.all_member()]
             data = [
                 {'count': self._get_act_order_count(filter_args, k),
                  'name': getattr(ActivityOrderNavigation, k).zh_value,
                  'omfrom': getattr(ActivityOrderNavigation, k).value}
                 for k in ActivityOrderNavigation.all_member()
             ]
+            # 全部
+            data.insert(  #
+                0, {
+                    'count': OrderMain.query.filter_(OrderMain.isdelete == False,
+                                                     OrderMain.OMfrom.in_(act_value),
+                                                     *filter_args).distinct().count(),
+                    'name': '全部',
+                    'status': ','.join(list(map(str, act_value)))
+                }
+            )
         else:
-            # 去除一些活动订单数量
-            # omfrom = form.omfrom.data
-            # if omfrom is None:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )

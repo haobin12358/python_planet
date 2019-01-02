@@ -20,6 +20,7 @@ class AFreshManFirstOrder(Resource):
             'add_order': self.creshman.add_order,
             'apply_award': self.creshman.apply_award,
             'update_award': self.creshman.update_award,
+            'shelf_award': self.creshman.shelf_award,
         }
         return apis
 

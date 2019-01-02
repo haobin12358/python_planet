@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 
 from flask import request
-from sqlalchemy import or_, and_
+from sqlalchemy import or_
 
 from planet.common.error_response import StatusError
 from planet.common.params_validates import parameter_required
@@ -211,6 +211,13 @@ class CCoupon(object):
             # 删除原有的标签
             CouponItem.query.filter(CouponItem.isdelete == False, CouponItem.ITid.notin_(itids),
                                     CouponItem.COid == coid).delete_(synchronize_session=False)
+            # todo 修改此句
+            CouponFor.query.filter(
+                CouponFor.COid == coid,
+                CouponFor.isdelete == False
+            ).update({
+                'isdelete': True
+            })
             # 优惠券和应用对象的中间表
             for pbid in pbids:
                 coupon_for = CouponFor.create({
@@ -227,12 +234,13 @@ class CCoupon(object):
                 })
                 db.session.add(coupon_for)
             # 删除无用的
-            CouponFor.query.filter(
-                CouponFor.isdelete == False,
-                CouponFor.COid == coid,
-                or_(CouponFor.PBid.notin_(pbids),
-                     CouponFor.PRid.notin_(prids))
-            ).delete_(synchronize_session=False)
+            #
+            # CouponFor.query.filter(
+            #     CouponFor.isdelete == False,
+            #     CouponFor.COid == coid,
+            #     or_(CouponFor.PBid.notin_(pbids),
+            #          CouponFor.PRid.notin_(prids))
+            # ).delete_(synchronize_session=False)
         return Success('修改成功')
 
     @admin_required

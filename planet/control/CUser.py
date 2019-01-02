@@ -1610,8 +1610,6 @@ class CUser(SUser, BASEAPPROVAL):
             db.session.add(user)
         return Success('设置成功')
 
-
-
     def __get_adnum(self):
         admin = Admin.query.order_by(Admin.ADnum.desc()).first()
         if not admin:

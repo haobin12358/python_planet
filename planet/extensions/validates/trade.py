@@ -14,7 +14,7 @@ class OrderListForm(BaseForm):
     issaler = BooleanField('卖家版', default=False)
     usid = StringField('用户id')
     extentions = StringField('一些扩展的查询')
-    omfrom = IntegerField('来源')
+    omfrom = StringField('来源')
     ordertype = StringField('区分活动订单')
     omno = StringField('订单编号')
     omrecvname = StringField('收件人')
@@ -50,6 +50,12 @@ class OrderListForm(BaseForm):
     def validate_usid(self, raw):
         if not is_admin() and not is_supplizer():  # 非管理员, 不可以制定他人usid
             self.usid.data = request.user.id
+
+    def validate_omfrom(self, raw):
+        if raw.data:
+            raw.data = list(map(int, raw.data.split(',')))
+
+
 
     def validate_issaler(self, raw):
         """是否卖家"""

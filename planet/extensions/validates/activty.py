@@ -117,5 +117,5 @@ class ListFreshmanFirstOrderApply(BaseForm):
 
 
 class ShelfFreshManfirstOrder(BaseForm):
-    fmfaid = StringField()
+    fmfaid = StringField(validators=[DataRequired('请指定申请单')])
 

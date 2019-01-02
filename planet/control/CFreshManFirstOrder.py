@@ -152,6 +152,10 @@ class CFreshManFirstOrder(COrder, CUser):
             FreshManFirstApply.isdelete == False,
             FreshManFirstSku.SKUid == skuid,
         ).first_('当前商品未在活动中')
+        if not fresh_man_sku.FMFPstock or fresh_man_sku.FMFPstock < 0:
+            raise StatusError('库存不足')
+        fresh_man_sku.FMFPstock -= 1
+        db.session.add(fresh_man_sku)
         Activity.query.filter_by_({
             'ACtype': ActivityType.fresh_man.value,
             'ACshow': True
@@ -182,7 +186,6 @@ class CFreshManFirstOrder(COrder, CUser):
         omrecvname = user_address_instance.UAname
         # 判断是否是别人分享而来
         secret_usid = data.get('secret_usid')
-
         if secret_usid:
             try:
                 from_usid = self._base_decode(secret_usid)
@@ -295,6 +298,8 @@ class CFreshManFirstOrder(COrder, CUser):
                 'FMFAstartTime': data.get('fmfastarttime'),
                 'FMFAendTime': data.get('fmfaendtime'),
                 'FMFAfrom': apply_from,
+                'AgreeStartime': data.get('fmfastarttime'),
+                'AgreeEndtime': data.get('fmfaendtime'),
             })
             db.session.add(fresh_first_apply)
             # 商品, 暂时只可以添加一个商品
@@ -350,7 +355,8 @@ class CFreshManFirstOrder(COrder, CUser):
                                                                 FreshManFirstApply.isdelete == False).first_('申请单不存在')
             fresh_first_apply.update({
                 'SUid': request.user.id,
-                'FMFAfrom': apply_from
+                'FMFAfrom': apply_from,
+                'FMFAstatus': ApplyStatus.wait_check.value
             })
             db.session.add(fresh_first_apply)
             # 商品, 暂时只可以添加一个商品
@@ -358,14 +364,14 @@ class CFreshManFirstOrder(COrder, CUser):
                 FreshManFirstProduct.isdelete == False,
                 FreshManFirstProduct.FMFAid == fmfaid,
                 FreshManFirstProduct.PRid == prid,
-            )
+            ).first()
             if not fresh_first_product:
                 # 如果没有查找到, 则说明是更换了参与商品, 因此删除旧的
                 FreshManFirstProduct.query.filter(FreshManFirstProduct.FMFAid == fmfaid).delete_()
                 fresh_first_product = FreshManFirstProduct()
                 fresh_first_product.FMFPid = str(uuid.uuid1())
             fresh_first_product = fresh_first_product.update({
-                'FMFAid': fresh_first_apply.FMFAid,
+                # 'FMFAid': fresh_first_apply.FMFAid,
                 'PRid': prid,
                 'PRmainpic': product.PRmainpic,
                 'PRtitle': product.PRtitle,
@@ -388,7 +394,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     ProductSku.PRid == prid,
                     ProductSku.SKUid == skuid
                 ).first_('商品sku信息不存在')
-                fresh_first_sku = FreshManFirstApply.query.filter(
+                fresh_first_sku = FreshManFirstSku.query.filter(
                     FreshManFirstApply.isdelete == False,
                     FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                     FreshManFirstSku.SKUid == skuid
@@ -417,7 +423,7 @@ class CFreshManFirstOrder(COrder, CUser):
         ).delete_()
         BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
                                        fresh_first_apply.FMFAid, apply_from)
-        return Success('申请添加成功', data=fresh_first_apply.FMFAid)
+        return Success('申请单修改成功', data=fresh_first_apply.FMFAid)
 
     def award_detail(self):
         """查看申请详情"""
@@ -425,7 +431,7 @@ class CFreshManFirstOrder(COrder, CUser):
         fmfaid = data.get('fmfaid')
         apply = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False, FreshManFirstApply.FMFAid == fmfaid).first_('该申请不存在')
         apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
-        if apply.FMFAfrom:  # 1表示管理员
+        if apply.FMFAfrom == ApplyFrom.platform.value:
             admin = Admin.query.filter(Admin.ADid == apply.SUid).first()
             admin.hide('ADfirstpwd', 'ADpassword')
             apply.fill('from_admin', admin)
@@ -463,7 +469,30 @@ class CFreshManFirstOrder(COrder, CUser):
                                  FreshManFirstApply.FMFAfrom == 1)
         if status is not None:
             query = query.filter(FreshManFirstApply.FMFAstatus == status)
-        applys = query.all_with_page()
+        applys = query.order_by(FreshManFirstApply.createtime.desc()).all_with_page()
+        for apply in applys:
+            # 状态中文
+            apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
+            # 商品
+            fresh_product = FreshManFirstProduct.query.filter(
+                FreshManFirstProduct.isdelete == False,
+                FreshManFirstProduct.FMFAid == apply.FMFAid,
+            ).first()
+            apply.fill('fresh_product', fresh_product)
+            # 活动sku
+            freshsku = FreshManFirstSku.query.filter(
+                FreshManFirstSku.isdelete == False,
+                FreshManFirstSku.FMFPid == fresh_product.FMFPid
+            ).first()
+            fresh_product.fill('sku', freshsku)
+            # 申请人
+            if apply.FMFAfrom == ApplyFrom.supplizer.value:
+                supplizer = Supplizer.query.filter(Supplizer.SUid == apply.SUid).first()
+                apply.fill('from_supplizer', supplizer)
+            elif apply.FMFAfrom == ApplyFrom.platform.value:
+                admin = Admin.query.filter(Admin.ADid == apply.SUid).first()
+                admin.hide('ADfirstpwd', 'ADpassword')
+                apply.fill('from_admin', admin)
         return Success(data=applys)
 
     def shelf_award(self):
@@ -477,7 +506,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 FreshManFirstApply.isdelete == False,
                 FreshManFirstApply.SUid == request.user.id,
                 FreshManFirstApply.FMFAid == fmfaid,
-                FreshManFirstApply.FMFAstatus != ApplyStatus.wait_check.value
+                FreshManFirstApply.FMFAstatus == ApplyStatus.wait_check.value
             ).first_('申请已处理或不存在')
             apply.FMFAstatus = ApplyStatus.cancle.value
             db.session.add(apply)
