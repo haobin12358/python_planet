@@ -10,7 +10,8 @@ from planet.common.error_response import ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
-from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType
+from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
@@ -18,7 +19,7 @@ from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommod
     Admin
 
 
-class CTrialCommodity(COrder):
+class CTrialCommodity(COrder, BASEAPPROVAL):
 
     def get_commodity_list(self):
         if is_tourist():
@@ -161,7 +162,8 @@ class CTrialCommodity(COrder):
         tcdesc = data.get('tcdesc')
         tcdeposit = data.get('tcdeposit')
         # tcstocks = data.get('tcstocks')
-        tcfrom = 0 if is_supplizer() else 1
+        tcfrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+
         tcstocks = 0
         pbid = data.get('pbid')
         images = data.get('images')
@@ -243,6 +245,8 @@ class CTrialCommodity(COrder):
             })
             session_list.append(commodity)
             db.session.add_all(session_list)
+            # 添加进审批流
+            super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
         return Success("添加成功", {'tcid': tcid})
 
     @admin_required

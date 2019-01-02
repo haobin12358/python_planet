@@ -839,6 +839,7 @@ class CApproval(BASEAPPROVAL):
     def refuse_publish(self, approval_model, refuse_abo):
         news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
         news.NEstatus = NewsStatus.refuse.value
+        news.NErefusereason = refuse_abo
 
     def agree_guessnum(self, approval_model):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
@@ -891,6 +892,7 @@ class CApproval(BASEAPPROVAL):
     def refuse_trialcommodity(self, approval_model, refuse_abo):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
         tc.TCstatus = TrialCommodityStatus.reject.value
+        tc.TCrejectReason = refuse_abo
 
     def __get_category(self, pcid, pclist=None):
         if not pclist:
