@@ -1,3 +1,5 @@
+import json
+
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
 from planet.config.enums import UserIdentityStatus
@@ -18,18 +20,19 @@ class CCommision:
             ).first()
             if not commision:
                 commision = Commision()
+            from planet import JSONEncoder
             commission_dict = {
-                'Levelcommision': form.levelcommision.data,
+                'Levelcommision': json.dumps(form.levelcommision.data, cls=JSONEncoder),
                 'InviteNum': form.invitenum.data,
                 'GroupSale': form.groupsale.data,
                 'PesonalSale': form.pesonalsale.data,
                 'InviteNumScale': form.invitenumscale.data,
                 'GroupSaleScale': form.groupsalescale.data,
                 'PesonalSaleScale': form.pesonalsalescale.data,
-                'ReduceRatio': form.reduceratio.data,
-                'IncreaseRatio': form.increaseratio.data,
+                'ReduceRatio': json.dumps(form.reduceratio.data, cls=JSONEncoder),
+                'IncreaseRatio': json.dumps(form.increaseratio.data, cls=JSONEncoder),
             }
-            [setattr(commision, k, v) for k, v in commission_dict.items() if v]
+            [setattr(commision, k, v) for k, v in commission_dict.items() if v is not None and v != []]
             db.session.add(commision)
         return Success('修改成功')
 
@@ -37,5 +40,8 @@ class CCommision:
         commision = Commision.query.filter(
             Commision.isdelete == False,
         ).first()
+        commision.Levelcommision = json.loads(commision.Levelcommision)
+        commision.ReduceRatio = json.loads(commision.ReduceRatio)
+        commision.IncreaseRatio = json.loads(commision.IncreaseRatio)
         return Success(data=commision)
 

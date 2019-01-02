@@ -3,7 +3,7 @@ from .base_form import *
 
 class CommsionUpdateForm(BaseForm):
     levelcommision = FieldList(DecimalField('佣金比'))
-    invitenum = IntegerField('邀请人数', default=0)
+    invitenum = IntegerField('邀请人数')
     groupsale = DecimalField('团队佣金')
     pesonalsale = DecimalField('个人销售额')
     invitenumscale = DecimalField('下次升级/上次升级邀请人数比')

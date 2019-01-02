@@ -118,7 +118,20 @@ class SupplizerChangePasswordForm(BaseForm):
             self.suid.data = request.user.id
 
 
+class UpdateUserCommisionForm(BaseForm):
+    usid = StringField(DataRequired('用户id不可为空'))
+    commision1 = DecimalField()
+    commision2 = DecimalField()
+    commision3 = DecimalField()
 
+    def validate_commision1(self, raw):
+        if raw.data and (raw.data < 0 or raw.data > 100):
+            raise ParamsError('一级佣金设置不合理')
 
+    def validate_commision2(self, raw):
+        if raw.data and (raw.data < 0 or raw.data > 100):
+            raise ParamsError('二级佣金设置不合理')
 
-
+    def validate_commision3(self, raw):
+        if raw.data and (raw.data < 0 or raw.data > 100):
+            raise ParamsError('三级佣金设置不合理')

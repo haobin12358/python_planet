@@ -32,7 +32,7 @@ from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
-from planet.extensions.validates.user import SupplizerLoginForm
+from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
@@ -1525,10 +1525,19 @@ class CUser(SUser, BASEAPPROVAL):
         data = parameter_required()
         mobile = data.get('mobile')
         name = data.get('name')
+        level = data.get('level')
         user_query = User.query.filter(
             User.isdelete == False,
-            User.USlevel >= 2
         )
+        if level is None:  # 默认获取代理商
+            user_query = user_query.filter(
+                User.USlevel >= 2
+            )
+        elif level != 'all':  # 如果传all则获取全部
+            user_query = user_query.filter(
+                User.USlevel == int(level)
+            )
+
         if mobile:
             user_query = user_query.filter(User.UStelphone.contains(mobile.strip()))
         if name:
@@ -1574,9 +1583,30 @@ class CUser(SUser, BASEAPPROVAL):
                     UserCommission.UCstatus >= 0
             ).all()
             total = total[0][0] or 0
-
             user.fill('commision_from', total)
         return Success(data=users)
+
+    @admin_required
+    def update_user_commision(self):
+        form = UpdateUserCommisionForm().valid_data()
+        commision1 = form.commision1.data
+        commision2 = form.commision2.data
+        commision3 = form.commision3.data
+        usid = form.usid.data
+        with db.auto_commit():
+            user = User.query.filter(
+                User.isdelete == False,
+                User.USid == usid
+            ).first_('用户不存在')
+            user.update({
+                'USCommission1': commision1,
+                'USCommission2': commision2,
+                'USCommission3': commision3,
+            })
+            db.session.add(user)
+        return Success('设置成功')
+
+
 
     def __get_adnum(self):
         admin = Admin.query.order_by(Admin.ADnum.desc()).first()
