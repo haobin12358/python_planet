@@ -9,13 +9,13 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Aut
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
-    is_admin
-from planet.config.enums import ItemType, NewsStatus, ApprovalType
+    is_admin, is_supplizer
+from planet.config.enums import ItemType, NewsStatus, ApprovalType, ApplyFrom
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -75,9 +75,9 @@ class CNews(BASEAPPROVAL):
                 news_status = news.NEstatus
                 news.fill('zh_nestatus', NewsStatus(news_status).zh_value)
                 news.fill('nestatus', NewsStatus(news_status).name)
-                if str(news_status) == '0':
-                    news.fill('refuse_info', '因内容不符合规定，审核未通过，建议修改后重新发布')
-                    # todo 获取审批拒绝理由
+                if news_status == NewsStatus.refuse.value:
+                    reason = news.NErefusereason or '因内容不符合规定，审核未通过，建议修改后重新发布'
+                    news.fill('refuse_info', reason)
             commentnumber = self.snews.get_news_comment_count(news.NEid)
             news.fill('commentnumber', commentnumber)
             favoritnumber = self.snews.get_news_favorite_count(news.NEid)
@@ -238,9 +238,16 @@ class CNews(BASEAPPROVAL):
         if user:
             usid, usname, usheader = user.USid, user.USname, user.USheader
             current_app.logger.info('User {0} create a news'.format(usname))
+            nefrom = ApplyFrom.user.value
         elif admin:
             usid, usname, usheader = admin.ADid, admin.ADname, admin.ADheader
             current_app.logger.info('Admin {0} create a news'.format(usname))
+            nefrom = ApplyFrom.platform.value
+        elif is_supplizer():
+            supplizer = Supplizer.query.filter_by_(SUid=request.user.id).first()
+            usid, usname, usheader = supplizer.SUid, supplizer.SUname, supplizer.SUheader
+            current_app.logger.info('Supplizer {0} create a news'.format(usname))
+            nefrom = ApplyFrom.supplizer.value
         else:
             raise TokenError('用户不存在')
         data = parameter_required(('netitle', 'netext', 'items', 'source'))
@@ -266,15 +273,15 @@ class CNews(BASEAPPROVAL):
                 'USid': usid,
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                # 'NEstatus': NewsStatus.auditing.value,
-                'NEstatus': NewsStatus.usual.value,  # todo 为方便前端测试，改为发布即上线，之后需要改回上一行的注释
+                'NEstatus': NewsStatus.auditing.value,
                 'NEsource': data.get('source'),
                 'NEmainpic': mainpic,
                 'NEisrecommend': isrecommend,
                 'COid': coupon,
                 'PRid': product,
                 'USname': usname,
-                'USheader': usheader
+                'USheader': usheader,
+                'NEfrom': nefrom
             })
             session_list.append(news_info)
             if images not in self.empty:
@@ -316,7 +323,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
             # 添加到审批流
-            # super().create_approval('topublish', usid, neid)
+            super().create_approval('topublish', usid, neid, )
         return Success('添加成功', {'neid': neid})
 
     @admin_required
@@ -690,7 +697,6 @@ class CNews(BASEAPPROVAL):
     @admin_required
     def news_shelves(self):
         """资讯上下架"""
-        # todo 关联到审批流(拒绝理由)
         usid = request.user.id
         user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
         current_app.logger.info("Admin {} audit news".format(user.ADname))
