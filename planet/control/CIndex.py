@@ -35,8 +35,8 @@ class CIndex:
         form = IndexListBannerForm().valid_data()
         ibshow = dict(form.ibshow.choices).get(form.ibshow.data)
         index_banners = self.sindex.get_index_banner({'IBshow': ibshow})
-        [index_banner.fill('prtitle', Products.query.filter_by_(PRid=index_banner.PRid).first()['PRtitle'])
-         for index_banner in index_banners]
+        # [index_banner.fill('prtitle', Products.query.filter_by_(PRid=index_banner.PRid).first()['PRtitle'])
+        #  for index_banner in index_banners]
         return Success(data=index_banners)
 
     @admin_required

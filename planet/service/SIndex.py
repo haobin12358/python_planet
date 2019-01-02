@@ -30,9 +30,10 @@ class SIndex(SBase):
     @close_session
     def get_index_banner(self, args):
         """首页轮播图"""
-        return self.session.query(IndexBanner).filter_by_(args).join(
-            Products, IndexBanner.PRid == Products.PRid
-        ).filter(Products.isdelete == False).order_by(IndexBanner.IBsort).all()
+        # return self.session.query(IndexBanner).filter_by_(args).join(Products, IndexBanner.PRid == Products.PRid
+        #                                                              ).filter(Products.isdelete == False
+        #                                                                       ).order_by(IndexBanner.IBsort).all()
+        return self.session.query(IndexBanner).filter_by_(args).order_by(IndexBanner.IBsort).all()
 
     # @close_session
     # def get_index_hot(self, args):

@@ -85,9 +85,9 @@ class OrderEvaluationScore(Enum):
 
 class ApplyFrom(Enum):
     """申请来源"""
-    supplizer = 0, '供应商'
-    platform = 1, '平台'
-    user = 2, '普通用户'
+    platform = 0, '平台'
+    supplizer = 10, '供应商'
+    user = 20, '普通用户'
 
 
 class ApplyStatus(Enum):
