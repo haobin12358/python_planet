@@ -43,13 +43,11 @@ class CIndex:
     def set_banner(self):
         current_app.logger.info("Admin {} set index banner".format(request.user.username))
         form = IndexSetBannerForm().valid_data()
-        prid = form.prid.data
         ibid = str(uuid.uuid1())
-        Products.query.filter_by_(PRid=prid).first_('未找到该商品信息')
         with db.auto_commit():
             banner = IndexBanner.create({
                 'IBid': ibid,
-                'PRid': prid,
+                'contentlink': form.contentlink.data,
                 'IBpic': form.ibpic.data,
                 'IBsort': form.ibsort.data,
                 'IBshow': form.ibshow.data
@@ -61,13 +59,12 @@ class CIndex:
     def update_banner(self):
         current_app.logger.info("Admin {} update index banner".format(request.user.username))
         form = IndexUpdateBannerForm().valid_data()
-        ibid, prid = form.ibid.data, form.prid.data
+        ibid= form.ibid.data
         isdelete = form.isdelete.data
         IndexBanner.query.filter_by_(IBid=ibid).first_('未找到该轮播图信息')
-        Products.query.filter_by_(PRid=prid).first_('未找到该商品信息')
         with db.auto_commit():
             banner_dict = {'IBid': ibid,
-                           'PRid': prid,
+                           'contentlink': form.contentlink.data,
                            'IBpic': form.ibpic.data,
                            'IBsort': form.ibsort.data,
                            'IBshow': form.ibshow.data,
