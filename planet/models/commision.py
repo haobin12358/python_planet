@@ -19,5 +19,3 @@ class Commision(Base):
     IncreaseRatio = Column(String(32), default='["0", "0", "0", "0"]', comment='级差增额')
 
 
-
-

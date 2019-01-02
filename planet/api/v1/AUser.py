@@ -24,6 +24,7 @@ class AUser(Resource):
             'update_admin_password': self.user.update_admin_password,  # 修改管理员密码
             'supplizer_login': self.user.supplizer_login,  # 供应商登录
             'apply_cash': self.user.apply_cash,  # 提现申请
+            'update_user_commision': self.user.update_user_commision,  # 设置个人佣金比
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
