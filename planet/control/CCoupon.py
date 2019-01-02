@@ -230,7 +230,7 @@ class CCoupon(object):
             CouponFor.query.filter(
                 CouponFor.isdelete == False,
                 CouponFor.COid == coid,
-                and_(CouponFor.PBid.notin_(pbids),
+                or_(CouponFor.PBid.notin_(pbids),
                      CouponFor.PRid.notin_(prids))
             ).delete_(synchronize_session=False)
         return Success('修改成功')
@@ -302,7 +302,9 @@ class CCoupon(object):
                 left_text = brand.PBname
                 coupon.fill('brands', [brand])
             elif coupon_fors[0].PRid:
-                product = Products.query.filter_by_({'PRid': coupon_fors[0].PRid}).first()
+                product = Products.query.filter(Products.PRid == coupon_fors[0].PRid).first()
+                brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first()
+                product.fill('brand', brand)
                 title = '单品专用'.format(product.PRtitle)
                 left_logo = product['PRmainpic']
                 left_text = product.PRtitle
@@ -331,7 +333,9 @@ class CCoupon(object):
                 for_product = []
                 products = []
                 for prid in prids:
-                    product = Products.query.filter_by_({'PRid': prid}).first()
+                    product = Products.query.filter(Products.PRid == prid).first()
+                    brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first()
+                    product.fill('brand', brand)
                     if product:
                         products.append(product)
                         for_product.append(product.PRtitle)

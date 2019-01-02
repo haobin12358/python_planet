@@ -119,7 +119,7 @@ class SupplizerChangePasswordForm(BaseForm):
 
 
 class UpdateUserCommisionForm(BaseForm):
-    usid = StringField(DataRequired('用户id不可为空'))
+    usid = StringField(validators=[DataRequired('用户id不可为空')])
     commision1 = DecimalField()
     commision2 = DecimalField()
     commision3 = DecimalField()

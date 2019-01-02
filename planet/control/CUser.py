@@ -1526,6 +1526,7 @@ class CUser(SUser, BASEAPPROVAL):
         mobile = data.get('mobile')
         name = data.get('name')
         level = data.get('level')
+        usid = data.get('usid')
         user_query = User.query.filter(
             User.isdelete == False,
         )
@@ -1542,10 +1543,13 @@ class CUser(SUser, BASEAPPROVAL):
             user_query = user_query.filter(User.UStelphone.contains(mobile.strip()))
         if name:
             user_query = user_query.filter(User.USname.contains(name.strip()))
+        if usid:
+            user_query = user_query.filter(User.USid == usid)
         users = user_query.all_with_page()
         for user in users:
             # 佣金
-            user.fields = ['USid', 'UStelphone', 'USname', 'USheader']
+            user.fields = ['USid', 'UStelphone', 'USname', 'USheader', 'USCommission1',
+                           'USCommission2', 'USCommission3']
             usid = user.USid
 
             wallet = UserWallet.query.filter(

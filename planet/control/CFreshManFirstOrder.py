@@ -7,8 +7,10 @@ from flask import request, current_app
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin
-from planet.config.enums import ApplyStatus, OrderMainStatus, OrderFrom, Client, ActivityType, PayType, ProductStatus
+from planet.config.enums import ApplyStatus, OrderMainStatus, OrderFrom, Client, ActivityType, PayType, ProductStatus, \
+    ApplyFrom
 from planet.common.error_response import StatusError, ParamsError, AuthorityError
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ListFreshmanFirstOrderApply
@@ -280,7 +282,7 @@ class CFreshManFirstOrder(COrder, CUser):
             raise AuthorityError()
         data = parameter_required(('prid', 'fmfaendtime', 'fmfastarttime', 'prprice', 'skus'))
         prid = data.get('prid')
-        apply_from = 0 if is_supplizer() else 1
+        apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                                     Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
                                   ).first_('当前商品状态不允许进行申请')
@@ -328,7 +330,8 @@ class CFreshManFirstOrder(COrder, CUser):
                 })
                 db.session.add(fresh_first_sku)
             # todo 添加到审批流
-        # super().create_approval(ApprovalType.tocash.value, request.user.id, cn.CNid)
+        BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
+                                       fresh_first_apply.FMFAid, apply_from)
         return Success('申请添加成功', data=fresh_first_apply.FMFAid)
 
     def update_award(self):

@@ -235,7 +235,12 @@ class CProducts:
 
     @token_required
     def add_product(self):
-        self._can_add_product()
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
+            raise AuthorityError()
         data = parameter_required((
             'pcid', 'pbid', 'prtitle', 'prprice', 'prattribute',
             'prmainpic', 'prdesc', 'images', 'skus'
@@ -305,9 +310,8 @@ class CProducts:
                 'PRdesc': prdesc,
                 'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
-                'PRfrom': self.product_from,
+                'PRfrom': product_from,
                 'CreaterId': request.user.id,
-                'PRstatus': self.prstatus,
                 'PRdescription': prdescription  # 描述
             }
             product_instance = Products.create(product_dict)
@@ -361,17 +365,10 @@ class CProducts:
                     'PRid': prid,
                     'SUid': request.user.id,
                 }))
-                # 创建审批
-                session_list.append(Approval.create({
-                    'AVid': str(uuid.uuid1()),
-                    'AVname': 'topublish' + datetime.now().strftime('%Y%m%d%H%M%S'),
-                    'AVtype': PermissionType.toshelves.value,
-                    'AVstartid': request.user.id,
-                    'AVstatus': 0,
-                    # 'AVlevel': '',
-                    'AVcontent': prid
-                }))
+            # todo 审批流
+
             s.add_all(session_list)
+            BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
         return Success('添加成功', {'prid': prid})
 
     @token_required
@@ -621,7 +618,7 @@ class CProducts:
         else:
             msg = '已拒绝'
             value = ProductStatus.reject.value
-        base_approval = BASEAPPROVAL()
+        # base_approval = BASEAPPROVAL()
         with db.auto_commit():
             for prid in prids:
                 # 可以直接同意, todo 后续需改进
@@ -634,13 +631,13 @@ class CProducts:
                 })
                 if not product:
                     continue
-                approval = Approval.query.filter(
-                    Approval.isdelete == False,
-                    Approval.AVcontent == prid,
-                ).first()
-                if approval:
-                    base_approval.update_approval_no_commit(approval, agree, 1, anabo)
-            current_app.logger.info('success product count is {}'.format(product))
+                # approval = Approval.query.filter(
+                #     Approval.isdelete == False,
+                #     Approval.AVcontent == prid,
+                # ).first()
+                # if approval:
+                #     base_approval.update_approval_no_commit(approval, agree, 1, anabo)
+            # current_app.logger.info('success product count is {}'.format(product))
         return Success(msg)
 
     @token_required
@@ -783,7 +780,8 @@ class CProducts:
         elif is_supplizer():  # 供应商添加的商品需要审核
             current_app.logger.info('供应商添加商品')
             self.product_from = ProductFrom.supplizer.value
-            self.prstatus = ProductStatus.auditing.value
+            # self.prstatus = ProductStatus.auditing.value
+            self.prstatus = None
         else:
             raise AuthorityError()
 

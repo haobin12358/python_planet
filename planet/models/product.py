@@ -16,7 +16,7 @@ class Products(Base):
     PRfreight = Column(Float(precision=10, scale=2), default=0, comment='运费')
     PRstocks = Column(BIGINT, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
-    PRstatus = Column(Integer, default=0, comment='状态  0 正常, 10 审核中 60下架')
+    PRstatus = Column(Integer, default=10, comment='状态  0 正常, 10 审核中 60下架')
     PRmainpic = Column(String(255), comment='主图', url=True)
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     PCid = Column(String(64), comment='分类id')

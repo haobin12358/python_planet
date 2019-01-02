@@ -4,7 +4,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
 from planet.config.enums import UserIdentityStatus
 from planet.extensions.register_ext import db
-from planet.extensions.validates.commision import CommsionUpdateForm
+from planet.extensions.validates.commision import CommsionUpdateForm, ParamsError
 from planet.models import User, Commision
 
 
@@ -32,7 +32,9 @@ class CCommision:
                 'ReduceRatio': json.dumps(form.reduceratio.data, cls=JSONEncoder),
                 'IncreaseRatio': json.dumps(form.increaseratio.data, cls=JSONEncoder),
             }
-            [setattr(commision, k, v) for k, v in commission_dict.items() if v is not None and v != []]
+            [setattr(commision, k, v) for k, v in commission_dict.items() if v is not None and v != '[]']
+            if not commision.InviteNum and not commision.PesonalSale and not commision.GroupSale:
+                raise ParamsError('升级条件不可全为0')
             db.session.add(commision)
         return Success('修改成功')
 
