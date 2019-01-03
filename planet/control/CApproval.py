@@ -370,7 +370,7 @@ class CApproval(BASEAPPROVAL):
             ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         self.__fill_approval(pt, ap_list)
         page = int(data.get('page_num', 0)) or 1
-        count = data.get('page_size', 15) or 15
+        count = int(data.get('page_size', 15)) or 15
         total_count = len(ap_list)
         if page < 1:
             page = 1
