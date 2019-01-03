@@ -429,16 +429,16 @@ class CNews(BASEAPPROVAL):
         data = parameter_required(('neid',))
         neid = data.get('neid')
         News.query.filter_by_(NEid=neid).first_('没有该资讯或已被删除')
-        del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
-        if not del_info:
-            raise StatusError('服务器繁忙')
-        NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
-        NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
-        NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
-        NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
-        NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
-        NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
-        db.session.commit()
+        with db.auto_commit():
+            del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
+            if not del_info:
+                raise StatusError('服务器繁忙')
+            NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
+            NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
+            NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
+            NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
+            NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
+            NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
         return Success('删除成功', {'neid': neid})
 
     @token_required
