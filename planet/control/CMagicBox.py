@@ -277,6 +277,7 @@ class CMagicBox(CUser, COrder):
             else:
                 name = ''
             award.fill('authname', name)
+            award.fill('createtime', award.createtime)
 
         return Success(data=award_list)
 
