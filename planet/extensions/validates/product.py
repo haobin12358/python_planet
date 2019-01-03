@@ -21,7 +21,7 @@ class BrandsCreateForm(BaseForm):
     pbname = StringField(validators=[DataRequired('名字不可为空'), Length(1, 32)])
     pbdesc = StringField(validators=[Length(1, 255)])
     pblinks = StringField()
-    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    itids = FieldList(StringField(), validators=[DataRequired('需指定标签')])
     suid = StringField()
     pbbackgroud = StringField(validators=[Length(1, 255)])
 
@@ -35,11 +35,11 @@ class BrandsCreateForm(BaseForm):
 
 
 class BrandUpdateForm(BrandsCreateForm):
-    pbid = StringField(validators=[DataRequired('bpid不可为空'), Length(1, 64)])
+    pbid = StringField(validators=[DataRequired('需指定品牌'), Length(1, 64)])
 
 
 class ProductOffshelvesForm(BaseForm):
-    prid = StringField(validators=[DataRequired('prid不可以为空')])
+    prid = StringField(validators=[DataRequired('需指定商品')])
     status = IntegerField()
 
     def validate_status(self, value):
@@ -48,12 +48,12 @@ class ProductOffshelvesForm(BaseForm):
                 raise Exception
             ProductStatus(value.data)
         except Exception as e:
-            raise ValidationError(message='status 参数错误')
+            raise ValidationError(message='状态筛选有误')
         self.status = value
 
 
 class ProductOffshelvesListForm(BaseForm):
-    prids = FieldList(StringField(), validators=[DataRequired('prid不可为空')])
+    prids = FieldList(StringField(), validators=[DataRequired('需要指定商品')])
     status = IntegerField()
 
     def validate_status(self, value):
@@ -62,13 +62,13 @@ class ProductOffshelvesListForm(BaseForm):
                 raise Exception
             ProductStatus(value.data)
         except Exception as e:
-            raise ValidationError(message='status 参数错误')
+            raise ValidationError(message='状态错误')
         self.status = value
 
 
 class ProductApplyAgreeForm(BaseForm):
     """商品同意或拒绝"""
-    prids = FieldList(StringField(), validators=[DataRequired('prids不可为空')])
+    prids = FieldList(StringField(), validators=[DataRequired('需指定商品')])
     agree = BooleanField()
     anabo = StringField()
 
@@ -85,7 +85,7 @@ class SceneCreateForm(BaseForm):
 
 
 class SceneUpdateForm(BaseForm):
-    psid = StringField(validators=[DataRequired('场景id不可为空')])
+    psid = StringField(validators=[DataRequired('需要指定场景')])
     pspic = StringField('图片')
     psname = StringField('场景名')
     pssort = IntegerField('排序')
