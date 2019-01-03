@@ -7,10 +7,11 @@ from flask_celery import Celery
 from sqlalchemy import cast, Date
 
 from planet.common.share_stock import ShareStock
-from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus
+from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
+from planet.control.CApproval import CApproval
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission
+    Products, User, UserCommission, Approval
 
 celery = Celery()
 
@@ -155,21 +156,18 @@ def fix_evaluate_status_error():
 
 
 @celery.task
-def auto_agree(pk, agree_type):
-    if agree_type == 'toshelves':
-        with db.auto_commit():
-            product = Products.query.filter(
-                Products.PRid == pk,
-                Products.PRstatus == ProductStatus.auditing.value
-            ).first()
-            if product:
-                current_app.logger.info('商品自动审核通过')
-                product.PRstatus = ProductStatus.usual.value
-                db.session.add(product)
-            else:
-                current_app.logger.info('商品不存在')
+def auto_agree_task(avid):
+    approval = Approval.query.filter(
+        Approval.isdelete == False,
+        Approval.AVstatus == ApplyStatus.wait_check.value,
+        Approval.AVid == avid
+    ).first()
+    cacpproval = CApproval()
+    with db.auto_commit():
+        if cacpproval:
+            current_app.logger.info('5分钟自动同意商品')
+        cacpproval.agree_action(approval)
 
-    return 'ok'
 
 
 if __name__ == '__main__':
