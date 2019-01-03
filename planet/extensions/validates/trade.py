@@ -89,7 +89,7 @@ class CouponListForm(BaseForm):
 
 
 class CouponFetchForm(BaseForm):
-    coid = StringField('优惠券id', validators=[DataRequired('coid不可为空')])
+    coid = StringField('优惠券id', validators=[DataRequired('请选择优惠券')])
 
 
 class CouponCreateForm(BaseForm):
@@ -97,7 +97,7 @@ class CouponCreateForm(BaseForm):
     pcids = FieldList(StringField())
     prids = FieldList(StringField())
     pbids = FieldList(StringField())
-    coname = StringField(validators=[DataRequired('coname不可为空'), Length(1, 32)])
+    coname = StringField(validators=[DataRequired('请输入优惠券名字'), Length(1, 32)])
     coisavailable = BooleanField('可用', default=True)
     coiscancollect = BooleanField('可以领取', default=True)
     colimitnum = IntegerField('发放数量', default=0, validators=[NumberRange(0)])
@@ -110,7 +110,7 @@ class CouponCreateForm(BaseForm):
     codownline = FloatField('满额可用', default=0, validators=[NumberRange(0)])
     cosubtration = FloatField('减额', default=0, validators=[NumberRange(0)])
     codesc = StringField('描述')
-    itids = FieldList(StringField(), validators=[DataRequired('itid不可为空')])
+    itids = FieldList(StringField(), validators=[DataRequired('请指定所在标签')])
     cousenum = IntegerField('可叠加使用数量', default=1)
 
     def valid_data(self):
@@ -136,22 +136,22 @@ class CouponCreateForm(BaseForm):
 
 class CouponUpdateForm(CouponCreateForm):
     """更新优惠券"""
-    coid = StringField('优惠券id', validators=[DataRequired('优惠券id不可以为空')])
+    coid = StringField('优惠券id', validators=[DataRequired('需指定优惠券')])
 
 
 class RefundSendForm(BaseForm):
-    oraid = StringField('售后申请单id', validators=[DataRequired('申请单id不可为空')])
+    oraid = StringField('售后申请单id', validators=[DataRequired('需指定申请单')])
     orlogisticcompany = StringField('物流公司编码', validators=[DataRequired('物流公司不可为空')])
     orlogisticsn = StringField('物流单号', validators=[DataRequired('单号不可为空'), Length(8, 64, message='单号长度不符规范')])
 
 
 class RefundConfirmForm(BaseForm):
-    oraid = StringField(validators=[DataRequired('oraid必须')])
+    oraid = StringField(validators=[DataRequired('需指定申请单')])
     agree = BooleanField()
 
 
 class RefundConfirmRecvForm(BaseForm):
-    oraid = StringField(validators=[DataRequired('oraid必须')])
+    oraid = StringField(validators=[DataRequired('需指定申请单')])
 
 
 class ActRuleSetFrom(BaseForm):
