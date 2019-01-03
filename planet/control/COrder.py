@@ -552,11 +552,11 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('omid',))
         omid = data.get('omid')
         usid = request.user.id
-        User.query.filter_by_(USid=usid).first_('用户不存在')
-        order = OrderMain.query.filter_by_(OMid=omid).first_('订单不存在')
-        assert order.OMstatus == OrderMainStatus.cancle.value, '只有已取消的订单可以删除'
-        order.isdelete = True
-        db.session.commit()
+        with db.auto_commit():
+            User.query.filter_by_(USid=usid).first_('用户不存在')
+            order = OrderMain.query.filter_by_(OMid=omid).first_('订单不存在')
+            assert order.OMstatus == OrderMainStatus.cancle.value, '只有已取消的订单可以删除'
+            order.isdelete = True
         return Success('删除成功', {'omid': omid})
 
     @token_required
@@ -769,7 +769,7 @@ class COrder(CPay, CCoupon):
                                                          OrderMain.OMfrom.in_(act_value),
                                                          *filter_args).distinct().count(),
                         'name': '全部',
-                        'status': ','.join(list(map(str, act_value)))
+                        'omfrom': ','.join(list(map(str, act_value)))
                     }
                 )
         else:
