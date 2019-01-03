@@ -483,7 +483,7 @@ class CFreshManFirstOrder(COrder, CUser):
             freshsku = FreshManFirstSku.query.filter(
                 FreshManFirstSku.isdelete == False,
                 FreshManFirstSku.FMFPid == fresh_product.FMFPid
-            ).first()
+            ).all()
             fresh_product.fill('sku', freshsku)
             # 申请人
             if apply.FMFAfrom == ApplyFrom.supplizer.value:

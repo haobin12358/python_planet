@@ -195,7 +195,7 @@ class CSupplizer:
                 delete_product = Products.query.filter(
                     Products.isdelete == False,
                     Products.PBid == pb.PBid
-                ).delete()
+                ).delete_()
         return Success('删除成功')
 
 

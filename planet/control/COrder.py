@@ -762,15 +762,16 @@ class COrder(CPay, CCoupon):
                 for k in ActivityOrderNavigation.all_member()
             ]
             # 全部
-            data.insert(  #
-                0, {
-                    'count': OrderMain.query.filter_(OrderMain.isdelete == False,
-                                                     OrderMain.OMfrom.in_(act_value),
-                                                     *filter_args).distinct().count(),
-                    'name': '全部',
-                    'omfrom': ','.join(list(map(str, act_value)))
-                }
-            )
+            if is_supplizer() or is_admin():
+                data.insert(  #
+                    0, {
+                        'count': OrderMain.query.filter_(OrderMain.isdelete == False,
+                                                         OrderMain.OMfrom.in_(act_value),
+                                                         *filter_args).distinct().count(),
+                        'name': '全部',
+                        'omfrom': ','.join(list(map(str, act_value)))
+                    }
+                )
         else:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
