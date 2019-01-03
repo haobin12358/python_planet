@@ -376,7 +376,8 @@ class CProducts:
             s.add_all(session_list)
         # 5 分钟后自动通过
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=120)
+        auto_agree_task.apply_async(args=[avid], countdown=60 * 5, expires=120,
+                                    )
         return Success('添加成功', {'prid': prid})
 
     @token_required
@@ -481,8 +482,6 @@ class CProducts:
                 product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
             session_list.append(product)
-
-
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
@@ -506,21 +505,6 @@ class CProducts:
                     })
                     session_list.append(sku_value_instance)
             else:
-                """
-                sku_value_instance = ProductSkuValue.query.filter_by_({
-                    'PRid': prid,
-                }).first()
-                if sku_value_instance:
-                    # 更新sku_value, todo 修改的sku也需要记录
-                    old_pskvalue = json.loads(sku_value_instance.PSKUvalue )  # [[联通, 电信], [白, 黑], [16G, 32G]]
-                    for o_index, o_value in enumerate(old_pskvalue):
-                        for index, value in enumerate(new_sku):
-                            if value[o_index] not in old_pskvalue[o_index]:
-                                old_pskvalue[o_index].append(value[o_index])
-                    # sku_value_instance.PSKUvalue = ''
-                    sku_value_instance.PSKUvalue = json.dumps(old_pskvalue)
-                    session_list.append(sku_value_instance)
-                """
                 sku_value_instance = ProductSkuValue.query.filter_by_({
                     'PRid': prid,
                 }).first()
@@ -573,7 +557,8 @@ class CProducts:
                     product_item_instance = s.query(ProductItems).join(Items, ProductItems.ITid == Items.ITid).filter(
                         Items.isdelete == False,
                         ProductItems.isdelete == False,
-                        Items.ITid == itid
+                        Items.ITid == itid,
+                        ProductItems.PRid == prid
                     ).first_()
                     # product_item_instance.fields = '__all__'
                     # current_app.logger.info('>>>>>>>product_item_instance is {}'.format(dict(product_item_instance)))
@@ -590,19 +575,19 @@ class CProducts:
                             'PIid': piid,
                             'PRid': prid,
                             'ITid': itid,
-                            'isdelete': item.get('isdelete')
                         }
                         [setattr(item_product_instance, k, v) for k, v in item_product_dict.items() if v is not None]
                         session_list.append(item_product_instance)
                 # 删除不需要的
                 current_app.logger.info(itids)
-                ProductItems.query.filter(
+                counts = ProductItems.query.filter(
                     ProductItems.isdelete == False,
                     ProductItems.ITid.notin_(itids),
                     ProductItems.PRid == prid
                 ).update({
                     'isdelete': True
                 }, synchronize_session=False)
+                current_app.logger.info('删除了 {} 个 商品标签关联'.format(counts))
             s.add_all(session_list)
         return Success('更新成功')
 

@@ -770,8 +770,6 @@ class CUser(SUser, BASEAPPROVAL):
             avid = self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
             auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=120)
             # todo 遍历邀请历史，将未成为店主以及未成为其他店主粉丝的粉丝绑定为自己的粉丝在审批完成之后实现
-
-
             # 创建后台账号用其手机号作为账号
             # adid = str(uuid.
             # ())

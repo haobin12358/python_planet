@@ -155,8 +155,9 @@ def fix_evaluate_status_error():
         print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
-@celery.task
+@celery.task(bind=True, max_retries=3, default_retry_delay=1 * 60)
 def auto_agree_task(avid):
+    current_app.logger.info('avid is {}'.format(avid))
     approval = Approval.query.filter(
         Approval.isdelete == False,
         Approval.AVstatus == ApplyStatus.wait_check.value,
@@ -164,8 +165,9 @@ def auto_agree_task(avid):
     ).first()
     cacpproval = CApproval()
     with db.auto_commit():
-        if cacpproval:
-            current_app.logger.info('5分钟自动同意商品')
+        if approval:
+            current_app.logger.info('5分钟自动同意')
+            current_app.logger.info(dict(approval))
         cacpproval.agree_action(approval)
 
 
