@@ -441,17 +441,17 @@ class CMagicBox(CUser, COrder):
             raise AuthorityError()
         data = parameter_required(('mbaid',))
         mbaid = data.get('mbaid')
-        apply_info = MagicBoxApply.query.filter_by_(MBAid=mbaid).first_('无此申请记录')
-        if apply_info.MBAstatus != ApplyStatus.wait_check.value:
-            raise StatusError('只有在审核状态的申请可以撤销')
-        if apply_info.SUid != request.user.id:
-            raise AuthorityError('仅可撤销自己提交的申请')
-        apply_info.MBAstatus = ApplyStatus.cancle.value
-        # 同时将正在进行的审批流改为取消
-        approval_info = Approval.query.filter_by_(AVcontent=mbaid, AVstartid=request.user.id,
-                                                  AVstatus=ApplyStatus.wait_check.value).first()
-        approval_info.AVstatus = ApplyStatus.cancle.value
-        db.session.commit()
+        with db.auto_commit():
+            apply_info = MagicBoxApply.query.filter_by_(MBAid=mbaid).first_('无此申请记录')
+            if apply_info.MBAstatus != ApplyStatus.wait_check.value:
+                raise StatusError('只有在审核状态的申请可以撤销')
+            if apply_info.SUid != request.user.id:
+                raise AuthorityError('仅可撤销自己提交的申请')
+            apply_info.MBAstatus = ApplyStatus.cancle.value
+            # 同时将正在进行的审批流改为取消
+            approval_info = Approval.query.filter_by_(AVcontent=mbaid, AVstartid=request.user.id,
+                                                      AVstatus=ApplyStatus.wait_check.value).first()
+            approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('取消成功', {'mbaid': mbaid})
 
     @staticmethod
