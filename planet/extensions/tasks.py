@@ -155,7 +155,7 @@ def fix_evaluate_status_error():
         print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
-@celery.task(bind=True, max_retries=3, default_retry_delay=1 * 60)
+@celery.task()
 def auto_agree_task(avid):
     current_app.logger.info('avid is {}'.format(avid))
     approval = Approval.query.filter(
