@@ -6,12 +6,12 @@ from flask import current_app
 from flask_celery import Celery
 from sqlalchemy import cast, Date
 
-from planet import create_app
 from planet.common.share_stock import ShareStock
-from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus
+from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
+from planet.control.CApproval import CApproval
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission
+    Products, User, UserCommission, Approval
 
 celery = Celery()
 
@@ -58,7 +58,8 @@ def auto_evaluate():
         current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
         count = 0
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
-                                             OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                             OrderMain.OMfrom.in_(
+                                                 [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                              OrderMain.createtime <= datetime.now() - timedelta(days=30)
                                              ).all()  # 所有超过30天待评价的商品订单
         if not order_mains:
@@ -69,7 +70,8 @@ def auto_evaluate():
                 for order_part in order_parts:
                     exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                     if exist_evaluation:
-                        current_app.logger.info(">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
+                        current_app.logger.info(
+                            ">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
                         continue
                     user = User.query.filter_by(USid=order_main.USid).first()
                     if order_part.OPisinORA:
@@ -79,8 +81,8 @@ def auto_evaluate():
                         UserCommission.isdelete == False,
                         UserCommission.OPid == order_part.OPid
                     ).update({
-                            'UCstatus': UserCommissionStatus.in_account.value
-                        })
+                        'UCstatus': UserCommissionStatus.in_account.value
+                    })
                     current_app.logger.info('佣金到账数量 {}'.format(user_commision))
                     if user:
                         usname, usheader = user.USname, user.USheader
@@ -101,7 +103,8 @@ def auto_evaluate():
                     evaluation_instance = OrderEvaluation.create(evaluation_dict)
                     s_list.append(evaluation_instance)
                     count += 1
-                    current_app.logger.info(">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
+                    current_app.logger.info(
+                        ">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
                     # 佣金到账
                     # 商品总体评分变化
                     try:
@@ -112,7 +115,8 @@ def auto_evaluate():
                         current_app.logger.info("Auto Evaluation , Update Product Score ERROR, is {}".format(e))
 
                 # 更改主单待评价状态为已完成
-                change_status = OrderMain.query.filter_by_(OMid=order_main.OMid).update({'OMstatus': OrderMainStatus.ready.value})
+                change_status = OrderMain.query.filter_by_(OMid=order_main.OMid).update(
+                    {'OMstatus': OrderMainStatus.ready.value})
                 if change_status:
                     current_app.logger.info(">>>>>>  主单状态更改成功 OMid : {}  <<<<<<".format(str(order_main.OMid)))
                 else:
@@ -151,36 +155,52 @@ def fix_evaluate_status_error():
         print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
+@celery.task
+def auto_agree_task(avid):
+    approval = Approval.query.filter(
+        Approval.isdelete == False,
+        Approval.AVstatus == ApplyStatus.wait_check.value,
+        Approval.AVid == avid
+    ).first()
+    cacpproval = CApproval()
+    with db.auto_commit():
+        if cacpproval:
+            current_app.logger.info('5分钟自动同意商品')
+        cacpproval.agree_action(approval)
+
+
+
 if __name__ == '__main__':
+    from planet import create_app
     app = create_app()
     with app.app_context():
         # fetch_share_deal()
         auto_evaluate()
 
- # # 今日结果
-        # db_today = CorrectNum.query.filter(
-        #     cast(CorrectNum.CNdate, Date) == date.today()
-        # ).first()
-        # if hasattr(share_stock, 'today_result') and not db_today:  # 今日
-        #     current_app.logger.info('写入今日数据')
-        #     correct_instance = CorrectNum.create({
-        #         'CNid': str(uuid.uuid4()),
-        #         'CNnum': share_stock.today_result,
-        #         'CNdate': date.today()
-        #     })
-        #     s_list.append(correct_instance)
-        #
-        #     # 判断是否有猜对的
-        #     guess_nums = GuessNum.query.filter_by({'GNnum': share_stock.today_result, 'GNdate': date.today()}).all()
-        #     for guess_num in guess_nums:
-        #         exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
-        #         if not exists_in_flow:
-        #             guess_award_flow_instance = GuessAwardFlow.create({
-        #                 'GAFid': str(uuid.uuid4()),
-        #                 'GNid': guess_num.GNid,
-        #             })
-        #             s_list.append(guess_award_flow_instance)
-        #
-        # db_today = CorrectNum.query.filter(
-        #     cast(CorrectNum.CNdate, Date) == date.today()
-        # ).first()
+# # 今日结果
+# db_today = CorrectNum.query.filter(
+#     cast(CorrectNum.CNdate, Date) == date.today()
+# ).first()
+# if hasattr(share_stock, 'today_result') and not db_today:  # 今日
+#     current_app.logger.info('写入今日数据')
+#     correct_instance = CorrectNum.create({
+#         'CNid': str(uuid.uuid4()),
+#         'CNnum': share_stock.today_result,
+#         'CNdate': date.today()
+#     })
+#     s_list.append(correct_instance)
+#
+#     # 判断是否有猜对的
+#     guess_nums = GuessNum.query.filter_by({'GNnum': share_stock.today_result, 'GNdate': date.today()}).all()
+#     for guess_num in guess_nums:
+#         exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
+#         if not exists_in_flow:
+#             guess_award_flow_instance = GuessAwardFlow.create({
+#                 'GAFid': str(uuid.uuid4()),
+#                 'GNid': guess_num.GNid,
+#             })
+#             s_list.append(guess_award_flow_instance)
+#
+# db_today = CorrectNum.query.filter(
+#     cast(CorrectNum.CNdate, Date) == date.today()
+# ).first()

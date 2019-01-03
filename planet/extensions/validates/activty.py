@@ -87,7 +87,7 @@ class MagicBoxOpenForm(BaseForm):
 
 
 class MagicBoxJoinForm(BaseForm):
-    mbaid = StringField('当前活动的唯一标志', validators=[DataRequired('需要传入 mbaid')])
+    mbaid = StringField('当前活动的唯一标志', validators=[DataRequired('请指定活动')])
 
 
 class MagicBoxRecvAwardForm(BaseForm):
@@ -96,7 +96,7 @@ class MagicBoxRecvAwardForm(BaseForm):
     omclient = IntegerField('下单设备', default=Client.wechat.value)
     ommessage = StringField('留言')
     opaytype = IntegerField('支付类型')
-    mbaid = StringField('活动唯一标志', validators=[DataRequired('mbaid不可为空')])
+    mbaid = StringField('活动唯一标志', validators=[DataRequired('请指定活动')])
 
     # def validate_mbjid(self, raw):
     #     self.magic_box_join = MagicBoxJoin.query.filter_by_({'MBJid': raw.data}).first_('未参与活动')

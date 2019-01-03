@@ -375,7 +375,7 @@ class CApproval(BASEAPPROVAL):
         total_count = len(ap_list)
         if page < 1:
             page = 1
-        total_page = int(total_count / count) or 1
+        total_page = int(total_count / int(count)) or 1
         start = (page - 1) * count
         # end =
         if start > total_count:
