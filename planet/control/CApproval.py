@@ -335,13 +335,14 @@ class CApproval(BASEAPPROVAL):
         elif is_supplizer():
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商账号已回收')
             pt_list = PermissionType.query.filter(
-                PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid).all()
+                PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid, PermissionType.isdelete == False
+            ).all()
             # todo 供应商的审批类型筛选
             for pt in pt_list:
                 ap_num = Approval.query.filter(
-                    Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
-                    Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
-                    Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
+                    Approval.AVstartid == sup.SUid,
+                    Approval.PTid == pt.PTid,
+                    Approval.isdelete == False
                 ).count()
 
                 pt.fill('approval_num', ap_num)
@@ -444,6 +445,7 @@ class CApproval(BASEAPPROVAL):
             #     User.query.filter(User.USid == approval_model.AVstartid).update({"USlevel": UserIdentityStatus.ordinary.value})
 
         return Success("审批操作完成")
+
     @get_session
     @token_required
     def cancel(self):
@@ -469,6 +471,22 @@ class CApproval(BASEAPPROVAL):
             an.fill('anaction', ApprovalAction(an.ANaction).zh_value)
         return Success('获取审批记录成功', data=an_list)
 
+    @token_required
+    def get_permissionitem(self):
+        pt_list = PermissionType.query.filter_by_().all()
+        for pt in pt_list:
+            pi_list = PermissionItems.query.filter(
+                PermissionItems.PIid == Permission.PIid, Permission.PTid == pt.PTid,
+                Permission.isdelete == False, PermissionItems.isdelete == False
+            ).all()
+            for pi in pi_list:
+                pe = Permission.query.filter_by_(PIid=pi.PIid, PTid=pt.PTid).first()
+                if pe:
+                    pi.fill('pelevel', pe.PELevel)
+
+            pt.fill('pi', pi_list)
+        return Success('获取所有标签成功', pt_list)
+
     @get_session
     @token_required
     def get_all_permissiontype(self):
@@ -482,6 +500,10 @@ class CApproval(BASEAPPROVAL):
             pt.fill('pemission', pe)
 
         return Success('获取所有审批流类型成功', data=pt_list)
+
+    # @get_session
+    # @token_required
+    # def get_permissionitem(self):
 
     def __fill_publish(self, ap_list):
         """填充资讯发布"""
@@ -540,13 +562,13 @@ class CApproval(BASEAPPROVAL):
         for ap_remove in ap_remove_list:
             ap_list.remove(ap_remove)
 
-    def __fill_product_detail(self, product, skuid):
+    def __fill_product_detail(self, product, skuid=None):
         # 填充商品详情
         if not product:
             return
         product.PRattribute = json.loads(product.PRattribute)
         product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
-        pb = ProductBrand.query.filter_by_(PBid=product.PBid)
+        pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
         if skuid:
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
 
