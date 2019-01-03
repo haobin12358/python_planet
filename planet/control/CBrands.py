@@ -221,11 +221,10 @@ class CBrands(object):
                             'PBid': pbid
                         })
                         s_list.append(brand_with_pbitem_instance)
-            # 删除
-            if old_item_id:
-                s.query(BrandWithItems).filter_(BrandWithItems.ITid.notin_(old_item_id),
-                                                BrandWithItems.PBid == pbid,
-                                                BrandWithItems.isdelete == False).delete_(synchronize_session=False)
+                # 删除
+                s.query(BrandWithItems).filter_(BrandWithItems.ITid.notin_(itids),
+                                                    BrandWithItems.PBid == pbid,
+                                                    BrandWithItems.isdelete == False).delete_(synchronize_session=False)
             s.add_all(s_list)
         return Success('更新成功')
 
