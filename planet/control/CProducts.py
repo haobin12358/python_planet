@@ -435,6 +435,7 @@ class CProducts:
                             'SKUpic': sku.get('skupic'),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             'SKUstock': int(skustock),
+                            'SKUprice': sku.get('skuprice'),
                             'SKUsn': sku.get('skusn')
                         })
                         session_list.append(sku_instance)
