@@ -11,7 +11,7 @@ from flask import request
 from planet.common.base_service import get_session
 from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
-    GuessNumAwardStatus, TrialCommodityStatus
+    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
@@ -776,6 +776,26 @@ class CApproval(BASEAPPROVAL):
             pass
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
+
+    @token_required
+    def list_approval_notes(self):
+        """查看审批流水"""
+        data = parameter_required()
+        approval = Approval.query.filter(
+            Approval.isdelete == False,
+            Approval.PTid == data.get('ptid'),
+            Approval.AVcontent == data.get('avcontent')
+        ).first_('不存在审批')
+        approval_notes = ApprovalNotes.query.filter(
+            ApprovalNotes.isdelete == False,
+            ApprovalNotes.AVid == approval.AVid
+        ).order_by(ApprovalNotes.createtime.desc()).all()
+        approval.fill('notes', approval_notes)
+        for approval_note in approval_notes:
+            approval_note.add('createtime')
+        #     approval_note.fill('ANfrom_zh', ApplyFrom(approval_note.ANfrom).zh_value)
+            approval_note.fill('ANaction_zh', ApprovalAction(approval_note.ANaction).zh_value)
+        return Success(data=approval)
 
     def agree_cash(self, approval_model):
         if not approval_model:
