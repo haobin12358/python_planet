@@ -153,7 +153,8 @@ class CApproval(BASEAPPROVAL):
         if not is_hign_level_admin():
             raise AuthorityError("不是超级管理员")
 
-        data = parameter_required(('piid', 'ptid', 'pelevel'))
+        # data = parameter_required(('piid', 'ptid', 'pelevel'))
+        data = parameter_required(('piid', 'ptid',))
 
         admin = Admin.query.filter_by_(ADid=request.user.id).first()
         if not admin:
@@ -186,19 +187,23 @@ class CApproval(BASEAPPROVAL):
                 # 'PNcontent': data.get('peid'),
                 db.session.add(PermissionNotes.create(ptn))
                 return Success('权限变更成功')
-
+        pelevel_model = Permission.query.filter_by_(PTid=data.get('ptid')).order_by(Permission.PELevel.desc()).first()
+        if not pelevel_model:
+            pelevel = 0
+        else:
+            pelevel = pelevel_model.PELevel + 1
         # 插入操作
         permission_instence = Permission.create({
             "PEid": str(uuid.uuid1()),
             "PIid": data.get("piid"),
             "PTid": data.get("ptid"),
-            "PELevel": data.get("pelevel")
+            "PELevel": pelevel
         })
         db.session.add(permission_instence)
         # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
         #     pt_after.PTname, data.get("pelevel"))
         ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
-            pt_after.PTname, data.get("pelevel"), pi_after.PIname))
+            pt_after.PTname, pelevel, pi_after.PIname))
         ptn.setdefault('PNcontent', permission_instence.PEid)
         db.session.add(PermissionNotes.create(ptn))
         return Success('创建权限成功', data={'peid': permission_instence.PEid})
@@ -547,7 +552,8 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def add_pi_and_pe_and_ap(self):
         admin = Admin.query.filter_by_(ADid=request.user.id).first_('管理员权限被回收')
-        data = parameter_required(('piname', 'ptid', 'pelevel', 'ad_list'))
+        # data = parameter_required(('piname', 'ptid', 'pelevel', 'ad_list'))
+        data = parameter_required(('piname', 'ptid', 'ad_list'))
         pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型已失效')
         ad_list = data.get('ad_list')
         if not isinstance(ad_list, list):
@@ -570,10 +576,15 @@ class CApproval(BASEAPPROVAL):
             db.session.add(pi)
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
+        pelevel = data.get('pelevel')
+        if not pelevel:
+            pelevel_model = Permission.query.filter_by_(PTid=data.get('ptid')).order_by(Permission.PELevel.desc()).first()
+            pelevel = pelevel_model.PElevel + 1
+
         if not pe:
             pe = Permission.create({
                 'PEid': str(uuid.uuid1()),
-                'PELevel': int(data.get('pelevel')),
+                'PELevel': int(pelevel),
                 'PIid': pi.PIid,
                 'PTid': pt.PTid
             })
@@ -585,7 +596,7 @@ class CApproval(BASEAPPROVAL):
                 'PNcontent': pe.PEid,
                 'PNType': PermissionNotesType.pe.value,
                 'PINaction': '创建 {2} 权限 {0} 等级 {1}'.format(
-                pt.PTname, data.get("pelevel"), pi.PIname),
+                pt.PTname, pelevel, pi.PIname),
             }
             db.session.add(PermissionNotes.create(ptn_pe))
             # ptn.setdefault('PNType', PermissionNotesType.pe.value)
@@ -917,6 +928,11 @@ class CApproval(BASEAPPROVAL):
         #     approval_note.fill('ANfrom_zh', ApplyFrom(approval_note.ANfrom).zh_value)
             approval_note.fill('ANaction_zh', ApprovalAction(approval_note.ANaction).zh_value)
         return Success(data=approval)
+
+    @get_session
+    @token_required
+    def delete_approval(self):
+        pass
 
     def agree_cash(self, approval_model):
         if not approval_model:
