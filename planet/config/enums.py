@@ -251,10 +251,11 @@ class GuessNumAwardStatus(Enum):
 
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
+    cancel = -10, '已取消'
     upper = 0, '上架中'
-    off_shelves = 10, '已下架'
+    # off_shelves = 10, '已下架'
     auditing = 20, '审核中'
-    reject = 30, '审核失败'
+    reject = 30, '已下架'
     sell_out = 40, '已售罄'
     all = None
 
