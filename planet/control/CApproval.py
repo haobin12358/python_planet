@@ -491,8 +491,9 @@ class CApproval(BASEAPPROVAL):
                 if pe:
                     pi.fill('pelevel', pe.PELevel)
                     pi.fill('peid', pe.PEid)
-                    adp_list = AdminPermission.query.filter_by_(PIid=pi.PIid).all()
-                    pi.fill('adp_list', [adp.ADPid for adp in adp_list])
+
+                adp_list = AdminPermission.query.filter_by_(PIid=pi.PIid).all()
+                pi.fill('adp_list', [adp.ADPid for adp in adp_list])
 
             pt.fill('pi', pi_list)
         return Success('获取所有标签成功', pt_list)
@@ -547,8 +548,30 @@ class CApproval(BASEAPPROVAL):
             PermissionItems.PIid == Permission.PIid, Permission.PTid == data.get('ptid')).all()
         for pi in pi_list:
             # pi_list.append(pi)
-            pi.fill('admin', Admin.query.filter(
-                AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == pi.PIid).all())
+            pe = Permission.query.filter_by_(PIid=pi.PIid, PTid=pt.PTid).first()
+            if pe:
+                pi.fill('pelevel', pe.PELevel)
+                pi.fill('peid', pe.PEid)
+            # adp_list = AdminPermission.query.filter_by_(PIid=pi.PIid).all()
+            # pi.fill('adp_list', [adp.ADPid for adp in adp_list])
+            ad_list = Admin.query.filter(
+                AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == pi.PIid).all()
+            for ad in ad_list:
+                ad.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
+                ad.fill('adlevel', AdminLevel(ad.ADlevel).zh_value)
+                ad.fill('adstatus', AdminStatus(ad.ADstatus).zh_value)
+                ad.fill('adpassword', '*' * 6)
+                adp = AdminPermission.query.filter_by_(ADid=ad.ADid, PIid=data.get('piid')).first()
+                ad.fill('adpid', adp.ADPid)
+                ad_login = UserLoginTime.query.filter_by_(
+                    USid=ad.ADid, ULtype=UserLoginTimetype.admin.value).order_by(
+                    UserLoginTime.createtime.desc()).first()
+                logintime = None
+                if ad_login:
+                    logintime = ad_login.createtime
+                ad.fill('logintime', logintime)
+            pi.fill('admin', ad_list)
+
         # pt.fill('pm', pe_list)
         # pt.fill('item', pi_list)
         return Success('获取审批；类型详情成功', data={'permission': pe_list, 'permissionitem': pi_list})
@@ -665,7 +688,8 @@ class CApproval(BASEAPPROVAL):
         # 填充上架申请
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+
             content = Products.query.filter_by_(PRid=ap.AVcontent).first()
             if not start_model or not content:
                 # ap_list.remove(ap)
@@ -681,8 +705,10 @@ class CApproval(BASEAPPROVAL):
         # 填充商品详情
         if not product:
             return
-        product.PRattribute = json.loads(product.PRattribute)
-        product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+        if isinstance(product.PRattribute, str):
+            product.PRattribute = json.loads(product.PRattribute)
+        if isinstance(getattr(product, 'PRremarks') or '{}', str):
+            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
         pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
         if skuid:
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
@@ -701,7 +727,8 @@ class CApproval(BASEAPPROVAL):
 
         sku_value_item = []
         for sku in skus:
-            sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            if isinstance(sku.SKUattriteDetail, str):
+                sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
 
         sku_value_instance = ProductSkuValue.query.filter_by_({'PRid': product.PRid}).first()
@@ -717,7 +744,9 @@ class CApproval(BASEAPPROVAL):
                 sku_value_item_reverse.append(temp)
         else:
             sku_value_item_reverse = []
-            pskuvalue = json.loads(sku_value_instance.PSKUvalue)
+            pskuvalue = sku_value_instance.PSKUvalue
+            if isinstance(sku_value_instance.PSKUvalue, str):
+                pskuvalue = json.loads(sku_value_instance.PSKUvalue)
             for index, value in enumerate(pskuvalue):
                 sku_value_item_reverse.append({
                     'name': product.PRattribute[index],
@@ -796,7 +825,8 @@ class CApproval(BASEAPPROVAL):
             content.fill("zh_remarks", "{0}天{1}元".format(content.TCdeadline, int(content.TCdeposit)))
             prbrand = ProductBrand.query.filter_by_(PBid=content.PBid).first()
             content.fill('brand', prbrand)
-            content.TCattribute = json.loads(content.TCattribute)
+            if isinstance(content.TCattribute, str):
+                content.TCattribute = json.loads(content.TCattribute)
             content.fill('zh_tcstatus', TrialCommodityStatus(content.TCstatus).zh_value)
             content.hide('CreaterId', 'PBid')
             # 商品图片
@@ -807,7 +837,8 @@ class CApproval(BASEAPPROVAL):
             skus = TrialCommoditySku.query.filter_by_(TCid=ap.AVcontent).all()
             sku_value_item = []
             for sku in skus:
-                sku.SKUattriteDetail = json.loads(getattr(sku, 'SKUattriteDetail') or '[]')
+                if isinstance(getattr(sku, 'SKUattriteDetail') or '[]', str):
+                    sku.SKUattriteDetail = json.loads(getattr(sku, 'SKUattriteDetail') or '[]')
                 sku.SKUprice = content.TCdeposit
                 sku_value_item.append(sku.SKUattriteDetail)
                 content.fill('skus', skus)
@@ -825,7 +856,10 @@ class CApproval(BASEAPPROVAL):
                     sku_value_item_reverse.append(combination)
             else:
                 sku_value_item_reverse = []
-                tskuvalue = json.loads(sku_value_instance.TSKUvalue)
+                tskuvalue = sku_value_instance.TSKUvalue
+                if isinstance(sku_value_instance.TSKUvalue, str):
+                    tskuvalue = json.loads(sku_value_instance.TSKUvalue)
+
                 for index, value in enumerate(tskuvalue):
                     sku_value_item_reverse.append({
                         'name': content.TCattribute[index],
@@ -937,7 +971,11 @@ class CApproval(BASEAPPROVAL):
     @get_session
     @token_required
     def delete_approval(self):
-        data = parameter_required(('aptype'))
+        data = parameter_required(('aptype', 'apid'))
+        # aptype = PermissionNotesType(data.get('aptype')).value
+        # if aptype == PermissionNotesType.pi.value:
+        pass
+
 
 
     def agree_cash(self, approval_model):

@@ -502,6 +502,7 @@ class PermissionNotesType(Enum):
     pt = 1, '审批流类型'
     pi = 0, '权限标签'
     pe = 2, '审批流处理身份及层级'
+    adp = 3, '标签关联管理员'
 
 
 class UserMediaType(Enum):
