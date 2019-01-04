@@ -168,6 +168,8 @@ def auto_agree_task(avid):
         if approval:
             current_app.logger.info('5分钟自动同意')
             current_app.logger.info(dict(approval))
+        else:
+            current_app.logger.info('该审批已提前处理')
         cacpproval.agree_action(approval)
 
 
