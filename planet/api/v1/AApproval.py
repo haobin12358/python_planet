@@ -17,6 +17,7 @@ class Aapproval(Resource):
             # 'deal_approval': self.approval.deal_approval,
             'cancel': self.approval.cancel,
             'add_adminpermission': self.approval.add_adminpermission,
+            'add_pi_and_pe_and_ap': self.approval.add_pi_and_pe_and_ap,
             # 'create': self.approval.create,
         }
         return apis
@@ -30,6 +31,7 @@ class Aapproval(Resource):
             'get_approval_list': self.approval.get_approval_list,
             'get_all_permissiontype': self.approval.get_all_permissiontype,
             'get_permissionitem': self.approval.get_permissionitem,
+            'get_permissiontype': self.approval.get_permissiontype,
             # 'get_submit_approval': self.approval.get_submit_approval,
 
             'get_approvalnotes': self.approval.get_approvalnotes,

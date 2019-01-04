@@ -495,15 +495,114 @@ class CApproval(BASEAPPROVAL):
 
         pt_list = PermissionType.query.filter_by_().all()
         for pt in pt_list:
-            pe = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+            pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+            pe_list = []
+            # ad_list = []
+            for pe in pe_level_list:
+                pe_item_list = Permission.query.filter_by_(PELevel=pe.PELevel).all()
+                for pe_item in pe_item_list:
+                    pi = PermissionItems.query.filter_by_(PIid=pe_item.PIid).first()
 
-            pt.fill('pemission', pe)
-
+                    if pi:
+                        pe_item.fill('piname', pi.PIname)
+                pe_list.append({'pelevel': pe.PELevel, 'permission': pe_item_list})
+            # pi_list = PermissionItems.query.filter(PermissionItems.PIid == pe.PIid)
+            pt.fill('pemission', pe_list)
+            # pi_list = PermissionItems.query()
         return Success('获取所有审批流类型成功', data=pt_list)
 
-    # @get_session
-    # @token_required
-    # def get_permissionitem(self):
+    @get_session
+    @token_required
+    def get_permissiontype(self):
+        data = parameter_required(('ptid', ))
+        pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('参数异常')
+        pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+        pe_list = []
+        pe_level_list = [pelevel.PELevel for pelevel in pe_level_list]
+        # pe_level_list = [1,2,3]
+        # ad_list = []
+        # pi_list = PermissionItems.query.filter(
+        #     Permission.PIid == PermissionItems.PIid, Permission.PTid == data.get('ptid')
+        # ).all()
+        for pe_level in pe_level_list:
+            pe_item_list = Permission.query.filter_by_(PELevel=pe_level, PTid=data.get('ptid')).all()
+            for pe_item in pe_item_list:
+                pi = PermissionItems.query.filter_by_(PIid=pe_item.PIid).first()
+                if pi:
+                    name = pi.PIname
+                    pe_item.fill('piname', name)
+            pe_list.append({'pe_level': pe_level, 'permission': pe_item_list})
+
+        pi_list = PermissionItems.query.filter(
+            PermissionItems.PIid == Permission.PIid, Permission.PTid == data.get('ptid')).all()
+        for pi in pi_list:
+            # pi_list.append(pi)
+            pi.fill('admin', Admin.query.filter(
+                AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == pi.PIid).all())
+        # pt.fill('pm', pe_list)
+        # pt.fill('item', pi_list)
+        return Success('获取审批；类型详情成功', data={'permission': pe_list, 'permissionitem': pi_list})
+
+    @get_session
+    @token_required
+    def add_pi_and_pe_and_ap(self):
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_('管理员权限被回收')
+        data = parameter_required(('piname', 'ptid', 'pelevel', 'ad_list'))
+        pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型已失效')
+        ad_list = data.get('ad_list')
+        if not isinstance(ad_list, list):
+            raise ParamsError('管理员添加异常')
+        piname = self.__trim_string(data.get('piname'))
+        pi = PermissionItems.query.filter_by_(PIname=piname).first()
+        # ptn = {
+        #     'PNid': str(uuid.uuid1()),
+        #     'ADid': admin.ADid,
+        # }
+        if not pi:
+            pi = PermissionItems.create({'PIname': piname, 'PIid': str(uuid.uuid1())})
+            ptn_pi = {
+                'PNid': str(uuid.uuid1()),
+                'ADid': admin.ADid,
+                'PNcontent': pi.PIid,
+                'PNType': PermissionNotesType.pi.value,
+                'PINaction': '创建权限标签{}'.format(pi.PIname),
+            }
+            db.session.add(pi)
+            db.session.add(PermissionNotes.create(ptn_pi))
+        pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
+        if not pe:
+            pe = Permission.create({
+                'PEid': str(uuid.uuid1()),
+                'PELevel': int(data.get('pelevel')),
+                'PIid': pi.PIid,
+                'PTid': pt.PTid
+            })
+            db.session.add(pe)
+            # 'PNType': PermissionNotesType.pi.value
+            ptn_pe = {
+                'PNid': str(uuid.uuid1()),
+                'ADid': admin.ADid,
+                'PNcontent': pe.PEid,
+                'PNType': PermissionNotesType.pe.value,
+                'PINaction': '创建 {2} 权限 {0} 等级 {1}'.format(
+                pt.PTname, data.get("pelevel"), pi.PIname),
+            }
+            db.session.add(PermissionNotes.create(ptn_pe))
+            # ptn.setdefault('PNType', PermissionNotesType.pe.value)
+            # ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
+        adp_instance_list = []
+        for ad in ad_list:
+            adp_check = AdminPermission.query.filter_by_(ADid=ad, PIid=pi.PIid).first()
+            if adp_check:
+                continue
+            adp = AdminPermission.create({
+                'ADPid': str(uuid.uuid1()),
+                'ADid': ad,
+                'PIid': pi.PIid
+            })
+            adp_instance_list.append(adp)
+        db.session.add_all(adp_instance_list)
+        return Success('创建审批类型成功')
 
     def __fill_publish(self, ap_list):
         """填充资讯发布"""
