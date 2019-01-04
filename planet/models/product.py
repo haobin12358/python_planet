@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL, BIGINT
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
 
@@ -21,7 +22,7 @@ class Products(Base):
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     PCid = Column(String(64), comment='分类id')
     PBid = Column(String(64), comment='品牌id')
-    PRdesc = Column(Text, comment='商品详细介绍', url_list=True)
+    PRdesc = Column(LONGTEXT, comment='商品详细介绍', url_list=True)
     PRremarks = Column(String(255), comment='备注')
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
     PRdescription = Column(Text, comment='商品描述')

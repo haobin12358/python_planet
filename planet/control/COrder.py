@@ -121,7 +121,7 @@ class COrder(CPay, CCoupon):
                 order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
                 order_part.PRattribute = json.loads(order_part.PRattribute)
                 # 状态
-                if is_supplizer() or is_admin() and order_part.OPisinORA:
+                if (is_supplizer() or is_admin()) and order_part.OPisinORA:
                     order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
                     self._fill_order_refund(order_part, order_refund_apply_instance, False)
                 # 如果是试用商品，订单信息中添加押金到期信息
@@ -751,7 +751,7 @@ class COrder(CPay, CCoupon):
             filter_args.append(OrderMain.USid == usid)
         if is_supplizer():
             # 是卖家, 卖家订单显示有问题..
-            filter_args.append(OrderMain.PRcreateId == usid)
+            filter_args.append(OrderMain.PRcreateId == request.user.id)
         # 获取各类活动下的订单数量
         if ordertype == 'act':
             act_value = [getattr(ActivityOrderNavigation, k).value for k in ActivityOrderNavigation.all_member()]
@@ -804,18 +804,16 @@ class COrder(CPay, CCoupon):
                     refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
                                                            OrderMain.USid == usid,
                                                            OrderMain.isdelete == False,
-                                                           OrderMain.OMfrom.in_(
-                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]
-                                                           )).distinct().count()
+                                                           OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                           *filter_args).distinct().count()
                 else:
                     refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
                         OrderMain.isdelete == False,
                         or_(and_(OrderPart.isdelete == False,
                                  OrderPart.OPisinORA == True),
                             (OrderMain.OMinRefund == True)),
-                        OrderMain.OMfrom.in_(
-                            [OrderFrom.carts.value, OrderFrom.product_info.value]
-                        )).distinct().count()
+                        OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                    *filter_args).distinct().count()
                 data.append(  #
                     {
                         'count': refund_count,
