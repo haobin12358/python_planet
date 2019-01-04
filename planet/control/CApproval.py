@@ -922,7 +922,7 @@ class CApproval(BASEAPPROVAL):
             Approval.isdelete == False,
             Approval.PTid == data.get('ptid'),
             Approval.AVcontent == data.get('avcontent')
-        ).first_('不存在审批')
+        ).order_by(Approval.createtime.desc()).first_('不存在审批')
         approval_notes = ApprovalNotes.query.filter(
             ApprovalNotes.isdelete == False,
             ApprovalNotes.AVid == approval.AVid
@@ -930,7 +930,6 @@ class CApproval(BASEAPPROVAL):
         approval.fill('notes', approval_notes)
         for approval_note in approval_notes:
             approval_note.add('createtime')
-        #     approval_note.fill('ANfrom_zh', ApplyFrom(approval_note.ANfrom).zh_value)
             approval_note.fill('ANaction_zh', ApprovalAction(approval_note.ANaction).zh_value)
         return Success(data=approval)
 
