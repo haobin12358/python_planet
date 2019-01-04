@@ -302,6 +302,8 @@ class CApproval(BASEAPPROVAL):
             ad.fill('adlevel', AdminLevel(ad.ADlevel).zh_value)
             ad.fill('adstatus', AdminStatus(ad.ADstatus).zh_value)
             ad.fill('adpassword', '*' * 6)
+            adp = AdminPermission.query.filter_by_(ADid=ad.ADid, PIid=data.get('piid')).first()
+            ad.fill('adpid', adp.ADPid)
             ad_login = UserLoginTime.query.filter_by_(
                 USid=ad.ADid, ULtype=UserLoginTimetype.admin.value).order_by(UserLoginTime.createtime.desc()).first()
             logintime = None
@@ -488,6 +490,9 @@ class CApproval(BASEAPPROVAL):
                 pe = Permission.query.filter_by_(PIid=pi.PIid, PTid=pt.PTid).first()
                 if pe:
                     pi.fill('pelevel', pe.PELevel)
+                    pi.fill('peid', pe.PEid)
+                    adp_list = AdminPermission.query.filter_by_(PIid=pi.PIid).all()
+                    pi.fill('adp_list', [adp.ADPid for adp in adp_list])
 
             pt.fill('pi', pi_list)
         return Success('获取所有标签成功', pt_list)
@@ -932,7 +937,8 @@ class CApproval(BASEAPPROVAL):
     @get_session
     @token_required
     def delete_approval(self):
-        pass
+        data = parameter_required(('aptype'))
+
 
     def agree_cash(self, approval_model):
         if not approval_model:
