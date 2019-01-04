@@ -1150,7 +1150,13 @@ class CUser(SUser, BASEAPPROVAL):
                 superadmin.ADlevel != AdminLevel.super_admin.value or\
                 superadmin.ADstatus != AdminStatus.normal.value:
             raise AuthorityError('当前非超管权限')
-        admins = self.get_admins()
+        args = request.args.to_dict()
+        page = args.get('page_num')
+        count = args.get('page_size')
+        if page and count:
+            admins = self.get_admins()
+        else:
+            admins = Admin.query.filter_by_().order_by(Admin.createtime.desc()).all()
         for admin in admins:
             admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
