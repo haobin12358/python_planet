@@ -6,17 +6,17 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_
 
-from planet.common.error_response import ParamsError, AuthorityError
+from planet.common.error_response import ParamsError, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
-from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom
+from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderMain, OrderPay, TrialCommoditySkuValue, \
-    Admin
+    Admin, Supplizer, Approval
 
 
 class CTrialCommodity(COrder, BASEAPPROVAL):
@@ -33,6 +33,12 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             current_app.logger.info('Admin {0} get commodity list'.format(admin.ADname))
             tourist = 'admin'
             time_filter = tuple()
+        elif is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} get commodity list'.format(sup.SUname))
+            time_filter = (TrialCommodity.CreaterId == usid,)
+            tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self._verify_user(usid)
@@ -44,7 +50,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         args = parameter_required(('page_num', 'page_size'))
         kw = args.get('kw', '').split() or ['']
         tcstatus = args.get('tcstatus', 'upper')
-        if str(tcstatus) not in ['upper', 'off_shelves', 'auditing', 'all']:
+        if str(tcstatus) not in ['upper', 'auditing', 'cancel', 'sell_out', 'all']:
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
         commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
@@ -52,17 +58,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                                                           ),
                                                       TrialCommodity.isdelete == False,
                                                       TrialCommodity.TCstatus == tcstatus,
-                                                      *time_filter).all_with_page()
+                                                      *time_filter).order_by(TrialCommodity.createtime.desc()).all_with_page()
         for commodity in commodity_list:
-            # commodity.fields = ['TCid', 'TCtitle', 'TCdescription', 'TCdeposit', 'TCmainpic']
-            # mouth = round(commodity.TCdeadline / 31)
-            # 押金天数处理
-            # deadline = commodity.TCdeadline
-            # remainder_day = deadline % 31
-            # day_deadline = '{}天'.format(remainder_day) if remainder_day > 0 else ''
-            # remainder_mouth = deadline // 31
-            # mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
-            # commodity.fill('zh_remarks', mouth_deadline + day_deadline + "{}元".format(int(commodity.TCdeposit)))
             commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, int(commodity.TCdeposit)))
             prbrand = ProductBrand.query.filter_by_(PBid=commodity.PBid).first()
             commodity.fill('brand', prbrand)
@@ -88,6 +85,11 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             admin = self._check_admin(usid)
             current_app.logger.info('Admin {} get commodity details'.format(admin.ADname))
             tourist = 'admin'
+        elif is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} get commodity details'.format(sup.SUname))
+            tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self._verify_user(usid)
@@ -150,7 +152,17 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
 
     def add_commodity(self):
         """添加试用商品"""
-        if not (is_supplizer() or is_admin()):
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} creat commodity'.format(sup.SUname))
+            tcfrom = ApplyFrom.supplizer.value
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} creat commodity'.format(admin.ADname))
+            tcfrom = ApplyFrom.platform.value
+        else:
             raise AuthorityError()
         data = parameter_required(('tctitle', 'tcdescription', 'tcdeposit', 'tcdeadline', 'tcfreight',
                                    'tcmainpic', 'tcattribute', 'tcdesc', 'pbid', 'images', 'skus',
@@ -162,7 +174,6 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         tcdesc = data.get('tcdesc')
         tcdeposit = data.get('tcdeposit')
         # tcstocks = data.get('tcstocks')
-        tcfrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
 
         tcstocks = 0
         pbid = data.get('pbid')
@@ -249,9 +260,19 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
         return Success("添加成功", {'tcid': tcid})
 
-    @admin_required
     def update_commodity(self):
         """修改试用商品"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} update commodity'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} update commodity'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
         data = parameter_required(('tcid', 'tctitle', 'tcdescription', 'tcdeposit', 'tcdeadline', 'tcfreight',
                                    'tcmainpic', 'tcattribute', 'tcdesc', 'pbid', 'images', 'skus',
                                    'tskuvalue', 'applystarttime', 'applyendtime'
@@ -266,7 +287,9 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         skus = data.get('skus')
         tskuvalue = data.get('tskuvalue')
         tcid = data.get('tcid')
-        commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到该试用商品信息')  # todo 审核中或拒绝能否修改
+        commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到该试用商品信息')
+        if sup:
+            assert commodity.CreaterId == usid, '供应商只能修改自己上传的商品'
         if not isinstance(images, list) or not isinstance(skus, list):
             raise ParamsError('images/skus, 参数错误')
         ProductBrand.query.filter_by_(PBid=pbid).first_('未找到该品牌信息')
@@ -359,7 +382,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                     'TCdeadline': data.get('tcdeadline'),  # 暂时先按天为单位
                     'TCfreight': data.get('tcfreight'),
                     'TCstocks': tcstocks,
-                    'TCstatus': TrialCommodityStatus.auditing.value,
+                    # 'TCstatus': TrialCommodityStatus.auditing.value,  # 修改时状态暂不做更改，重新添加个单独提交的接口
                     'TCmainpic': data.get('tcmainpic'),
                     'TCattribute': json.dumps(tcattribute or '[]'),
                     'TCdesc': tcdesc or [],
@@ -373,12 +396,105 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             db.session.add_all(session_list)
         return Success('修改成功', {'tcid': tcid})
 
-    @admin_required
+    def cancel_commodity_apply(self):
+        """撤销自己的申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} cancel commodity'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} cancel commodity'.format(admin.ADname))
+        else:
+            raise AuthorityError()
+        data = parameter_required(('tcid',))
+        tcid = data.get('tcid')
+        with db.auto_commit():
+            commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('无此商品信息')
+            if commodity.TCstatus != TrialCommodityStatus.auditing.value:
+                raise StatusError('只有在审核状态的申请可以撤销')
+            if commodity.CreaterId != request.user.id:
+                raise AuthorityError('仅可撤销自己提交的申请')
+            commodity.TCstatus = TrialCommodityStatus.cancel.value
+            # 同时将正在进行的审批流改为取消
+            approval_info = Approval.query.filter_by_(AVcontent=tcid, AVstartid=request.user.id,
+                                                      AVstatus=ApplyStatus.wait_check.value).first()
+            approval_info.AVstatus = ApplyStatus.cancle.value
+        return Success('取消成功', {'tcid': tcid})
+
+    def shelves(self):
+        """批量下架试用商品"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} shelves commodity'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} shelves commodity'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(("tcids",))
+        tcid_list = data.get('tcids')
+        for tcid in tcid_list:
+            commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到商品信息, tcid参数异常')
+            if sup:
+                assert commodity.CreaterId == usid, '供应商只能下架自己上传的商品'
+            if commodity.TCstatus != TrialCommodityStatus.upper.value:
+                raise StatusError('只能下架正在上架状态的商品')
+            with db.auto_commit():
+                commodity.TCstatus = TrialCommodityStatus.reject.value
+        return Success('下架成功', {'tcid': tcid_list})
+
+    def resubmit_apply(self):
+        """重新提交申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} resubmit commodity'.format(sup.SUname))
+            nefrom = ApplyFrom.supplizer.value
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} resubmit commodity'.format(admin.ADname))
+            nefrom = ApplyFrom.platform.value
+        else:
+            raise AuthorityError()
+        data = parameter_required(('tcid',))
+        tcid = data.get('tcid')
+        with db.auto_commit():
+            commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('无此商品信息')
+            if commodity.TCstatus not in [TrialCommodityStatus.cancel.value, TrialCommodityStatus.reject.value]:
+                raise StatusError('只有撤销或已下架状态的申请可以重新提交')
+            if commodity.CreaterId != usid:
+                raise AuthorityError('仅可重新提交的自己上传的商品')
+            commodity.TCstatus = TrialCommodityStatus.auditing.value
+            # 重新创建一个审批流
+            super().create_approval('totrialcommodity', usid, tcid, nefrom)
+        return Success('提交成功', {'tcid': tcid})
+
     def del_commodity(self):
         """删除试用商品"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} delete commodity'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} delete commodity'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
         data = parameter_required(("tcid",))
         tcid = data.get('tcid')
-        TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到商品信息, tcid参数异常')
+        commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('未找到商品信息, tcid参数异常')
+        if sup:
+            assert commodity.CreaterId == usid, '供应商只能删除自己上传的商品'
+        if commodity.TCstatus not in [TrialCommodityStatus.reject.value, TrialCommodityStatus.cancel.value]:
+            raise StatusError('只能删除已下架或已撤销的商品')
         with db.auto_commit():
             TrialCommodity.query.filter_by(TCid=tcid).delete_()
             TrialCommodityImage.query.filter_by(TCid=tcid).delete_()
@@ -508,4 +624,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
 
     @staticmethod
     def _check_admin(usid):
-        return Admin.query.filter_by_(ADid=usid).first_('用户不存在')
+        return Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
+
+    @staticmethod
+    def _check_supplizer(usid):
+        return Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')

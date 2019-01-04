@@ -908,6 +908,8 @@ class CApproval(BASEAPPROVAL):
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
         tc.TCstatus = TrialCommodityStatus.upper.value
+        tc.AgreeStartTime = tc.ApplyStartTime
+        tc.AgreeEndTime = tc.ApplyEndTime  # todo 同意时自动填写申请时间，后期可能需要管理同意时输入灵活时间
 
     def refuse_trialcommodity(self, approval_model, refuse_abo):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
