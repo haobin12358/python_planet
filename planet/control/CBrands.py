@@ -151,7 +151,7 @@ class CBrands(object):
     @token_required
     def off_shelves(self):
         """上下架"""
-        data = parameter_required(('pbid', 'up'))
+        data = parameter_required(('pbid', ))
         pbid = data.get('pbid')
         pbstatus = data.get('pbstatus', 'up')
         with self.sproduct.auto_commit() as s:
@@ -221,9 +221,10 @@ class CBrands(object):
                             'PBid': pbid
                         })
                         s_list.append(brand_with_pbitem_instance)
-            # 删除
-            if old_item_id:
-                s.query(BrandWithItems).filter_(BrandWithItems.ITid.in_(old_item_id)).delete_(synchronize_session=False)
+                # 删除
+                s.query(BrandWithItems).filter_(BrandWithItems.ITid.notin_(itids),
+                                                    BrandWithItems.PBid == pbid,
+                                                    BrandWithItems.isdelete == False).delete_(synchronize_session=False)
             s.add_all(s_list)
         return Success('更新成功')
 

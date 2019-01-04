@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 
+from planet.common.error_response import StatusError
 from planet.config.enums import ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
@@ -97,6 +98,11 @@ class CItems:
         form = ItemUpdateForm().valid_data()
         psid = form.psid.data
         itid = form.itid.data
+        isdelete = form.isdelete.data
+        if itid in ['index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand', 'index_brand_product',
+                    'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
+            raise StatusError('系统默认标签不能被删除')
+
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
         with db.auto_commit():
             item_dict = {'ITname': form.itname.data,
@@ -104,7 +110,7 @@ class CItems:
                          'ITdesc': form.itdesc.data,
                          'ITtype': form.ittype.data,
                          'ITrecommend': form.itrecommend.data,
-                         'isdelete': form.isdelete.data
+                         'isdelete': isdelete
                          }
             # item_dict = {k: v for k, v in item_dict.items() if v is not None}
             Items.query.filter_by_(ITid=itid).update(item_dict)

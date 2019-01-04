@@ -39,15 +39,6 @@ def make_items():
         })
         s_list.append(news_bind_coupon)
 
-        new_user_items = Items.create({  # 新人推荐标签
-            'ITid': 'new_user',
-            'ITname': '新人商品',
-            'ITdesc': '这是新人才可享受的商品标签',
-            'ITtype': ItemType.product.value,
-            'ITauthority': ItemAuthrity.new_user.value,
-            'ITposition': ItemPostion.new_user_page.value
-        })
-        s_list.append(new_user_items)
         index_brands_items = Items.create({
             'ITid': 'index_brand',
             'ITname': '品牌推荐',
@@ -79,8 +70,6 @@ def make_items():
             'ITauthority': ItemPostion.other.value,
         })
 
-        # s_list.append(guess_num_award)
-        db.session.add_all(s_list)
         s_list.append(upgrade_product)
         db.session.add_all(s_list)
 
@@ -204,11 +193,12 @@ if __name__ == '__main__':
     #             pt = ap.AVname.split('2018')[0]
     #             ap.PTid = pt
         pass
+        make_items()
 
 
         # make_items()
         # make_commsion()
         # make_acvitity()
-        make_permissiontype()
+        # make_permissiontype()
 
 

@@ -35,6 +35,7 @@ class Aapproval(Resource):
             # 'get_submit_approval': self.approval.get_submit_approval,
 
             'get_approvalnotes': self.approval.get_approvalnotes,
+            'list_approval_notes': self.approval.list_approval_notes,
         }
         return apis
 

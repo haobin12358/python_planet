@@ -22,8 +22,9 @@ class CIndex:
         data = {
             'brands': ProductBrand.query.join(
                 BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid
-            ).filter_(BrandWithItems.ITid == 'index_brand',
-                      ProductBrand.isdelete == False).all(),
+            ).filter(BrandWithItems.ITid == 'index_brand',
+                      ProductBrand.isdelete == False,
+                      ProductItems.isdelete == False).all(),
             'product': self.list_product('index_brand_product'),
             'hot': self.list_product('index_hot'),
             'recommend_for_you': self.list_product('index_recommend_product_for_you'),

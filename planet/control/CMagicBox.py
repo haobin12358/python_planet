@@ -255,7 +255,7 @@ class CMagicBox(CUser, COrder):
             suid = None
         else:
             raise AuthorityError()
-        award_list = MagicBoxApply.query.filter_by_(SUid=suid).all_with_page()
+        award_list = MagicBoxApply.query.filter_by_(SUid=suid).order_by(MagicBoxApply.createtime.desc()).all_with_page()
         for award in award_list:
             award.Gearsone = json.loads(award.Gearsone)
             award.Gearstwo = json.loads(award.Gearstwo)
@@ -277,6 +277,7 @@ class CMagicBox(CUser, COrder):
             else:
                 name = ''
             award.fill('authname', name)
+            award.fill('createtime', award.createtime)
 
         return Success(data=award_list)
 

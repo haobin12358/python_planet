@@ -418,7 +418,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnaaid = data.get('gnaaid')
         with db.auto_commit():
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
-            if apply_info.MBAstatus != ApplyStatus.wait_check.value:
+            if apply_info.GNAAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
             if apply_info.SUid != request.user.id:
                 raise AuthorityError('仅可撤销自己提交的申请')
