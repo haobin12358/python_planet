@@ -159,8 +159,19 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'USid': usid,
                 'GNid': gnid
             }).first_('未参与')
+            guess_num_apply = GuessNumAwardApply.query.filter(
+                GuessNumAwardApply.isdelete == False,
+                GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                GuessNumAwardApply.AgreeStartime <= guess_num.GNdate,
+                GuessNumAwardApply.AgreeEndtime >= guess_num.GNdate,
+            ).first()
+            if guess_num_apply.SKUstock is not None:
+                guess_num_apply.SKUstock -= 1
+                if guess_num_apply.SKUstock < 0:
+                    raise StatusError('库存不足, 活动结束')
+                s_list.append(guess_num_apply)
             price = guess_num.Price
-
+            suid = guess_num_apply.SUid if guess_num_apply.GNAAfrom else None
             # 领奖流水
             guess_award_flow_instance = GuessAwardFlow.query.filter_by_({
                 'GNid': gnid,
@@ -207,6 +218,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
+                'PRcreateId': suid
             }
             order_main_instance = OrderMain.create(order_main_dict)
             s_list.append(order_main_instance)
@@ -242,10 +254,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
             order_pay_instance = OrderPay.create(order_pay_dict)
             s_list.append(order_pay_instance)
             db.session.add_all(s_list)
-
-
-            # todo sku库存变化 取中奖日期匹配 当前通过的申请确定skuid
-
         # 生成支付信息
         body = product_instance.PRtitle
         user = get_current_user()

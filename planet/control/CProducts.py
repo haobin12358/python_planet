@@ -372,12 +372,10 @@ class CProducts:
                     'SUid': request.user.id,
                 }))
             # todo 审批流
-
             s.add_all(session_list)
-        # 5 分钟后自动通过
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,
-                                    )
+        # 5 分钟后自动通过
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
         return Success('添加成功', {'prid': prid})
 
     @token_required
