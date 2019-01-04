@@ -154,10 +154,11 @@ class CFreshManFirstOrder(COrder, CUser):
         ).first_('当前商品未在活动中')
 
         with db.auto_commit():
-            if not fresh_man_sku.FMFPstock or fresh_man_sku.FMFPstock < 0:
-                raise StatusError('库存不足')
-            fresh_man_sku.FMFPstock -= 1
-            db.session.add(fresh_man_sku)
+            if fresh_man_sku.FMFPstock is not None:
+                if fresh_man_sku.FMFPstock < 0:
+                    raise StatusError('库存不足')
+                fresh_man_sku.FMFPstock -= 1
+                db.session.add(fresh_man_sku)
             Activity.query.filter_by_({
                 'ACtype': ActivityType.fresh_man.value,
                 'ACshow': True

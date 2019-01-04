@@ -156,6 +156,11 @@ class CMagicBox(CUser, COrder):
 
         with db.auto_commit():
             magic_box_apply = MagicBoxApply.query.filter_by_({"MBAid": mbaid}).first()
+            if magic_box_apply.SKUstock is not None:
+                magic_box_apply.SKUstock -= 1
+                if magic_box_apply.SKUstock < 0:
+                    raise StatusError('库存不足,活动结束')
+                db.session.flush()
             prid = magic_box_apply.PRid
             skuid = magic_box_apply.SKUid
             price = magic_box_join.MBJcurrentPrice
@@ -180,6 +185,7 @@ class CMagicBox(CUser, COrder):
             # 创建订单
             omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
+            suid = magic_box_apply.SUid if magic_box_apply.MBAfrom else None
             # 主单
             order_main_dict = {
                 'OMid': omid,
@@ -198,7 +204,7 @@ class CMagicBox(CUser, COrder):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
-                'PRcreateId': product.CreaterId,
+                'PRcreateId': suid,
             }
             order_main_instance = OrderMain.create(order_main_dict)
             db.session.add(order_main_instance)
