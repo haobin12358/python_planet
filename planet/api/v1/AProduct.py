@@ -26,6 +26,7 @@ class AProduct(Resource):
             'off_shelves_list': self.cproduct.off_shelves_list,
             'del_search_history': self.cproduct.del_search_history,
             'agree_product': self.cproduct.agree_product,  # 同意审批
+            'resubmit_product': self.cproduct.resubmit_product,  # 重新提交审核
         }
         return apis
 

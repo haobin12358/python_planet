@@ -2,6 +2,8 @@
 from datetime import date
 
 from sqlalchemy import Integer, String, Date, Float, Text, DateTime, Boolean
+from sqlalchemy.dialects.mysql import LONGTEXT
+
 from planet.common.base_model import Base, Column
 
 
@@ -34,14 +36,14 @@ class TrialCommodity(Base):
     TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10 下架, 20 审核中')
     TCmainpic = Column(String(255), comment='主图', url=True)
     TCattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
-    TCdesc = Column(Text, comment='商品详细介绍', url_list=True)
+    TCdesc = Column(LONGTEXT, comment='商品详细介绍', url_list=True)
     TCremarks = Column(String(255), comment='备注')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PBid = Column(String(64), comment='品牌id')
     ApplyStartTime = Column(Date, nullable=False, comment='申请开始时间')
     ApplyEndTime = Column(Date, nullable=False, comment='申请结束时间')
-    AgreeStartTime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
-    AgreeEndTime = Column(Date, comment='最终确认结束时间')
+    AgreeStartTime = Column(Date, default=ApplyStartTime, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndTime = Column(Date, default=ApplyEndTime, comment='最终确认结束时间')
     TCrejectReason = Column(String(125), comment='拒绝理由')
 
 
@@ -116,8 +118,8 @@ class GuessNumAwardApply(Base):
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     GNAArejectReason = Column(String(64), comment='拒绝理由')
-    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
-    AgreeEndtime = Column(Date, comment='最终确认结束时间')
+    AgreeStartime = Column(Date, default=GNAAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, default=GNAAendtime, comment='最终确认结束时间')
 
 
 class MagicBoxApply(Base):
@@ -139,8 +141,8 @@ class MagicBoxApply(Base):
     MBAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     MBArejectReason = Column(String(64), comment='拒绝理由')
-    AgreeStartime = Column(Date, comment='最终确认起始时间')  # 同意之后不可为空
-    AgreeEndtime = Column(Date, comment='最终确认结束时间')
+    AgreeStartime = Column(Date, default=MBAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
+    AgreeEndtime = Column(Date, default=MBAendtime, comment='最终确认结束时间')
 
 
 class MagicBoxJoin(Base):

@@ -54,7 +54,9 @@ class SNews(SBase):
     def get_item_list(self, args, order=()):
         """获取资讯对应的标签"""
         return self.session.query(Items).outerjoin(NewsTag, Items.ITid == NewsTag.ITid).filter_(
-            *args
+            Items.isdelete == False,
+            NewsTag.isdelete == False,
+            * args
         ).order_by(*order).all()
 
     @close_session

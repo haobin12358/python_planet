@@ -763,8 +763,9 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
-            if not start_model or not content:
+            if not (start_model or admin_model) or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -780,8 +781,9 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = MagicBoxApply.query.filter_by_(MBAid=ap.AVcontent).first()
-            if not start_model or not content:
+            if not (start_model or admin_model) or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -797,11 +799,14 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
-            if not start_model or not content:
+            if not (start_model or admin_model) or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
+            if isinstance(content.PRattribute, str):
+                content.PRattribute = json.loads(content.PRattribute)
             product = Products.query.filter_by_(PRid=content.PRid).first()
             self.__fill_product_detail(product)
             content.fill('product', product)
@@ -814,8 +819,9 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = TrialCommodity.query.filter_by_(TCid=ap.AVcontent).first()
-            if not start_model or not content:
+            if not (start_model or admin_model) or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -956,7 +962,7 @@ class CApproval(BASEAPPROVAL):
             Approval.isdelete == False,
             Approval.PTid == data.get('ptid'),
             Approval.AVcontent == data.get('avcontent')
-        ).first_('不存在审批')
+        ).order_by(Approval.createtime.desc()).first_('不存在审批')
         approval_notes = ApprovalNotes.query.filter(
             ApprovalNotes.isdelete == False,
             ApprovalNotes.AVid == approval.AVid
@@ -964,7 +970,6 @@ class CApproval(BASEAPPROVAL):
         approval.fill('notes', approval_notes)
         for approval_note in approval_notes:
             approval_note.add('createtime')
-        #     approval_note.fill('ANfrom_zh', ApplyFrom(approval_note.ANfrom).zh_value)
             approval_note.fill('ANaction_zh', ApprovalAction(approval_note.ANaction).zh_value)
         return Success(data=approval)
 

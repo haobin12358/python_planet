@@ -50,7 +50,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         args = parameter_required(('page_num', 'page_size'))
         kw = args.get('kw', '').split() or ['']
         tcstatus = args.get('tcstatus', 'upper')
-        if str(tcstatus) not in ['upper', 'auditing', 'cancel', 'sell_out', 'all']:
+        if str(tcstatus) not in ['upper', 'auditing', 'reject', 'cancel', 'sell_out', 'all']:
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
         commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
@@ -60,7 +60,11 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                                                       TrialCommodity.TCstatus == tcstatus,
                                                       *time_filter).order_by(TrialCommodity.createtime.desc()).all_with_page()
         for commodity in commodity_list:
-            commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, int(commodity.TCdeposit)))
+            commodity.hide('TCrejectReason')
+            if commodity.TCstatus == TrialCommodityStatus.reject.value:
+                reason = commodity.TCrejectReason or '不符合审核规定，请修改后重新提交'
+                commodity.fill("reject_reason", reason)
+            commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, commodity.TCdeposit))
             prbrand = ProductBrand.query.filter_by_(PBid=commodity.PBid).first()
             commodity.fill('brand', prbrand)
             commodity.TCattribute = json.loads(commodity.TCattribute)
@@ -460,6 +464,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             admin = self._check_admin(usid)
             current_app.logger.info('Admin {} resubmit commodity'.format(admin.ADname))
             nefrom = ApplyFrom.platform.value
+            sup = None
         else:
             raise AuthorityError()
         data = parameter_required(('tcid',))
@@ -468,8 +473,9 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('无此商品信息')
             if commodity.TCstatus not in [TrialCommodityStatus.cancel.value, TrialCommodityStatus.reject.value]:
                 raise StatusError('只有撤销或已下架状态的申请可以重新提交')
-            if commodity.CreaterId != usid:
-                raise AuthorityError('仅可重新提交的自己上传的商品')
+            if sup:
+                if commodity.CreaterId != usid:
+                    raise AuthorityError('仅可重新提交自己上传的商品')
             commodity.TCstatus = TrialCommodityStatus.auditing.value
             # 重新创建一个审批流
             super().create_approval('totrialcommodity', usid, tcid, nefrom)
@@ -574,6 +580,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             db.session.query(TrialCommoditySku).filter_by_(SKUid=skuid).update({
                 'SKUstock': TrialCommoditySku.SKUstock - opnum
             })
+            createdid = product_instance.CreaterId if product_instance.TCfrom == ApplyFrom.supplizer.value else None
+
             # 主单
             order_main_dict = {
                 'OMid': omid,
@@ -592,7 +600,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
-
+                'PRcreateId': createdid,
                 'UseCoupon': False  # 试用商品不能使用优惠券
             }
             order_main_instance = OrderMain.create(order_main_dict)

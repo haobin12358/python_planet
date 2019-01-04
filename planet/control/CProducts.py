@@ -592,9 +592,29 @@ class CProducts:
                 }, synchronize_session=False)
                 current_app.logger.info('删除了 {} 个 商品标签关联'.format(counts))
             s.add_all(session_list)
-        # avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
-        # auto_agree_task.apply_async(args=[avid], countdown=60 * 5, expires=120)
         return Success('更新成功')
+
+    @token_required
+    def resubmit_product(self):
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
+            raise AuthorityError()
+        data = parameter_required(('prid', ))
+        product = Products.query.filter(Products.isdelete == False,
+                                        Products.PRid == data.get('prid')).first_('商品不存在')
+        if is_supplizer():
+            if product.CreaterId != request.user.id:
+                raise AuthorityError('他人商品')
+        with db.auto_commit():
+            product.PRstatus = ProductStatus.auditing.value
+            db.session.add(product)
+        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product.PRid, product_from)
+        # 5 分钟后自动通过
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+        return Success('申请成功')
 
     @token_required
     def delete(self):
@@ -639,11 +659,6 @@ class CProducts:
         return Success(msg)
 
     @token_required
-    def auditing_detail(self):
-        """查看审核详情"""
-        pass
-
-    @token_required
     def delete_list(self):
         """删除, 供应商只可以删除自己的"""
         if not is_admin() and not is_supplizer():
@@ -660,7 +675,6 @@ class CProducts:
                     SupplizerProduct.SUid == request.user.id,
                 )
             query.delete_(synchronize_session=False)
-
         return Success('删除成功')
 
     @token_required
