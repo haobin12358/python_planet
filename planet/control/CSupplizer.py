@@ -37,15 +37,15 @@ class CSupplizer:
         for supplizer in supplizers:
             supplizer.hide('SUpassword')
             if is_admin():
-                pb = ProductBrand.query.filter(
+                pbs = ProductBrand.query.filter(
                     ProductBrand.isdelete == False,
                     ProductBrand.SUid == supplizer.SUid
-                ).first()
-                if not pb:
-                    continue
-                pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
-                pb.add('pbstatus_zh')
-                supplizer.fill('brand', pb)
+                ).all()
+                for pb in pbs:
+                    if pb:
+                        pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
+                        pb.add('pbstatus_zh')
+                supplizer.fill('pbs', pbs)
         return Success(data=supplizers)
 
     @admin_required
@@ -136,6 +136,15 @@ class CSupplizer:
         form = SupplizerGetForm().valid_data()
         supplizer = form.supplizer
         supplizer.hide('SUpassword')
+        pbs = ProductBrand.query.filter(
+            ProductBrand.isdelete == False,
+            ProductBrand.SUid == supplizer.SUid
+        ).all()
+        for pb in pbs:
+            if pb:
+                pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
+                pb.add('pbstatus_zh')
+        supplizer.fill('pbs', pbs)
         return Success(data=supplizer)
 
     @admin_required

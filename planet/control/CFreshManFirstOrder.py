@@ -152,55 +152,62 @@ class CFreshManFirstOrder(COrder, CUser):
             FreshManFirstApply.isdelete == False,
             FreshManFirstSku.SKUid == skuid,
         ).first_('当前商品未在活动中')
-        if not fresh_man_sku.FMFPstock or fresh_man_sku.FMFPstock < 0:
-            raise StatusError('库存不足')
-        fresh_man_sku.FMFPstock -= 1
-        db.session.add(fresh_man_sku)
-        Activity.query.filter_by_({
-            'ACtype': ActivityType.fresh_man.value,
-            'ACshow': True
-        }).first_('活动未在进行')
-        # 新人商品
-        fresh_first_product = FreshManFirstProduct.query.filter_by_({
-            'FMFPid': fresh_man_sku.FMFPid
-        }).first_('当前商品未在活动中')
-        # sku详情
-        product_sku = ProductSku.query.filter_by_({
-            'SKUid': skuid
-        }).first_('商品属性已删除')
-        # 商品详情
-        product_instance = Products.query.filter_by({
-            'PRid': fresh_first_product.PRid
-        }).first_('商品已删除')
 
-        # 地址拼接
-        user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
-        omrecvphone = user_address_instance.UAphone
-        areaid = user_address_instance.AAid
-        area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
-            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
-            AddressArea.AAid == areaid).first_('地址有误')
-        address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
-            area, "AAname", '')
-        omrecvaddress = address + user_address_instance.UAtext
-        omrecvname = user_address_instance.UAname
-        # 判断是否是别人分享而来
-        secret_usid = data.get('secret_usid')
-        if secret_usid:
-            try:
-                from_usid = self._base_decode(secret_usid)
-                # 来源用户是否购买
-                from_user_order = OrderMain.query.filter_by().filter(
-                    OrderMain.USid == from_usid,
-                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
-                ).first()
-            except ValueError:
-                current_app.logger.info('secret_usid decode error : {}'.format(secret_usid))
-                from_user_order = None
-        else:
-            from_user_order = None
         with db.auto_commit():
+            if not fresh_man_sku.FMFPstock or fresh_man_sku.FMFPstock < 0:
+                raise StatusError('库存不足')
+            fresh_man_sku.FMFPstock -= 1
+            db.session.add(fresh_man_sku)
+            Activity.query.filter_by_({
+                'ACtype': ActivityType.fresh_man.value,
+                'ACshow': True
+            }).first_('活动未在进行')
+            # 新人商品
+            fresh_first_product = FreshManFirstProduct.query.filter_by_({
+                'FMFPid': fresh_man_sku.FMFPid
+            }).first_('当前商品未在活动中')
+            # sku详情
+            product_sku = ProductSku.query.filter_by_({
+                'SKUid': skuid
+            }).first_('商品属性已删除')
+            # 商品详情
+            product_instance = Products.query.filter_by({
+                'PRid': fresh_first_product.PRid
+            }).first_('商品已删除')
+            # 活动申请详情
+            fresh_first_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.isdelete == False,
+                FreshManFirstApply.FMFAid == fresh_first_product.FMFAid,
+            ).first_('活动不存在')
+            suid = fresh_first_apply.SUid if fresh_first_apply.FMFAfrom else None
+            # 地址拼接
+            user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            omrecvphone = user_address_instance.UAphone
+            areaid = user_address_instance.AAid
+            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
+            # 判断是否是别人分享而来
+            secret_usid = data.get('secret_usid')
+            if secret_usid:
+                try:
+                    from_usid = self._base_decode(secret_usid)
+                    # 来源用户是否购买
+                    from_user_order = OrderMain.query.filter_by().filter(
+                        OrderMain.USid == from_usid,
+                        OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                        OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                    ).first()
+                except ValueError:
+                    current_app.logger.info('secret_usid decode error : {}'.format(secret_usid))
+                    from_user_order = None
+            else:
+                from_user_order = None
+
             # 创建订单
             omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
@@ -223,6 +230,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 'OMrecvPhone': omrecvphone,
                 'OMrecvName': omrecvname,
                 'OMrecvAddress': omrecvaddress,
+                'PRcreateId': suid
             }
             order_main_instance = OrderMain.create(order_main_dict)
             db.session.add(order_main_instance)

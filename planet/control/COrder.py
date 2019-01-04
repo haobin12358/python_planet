@@ -108,7 +108,7 @@ class COrder(CPay, CCoupon):
             )
         if omrecvphone:
             order_main_query = order_main_query.filter(
-                OrderMain.OMrecvPhone.contains(omrecvname)
+                OrderMain.OMrecvPhone.contains(omrecvphone)
             )
         if createtime_start:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
@@ -516,7 +516,7 @@ class COrder(CPay, CCoupon):
                 # 'USid': usid,
                 'OMstatus': OrderMainStatus.wait_pay.value
             }).first_('指定订单不存在')
-            if is_supplizer() and order_main.OMcreateId != usid:
+            if is_supplizer() and order_main.PRcreateId != usid:
                 raise AuthorityError()
             if not is_admin() and not is_supplizer() and order_main.USid != usid:
                 raise NotFound('订单订单不存在')
