@@ -22,6 +22,6 @@ class IndexUpdateBannerForm(BaseForm):
     ibshow = BooleanField('是否显示')
     isdelete = BooleanField('是否删除')
 
-    def validate_contentlink(self, raw):
-        if raw.data is None and self.isdelete.data is None:
-            raise ValidationError('跳转链接不可为空')
+    # def validate_contentlink(self, raw):
+    #     if raw.data is None and self.isdelete.data is None:
+    #         raise ValidationError('跳转链接不可为空')
