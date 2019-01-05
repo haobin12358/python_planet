@@ -17,6 +17,7 @@ class Aapproval(Resource):
             # 'deal_approval': self.approval.deal_approval,
             'cancel': self.approval.cancel,
             'add_adminpermission': self.approval.add_adminpermission,
+            'delete_permission': self.approval.delete_permission,
             'add_pi_and_pe_and_ap': self.approval.add_pi_and_pe_and_ap,
             # 'create': self.approval.create,
         }

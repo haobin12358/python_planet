@@ -36,6 +36,11 @@ class CNews(BASEAPPROVAL):
             admin = self._check_admin(usid)
             current_app.logger.info('Admin {0} is geting all news'.format(admin.ADname))
             tourist = 'admin'
+        elif is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {0} is geting all news'.format(sup.SUname))
+            tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
@@ -49,11 +54,13 @@ class CNews(BASEAPPROVAL):
         nestatus = getattr(NewsStatus, nestatus).value
         userid = None
         if str(itid) == 'mynews':
-            if tourist == 1:
+            if not usid:
                 raise TokenError('未登录')
             userid = usid
             itid = None
             nestatus = None
+        elif is_supplizer():
+            userid = usid
         news_list = self.snews.get_news_list([
             or_(and_(*[News.NEtitle.contains(x) for x in kw]), and_(*[News.NEtext.contains(x) for x in kw])),
             NewsTag.ITid == itid,
@@ -62,6 +69,14 @@ class CNews(BASEAPPROVAL):
         ])
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews']
+            # 添加发布者信息
+            auther = news.USname or ''
+            if news.NEfrom == ApplyFrom.platform.value:
+                news.fill('authername', '{} (管理员)'.format(auther))
+            elif news.NEfrom == ApplyFrom.supplizer.value:
+                news.fill('authername', '{} (供应商)'.format(auther))
+            else:
+                news.fill('authername', '{} (用户)'.format(auther))
             self.snews.update_pageviews(news.NEid)
             # 显示点赞状态
             if usid:
@@ -71,7 +86,7 @@ class CNews(BASEAPPROVAL):
                 favorite = 0
             news.fill('is_favorite', favorite)
             # 显示审核状态
-            if userid:
+            if userid or is_admin():
                 news_status = news.NEstatus
                 news.fill('zh_nestatus', NewsStatus(news_status).zh_value)
                 news.fill('nestatus', NewsStatus(news_status).name)
@@ -131,17 +146,22 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} is geting all news'.format(admin.ADname))
+            current_app.logger.info('Admin {0} is geting news content'.format(admin.ADname))
             tourist = 'admin'
+        elif is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {0} is geting news content'.format(sup.ADname))
+            tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is geting all news'.format(user.USname))
+            current_app.logger.info('User {0} is geting news content'.format(user.USname))
             tourist = 0
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
-        news.fields = ['NEtitle', 'NEpageviews', 'NEtext']
+        news.fields = ['NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
         self.snews.update_pageviews(news.NEid)
         if usid:
             is_favorite = self.snews.news_is_favorite(neid, usid)
@@ -323,7 +343,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
             # 添加到审批流
-            super().create_approval('topublish', usid, neid, )
+            super().create_approval('topublish', usid, neid, nefrom)
         return Success('添加成功', {'neid': neid})
 
     @admin_required
@@ -337,20 +357,27 @@ class CNews(BASEAPPROVAL):
         images = data.get('image')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2']
         video = data.get('video')  # {nvurl:'url', nvthum:'url'}
-        coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
-        product = data.get('product')  # ['prid1', 'prid2']
-        coupon = json.dumps(coupon) if coupon not in self.empty else None
-        product = json.dumps(product) if product not in self.empty else None
+        coupon = data.get('coupon') or []  # ['coid1', 'coid2', 'coid3']
+        product = data.get('product') or []  # ['prid1', 'prid2']
+
         isrecommend = data.get('neisrecommend')
         isrecommend = True if str(isrecommend) == '1' else False
         operation = list()
+
+        if not isinstance(coupon, list):
+            raise ParamsError('coupon格式错误 , 应为["coid1", "coid2"]')
+        elif not isinstance(product, list):
+            raise ParamsError('product格式错误 , 应为["prid1", "prid2"]')
+        coupon = json.dumps(coupon) if coupon not in self.empty else None
+        product = json.dumps(product) if product not in self.empty else None
+
         with self.snews.auto_commit() as s:
             session_list = []
             news_info = {
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
                 # 'NEstatus': NewsStatus.usual.value,
-                'NEsource': 'web',
+                # 'NEsource': 'web',
                 'COid': coupon,
                 'PRid': product,
                 'NEmainpic': data.get('nemainpic'),
@@ -683,6 +710,10 @@ class CNews(BASEAPPROVAL):
     @staticmethod
     def _check_admin(usid):
         return Admin.query.filter_by_(ADid=usid).first_('用户不存在')
+
+    @staticmethod
+    def _check_supplizer(usid):
+        return Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
 
     @staticmethod
     def fill_user_info(usid):

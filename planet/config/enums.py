@@ -194,6 +194,7 @@ class NewsStatus(Enum):
     usual = (1, '审核通过')  # 上架
     auditing = (2, '审核中')  # 审核中
     refuse = (0, '审核未通过')  # 下架
+    all = None
 
 
 # user
@@ -255,7 +256,7 @@ class TrialCommodityStatus(Enum):
     upper = 0, '上架中'
     # off_shelves = 10, '已下架'
     auditing = 20, '审核中'
-    reject = 30, '已下架'
+    reject = 30, '下架/审核失败'
     sell_out = 40, '已售罄'
     all = None
 

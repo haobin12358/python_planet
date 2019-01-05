@@ -274,7 +274,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             suid = None
         else:
             raise AuthorityError()
-        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).all_with_page()
+        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).order_by(GuessNumAwardApply.createtime.desc()).all_with_page()
         for award in award_list:
             sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first()
             award.fill('skupic', sku['SKUpic'])

@@ -38,7 +38,7 @@ class ApprovalNotes(Base):
     ADid = Column(String(64), comment='处理人id')
     ANaction = Column(Integer, default=1, comment='审批意见 1 同意,0 提交 -1：拒绝')
     ANabo = Column(Text, comment='审批备注')
-    ANfrom = Column(Integer, default=0, comment='发起申请时的来源 0：平台, 10: 供应商, 20:普通用户')
+    ANfrom = Column(Integer, comment='发起申请时的来源 0：平台, 10: 供应商, 20:普通用户')
 
 
 class PermissionItems(Base):

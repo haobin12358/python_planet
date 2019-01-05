@@ -762,9 +762,11 @@ class CApproval(BASEAPPROVAL):
     def __fill_guessnum(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
-            if not start_model or not content:
+            # if not (start_model or admin_model) or not content:
+            if not start_mode or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -779,8 +781,10 @@ class CApproval(BASEAPPROVAL):
     def __fill_magicbox(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model =  Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = MagicBoxApply.query.filter_by_(MBAid=ap.AVcontent).first()
+            # if not (start_model or admin_model) or not content:
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
@@ -796,7 +800,6 @@ class CApproval(BASEAPPROVAL):
     def __fill_freshmanfirstproduct(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
             apply = FreshManFirstApply.query.filter(
                 FreshManFirstApply.isdelete == False,
                 FreshManFirstApply.FMFAid == ap.AVcontent
@@ -812,6 +815,10 @@ class CApproval(BASEAPPROVAL):
             old_sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
             apply_sku.fill('SKUattriteDetail', json.loads(old_sku.SKUattriteDetail))
             content.fill('apply_sku', apply_sku)
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
+            # if not (start_model or admin_model) or not content:
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
@@ -820,6 +827,11 @@ class CApproval(BASEAPPROVAL):
             # self.__fill_product_detail(product)
             # content.fill('product', product)
             ap.fill('apply', apply)
+            if isinstance(content.PRattribute, str):
+                content.PRattribute = json.loads(content.PRattribute)
+            product = Products.query.filter_by_(PRid=content.PRid).first()
+            self.__fill_product_detail(product)
+            content.fill('product', product)
             ap.fill('start', start_model)
             ap.fill('content', content)
         for ap_remove in ap_remove_list:
@@ -828,8 +840,10 @@ class CApproval(BASEAPPROVAL):
     def __fill_trialcommodity(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = TrialCommodity.query.filter_by_(TCid=ap.AVcontent).first()
+            # if not (start_model or admin_model) or not content:
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
@@ -984,13 +998,80 @@ class CApproval(BASEAPPROVAL):
 
     @get_session
     @token_required
-    def delete_approval(self):
-        data = parameter_required(('aptype', 'apid'))
+    def delete_permission(self):
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_('权限已失效')
+        data = parameter_required(('actiontype', 'actionid'))
         # aptype = PermissionNotesType(data.get('aptype')).value
         # if aptype == PermissionNotesType.pi.value:
-        pass
+        # actiontype = PermissionNotesType(data.get('actiontype')).value
+        actiontype = getattr(PermissionNotesType, data.get('actiontype'))
+        if not actiontype:
+            raise ParamsError('操作异常 actiontype')
+        actiontype = actiontype.value
+        actionid = data.get('actionid')
 
+        ptn = {
+            'PNid': str(uuid.uuid1()),
+            'ADid': admin.ADid,
+            'PNcontent': actionid,
+            'PNType': actiontype,
+        }
+        if actiontype == PermissionNotesType.pi.value:
+            pi = PermissionItems.query.filter_by_(PIid=actionid).first()
+            self.__check_pelevel_by_pi(pi)
+            pi.isdelete = True
+            ptn.setdefault('PINaction', '{0}删除权限标签 {1}'.format(admin.ADname, pi.PIname))
+        elif actiontype == PermissionNotesType.pe.value:
+            pe = Permission.query.filter_by_(PEid=actionid).first()
+            self.__check_pelevel_by_pe(pe)
+            pe.isdelete = True
+            ptn.setdefault('PINaction', '{0} 删除权限 {1}'.format(admin.ADname, pe.PEid))
+        elif actiontype == PermissionNotesType.pt.value():
+            pt = PermissionType.query.filter_by_(PTid=actionid).first()
+            if pt:
+                pt.isdelete = True
+                ptn.setdefault('PINaction', '{0}删除权限类型 {1}'.format(admin.ADname, pt.PTname),)
+        elif actiontype == PermissionNotesType.adp.value:
+            adp = AdminPermission.qeury.filter_by_(ADPid=actionid).first()
+            if adp:
+                adp.isdelete = True
+                ptn.setdefault('PINaction', '{0} 删除{2}权限标签下管理员 {1}'.format(admin.ADname, adp.ADid, adp.PIid))
+        else:
+            raise ParamsError('操作异常')
 
+        return Success('删除成功')
+
+    def __check_pelevel_by_pi(self, pi):
+        if not pi:
+            return
+        pe_list = Permission.query.filter_by_(PIid=pi.PIid).all()
+        if not pe_list:
+            return
+        for pe in pe_list:
+            self.__check_pelevel_by_pe(pe)
+            pe.isdelete = True
+
+    def __check_pelevel_by_pe(self, pe):
+        if not pe:
+            return
+        pelevel = pe.PELevel
+        pe_check_list = Permission.query.filter(
+            Permission.PELevel == pelevel,
+            Permission.PTid == pe.PTid,
+            Permission.PEid != pe.PEid,
+            Permission.isdelete == False
+        ).all()
+        if pe_check_list:
+            return
+        pe_max_level_model = Permission.query.filter_by_(PTid=pe.PTid).order_by(Permission.PELevel.desc()).first()
+
+        if pe_max_level_model.PELevel == pelevel:
+            return
+        max_level = pe_max_level_model.PELevel
+        for level in range(pelevel + 1, max_level + 1):
+            pe_fix_list = Permission.query.filter_by_(PTid=pe.PTid, PELevel=level).all()
+            for pe_fix in pe_fix_list:
+                pe_fix.PELevel = level - 1
 
     def agree_cash(self, approval_model):
         if not approval_model:
