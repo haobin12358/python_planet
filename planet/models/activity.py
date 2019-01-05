@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from datetime import date
 
-from sqlalchemy import Integer, String, Date, Float, Text, DateTime, Boolean
+from sqlalchemy import Integer, String, Date, Float, Text, DateTime, Boolean, DECIMAL, BIGINT
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
@@ -27,12 +27,12 @@ class TrialCommodity(Base):
     TCid = Column(String(64), primary_key=True)
     TCtitle = Column(String(255), nullable=False, comment='标题')
     TCdescription = Column(Text, comment='商品描述')
-    TCdeposit = Column(Float, nullable=False, comment='押金')
+    TCdeposit = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='押金')
     TCdeadline = Column(Integer, nullable=False, default=31, comment='押金期限{单位:天}')
     TCfreight = Column(Float, default=0, comment='运费')
     TCfrom = Column(Integer, comment='申请来源')
-    TCstocks = Column(Integer, comment='库存')
-    TCsalesValue = Column(Integer, default=0, comment='销量')
+    TCstocks = Column(BIGINT, comment='库存')
+    TCsalesValue = Column(BIGINT, default=0, comment='销量')
     TCstatus = Column(Integer, default=0, comment='状态  0 正常, 10 下架, 20 审核中')
     TCmainpic = Column(String(255), comment='主图', url=True)
     TCattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
@@ -44,7 +44,7 @@ class TrialCommodity(Base):
     ApplyEndTime = Column(Date, nullable=False, comment='申请结束时间')
     AgreeStartTime = Column(Date, default=ApplyStartTime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndTime = Column(Date, default=ApplyEndTime, comment='最终确认结束时间')
-    TCrejectReason = Column(String(125), comment='拒绝理由')
+    TCrejectReason = Column(Text, comment='拒绝理由')
 
 
 class TrialCommodityImage(Base):
@@ -63,8 +63,8 @@ class TrialCommoditySku(Base):
     TCid = Column(String(64), nullable=False, comment='试用商品id')
     SKUpic = Column(String(255), nullable=False, comment='图片', url=True)
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
-    SKUprice = Column(Float, nullable=False, comment='价格')
-    SKUstock = Column(Integer, comment='库存')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
+    SKUstock = Column(BIGINT, comment='库存')
 
 
 class TrialCommoditySkuValue(Base):

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy import Integer, String, Boolean
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
 
@@ -34,7 +35,7 @@ class IndexBanner(Base):
     IBpic = Column(String(255), nullable=False, comment='图片', url=True)
     IBsort = Column(Integer, comment='顺序')
     IBshow = Column(Boolean, default=True, comment='是否展示')
-    contentlink = Column(String(255), nullable=False, comment='跳转链接')
+    contentlink = Column(LONGTEXT, comment='跳转链接')
 
 
 #
