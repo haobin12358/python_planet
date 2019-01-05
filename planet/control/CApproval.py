@@ -1133,7 +1133,10 @@ class CApproval(BASEAPPROVAL):
 
     def agree_shelves(self, approval_model):
         # sup = Supplizer.query.filter_by_(SUid=approval_model.AVstartid).first_('商品上架数据异常')
-        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        product = Products.query.filter_by_(
+            PRid=approval_model.AVcontent,
+            PRstatus=ProductStatus.auditing.value
+        ).first_('商品已处理')
         product.PRstatus = ProductStatus.usual.value
 
     def refuse_shelves(self, approval_model, refuse_abo):
