@@ -96,9 +96,9 @@ class OrderPart(Base):
     UPperid2 = Column(String(64), comment='上上级id')
     UPperid3 = Column(String(64), comment='上上上级id')
     # 指定佣金比, 用于活动的自定义设置
-    USCommission1 = Column(Float, comment='一级佣金比')
-    USCommission2 = Column(Float, comment='二级佣金比')
-    USCommission3 = Column(Float, comment='三级佣金比')
+    USCommission1 = Column(DECIMAL(scale=2), comment='一级佣金比')
+    USCommission2 = Column(DECIMAL(scale=2), comment='二级佣金比')
+    USCommission3 = Column(DECIMAL(scale=2), comment='三级佣金比')
 
     @property
     def SKUpic(self):

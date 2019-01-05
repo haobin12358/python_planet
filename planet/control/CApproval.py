@@ -797,14 +797,29 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
+            apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.isdelete == False,
+                FreshManFirstApply.FMFAid == ap.AVcontent
+            ).first()
+            if apply:
+                apply.add('createtime')
             content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
+            content.PRattribute = json.loads(content.PRattribute)
+            apply_sku = FreshManFirstSku.query.filter(
+                FreshManFirstSku.isdelete == False,
+                FreshManFirstSku.FMFPid == content.FMFPid
+            ).first()
+            old_sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            apply_sku.fill('SKUattriteDetail', json.loads(old_sku.SKUattriteDetail))
+            content.fill('apply_sku', apply_sku)
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
-            product = Products.query.filter_by_(PRid=content.PRid).first()
-            self.__fill_product_detail(product)
-            content.fill('product', product)
+            # product = Products.query.filter_by_(PRid=content.PRid).first()
+            # self.__fill_product_detail(product)
+            # content.fill('product', product)
+            ap.fill('apply', apply)
             ap.fill('start', start_model)
             ap.fill('content', content)
         for ap_remove in ap_remove_list:
