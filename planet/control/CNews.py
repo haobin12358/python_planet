@@ -480,6 +480,8 @@ class CNews(BASEAPPROVAL):
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
+        if news.NEstatus != NewsStatus.usual.value:
+            raise StatusError('该资讯当前状态不允许点赞')
         tftype = data.get('tftype')  # {1:点赞, 0:点踩}
         if not re.match(r'^[0|1]$', str(tftype)):
             raise ParamsError('tftype, 参数异常')
@@ -610,7 +612,9 @@ class CNews(BASEAPPROVAL):
         current_app.logger.info('User {0} is create comment'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
-        self.snews.get_news_content({'NEid': neid, 'isdelete': False})
+        new_info = self.snews.get_news_content({'NEid': neid, 'isdelete': False})
+        if new_info.NEstatus != NewsStatus.usual.value:
+            raise StatusError('该资讯当前状态不允许评论')
         ncid = data.get('ncid')
         comment_ncid = str(uuid.uuid1())
         reply_ncid = str(uuid.uuid1())
