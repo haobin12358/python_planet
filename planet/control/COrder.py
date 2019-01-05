@@ -1040,7 +1040,7 @@ class COrder(CPay, CCoupon):
             OrderMain.isdelete == False,
             OrderMain.OMid == omid
         ).first_('订单不存在')
-        if is_supplizer() and order_main.OMcreateId != request.user.id:
+        if is_supplizer() and order_main.PRcreateId != request.user.id:
             raise AuthorityError()
         if order_main.OMstatus != OrderMainStatus.wait_pay.value:
             raise StatusError('订单{}'.format(OrderMainStatus(order_main.OMstatus).zh_value))

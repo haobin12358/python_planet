@@ -9,11 +9,14 @@ import time
 import urllib
 import requests
 from hashlib import sha1
+
+from planet.common.error_response import ParamsError
+from planet.common.request_handler import gennerc_log
 from ..config.secret import ACCESS_KEY_ID, ACCESS_KEY_SECRET, SignName, TemplateCode
-from ..config.cfgsetting import singleton
+# from ..config.cfgsetting import singleton
 
 
-@singleton
+# @singleton
 class SendSMS:
     prefix_url = "https://dysmsapi.aliyuncs.com/?"
 
@@ -83,14 +86,14 @@ class SendSMS:
 
         r = requests.get(url)
         if r.status_code != 200:
-            return False
+            raise ParamsError('短信验证获取失败')
         else:
             jn = json.loads(r.text)
-            print('get sms response :', jn)
+            gennerc_log('get sms response : {0}'.format(jn))
             if jn.get("Code") == "OK":
                 return True
             else:
-                return False
+                raise ParamsError('短信验证获取失败')
 
 
 if __name__ == "__main__":

@@ -23,9 +23,9 @@ class User(Base):
     USsupper1 = Column(String(64), comment='一级代理商id')
     USsupper2 = Column(String(64), comment='二级代理商id')
     USsupper3 = Column(String(64), comment='三级代理商id')
-    USCommission1 = Column(Float, comment='当用户作为一级时, 佣金分成')       # 一级佣金分成比例
-    USCommission2 = Column(Float, comment='佣金分成')       # 二级佣金分成比例
-    USCommission3 = Column(Float, comment='佣金分成')       # 三级佣金分成比例
+    USCommission1 = Column(DECIMAL(scale=2), comment='当用户作为一级时, 佣金分成')       # 一级佣金分成比例
+    USCommission2 = Column(DECIMAL(scale=2), comment='佣金分成')       # 二级佣金分成比例
+    USCommission3 = Column(DECIMAL(scale=2), comment='佣金分成')       # 三级佣金分成比例
     USintegral = Column(Integer, comment='积分')
     CommisionLevel = Column(Integer, default=1)
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
