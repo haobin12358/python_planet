@@ -1154,9 +1154,13 @@ class CUser(SUser, BASEAPPROVAL):
         page = args.get('page_num')
         count = args.get('page_size')
         if page and count:
-            admins = self.get_admins()
+            admins = Admin.query.filter(
+                Admin.isdelete == False, Admin.ADlevel == AdminLevel.common_admin.value).order_by(
+                Admin.createtime.desc()).all_with_page()
         else:
-            admins = Admin.query.filter_by_().order_by(Admin.createtime.desc()).all()
+            admins = Admin.query.filter(
+                Admin.isdelete == False, Admin.ADlevel == AdminLevel.common_admin.value).order_by(
+                Admin.createtime.desc()).all()
         for admin in admins:
             admin.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
             admin.fill('adlevel', AdminLevel(admin.ADlevel).zh_value)
@@ -1263,6 +1267,7 @@ class CUser(SUser, BASEAPPROVAL):
                 if upperd.USlevel == self.AGENT_TYPE:
                     user_dict.setdefault('USsupper1', upperd.USid)
                     user_dict.setdefault('USsupper2', upperd.USsupper1)
+                    user_dict.setdefault('USsupper3', upperd.USsupper2)
                 else:
                     uin = UserInvitation.create({
                         'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
@@ -1316,10 +1321,10 @@ class CUser(SUser, BASEAPPROVAL):
             user.USname = user_openid.USname
             user.USgender = user_openid.USgender
             user.USheader = user_openid.USheader
-            user.USsupper1 = user_openid.USsupper1
-            user.USsupper2 = user_openid.USsupper2
+            # user.USsupper1 = user_openid.USsupper1
+            # user.USsupper2 = user_openid.USsupper2
             user.USopenid1 = user_openid.USopenid1
-            user.USopenid2 = user_openid.USopenid2
+            # user.USopenid2 = user_openid.USopenid2
             user.USopenid2 = user_openid.USopenid2
             return_user = user
 
