@@ -382,10 +382,12 @@ class CProducts:
     def update_product(self):
         """更新商品"""
         data = parameter_required(('prid', ))
-        # if is_admin():
-        #     product_from = ProductFrom.platform.value
-        # elif is_supplizer():
-        #     product_from = ProductFrom.supplizer.value
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
+            raise AuthorityError()
         prid = data.get('prid')
         pbid = data.get('pbid')  # 品牌id
         pcid = data.get('pcid')  # 3级分类id
@@ -479,10 +481,11 @@ class CProducts:
                 'PRattribute': prattribute,
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
+                'PRstatus': ProductStatus.auditing.value,
 
             }
-            if product.PRstatus == ProductStatus.sell_out.value:
-                product.PRstatus = ProductStatus.usual.value
+            # if product.PRstatus == ProductStatus.sell_out.value:
+            #     product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
             session_list.append(product)
             # sku value
@@ -592,6 +595,10 @@ class CProducts:
                 }, synchronize_session=False)
                 current_app.logger.info('删除了 {} 个 商品标签关联'.format(counts))
             s.add_all(session_list)
+
+        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
+        # 5 分钟后自动通过
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
         return Success('更新成功')
 
     @token_required
