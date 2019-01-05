@@ -228,7 +228,7 @@ class CApproval(BASEAPPROVAL):
                 continue
             adp = AdminPermission.create({
                 'ADPid': str(uuid.uuid1()),
-                'ADid': data.get('adid'),
+                'ADid': adid,
                 'PIid': data.get('piid'),
                 # 'PTid': data.get('ptid')
             })
@@ -365,7 +365,7 @@ class CApproval(BASEAPPROVAL):
         if is_admin():
             admin = Admin.query.filter_by_(ADid=request.user.id).first_()
             if not admin:
-                gennerc_log('get admin failed id is {0}'.format(admin.ADid))
+                gennerc_log('get admin failed id is {0}'.format(request.user.id))
                 raise NotFound("该管理员已被删除")
 
             pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
