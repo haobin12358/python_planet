@@ -171,6 +171,7 @@ def auto_agree_task(avid):
         else:
             current_app.logger.info('该审批已提前处理')
         cacpproval.agree_action(approval)
+        cacpproval.AVstatus = ApplyStatus.agree.value
 
 
 
