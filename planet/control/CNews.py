@@ -233,7 +233,7 @@ class CNews(BASEAPPROVAL):
     def get_news_banner(self):
         """获取资讯图轮播"""
         banner_list = []
-        recommend_news = self.snews.get_news_list_by_filter({'NEisrecommend': True})
+        recommend_news = self.snews.get_news_list_by_filter({'NEisrecommend': True, 'NEstatus': NewsStatus.usual.value})
         for news in recommend_news:
             if news.NEmainpic:
                 banner = news['NEmainpic']
