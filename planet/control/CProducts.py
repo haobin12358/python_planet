@@ -382,10 +382,12 @@ class CProducts:
     def update_product(self):
         """更新商品"""
         data = parameter_required(('prid', ))
-        # if is_admin():
-        #     product_from = ProductFrom.platform.value
-        # elif is_supplizer():
-        #     product_from = ProductFrom.supplizer.value
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
+            raise AuthorityError()
         prid = data.get('prid')
         pbid = data.get('pbid')  # 品牌id
         pcid = data.get('pcid')  # 3级分类id
@@ -479,10 +481,11 @@ class CProducts:
                 'PRattribute': prattribute,
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
+                'PRstatus': ProductStatus.auditing.value,
 
             }
-            if product.PRstatus == ProductStatus.sell_out.value:
-                product.PRstatus = ProductStatus.usual.value
+            # if product.PRstatus == ProductStatus.sell_out.value:
+            #     product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
             session_list.append(product)
             # sku value
@@ -592,6 +595,10 @@ class CProducts:
                 }, synchronize_session=False)
                 current_app.logger.info('删除了 {} 个 商品标签关联'.format(counts))
             s.add_all(session_list)
+
+        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
+        # 5 分钟后自动通过
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
         return Success('更新成功')
 
     @token_required
@@ -710,23 +717,18 @@ class CProducts:
         status = form.status.data
         with db.auto_commit():
             query = Products.query.filter(
-                Products.PRid.in_(prids)
+                Products.PRid.in_(prids),
+                Products.isdelete == False,
             )
             if is_supplizer():
                 query = query.filter(
                     Products.PRid == SupplizerProduct.PRid,
+                    SupplizerProduct.isdelete == False,
                     SupplizerProduct.SUid == request.user.id
                 )
-            product = query.first_('商品已删除')
-            if product.isdelete is True:
-                raise StatusError('商品: {}已删除'.format(product.PRtitle))
-            if ProductStatus(status).name == 'usual':
-                if not product.PCid:
-                    raise StatusError('商品: {}未指定分类'.format(product.PRtitle))  # 上架的商品需要有分类
             offs = query.update({
                 'PRstatus': status
             }, synchronize_session=False)
-
             if ProductStatus(status).name == 'usual':
                 current_app.logger.info('共上架了{}个商品'.format(offs))
                 msg = '上架成功'

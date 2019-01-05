@@ -214,29 +214,32 @@ class CApproval(BASEAPPROVAL):
         admin = Admin.query.filter_by_(ADid=request.user.id).first_("权限被回收")
         if admin.ADlevel != AdminLevel.super_admin.value:
             raise AuthorityError('权限不够')
-        data = parameter_required(('adid', 'piid'))
+        data = parameter_required(('piid',))
 
         check_pi = PermissionItems.query.filter_by_(PIid=data.get('piid')).first_('权限标签失效')
-        for adid in data.get('adid'):
+        adid_list = data.get('adid', [])
+        for adid in adid_list:
             check_admin = Admin.query.filter_by(ADid=adid).first_('管理员id异常')
             if not check_admin or not check_pi:
                 raise ParamsError('参数异常')
-            if data.get('adpid'):
-                adp = AdminPermission.query.filter_by_(ADPid=data.get('adpid')).first()
-                if adp:
-                    adp.ADid = data.get('adid')
-                    adp.PIid = data.get('piid')
 
-                    return Success('修改管理员权限成功', data={'adpid': adp.ADPid})
+            adp = AdminPermission.query.filter_by_(ADid=adid, PIid=data.get('piid')).first()
+            if adp:
+                continue
             adp = AdminPermission.create({
                 'ADPid': str(uuid.uuid1()),
-                'ADid': data.get('adid'),
+                'ADid': adid,
                 'PIid': data.get('piid'),
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
-        return Success('创建管理员权限成功', data={'adpid': adp.ADPid})
+        # 校验是否有被删除的管理员
+        check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
+        for check_adp in check_adp_list:
+            if check_adp.ADid not in adid_list:
+               check_adp.isdelete = True
 
+        return Success('创建管理员权限成功')
 
     @token_required
     def get_permission_type_list(self):
@@ -296,6 +299,7 @@ class CApproval(BASEAPPROVAL):
             gennerc_log('get admin failed id is {0}'.format(admin.ADid))
             raise NotFound("该管理员已被删除")
         ad_list = Admin.query.filter(
+            AdminPermission.isdelete == False, Admin.isdelete == False,
             AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == data.get('piid')).all()
         for ad in ad_list:
             ad.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
@@ -328,7 +332,8 @@ class CApproval(BASEAPPROVAL):
             # pttype = request.args.to_dict().get('pttypo')
             pt_list = PermissionType.query.filter(
                 PermissionType.PTid == Permission.PTid, Permission.PIid == AdminPermission.PIid,
-                AdminPermission.ADid == admin.ADid, AdminPermission.isdelete == False, Permission.isdelete == False
+                AdminPermission.ADid == admin.ADid, PermissionType.isdelete == False,
+                AdminPermission.isdelete == False, Permission.isdelete == False
             ).order_by(PermissionType.createtime.desc()).all()
             # pi_list = AdminPermission.query.filter_by_(ADid=admin.ADid).all()
             for pt in pt_list:
@@ -342,7 +347,8 @@ class CApproval(BASEAPPROVAL):
         elif is_supplizer():
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商账号已回收')
             pt_list = PermissionType.query.filter(
-                PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid, PermissionType.isdelete == False
+                PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid,
+                PermissionType.isdelete == False, Approval.isdelete == False
             ).all()
             # todo 供应商的审批类型筛选
             for pt in pt_list:
@@ -362,7 +368,7 @@ class CApproval(BASEAPPROVAL):
         if is_admin():
             admin = Admin.query.filter_by_(ADid=request.user.id).first_()
             if not admin:
-                gennerc_log('get admin failed id is {0}'.format(admin.ADid))
+                gennerc_log('get admin failed id is {0}'.format(request.user.id))
                 raise NotFound("该管理员已被删除")
 
             pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
@@ -413,6 +419,7 @@ class CApproval(BASEAPPROVAL):
         admin = Admin.query.filter_by_(ADid=data.get("adid")).first_("该管理员已被删除")
         approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
         Permission.query.filter(
+            Permission.isdelete == False, AdminPermission.isdelete == False,
             Permission.PIid == AdminPermission.PIid,
             AdminPermission.ADid == request.user.id,
             Permission.PTid == approval_model.PTid,
@@ -433,6 +440,7 @@ class CApproval(BASEAPPROVAL):
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
             pm_model = Permission.query.filter(
+                Permission.isdelete == False,
                 Permission.PTid == approval_model.PTid,
                 Permission.PELevel == int(approval_model.AVlevel) + 1
             ).first()
@@ -545,6 +553,7 @@ class CApproval(BASEAPPROVAL):
             pe_list.append({'pe_level': pe_level, 'permission': pe_item_list})
 
         pi_list = PermissionItems.query.filter(
+            PermissionItems.isdelete == False, Permission.isdelete == False,
             PermissionItems.PIid == Permission.PIid, Permission.PTid == data.get('ptid')).all()
         for pi in pi_list:
             # pi_list.append(pi)
@@ -555,6 +564,7 @@ class CApproval(BASEAPPROVAL):
             # adp_list = AdminPermission.query.filter_by_(PIid=pi.PIid).all()
             # pi.fill('adp_list', [adp.ADPid for adp in adp_list])
             ad_list = Admin.query.filter(
+                Admin.isdelete == False, AdminPermission.isdelete == False,
                 AdminPermission.ADid == Admin.ADid, AdminPermission.PIid == pi.PIid).all()
             for ad in ad_list:
                 ad.fields = ['ADid', 'ADname', 'ADheader', 'createtime', 'ADtelphone', 'ADnum']
@@ -766,7 +776,7 @@ class CApproval(BASEAPPROVAL):
             # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
             # if not (start_model or admin_model) or not content:
-            if not start_mode or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -812,7 +822,9 @@ class CApproval(BASEAPPROVAL):
                 FreshManFirstSku.isdelete == False,
                 FreshManFirstSku.FMFPid == content.FMFPid
             ).first()
-            old_sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            old_sku = ProductSku.query.filter(
+                ProductSku.isdelete == False,
+                ProductSku.SKUid == apply_sku.SKUid).first()
             apply_sku.fill('SKUattriteDetail', json.loads(old_sku.SKUattriteDetail))
             content.fill('apply_sku', apply_sku)
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
@@ -1121,7 +1133,10 @@ class CApproval(BASEAPPROVAL):
 
     def agree_shelves(self, approval_model):
         # sup = Supplizer.query.filter_by_(SUid=approval_model.AVstartid).first_('商品上架数据异常')
-        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        product = Products.query.filter_by_(
+            PRid=approval_model.AVcontent,
+            PRstatus=ProductStatus.auditing.value
+        ).first_('商品已处理')
         product.PRstatus = ProductStatus.usual.value
 
     def refuse_shelves(self, approval_model, refuse_abo):
@@ -1159,6 +1174,7 @@ class CApproval(BASEAPPROVAL):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
         mba.MBAstatus = ApplyStatus.agree.value
         mba_other = MagicBoxApply.query.filter(
+            MagicBoxApply.isdelete == False,
             MagicBoxApply.MBAid != mba.MBAid,
             MagicBoxApply.MBAstarttime == mba.MBAstarttime,
             MagicBoxApply.MBAendtime == mba.MBAendtime

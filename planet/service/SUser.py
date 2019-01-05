@@ -79,7 +79,7 @@ class SUser(SBase):
         return Admin.query.filter(Admin.ADid == adid).first_('不存在该管理员')
 
     def get_admins(self):
-        return Admin.query.filter(Admin.isdelete == False).order_by(Admin.createtime.desc()).all_with_page()
+        return
     # update 操作
 
     def update_useraddress_by_filter(self, uafilter, uainfo):
