@@ -163,8 +163,16 @@ class CNews(BASEAPPROVAL):
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
         news.fields = ['NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
-        if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):
-            self.snews.update_pageviews(news.NEid)  # 增加浏览量
+
+        if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
+            if news.NEstatus == NewsStatus.usual.value:
+                self.snews.update_pageviews(news.NEid)  # 增加浏览量
+            else:
+                if news.USid != usid:  # 前台查看‘我发布的’ 需要获取非正常状态情况
+                    raise StatusError('该资讯正在审核中，请耐心等待')
+                else:
+                    pass
+
         if usid:
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
@@ -614,7 +622,7 @@ class CNews(BASEAPPROVAL):
         neid = data.get('neid')
         new_info = self.snews.get_news_content({'NEid': neid, 'isdelete': False})
         if new_info.NEstatus != NewsStatus.usual.value:
-            raise StatusError('该资讯当前状态不允许评论')
+            raise StatusError('该资讯当前状态不允许进行评论')
         ncid = data.get('ncid')
         comment_ncid = str(uuid.uuid1())
         reply_ncid = str(uuid.uuid1())
