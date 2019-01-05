@@ -219,3 +219,6 @@ class FreshManJoinFlow(Base):
     UPid = Column(String(64), comment='首单页面来源用户id, 以便分发奖励')
 
 
+class SignInAward(Base):
+    __tablename__ = 'SignInAward'
+    SIAid = Column(String(64), primary_key=True)
