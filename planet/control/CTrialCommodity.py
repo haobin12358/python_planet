@@ -64,7 +64,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             if commodity.TCstatus == TrialCommodityStatus.reject.value:
                 reason = commodity.TCrejectReason or '不符合审核规定，请修改后重新提交'
                 commodity.fill("reject_reason", reason)
-            commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, commodity.TCdeposit))
+            commodity.fill("zh_remarks", "{0}天{1}元".format(commodity.TCdeadline, round(float(commodity.TCdeposit), 2)))
             prbrand = ProductBrand.query.filter_by_(PBid=commodity.PBid).first()
             commodity.fill('brand', prbrand)
             commodity.TCattribute = json.loads(commodity.TCattribute)

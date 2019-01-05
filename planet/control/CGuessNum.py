@@ -364,7 +364,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                               Products.PRstatus == ProductStatus.usual.value
-                              ).first_('仅可将上架中的商品用于申请')  # 当前商品状态不允许进行申请
+                              ).first_('仅可将已上架的商品用于申请')  # 当前商品状态不允许进行申请
 
         assert sku.PRid == prid, 'sku与商品信息不对应'
         with db.auto_commit():
