@@ -52,7 +52,8 @@ class CProducts:
         images = self.sproduct.get_product_images({'PRid': prid})
         product.fill('images', images)
         # 品牌
-        brand = self.sproduct.get_product_brand_one({'PBid': product.PBid}) or {}
+        # brand = self.sproduct.get_product_brand_one({'PBid': product.PBid}) or {}
+        brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first() or {}
         product.fill('brand', brand)
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
@@ -209,7 +210,8 @@ class CProducts:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
             product.fill('prstatus_zh', ProductStatus(product.PRstatus).zh_value)
             # 品牌
-            brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
+            # brand = self.sproduct.get_product_brand_one({'PBid': product.PBid})
+            brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first() or {}
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
@@ -256,7 +258,7 @@ class CProducts:
         images = data.get('images')
         skus = data.get('skus')
         prdescription = data.get('prdescription')  # 简要描述
-        product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
+        product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '品牌已被删除')
         if product_brand.PBstatus == ProductBrandStatus.off_shelves.value:
             raise StatusError('品牌已下架')
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
@@ -410,7 +412,7 @@ class CProducts:
                 except Exception as e:
                     pass
             if pbid:
-                product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌不存在')
+                product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '指定品牌已被删除')
             if pcid:
                 product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
 
@@ -686,35 +688,52 @@ class CProducts:
 
     @token_required
     def off_shelves(self):
-        """上下架, 包括审核状态, 不使用"""
-        if not is_admin() and not is_supplizer():
+        """上下架, 包括审核状态, 只使用上架功能"""
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
             raise AuthorityError()
         form = ProductOffshelvesForm().valid_data()
         prid = form.prid.data
         status = form.status.data
         with self.sproduct.auto_commit() as s:
-            query = s.query(Products).filter_by_({"PRid": prid})
+            query = s.query(Products).filter(
+                Products.PRid == prid,
+                Products.isdelete == False
+            )
             if is_supplizer():
                 query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
                     SupplizerProduct.SUid == request.user.id,
                     SupplizerProduct.isdelete == False,
                 )
-            query.update({
-                'PRstatus': status
-            })
+            product = query.first_('商品不存在')
             if ProductStatus(status).name == 'usual':
                 msg = '上架成功'
+                product.PRstatus = ProductStatus.auditing.value
+                brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('品牌已删除')
             else:
+                product.PRstatus = status
                 msg = '下架成功'
+            db.session.add(product)
+        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
+        # 5 分钟后自动通过
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
         return Success(msg)
 
     @token_required
     def off_shelves_list(self):
-        if not is_admin() and not is_supplizer():
+        if is_admin():
+            product_from = ProductFrom.platform.value
+        elif is_supplizer():
+            product_from = ProductFrom.supplizer.value
+        else:
             raise AuthorityError()
         form = ProductOffshelvesListForm().valid_data()
         prids = form.prids.data
         status = form.status.data
+        to_approvals = []
         with db.auto_commit():
             query = Products.query.filter(
                 Products.PRid.in_(prids),
@@ -726,15 +745,21 @@ class CProducts:
                     SupplizerProduct.isdelete == False,
                     SupplizerProduct.SUid == request.user.id
                 )
-            offs = query.update({
-                'PRstatus': status
-            }, synchronize_session=False)
+            products = query.all()
             if ProductStatus(status).name == 'usual':
-                current_app.logger.info('共上架了{}个商品'.format(offs))
+                for product in products:
+                    to_approvals.append(product.PRid)
+                    product.PRstatus = ProductStatus.auditing.value
+                    brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('品牌已删除')
                 msg = '上架成功'
             else:
-                current_app.logger.info('共下架了{}个商品'.format(offs))
+                for product in products:
+                    product.PRstatus = status
                 msg = '下架成功'
+        for prid in to_approvals:
+            avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
+            # 5 分钟后自动通过
+            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
         return Success(msg)
 
     def search_history(self):

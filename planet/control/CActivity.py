@@ -63,7 +63,8 @@ class CActivity(CUser):
                 free_use_count = TrialCommodity.query.filter(
                     TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
                     TrialCommodity.AgreeStartTime <= today,
-                    TrialCommodity.AgreeEndTime >= today
+                    TrialCommodity.AgreeEndTime >= today,
+                    TrialCommodity.TCstocks > 0
                 ).count()
                 act.fill('prcount', free_use_count)
             else:
@@ -99,7 +100,8 @@ class CActivity(CUser):
                 elif ActivityType(act.ACtype).name == 'free_use':
                     lasting = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
                                                           TrialCommodity.AgreeStartTime <= today,
-                                                          TrialCommodity.AgreeEndTime >= today
+                                                          TrialCommodity.AgreeEndTime >= today,
+                                                          TrialCommodity.TCstocks > 0
                                                           ).first()
                     if lasting:
                         result.append(act)

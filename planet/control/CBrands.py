@@ -240,11 +240,13 @@ class CBrands(object):
             ).first_('品牌不存在')
             brand.isdelete = True
             db.session.add(brand)
-            # 商品删除
-            delete_products = Products.query.filter(
+            # 商品下架
+            off_products = Products.query.filter(
                 Products.isdelete == False,
                 Products.PBid == pbid
-            ).delete_()
+            ).update({
+                'PRstatus': ProductStatus.off_shelves.value
+            })
         return Success('删除成功')
 
     def _get_brand_list(self, s, itid, pbstatus, time_order=(), pb_in_sub=True, page=True):
