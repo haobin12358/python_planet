@@ -766,7 +766,7 @@ class CApproval(BASEAPPROVAL):
             # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
             # if not (start_model or admin_model) or not content:
-            if not start_mode or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
