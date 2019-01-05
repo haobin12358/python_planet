@@ -762,10 +762,11 @@ class CApproval(BASEAPPROVAL):
     def __fill_guessnum(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
-            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
-            if not (start_model or admin_model) or not content:
+            # if not (start_model or admin_model) or not content:
+            if not start_mode or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -780,10 +781,11 @@ class CApproval(BASEAPPROVAL):
     def __fill_magicbox(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
-            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model =  Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = MagicBoxApply.query.filter_by_(MBAid=ap.AVcontent).first()
-            if not (start_model or admin_model) or not content:
+            # if not (start_model or admin_model) or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -798,10 +800,11 @@ class CApproval(BASEAPPROVAL):
     def __fill_freshmanfirstproduct(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
-            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
-            if not (start_model or admin_model) or not content:
+            # if not (start_model or admin_model) or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
@@ -818,10 +821,11 @@ class CApproval(BASEAPPROVAL):
     def __fill_trialcommodity(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
-            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first()
-            admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = TrialCommodity.query.filter_by_(TCid=ap.AVcontent).first()
-            if not (start_model or admin_model) or not content:
+            # if not (start_model or admin_model) or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
