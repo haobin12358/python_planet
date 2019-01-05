@@ -18,7 +18,8 @@ from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
-    FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue
+    FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
+    ActivationCodeApply, UserActivationCode
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -359,6 +360,8 @@ class CApproval(BASEAPPROVAL):
                 ).count()
 
                 pt.fill('approval_num', ap_num)
+        else:
+            pt_list = []
 
         return Success('获取审批流类型成功', data=pt_list)
 
@@ -371,7 +374,7 @@ class CApproval(BASEAPPROVAL):
                 gennerc_log('get admin failed id is {0}'.format(request.user.id))
                 raise NotFound("该管理员已被删除")
 
-            pt = Permission.query.filter_by_(PTid=data.get('ptid')).first()
+            pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
             # ptytype = ActivityType(int(data.get('pttype'))).name
             ap_list = Approval.query.filter(
                     Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
@@ -914,6 +917,20 @@ class CApproval(BASEAPPROVAL):
         for ap_remove in ap_remove_list:
             ap_list.remove(ap_remove)
 
+    def __fill_activationcode(self, ap_list):
+        ap_remove_list = []
+        for ap in ap_list:
+            start_model = User.query.filter_by_(USid=ap.AVstartid).first()
+            content = ActivationCodeApply.query.filter_by_(ACAid=ap.AVcontent).first()
+            if not start_model or not content:
+                ap_remove_list.append(ap)
+                continue
+            ap.fill('start', start_model)
+            ap.fill('content', content)
+
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
+
     def __fill_approval(self, pt, ap_list):
         if pt.PTid == 'tocash':
             self.__fill_cash(ap_list)
@@ -934,6 +951,8 @@ class CApproval(BASEAPPROVAL):
         elif pt.PTid == 'toreturn':
             # todo 退货申请目前没有图
             raise ParamsError('退货申请前往订单页面实现')
+        elif pt.PTid == 'toactivationcode':
+            self.__fill_activationcode(ap_list)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -960,6 +979,8 @@ class CApproval(BASEAPPROVAL):
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
             pass
+        elif approval_model.PTid == 'toactivationcode':
+            self.agree_activationcode(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -982,6 +1003,8 @@ class CApproval(BASEAPPROVAL):
             self.refuse_freshmanfirstproduct(approval_model, refuse_abo)
         elif approval_model.PTid == 'totrialcommodity':
             self.refuse_trialcommodity(approval_model, refuse_abo)
+        elif approval_model.PTid == 'toactivationcode':
+            self.refuse_activationcode(approval_model, refuse_abo)
         elif approval_model.PTid == 'toreturn':
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
@@ -1219,3 +1242,24 @@ class CApproval(BASEAPPROVAL):
             return pclist
         pclist.append(pc.PCname)
         return self.__get_category(pc.ParentPCid, pclist)
+
+    def agree_activationcode(self, approval_model):
+        aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
+        aca.ACAapplyStatus = ApplyStatus.agree.value
+        from planet.control.CActivationCode import CActivationCode
+        caca = CActivationCode()
+        code_list = caca._generate_activaty_code()
+        uac_list = []
+        for code in code_list:
+            uac = UserActivationCode.create({
+                'UACid': str(uuid.uuid1()),
+                'USid': aca.USid,
+                'UACcode': code,
+                'UACstatus': 0,
+            })
+            uac_list.append(uac)
+        db.session.add_all(uac_list)
+
+    def refuse_activationcode(self, approval_model, refuse_abo):
+        aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
+        aca.ACAapplyStatus = ApplyStatus.reject.value

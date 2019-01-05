@@ -141,7 +141,8 @@ class CUser(SUser, BASEAPPROVAL):
         """检查是否购买大礼包"""
         start = datetime.datetime.now().timestamp()
         op_list = OrderPart.query.filter(
-            OrderMain.isdelete == False,
+            OrderMain.isdelete == False, OrderPart.isdelete == False,
+            ProductItems.isdelete == False, Items.isdelete == False,
             OrderMain.USid == request.user.id,
             OrderMain.OMstatus == OrderMainStatus.ready.value,
             OrderPart.PRid == ProductItems.PRid,
@@ -524,7 +525,7 @@ class CUser(SUser, BASEAPPROVAL):
         default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
         if default_address:
             if str(uadefault) == '1':
-                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid}, {'UAdefault': False})
+                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
                 if not updateinfo:
                     raise SystemError('服务器繁忙')
                 uadefault = True
@@ -560,7 +561,7 @@ class CUser(SUser, BASEAPPROVAL):
         aaid = data.get('aaid')
         if not re.match(r'^[0|1]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
-        usaddress = self.get_useraddress_by_filter({'UAid': uaid})
+        usaddress = self.get_useraddress_by_filter({'UAid': uaid, 'isdelete': False})
         if not usaddress:
             raise NotFound('未找到要修改的地址信息')
         if aaid:
@@ -568,7 +569,7 @@ class CUser(SUser, BASEAPPROVAL):
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
             anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
             if anyone:
-                self.update_useraddress_by_filter({'UAid': anyone.UAid}, {'UAdefault': True})
+                self.update_useraddress_by_filter({'UAid': anyone.UAid, 'isdelete': False}, {'UAdefault': True})
         uaisdelete = True if str(uaisdelete) == '1' else False
         if uadefault:
             if not re.match(r'^[0|1]$', str(uadefault)):
@@ -576,7 +577,7 @@ class CUser(SUser, BASEAPPROVAL):
             default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
             if default_address:
                 if str(uadefault) == '1':
-                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid}, {'UAdefault': False})
+                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
                     if not updateinfo:
                         raise SystemError('服务器繁忙')
                     uadefault = True
@@ -601,7 +602,7 @@ class CUser(SUser, BASEAPPROVAL):
             'isdelete': uaisdelete
         }
         address_dict = {k: v for k, v in address_dict.items() if v is not None}
-        update_info = self.update_useraddress_by_filter({'UAid': uaid}, address_dict)
+        update_info = self.update_useraddress_by_filter({'UAid': uaid, 'isdelete': False}, address_dict)
         if not update_info:
             raise SystemError('服务器繁忙')
         return Success('修改地址成功', {'uaid': uaid})
@@ -855,7 +856,7 @@ class CUser(SUser, BASEAPPROVAL):
         #     mounth_count += float(usercommission_model_month.UCcommission)
         usercommission_model_list = self.get_ucall_by_usid(request.user.id)
         uc_count = sum(usercommission_model.UCcommission for usercommission_model in usercommission_model_list)
-        fens_sql = User.query.filter(
+        fens_sql = User.query.filter(User.isdelete == False,
             or_(User.USsupper1 == request.user.id, User.USsupper2 ==request.user.id))
         fens_count = fens_sql.count()
         fens_mouth_count = fens_sql.filter(
@@ -911,7 +912,7 @@ class CUser(SUser, BASEAPPROVAL):
             uc_model.fields = ['createtime', 'UCcommission', 'PRtitle', 'SKUpic']
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_mount += float(uc_model.UCcommission)
-            op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid).all()
+            op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
 
             if not op_list:
                 gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
@@ -1125,7 +1126,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_adname(data.get("adname"), filter_adid)
 
         update_admin = {k: v for k, v in update_admin.items() if v or v == 0}
-        update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid], ad_or_filter=[], adinfo=update_admin)
+        update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid, Admin.isdelete == False], ad_or_filter=[], adinfo=update_admin)
         if not update_result:
             raise ParamsError('管理员不存在')
         filter_admin = self.get_admin_by_id(filter_adid)
@@ -1493,11 +1494,13 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError('代理商权限已过期')
 
         usv_month = UserSalesVolume.query.filter(
+            UserSalesVolume.isdelete == False,
             extract('month', UserSalesVolume.createtime) == month,
             extract('year', UserSalesVolume.createtime) == year,
             UserSalesVolume.USid == request.user.id
         ).first()
         fens_list = User.query.filter(
+            User.isdelete == False,
             User.USsupper1 == request.user.id, User.USlevel != self.AGENT_TYPE).all()
         fens_salesvolume_list = []
         for fens in fens_list:
@@ -1513,6 +1516,7 @@ class CUser(SUser, BASEAPPROVAL):
         sub_list = User.query.filter_by_(USsupper1=request.user.id, USlevel=self.AGENT_TYPE).all()
         for sub in sub_list:
             us_salesvolume = UserSalesVolume.query.filter(
+                UserSalesVolume.isdelete == False,
                 extract('month', UserSalesVolume.createtime) == month,
                 extract('year', UserSalesVolume.createtime) == year,
                 UserSalesVolume.USid == sub.USid).first()
