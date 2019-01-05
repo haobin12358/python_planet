@@ -713,7 +713,8 @@ class CProducts:
                 Products.PRid.in_(prids)
             )
             if is_supplizer():
-                query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
+                query = query.filter(
+                    Products.PRid == SupplizerProduct.PRid,
                     SupplizerProduct.SUid == request.user.id
                 )
             product = query.first_('商品已删除')

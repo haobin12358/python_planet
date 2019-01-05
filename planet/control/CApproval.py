@@ -803,6 +803,21 @@ class CApproval(BASEAPPROVAL):
     def __fill_freshmanfirstproduct(self, ap_list):
         ap_remove_list = []
         for ap in ap_list:
+            apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.isdelete == False,
+                FreshManFirstApply.FMFAid == ap.AVcontent
+            ).first()
+            if apply:
+                apply.add('createtime')
+            content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
+            content.PRattribute = json.loads(content.PRattribute)
+            apply_sku = FreshManFirstSku.query.filter(
+                FreshManFirstSku.isdelete == False,
+                FreshManFirstSku.FMFPid == content.FMFPid
+            ).first()
+            old_sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            apply_sku.fill('SKUattriteDetail', json.loads(old_sku.SKUattriteDetail))
+            content.fill('apply_sku', apply_sku)
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
             # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = FreshManFirstProduct.query.filter_by_(FMFAid=ap.AVcontent).first()
@@ -811,6 +826,10 @@ class CApproval(BASEAPPROVAL):
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
+            # product = Products.query.filter_by_(PRid=content.PRid).first()
+            # self.__fill_product_detail(product)
+            # content.fill('product', product)
+            ap.fill('apply', apply)
             if isinstance(content.PRattribute, str):
                 content.PRattribute = json.loads(content.PRattribute)
             product = Products.query.filter_by_(PRid=content.PRid).first()

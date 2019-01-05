@@ -154,6 +154,7 @@ class CActivity(CUser):
                     MagicBoxApply.AgreeEndtime >= today,
                     MagicBoxApply.isdelete == False,
                 ).first_('活动未在进行')
+                mbaid = magic_apply.MBAid
             else:
                 magic_box_join = MagicBoxJoin.query.filter(
                     MagicBoxJoin.isdelete == False,
