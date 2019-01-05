@@ -10,7 +10,7 @@ class UserStatus(Enum):
 
 class ProductStatus(Enum):
     """商品状态"""
-    usual = (0, '上架中')
+    usual = (0, '已上架')
     auditing = (10, '审核中')
     reject = 30, '审核失败',
     sell_out = 40, '售罄'
