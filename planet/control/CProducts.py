@@ -717,23 +717,18 @@ class CProducts:
         status = form.status.data
         with db.auto_commit():
             query = Products.query.filter(
-                Products.PRid.in_(prids)
+                Products.PRid.in_(prids),
+                Products.isdelete == False,
             )
             if is_supplizer():
                 query = query.filter(
                     Products.PRid == SupplizerProduct.PRid,
+                    SupplizerProduct.isdelete == False,
                     SupplizerProduct.SUid == request.user.id
                 )
-            product = query.first_('商品已删除')
-            if product.isdelete is True:
-                raise StatusError('商品: {}已删除'.format(product.PRtitle))
-            if ProductStatus(status).name == 'usual':
-                if not product.PCid:
-                    raise StatusError('商品: {}未指定分类'.format(product.PRtitle))  # 上架的商品需要有分类
             offs = query.update({
                 'PRstatus': status
             }, synchronize_session=False)
-
             if ProductStatus(status).name == 'usual':
                 current_app.logger.info('共上架了{}个商品'.format(offs))
                 msg = '上架成功'

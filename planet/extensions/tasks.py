@@ -6,6 +6,7 @@ from flask import current_app
 from flask_celery import Celery
 from sqlalchemy import cast, Date
 
+from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
 from planet.control.CApproval import CApproval
@@ -170,8 +171,13 @@ def auto_agree_task(avid):
             current_app.logger.info(dict(approval))
         else:
             current_app.logger.info('该审批已提前处理')
-        cacpproval.agree_action(approval)
-        cacpproval.AVstatus = ApplyStatus.agree.value
+        try:
+            cacpproval.agree_action(approval)
+            cacpproval.AVstatus = ApplyStatus.agree.value
+        except NotFound:
+            current_app.logger.info('审批流状态有误')
+            # 如果不存在的商品, 需要将审批流失效
+            cacpproval.AVstatus = ApplyStatus.cancle.value
 
 
 
