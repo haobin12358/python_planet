@@ -217,17 +217,15 @@ class CApproval(BASEAPPROVAL):
         data = parameter_required(('adid', 'piid'))
 
         check_pi = PermissionItems.query.filter_by_(PIid=data.get('piid')).first_('权限标签失效')
-        for adid in data.get('adid'):
+        adid_list = data.get('adid')
+        for adid in adid_list:
             check_admin = Admin.query.filter_by(ADid=adid).first_('管理员id异常')
             if not check_admin or not check_pi:
                 raise ParamsError('参数异常')
-            if data.get('adpid'):
-                adp = AdminPermission.query.filter_by_(ADPid=data.get('adpid')).first()
-                if adp:
-                    adp.ADid = data.get('adid')
-                    adp.PIid = data.get('piid')
 
-                    return Success('修改管理员权限成功', data={'adpid': adp.ADPid})
+            adp = AdminPermission.query.filter_by_(ADid=adid, PIid=data.get('piid')).first()
+            if adp:
+                continue
             adp = AdminPermission.create({
                 'ADPid': str(uuid.uuid1()),
                 'ADid': data.get('adid'),
@@ -235,8 +233,13 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
-        return Success('创建管理员权限成功', data={'adpid': adp.ADPid})
+        # 校验是否有被删除的管理员
+        check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
+        for check_adp in check_adp_list:
+            if check_adp.ADid not in adid_list:
+               check_adp.isdelete = True
 
+        return Success('创建管理员权限成功')
 
     @token_required
     def get_permission_type_list(self):
@@ -766,7 +769,7 @@ class CApproval(BASEAPPROVAL):
             # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
             # if not (start_model or admin_model) or not content:
-            if not start_mode or not content:
+            if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
                 continue
