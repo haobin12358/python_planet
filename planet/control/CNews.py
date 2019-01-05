@@ -77,7 +77,8 @@ class CNews(BASEAPPROVAL):
                 news.fill('authername', '{} (供应商)'.format(auther))
             else:
                 news.fill('authername', '{} (用户)'.format(auther))
-            self.snews.update_pageviews(news.NEid)
+            if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):
+                self.snews.update_pageviews(news.NEid)  # 增加浏览量
             # 显示点赞状态
             if usid:
                 is_favorite = self.snews.news_is_favorite(news.NEid, usid)
@@ -162,7 +163,8 @@ class CNews(BASEAPPROVAL):
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
         news.fields = ['NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
-        self.snews.update_pageviews(news.NEid)
+        if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):
+            self.snews.update_pageviews(news.NEid)  # 增加浏览量
         if usid:
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
