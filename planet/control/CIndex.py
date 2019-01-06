@@ -82,10 +82,14 @@ class CIndex:
             ProductItems, Products.PRid == ProductItems.PRid
         ).filter_(ProductItems.ITid == itid,
                   Products.isdelete == False,
-                  ProductItems.isdelete == False
+                  ProductItems.isdelete == False,
+                  ProductBrand.PBid == Products.PBid,
+                  ProductBrand.isdelete == False,
                   ).all()
         for product in products:
             brand = ProductBrand.query.filter_by_({'PBid': product.PBid}).first()
+            if not brand:
+                continue
             product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRfreight', 'PRstocks', 'PRmainpic',
                               'PBid', 'PRlinePrice']
             product.fill('brand', brand)
