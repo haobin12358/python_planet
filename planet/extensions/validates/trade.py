@@ -154,6 +154,10 @@ class RefundConfirmRecvForm(BaseForm):
     oraid = StringField(validators=[DataRequired('需指定申请单')])
 
 
+class HistoryDetailForm(BaseForm):
+    day = DateField()
+
+
 class ActRuleSetFrom(BaseForm):
     acrrule = StringField()
     acrphone = StringField()

@@ -33,6 +33,8 @@ class CFreshManFirstOrder(COrder, CUser):
             FreshManFirstApply.AgreeEndtime >= time_now,
             FreshManFirstApply.isdelete == False,
             FreshManFirstProduct.isdelete == False,
+            Products.PRid == FreshManFirstProduct.PRid,
+            Products.isdelete == False,
         ).all()
         for fresh_man_product in fresh_man_products:
             fresh_man_product.hide('PRattribute', 'PRid', 'PBid', )

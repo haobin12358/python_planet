@@ -54,7 +54,7 @@ class OrderPay(Base):
     OPayno = Column(String(64), index=True, comment='交易号, 自己生成')  # 即out_trade_no
     OPayType = Column(Integer, default=0, comment='支付方式 0 微信 10 支付宝')
     OPaytime = Column(DateTime, comment='付款时间')
-    OPayMount = Column(Integer, comment='付款金额')
+    OPayMount = Column(DECIMAL(precision=28, scale=2), comment='付款金额')
     OPaysn = Column(String(64), comment='第三方支付流水')
     OPayJson = Column(Text, comment='回调原文')
     OPaymarks = Column(String(255), comment='备注')
