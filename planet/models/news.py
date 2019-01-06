@@ -8,9 +8,9 @@ class News(Base):
     __tablename__ = 'News'
     NEid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='发布用户id')
-    USname = Column(String(255), comment='用户名')
+    USname = Column(String(128), comment='用户名')
     USheader = Column(Text, default='用户头像', url=True)
-    NEtitle = Column(String(32), nullable=False, comment='标题')
+    NEtitle = Column(String(128), nullable=False, comment='标题')
     NEtext = Column(Text, comment='文本内容')
     NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')

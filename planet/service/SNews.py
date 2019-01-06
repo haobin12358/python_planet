@@ -26,7 +26,7 @@ class SNews(SBase):
     @close_session
     def get_news_comment(self, ncfilter):
         """获取所有资讯评论"""
-        return self.session.query(NewsComment).filter(*ncfilter).order_by(NewsComment.createtime.desc()).all_with_page()
+        return self.session.query(NewsComment).filter(*ncfilter).order_by(NewsComment.createtime.asc()).all_with_page()
 
     @close_session
     def get_comment_reply_user(self, args):
