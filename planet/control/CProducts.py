@@ -232,13 +232,15 @@ class CProducts:
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw != [''] and not is_tourist():
-            with self.sproduct.auto_commit() as s:
+            with db.auto_commit():
+                db.session.expunge_all()
                 instance = UserSearchHistory.create({
                     'USHid': str(uuid.uuid1()),
                     'USid': request.user.id,
                     'USHname': ' '.join(kw)
                 })
-                s.add(instance)
+                current_app.logger.info(dict(instance))
+                db.session.add(instance)
         return Success(data=products)
 
     @token_required
