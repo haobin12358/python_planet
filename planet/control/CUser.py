@@ -16,7 +16,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
+    ApplyStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -1454,7 +1455,9 @@ class CUser(SUser, BASEAPPROVAL):
         #     raise AuthorityError('代理商权限过期')
         uw = UserWallet.query.filter_by_(USid=request.user.id).first()
         balance = uw.UWbalance if uw else 0
-        if float(data.get('cncashnum')) > balance:
+
+        if float(data.get('cncashnum')) > float(balance):
+            gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
         cn = CashNotes.create({
             'CNid': str(uuid.uuid1()),
@@ -1631,3 +1634,23 @@ class CUser(SUser, BASEAPPROVAL):
         if not admin:
             return 100000
         return admin.ADnum + 1
+
+    @token_required
+    def get_cash_notes(self):
+        cash_notes = CashNotes.query.filter_by_(USid=request.user.id).order_by(CashNotes.createtime.desc()).all_with_page()
+
+        for cash_note in cash_notes:
+            cash_note.fields = [
+                'CNid',
+                'createtime',
+                'CNbankName',
+                'CNbankDetail',
+                'CNcardNo',
+                'CNcardName',
+                'CNcashNum',
+                'CNstatus',
+                'CNrejectReason',
+            ]
+            cash_note.fill('cnstatus', ApplyStatus(cash_note.CNstatus).zh_value)
+
+        return Success('获取提现记录成功' ,data=cash_notes)
