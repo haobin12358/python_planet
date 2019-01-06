@@ -936,7 +936,7 @@ class COrder(CPay, CCoupon):
             pass
         return Success('确认收货成功')
 
-    # @token_required
+    @token_required
     def history_detail(self):
         form = HistoryDetailForm().valid_data()
         day = form.day.data or date.today()
