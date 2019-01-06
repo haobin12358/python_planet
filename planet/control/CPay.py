@@ -323,6 +323,7 @@ class CPay():
             'OPid': order_part.OPid,
             'UCcommission': planet_remain,
             'USid': '0',
+            'CommisionFor': ApplyFrom.platform.value,
             'PRtitle': order_part.PRtitle,
             'SKUpic': order_part.SKUpic,
             'UCstatus': UCstatus,

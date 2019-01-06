@@ -189,6 +189,7 @@ class COrder(CPay, CCoupon):
             omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str
             mount_price = Decimal()  # 总价
+            omids = []
             # 采用激活码购买跳过支付参数
             if opaytype == PayType.codepay.value:
                 activation_code = data.get('activation_code')
@@ -220,6 +221,7 @@ class COrder(CPay, CCoupon):
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid1())  # 主单id
+                omids.append(omid)
                 info = parameter_required(('pbid', 'skus',), datafrom=info)
                 pbid = info.get('pbid')
                 skus = info.get('skus')
@@ -431,6 +433,8 @@ class COrder(CPay, CCoupon):
             order_pay_instance = OrderPay.create(order_pay_dict)
             s.add(order_pay_instance)
             # s.add_all(model_bean)
+        from planet.extensions.tasks import auto_cancle_order
+        auto_cancle_order.apply_async(args=omids, countdown=5 * 3600, expires=7 * 3600,)
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2
@@ -512,43 +516,43 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('omid',))
         omid = data.get('omid')
         usid = request.user.id
-        with self.strade.auto_commit() as s:
-            s_list = []
+        order_main = OrderMain.query.filter_by_({
+            'OMid': omid,
+            'OMstatus': OrderMainStatus.wait_pay.value
+        }).first_('指定订单不存在')
+        if is_supplizer() and order_main.PRcreateId != usid:
+            raise AuthorityError()
+        if not is_admin() and not is_supplizer() and order_main.USid != usid:
+            raise NotFound('订单订单不存在')
+        self._cancle(order_main)
+        return Success('取消成功')
+
+    def _cancle(self, order_main):
+        with db.auto_commit():
             # 主单状态修改
-            order_main = s.query(OrderMain).filter_by_({
-                'OMid': omid,
-                # 'USid': usid,
-                'OMstatus': OrderMainStatus.wait_pay.value
-            }).first_('指定订单不存在')
-            if is_supplizer() and order_main.PRcreateId != usid:
-                raise AuthorityError()
-            if not is_admin() and not is_supplizer() and order_main.USid != usid:
-                raise NotFound('订单订单不存在')
             order_main.OMstatus = OrderMainStatus.cancle.value
-            s_list.append(order_main)
+            db.session.add(order_main)
             # 优惠券返回
             if order_main.UseCoupon is True:
-                order_coupons = s.query(OrderCoupon).filter_by_({'OMid': omid}).all()
+                order_coupons = OrderCoupon.query.filter_by_({'OMid': order_main.OMid}).all()
                 for order_coupon in order_coupons:
-                    coupon_user_update = s.query(CouponUser).filter_by_({
+                    coupon_user_update = CouponUser.query.filter_by_({
                         'COid': order_coupon.COid,
-                        'USid': usid,
+                        'USid': order_main.USid,
                         'UCalreadyUse': True
                     }).update({'UCalreadyUse': False})
             # 库存修改
-            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            order_parts = OrderPart.query.filter_by_({'OMid': order_main.OMid}).all()
             for order_part in order_parts:
                 skuid = order_part.SKUid
                 opnum = order_part.OPnum
                 prid = order_part.PRid
-                s.query(ProductSku).filter_by_(SKUid=skuid).update({
+                ProductSku.query.filter_by_(SKUid=skuid).update({
                     'SKUstock': ProductSku.SKUstock + opnum
                 })
-                s.query(Products).filter_by_(PRid=prid).update({
+                Products.query.filter_by_(PRid=prid).update({
                     'PRstocks': Products.PRstocks + opnum
                 })
-            # 销量修改(暂不改)
-        return Success('取消成功')
 
     @token_required
     def delete(self):

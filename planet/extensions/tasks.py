@@ -180,6 +180,20 @@ def auto_agree_task(avid):
             cacpproval.AVstatus = ApplyStatus.cancle.value
 
 
+@celery.task()
+def auto_cancle_order(omid):
+    from planet.control.COrder import COrder
+    order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                        OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
+                                        OrderMain.OMid == omid).first()
+    if not order_main:
+        current_app.logger.info('订单已支付或已取消')
+        return
+    current_app.logger.info('订单自动取消{}'.format(dict(order_main)))
+    corder = COrder()
+    corder.cancle(order_main)
+
+
 
 if __name__ == '__main__':
     from planet import create_app
