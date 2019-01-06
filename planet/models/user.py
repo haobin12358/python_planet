@@ -209,6 +209,7 @@ class UserWallet(Base):
     CommisionFor = Column(Integer, default=20, comment='0 平台, 10 供应商, 20 普通用户')
     UWbalance = Column(DECIMAL(precision=28, scale=2), comment='用户账户余额')
     UWtotal = Column(DECIMAL(precision=28, scale=2), comment='用户账户总额')
+    UWcash = Column(DECIMAL(precision=28, scale=2), comment='用户账号可提现余额')
 
 
 class CashNotes(Base):

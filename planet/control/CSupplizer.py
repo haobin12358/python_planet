@@ -54,6 +54,7 @@ class CSupplizer:
             ).first()
             supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
             supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
+            supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
         return Success(data=supplizers)
 
     @admin_required

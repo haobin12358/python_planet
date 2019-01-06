@@ -162,9 +162,11 @@ class CUser(SUser, BASEAPPROVAL):
         if not uw:
             user.fill('usbalance', 0)
             user.fill('ustotal', 0)
+            user.fill('uscash', 0)
         else:
             user.fill('usbalance', uw.UWbalance or 0)
             user.fill('ustotal', uw.UWtotal or 0)
+            user.fill('uscash', uw.UWcash or 0)
 
     def _base_decode(self, raw):
         import base64
@@ -1450,15 +1452,16 @@ class CUser(SUser, BASEAPPROVAL):
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
-        # user = self.get_user_by_id(request.user.id)
+        # user = self.get_user_by_id(reqbuest.user.id)
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
         uw = UserWallet.query.filter_by_(USid=request.user.id).first()
-        balance = uw.UWbalance if uw else 0
+        balance = uw.UWcash if uw else 0
 
         if float(data.get('cncashnum')) > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
+        uw.UWcash = float('%.2f' %(float(uw.UWbalance) - float(data.get('cncashnum'))))
         cn = CashNotes.create({
             'CNid': str(uuid.uuid1()),
             'USid': request.user.id,
@@ -1577,8 +1580,10 @@ class CUser(SUser, BASEAPPROVAL):
             ).first()
             remain = getattr(wallet, 'UWbalance', 0)
             total = getattr(wallet, 'UWtotal', 0)
+            cash = getattr(wallet, 'UWcash', 0)
             user.fill('remain', remain)
             user.fill('total', total)
+            user.fill('cash', cash)
             # 粉丝数
             fans_num = User.query.filter(
                 User.isdelete == False,

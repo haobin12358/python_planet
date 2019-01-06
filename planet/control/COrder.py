@@ -1305,6 +1305,7 @@ class COrder(CPay, CCoupon):
             if user_wallet:
                 user_wallet.UWbalance += user_commision.UCcommission
                 user_wallet.UWtotal += user_commision.UCcommission
+                user_wallet.UWcash += user_commision.UCcommission
                 db.session.add(user_wallet)
             else:
                 user_wallet_instance = UserWallet.create({
@@ -1312,6 +1313,7 @@ class COrder(CPay, CCoupon):
                     'USid': user_commision.USid,
                     'UWbalance': user_commision.UCcommission,
                     'UWtotal': user_commision.UCcommission,
+                    'UWcash': user_commision.UCcommission,
                     'CommisionFor': user_commision.CommisionFor
                 })
                 db.session.add(user_wallet_instance)

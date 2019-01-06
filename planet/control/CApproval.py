@@ -1147,6 +1147,9 @@ class CApproval(BASEAPPROVAL):
             raise SystemError('提现数据异常,请处理')
         cn.CNstatus = ApprovalAction.refuse.value
         cn.CNrejectReason = refuse_abo
+        uw = UserWallet.query.filter_by_(USid=cn.USid).first_("提现审批异常数据")
+        # 拒绝提现时，回退申请的钱到可提现余额里
+        uw.UWcash = float('%.2f' %(float(uw.UWcash) + float(cn.CNcashNum)))
 
     def agree_agent(self, approval_model):
         user = User.query.filter_by_(USid=approval_model.AVstartid).first_('数据异常')
@@ -1157,7 +1160,8 @@ class CApproval(BASEAPPROVAL):
                 'UWid': str(uuid.uuid1()),
                 'USid': user.USid,
                 'UWbalance': 0,
-                'UWtotal': 0
+                'UWtotal': 0,
+                'UWcash': 0
             }))
         # todo 增加用户成为代理商之前邀请的未成为其他代理商或其他代理商粉丝的用户为自己的粉丝
         fens_list = UserInvitation.query.filter_by_(USInviter=user.USid).all()
