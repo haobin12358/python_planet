@@ -199,8 +199,10 @@ if __name__ == '__main__':
     #             pt = ap.AVname.split('2018')[0]
     #             ap.PTid = pt
     #     pass
-        make_permissiontype()
+    #     make_permissiontype()
         # make_items()
+        pt = PermissionType.query.filter(PermissionType.PTid == 'toactivationcode').first()
+        print(pt.__dict__)
 
 
         # make_items()

@@ -9,7 +9,7 @@ from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, Apply
 from planet.common.error_response import SystemError
 from planet.common.request_handler import gennerc_log
 from planet.extensions.register_ext import db
-from planet.models import User, Supplizer, Admin
+from planet.models import User, Supplizer, Admin, PermissionType
 from planet.models.approval import Approval, ApprovalNotes, Permission
 from planet.service.SApproval import SApproval
 
@@ -19,7 +19,8 @@ class BASEAPPROVAL():
 
     def create_approval(self, avtype, startid,  avcontentid, applyfrom=None):
         # avtype = int(avtype)
-        pt = Permission.query.filter_by_(PTid=avtype).first_('参数异常')
+        gennerc_log('start create approval ptid = {0}'.format(avtype))
+        pt = PermissionType.query.filter_by_(PTid=avtype).first_('参数异常')
         av = Approval.create({
             "AVid": str(uuid.uuid1()),
             "AVname": avtype + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
