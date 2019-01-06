@@ -4,11 +4,11 @@ import random
 import re
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import extract, or_, and_, cast, Date
+from sqlalchemy import extract, or_, and_, cast, Date, func
 
 from planet.common.logistics import Logistics
 from planet.common.params_validates import parameter_required
@@ -25,7 +25,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
-from planet.extensions.validates.trade import OrderListForm
+from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
@@ -935,6 +935,59 @@ class COrder(CPay, CCoupon):
             # 佣金状态更改
             pass
         return Success('确认收货成功')
+
+    # @token_required
+    def history_detail(self):
+        form = HistoryDetailForm().valid_data()
+        day = form.day.data or date.today()
+        data = {
+            'day_total': self._history_order('total', day=day,
+                                               status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
+            'day_count': self._history_order('count', day=day),
+            'wai_pay_count': self._history_order('count', day=day,
+                                                  status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
+            'in_refund': self._inrefund(day)
+        }
+        return Success(data=data)
+
+    def _history_order(self, *args, **kwargs):
+        with db.auto_commit() as session:
+            status = kwargs.pop('status', None)
+            day = kwargs.pop('day', None)
+            if 'total' in args:
+                query = session.query(func.sum(OrderMain.OMtrueMount))
+            elif 'count' in args:
+                query = session.query(func.count(OrderMain.OMid))
+            elif 'refund' in args:
+                self._inrefund(*args, **kwargs)
+            query = query.filter(OrderMain.isdelete == False)
+            if status is not None:
+                query = query.filter(status)
+            if day is not None:
+                query = query.filter(
+                    cast(OrderMain.createtime, Date) == day,
+                )
+            return query.first()[0] or 0
+
+    def _inrefund(self, day):
+        query = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
+            OrderMain.isdelete == False,
+            or_(and_(OrderPart.isdelete == False,
+                     OrderPart.OPisinORA == True),
+                (OrderMain.OMinRefund == True)),
+            OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
+        if day:
+            query = query.filter(
+                or_(OrderRefundApply.OMid == OrderMain.OMid,
+                    OrderRefundApply.OPid == OrderPart.OPid),
+            )
+            query = query.filter(
+                cast(OrderRefundApply.createtime, Date) == day,
+            )
+            return query.group_by(OrderMain.OMid).count()
+
+
+
 
     @staticmethod
     def _get_order_count(arg, k):

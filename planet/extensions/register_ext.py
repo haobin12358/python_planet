@@ -26,7 +26,7 @@ class SQLAlchemy(_SQLAlchemy):
     @contextmanager
     def auto_commit(self):
         try:
-            yield
+            yield db.session
             self.session.commit()
         except Exception as e:
             db.session.rollback()

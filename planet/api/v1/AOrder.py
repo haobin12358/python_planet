@@ -32,6 +32,7 @@ class AOrder(Resource):
             'get': self.corder.get,
             'count': self.corder.get_order_count,
             'evaluation': self.corder.get_evaluation,
+            'history_detail': self.corder.history_detail,
         }
         return apis
 
