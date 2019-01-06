@@ -191,7 +191,7 @@ def auto_cancle_order(omid):
         return
     current_app.logger.info('订单自动取消{}'.format(dict(order_main)))
     corder = COrder()
-    corder.cancle(order_main)
+    corder._cancle(order_main)
 
 
 
