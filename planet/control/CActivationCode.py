@@ -10,12 +10,13 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, admin_required
 from planet.config.enums import UserActivationCodeStatus
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply
 from planet.extensions.validates.trade import ActRuleSetFrom
 
 
-class CActivationCode:
+class CActivationCode(BASEAPPROVAL):
     @token_required
     def create_apply(self):
         """提交购买申请"""
@@ -40,6 +41,7 @@ class CActivationCode:
                 'ACAvouchers': vouchers
             })
             db.session.add(apply)
+            self.create_approval('toactivationcode', request.user.id, apply.ACAid)
         return Success('提交成功')
 
     def get_rule(self):
