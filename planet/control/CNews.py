@@ -77,7 +77,8 @@ class CNews(BASEAPPROVAL):
                 news.fill('authername', '{} (供应商)'.format(auther))
             else:
                 news.fill('authername', '{} (用户)'.format(auther))
-            self.snews.update_pageviews(news.NEid)
+            if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):
+                self.snews.update_pageviews(news.NEid)  # 增加浏览量
             # 显示点赞状态
             if usid:
                 is_favorite = self.snews.news_is_favorite(news.NEid, usid)
@@ -162,7 +163,16 @@ class CNews(BASEAPPROVAL):
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
         news.fields = ['NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
-        self.snews.update_pageviews(news.NEid)
+
+        if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
+            if news.NEstatus == NewsStatus.usual.value:
+                self.snews.update_pageviews(news.NEid)  # 增加浏览量
+            else:
+                if news.USid != usid:  # 前台查看‘我发布的’ 需要获取非正常状态情况
+                    raise StatusError('该资讯正在审核中，请耐心等待')
+                else:
+                    pass
+
         if usid:
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
@@ -478,6 +488,8 @@ class CNews(BASEAPPROVAL):
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
+        if news.NEstatus != NewsStatus.usual.value:
+            raise StatusError('该资讯当前状态不允许点赞')
         tftype = data.get('tftype')  # {1:点赞, 0:点踩}
         if not re.match(r'^[0|1]$', str(tftype)):
             raise ParamsError('tftype, 参数异常')
@@ -608,7 +620,9 @@ class CNews(BASEAPPROVAL):
         current_app.logger.info('User {0} is create comment'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
-        self.snews.get_news_content({'NEid': neid, 'isdelete': False})
+        new_info = self.snews.get_news_content({'NEid': neid, 'isdelete': False})
+        if new_info.NEstatus != NewsStatus.usual.value:
+            raise StatusError('该资讯当前状态不允许进行评论')
         ncid = data.get('ncid')
         comment_ncid = str(uuid.uuid1())
         reply_ncid = str(uuid.uuid1())

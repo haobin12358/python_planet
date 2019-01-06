@@ -26,7 +26,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             usid = None
             tourist = 1
             time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
-                           TrialCommodity.AgreeEndTime >= datetime.now())
+                           TrialCommodity.AgreeEndTime >= datetime.now(),
+                           TrialCommodity.TCstocks > 0)
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
@@ -45,7 +46,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             current_app.logger.info('User {0} get commodity list'.format(user.USname))
             tourist = 0
             time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
-                           TrialCommodity.AgreeEndTime >= datetime.now())
+                           TrialCommodity.AgreeEndTime >= datetime.now(),
+                           TrialCommodity.TCstocks > 0)
 
         args = parameter_required(('page_num', 'page_size'))
         kw = args.get('kw', '').split() or ['']
@@ -68,7 +70,11 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             prbrand = ProductBrand.query.filter_by_(PBid=commodity.PBid).first()
             commodity.fill('brand', prbrand)
             commodity.TCattribute = json.loads(commodity.TCattribute)
-            commodity.fill('zh_tcstatus', TrialCommodityStatus(commodity.TCstatus).zh_value)
+            if commodity.TCstatus == TrialCommodityStatus.upper.value and commodity.TCstocks <= 0:
+                status = TrialCommodityStatus.sell_out.zh_value
+            else:
+                status = TrialCommodityStatus(commodity.TCstatus).zh_value
+            commodity.fill('zh_tcstatus', status)
             commodity.hide('CreaterId', 'PBid')
         background = Activity.query.filter_by_(ACtype=ActivityType.free_use.value, ACshow=True).first()
         banner = background["ACtopPic"] if background else ""
@@ -207,8 +213,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                     raise ParamsError('skuattritedetail与tcattribute不符')
                 sku_detail_list.append(skuattritedetail)
                 skustock = sku.get('skustock')
-
-                # assert int(skustock) <= int(tcstocks), 'skustock参数错误，单sku库存大于库存总数'
+                assert int(skustock) >= 0, '库存数量不能小于0'
                 tcstocks += int(skustock)  # 计算总库存
                 sku_info = TrialCommoditySku.create({
                     'SKUid': str(uuid.uuid1()),
@@ -328,6 +333,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                         raise ParamsError('skuattritedetail与tcattribute不符')
                     sku_detail_list.append(skuattritedetail)
                     skustock = sku.get('skustock')
+                    assert int(skustock) >= 0, '库存数量不能小于0'
                     skus_list = list()
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
