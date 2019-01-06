@@ -20,7 +20,8 @@ from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, Use
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics
+from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
+    Products
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -426,6 +427,16 @@ class CPay():
                 return comm
         return 0
 
+    def _check_upgrade_gift(self, prid_list):
+        upgrade_gift = Products.query.filter(
+            Products.PRid in prid_list, Products.PRid == ProductItems.PRid,
+            ProductItems.ITid == Items.ITid,
+            Items.ITname == '开店大礼包',
+            Products.isdelete == False, ProductItems.isdelete == False, Items.isdelete == False
+        ).first()
+        if upgrade_gift:
+            return True
+        return False
 
 if __name__ == '__main__':
     res = CPay()

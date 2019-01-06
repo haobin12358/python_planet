@@ -19,7 +19,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
-    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus
+    ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
+    UserIdentityStatus
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -204,6 +205,9 @@ class COrder(CPay, CCoupon):
                 self.__buy_upgrade_gift(
                     infos, s, omfrom, omclient, omrecvaddress,
                     omrecvname, omrecvphone, opaytype, activation_code)
+                # 购买大礼包之后修改用户状态为已购买大礼包
+                user.USlevel = UserIdentityStatus.toapply.value
+
                 res = {
                     'pay_type': PayType(opaytype).name,
                     'opaytype': opaytype,
