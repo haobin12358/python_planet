@@ -658,27 +658,36 @@ class CApproval(BASEAPPROVAL):
 
     def __fill_publish(self, ap_list):
         """填充资讯发布"""
+        ap_remove_list = []
         for ap in ap_list:
-            start = User.query.filter_by_(USid=ap.AVstartid).first()
+            start = (User.query.filter_by_(USid=ap.AVstartid).first()
+                     or Admin.query.filter_by_(ADid=ap.AVstartid).first()
+                     or Supplizer.query.filter_by_(SUid=ap.AVstartid).first())
             content = News.query.filter_by_(NEid=ap.AVcontent).first()
             if not start or not content:
-                ap_list.remove(ap)
+                # ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             ap.fill('start', start)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_cash(self, ap_list):
         # 填充提现内容
+        ap_remove_list = []
         for ap in ap_list:
             start_model = User.query.filter_by_(USid=ap.AVstartid).first()
             content = CashNotes.query.filter_by_(CNid=ap.AVcontent).first()
             uw = UserWallet.query.filter_by_(USid=ap.AVstartid).first()
             if not start_model or not content or not uw:
-                ap_list.remove(ap)
+                ap_remove_list.append(ap)
                 continue
             content.fill('uWbalance', uw.UWbalance)
             ap.fill('start', start_model)
             ap.fill('content', content)
+        for ap_remove in ap_remove_list:
+            ap_list.remove(ap_remove)
 
     def __fill_agent(self, ap_list):
         # 填充成为代理商内容
