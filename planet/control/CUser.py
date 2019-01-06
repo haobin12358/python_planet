@@ -47,7 +47,8 @@ from planet.extensions.register_ext import mp_server, mp_subscribe, db
 
 
 class CUser(SUser, BASEAPPROVAL):
-    APPROVAL_TYPE = 'tocash'
+    APPROVAL_TYPE = 'toagent'
+
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
