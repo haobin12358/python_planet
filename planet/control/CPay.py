@@ -152,6 +152,11 @@ class CPay():
         UCendTime = None
         is_trial_commodity = order_main.OMfrom == OrderFrom.trial_commodity.value
         for order_part in order_parts:
+            # 是否是新人大礼包
+            prid = order_part.PRid
+            if self._check_upgrade_gift((prid, )):
+                current_app.logger.info('开店礼包不需要佣金')
+                continue
             if is_trial_commodity:
                 trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
                 user_commision_dict = {
@@ -178,7 +183,8 @@ class CPay():
             up1_user = User.query.filter(User.isdelete == False, User.USid == up1).first()
             up2_user = User.query.filter(User.isdelete == False, User.USid == up2).first()
             up3_user = User.query.filter(User.isdelete == False, User.USid == up3).first()
-            self._caculate_commsion(user, up1_user, up2_user, up3_user, commision, order_part)
+            self._caculate_commsion(user, up1_user, up2_user, up3_user, commision,
+                                    order_part, is_act=bool(order_main.OMfrom>OrderFrom.product_info.value))
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
@@ -428,15 +434,12 @@ class CPay():
         return 0
 
     def _check_upgrade_gift(self, prid_list):
-        upgrade_gift = Products.query.filter(
-            Products.PRid in prid_list, Products.PRid == ProductItems.PRid,
-            ProductItems.ITid == Items.ITid,
-            Items.ITname == '开店大礼包',
-            Products.isdelete == False, ProductItems.isdelete == False, Items.isdelete == False
+         return Items.query.join(ProductItems, Items.ITid == ProductItems.ITid).filter(
+            Items.isdelete == False,
+            ProductItems.isdelete == False,
+            Items.ITid == 'upgrade_product',
+            ProductItems.PRid.in_(prid_list),
         ).first()
-        if upgrade_gift:
-            return True
-        return False
 
 if __name__ == '__main__':
     res = CPay()
