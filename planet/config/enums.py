@@ -486,6 +486,7 @@ class UserIdentityStatus(Enum):
     ordinary = 1, '普通用户'
     agent = 2, '代理商'
     toagent = 3, '申请成为代理商中'
+    toapply = 4, '待提交申请'
 
 
 class OMlogisticTypeEnum(Enum):
