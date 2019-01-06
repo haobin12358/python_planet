@@ -1241,7 +1241,8 @@ class COrder(CPay, CCoupon):
             # 余额
             user_wallet = UserWallet.query.filter(
                 UserWallet.isdelete == False,
-                User.USid == user_commision.USid
+                UserWallet.USid == user_commision.USid,
+                UserWallet.CommisionFor == user_commision.CommisionFor
             ).first()
             if user_wallet:
                 user_wallet.UWbalance += user_commision.UCcommission
@@ -1253,6 +1254,7 @@ class COrder(CPay, CCoupon):
                     'USid': user_commision.USid,
                     'UWbalance': user_commision.UCcommission,
                     'UWtotal': user_commision.UCcommission,
+                    'CommisionFor': user_commision.CommisionFor
                 })
                 db.session.add(user_wallet_instance)
             current_app.logger.info('佣金到账数量 {}'.format(user_commision))
