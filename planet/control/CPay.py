@@ -258,7 +258,7 @@ class CPay():
                 # 偏移
                 up1_up2 = up1.CommisionLevel - up2.CommisionLevel
                 up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, reduce_ratio, increase_ratio)
-                if up3 and up3.USlevel > 0:
+                if up3 and up3.USlevel > 1:
                     user_level3commision = self._current_commission(up3.USCommission3, user_level3commision) / 100  # 个人佣金比
                     up3_base = order_part.OPsubTrueTotal * user_level3commision
                     up2_up3 = up2.CommisionLevel - up3.CommisionLevel
