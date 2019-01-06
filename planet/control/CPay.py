@@ -258,7 +258,7 @@ class CPay():
                 # 偏移
                 up1_up2 = up1.CommisionLevel - up2.CommisionLevel
                 up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, reduce_ratio, increase_ratio)
-                if up3 and up3.USlevel > 0:
+                if up3 and up3.USlevel > 1:
                     user_level3commision = self._current_commission(up3.USCommission3, user_level3commision) / 100  # 个人佣金比
                     up3_base = order_part.OPsubTrueTotal * user_level3commision
                     up2_up3 = up2.CommisionLevel - up3.CommisionLevel
@@ -336,13 +336,14 @@ class CPay():
         """计算偏移后的佣金"""
         if low_high <= 0:
             return user_low_base, user_hign_base
-        low_ratio = Decimal('1')
-        hign_ratio = Decimal()
+        low_ratio = Decimal()
+        hign_ratio = Decimal('1')
+        hign_comm_base_temp = user_hign_base
         for index in range(low_high):
-            up1_comm_base = user_low_base * low_ratio  # 本级的基础佣金比
-            low_ratio *= (1 - Decimal(reduce_ratio[index]) / 100)
-            hign_ratio += (up1_comm_base * Decimal(increase_ratio[index]) / 100)
-        return low_ratio * user_low_base, hign_ratio + user_hign_base
+            hign_comm_base_temp *= hign_ratio  # 本级的基础佣金比
+            hign_ratio *= (1 - Decimal(reduce_ratio[index]) / 100)
+            low_ratio += (hign_comm_base_temp * Decimal(increase_ratio[index]) / 100)
+        return low_ratio + user_low_base, hign_ratio * user_hign_base
 
     def _pay_detail(self, omclient, opaytype, opayno, mount_price, body, openid='openid'):
         opaytype = int(opaytype)
