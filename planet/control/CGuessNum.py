@@ -274,21 +274,22 @@ class CGuessNum(COrder, BASEAPPROVAL):
             suid = None
         else:
             raise AuthorityError()
-        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).order_by(GuessNumAwardApply.createtime.desc()).all_with_page()
+        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
+                                                                             GuessNumAwardApply.createtime.desc()).all_with_page()
         for award in award_list:
-            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first()
+            sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
             award.fill('skupic', sku['SKUpic'])
-            product = Products.query.filter_by_(PRid=award.PRid).first()
+            product = Products.query.filter_by(PRid=award.PRid).first()
             award.fill('prtitle', product.PRtitle)
             award.fill('prmainpic', product['PRmainpic'])
-            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+            brand = ProductBrand.query.filter_by(PBid=product.PBid).first()
             award.fill('pbname', brand.PBname)
             award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
             if award.GNAAfrom == ApplyFrom.supplizer.value:
-                sup = Supplizer.query.filter_by_(SUid=award.SUid).first()
+                sup = Supplizer.query.filter_by(SUid=award.SUid).first()
                 name = getattr(sup, 'SUname', '')
             elif award.GNAAfrom == ApplyFrom.platform.value:
-                admin = Admin.query.filter_by_(ADid=award.SUid).first()
+                admin = Admin.query.filter_by(ADid=award.SUid).first()
                 name = getattr(admin, 'ADname', '')
             else:
                 name = ''

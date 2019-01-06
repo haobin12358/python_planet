@@ -368,6 +368,7 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def get_approval_list(self):
         data = parameter_required(('ptid',))
+        filter_starttime, filter_endtime = data.get('starttime', '2018-12-01'), data.get('endtime', '2100-01-01')
         if is_admin():
             admin = Admin.query.filter_by_(ADid=request.user.id).first_()
             if not admin:
@@ -376,11 +377,26 @@ class CApproval(BASEAPPROVAL):
 
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
             # ptytype = ActivityType(int(data.get('pttype'))).name
-            ap_list = Approval.query.filter(
+            ap_querry = Approval.query.filter(
                     Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
                     Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                     Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
-                ).order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+            )
+            # 魔盒和猜数字可进行申请时间筛选
+            if pt.PTid == 'tomagicbox':
+                ap_list = ap_querry.outerjoin(MagicBoxApply, MagicBoxApply.MBAid == Approval.AVcontent
+                                              ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
+                                                        MagicBoxApply.MBAstarttime <= filter_endtime
+                                                        ).order_by(Approval.AVstatus.desc(),
+                                                                   MagicBoxApply.MBAstarttime.desc()).all()
+            elif pt.PTid == 'toguessnum':
+                ap_list = ap_querry.outerjoin(GuessNumAwardApply, GuessNumAwardApply.GNAAid == Approval.AVcontent
+                                              ).filter_(GuessNumAwardApply.GNAAstarttime >= filter_starttime,
+                                                        GuessNumAwardApply.GNAAstarttime <= filter_endtime
+                                                        ).order_by(Approval.AVstatus.desc(),
+                                                                   GuessNumAwardApply.GNAAstarttime.desc()).all()
+            else:
+                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
             pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
@@ -785,9 +801,7 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
-            # admin_model = Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = GuessNumAwardApply.query.filter_by_(GNAAid=ap.AVcontent).first()
-            # if not (start_model or admin_model) or not content:
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
@@ -804,9 +818,7 @@ class CApproval(BASEAPPROVAL):
         ap_remove_list = []
         for ap in ap_list:
             start_model = Supplizer.query.filter_by_(SUid=ap.AVstartid).first() or Admin.query.filter_by_(ADid=ap.AVstartid).first()
-            # admin_model =  Admin.query.filter_by_(ADid=ap.AVstartid).first()
             content = MagicBoxApply.query.filter_by_(MBAid=ap.AVcontent).first()
-            # if not (start_model or admin_model) or not content:
             if not start_model or not content:
                 # ap_list.remove(ap)
                 ap_remove_list.append(ap)
