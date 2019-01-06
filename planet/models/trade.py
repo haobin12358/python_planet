@@ -104,6 +104,11 @@ class OrderPart(Base):
     def SKUpic(self):
         return self.PRmainpic
 
+    @property
+    def PRcreateId(self):
+        order_main = OrderMain.query.filter(OrderMain.OMid == self.OMid).first()
+        return getattr(order_main, 'PRcreateId', None)
+
 
 class OrderRefundApply(Base):
     """订单售后申请"""

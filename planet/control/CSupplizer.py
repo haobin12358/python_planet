@@ -12,11 +12,11 @@ from planet.common.error_response import AuthorityError, ParamsError, DumpliErro
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
-from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus
+from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer, ProductBrand, Products
+from planet.models import Supplizer, ProductBrand, Products, UserWallet
 
 
 class CSupplizer:
@@ -46,6 +46,14 @@ class CSupplizer:
                         pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
                         pb.add('pbstatus_zh')
                 supplizer.fill('pbs', pbs)
+            # 收益
+            favor = UserWallet.query.filter(
+                UserWallet.isdelete == False,
+                UserWallet.USid == supplizer.SUid,
+                UserWallet.CommisionFor == ApplyFrom.supplizer.value
+            ).first()
+            supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
+            supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
         return Success(data=supplizers)
 
     @admin_required

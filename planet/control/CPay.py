@@ -17,7 +17,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus
+    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
@@ -229,6 +229,7 @@ class CPay():
     def _caculate_commsion(self, user, up1, up2, up3, commision, order_part, is_act=False):
         """计算各级佣金"""
         # 活动佣金即时到账
+        suid = order_part.PRcreateId
         if is_act:
             current_app.logger.info('活动订单和押金即时到账')
             UCstatus = UserCommissionStatus.in_account.value
@@ -252,8 +253,12 @@ class CPay():
 
         planet_commision = Decimal(str(default_planetcommision))
         # 用户佣金和平台佣金
-        commision_total = order_part.OPsubTrueTotal * (
-                user_level1commision + user_level2commision + user_level3commision + planet_commision) / 100
+        if suid:
+            # 平台所有能分的钱
+            commision_total = order_part.OPsubTrueTotal * (
+                    user_level1commision + user_level2commision + user_level3commision + planet_commision) / 100
+        else:
+            commision_total = order_part.OPsubTrueTotal
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
@@ -325,19 +330,21 @@ class CPay():
         })
         db.session.add(commision_account)
         # 供应商获取佣金
-        supplizer_remain = order_part.OPsubTrueTotal - commision_total
-        commision_account = UserCommission.create({
-            'UCid': str(uuid.uuid1()),
-            'OMid': order_part.OMid,
-            'OPid': order_part.OPid,
-            'UCcommission': supplizer_remain,
-            'USid': '1',
-            'PRtitle': order_part.PRtitle,
-            'SKUpic': order_part.SKUpic,
-            'UCstatus': UCstatus,
-            'FromUsid': user.USid
-        })
-        db.session.add(commision_account)
+        if suid:
+            supplizer_remain = order_part.OPsubTrueTotal - commision_total
+            commision_account = UserCommission.create({
+                'UCid': str(uuid.uuid1()),
+                'OMid': order_part.OMid,
+                'OPid': order_part.OPid,
+                'UCcommission': supplizer_remain,
+                'USid': suid,
+                'CommisionFor': ApplyFrom.supplizer.value,
+                'PRtitle': order_part.PRtitle,
+                'SKUpic': order_part.SKUpic,
+                'UCstatus': UCstatus,
+                'FromUsid': user.USid
+            })
+            db.session.add(commision_account)
 
     def _caculate_offset(self, low_high, user_low_base, user_hign_base, reduce_ratio, increase_ratio):
         """计算偏移后的佣金"""
