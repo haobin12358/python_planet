@@ -1460,7 +1460,7 @@ class CUser(SUser, BASEAPPROVAL):
         if float(data.get('cncashnum')) > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
-        uw.UWcash = float('%.2f' %(float(uw.UWbalance) - float(data.get('cncashnum'))))
+        uw.UWcash = float('%.2f' %(float(uw.UWcash) - float(data.get('cncashnum'))))
         cn = CashNotes.create({
             'CNid': str(uuid.uuid1()),
             'USid': request.user.id,
@@ -1512,7 +1512,7 @@ class CUser(SUser, BASEAPPROVAL):
         for fens in fens_list:
             order_list = OrderMain.query.filter_by_(USid=fens.USid, OMstatus=OrderMainStatus.ready.value).all()
 
-            us_salesvolume = sum(order_main.OMmount for order_main in order_list)
+            us_salesvolume = sum(order_main.OMtrueMount for order_main in order_list)
             fens_salesvolume_list.append({
                 'USheader': fens['USheader'],
                 'USname': fens.USname,
@@ -1527,11 +1527,15 @@ class CUser(SUser, BASEAPPROVAL):
                 extract('month', UserSalesVolume.createtime) == month,
                 extract('year', UserSalesVolume.createtime) == year,
                 UserSalesVolume.USid == sub.USid).first()
+            sub_salevolume = sum(
+                order_main.OMtrueMount for order_main in OrderMain.query.filter_by_(
+                    USid=sub.USid, OMstatus=OrderMainStatus.ready.value).all())
+
             amount = us_salesvolume.USVamount if us_salesvolume else 0
             sub_salesvolume_list.append({
                 'USheader': sub['USheader'],
                 'USname': sub.USname,
-                'USsalesvolume': amount
+                'USsalesvolume': float('%.2f' % (float(amount) + float(sub_salevolume)))
             })
             sub_amount += amount
         usvamout = usv_month.USVamount if usv_month else 0
