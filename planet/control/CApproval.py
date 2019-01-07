@@ -382,7 +382,7 @@ class CApproval(BASEAPPROVAL):
                     Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                     Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
             )
-            # 魔盒和猜数字可进行申请时间筛选
+            # 四个活动可通过申请时间筛选
             if pt.PTid == 'tomagicbox':
                 ap_list = ap_querry.outerjoin(MagicBoxApply, MagicBoxApply.MBAid == Approval.AVcontent
                                               ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
@@ -395,6 +395,19 @@ class CApproval(BASEAPPROVAL):
                                                         GuessNumAwardApply.GNAAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
                                                                    GuessNumAwardApply.GNAAstarttime.desc()).all()
+            elif pt.PTid == 'totrialcommodity':
+                ap_list = ap_querry.outerjoin(TrialCommodity, TrialCommodity.TCid == Approval.AVcontent
+                                              ).filter(TrialCommodity.ApplyStartTime >= filter_starttime,
+                                                       TrialCommodity.AgreeEndTime <= filter_endtime
+                                                       ).order_by(Approval.AVstatus.desc(),
+                                                                  TrialCommodity.ApplyStartTime.desc()).all()
+            elif pt.PTid == 'tofreshmanfirstproduct':
+                ap_list = ap_querry.outerjoin(FreshManFirstApply, FreshManFirstApply.FMFAid == Approval.AVcontent
+                                              ).filter(FreshManFirstApply.FMFAstartTime >= filter_starttime,
+                                                       FreshManFirstApply.FMFAendTime <= filter_endtime
+                                                       ).order_by(Approval.AVstatus.desc(),
+                                                                  FreshManFirstApply.FMFAstartTime.desc()).all()
+
             else:
                 ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
@@ -435,7 +448,7 @@ class CApproval(BASEAPPROVAL):
         if not is_admin():
             raise AuthorityError('权限不足')
         data = parameter_required(('avid', 'anaction', 'anabo'))
-        admin = Admin.query.filter_by_(ADid=data.get("adid")).first_("该管理员已被删除")
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
         approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
         Permission.query.filter(
             Permission.isdelete == False, AdminPermission.isdelete == False,
@@ -500,7 +513,7 @@ class CApproval(BASEAPPROVAL):
         if not is_admin():
             raise AuthorityError('权限不足')
         data = parameter_required(('avid',))
-        an_list = ApprovalNotes.query.filter_by_(AVid=data.get('avid')).all()
+        an_list = ApprovalNotes.query.filter_by_(AVid=data.get('avid')).order_by(ApprovalNotes.createtime).all()
         for an in an_list:
             an.fill('anaction', ApprovalAction(an.ANaction).zh_value)
         return Success('获取审批记录成功', data=an_list)
