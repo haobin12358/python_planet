@@ -176,7 +176,7 @@ def auto_agree_task(avid):
         Approval.AVid == avid
     ).first()
     from planet.control.CApproval import CApproval
-    cacpproval = CApproval()
+    cp = CApproval()
     with db.auto_commit():
         if approval:
             current_app.logger.info('5分钟自动同意')
@@ -184,12 +184,12 @@ def auto_agree_task(avid):
         else:
             current_app.logger.info('该审批已提前处理')
         try:
-            cacpproval.agree_action(approval)
-            cacpproval.AVstatus = ApplyStatus.agree.value
+            cp.agree_action(approval)
+            approval.AVstatus = ApplyStatus.agree.value
         except NotFound:
             current_app.logger.info('审批流状态有误')
             # 如果不存在的商品, 需要将审批流失效
-            cacpproval.AVstatus = ApplyStatus.cancle.value
+            approval.AVstatus = ApplyStatus.cancle.value
 
 
 @celery.task()
