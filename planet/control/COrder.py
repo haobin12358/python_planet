@@ -16,7 +16,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -689,6 +689,22 @@ class COrder(CPay, CCoupon):
                                     "ERROR >>> {1}".format(order_part_id, e))
             db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    @admin_required
+    def set_autoevaluation_time(self):
+        """设置自动评价超过x天的订单：x"""
+        data = parameter_required(('day',))
+        day = data.get('day', 7)
+        cfs = ConfigSettings()
+        cfs.set_item('autoevaluateparams', 'day', str(day))
+        return Success('设置成功', {'day': day})
+
+    @admin_required
+    def get_autoevaluation_time(self):
+        """获取自动评价超过x天的订单：x"""
+        cfs = ConfigSettings()
+        day = cfs.get_item('autoevaluateparams', 'day')
+        return Success('获取成功', {'day': day})
 
     def get_evaluation(self):
         """获取订单评价"""
