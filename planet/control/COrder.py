@@ -1004,6 +1004,7 @@ class COrder(CPay, CCoupon):
                     'USid': user.USsupper1,
                     'USVamount': 0
                 })
+                db.session.add(usv)
             usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
 
     @staticmethod

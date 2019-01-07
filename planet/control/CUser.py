@@ -1488,7 +1488,7 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_salesvolume_all(self):
         """获取团队销售额"""
-        # todo 销售额表自动插入
+
         today = datetime.datetime.now()
         args = request.args.to_dict()
         month = args.get('month') or today.month
@@ -1521,6 +1521,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
         sub_salesvolume_list = []
         sub_list = User.query.filter_by_(USsupper1=request.user.id, USlevel=self.AGENT_TYPE).all()
+        sub_amount = 0
         for sub in sub_list:
             us_salesvolume = UserSalesVolume.query.filter(
                 UserSalesVolume.isdelete == False,
@@ -1533,9 +1534,10 @@ class CUser(SUser, BASEAPPROVAL):
                 'USname': sub.USname,
                 'USsalesvolume': amount
             })
+            sub_amount += amount
         usvamout = usv_month.USVamount if usv_month else 0
         data = {
-            'usvamout': usvamout,
+            'usvamout': float('%.2f' % (float(usvamout) + float(sub_amount))),
             'fens_detail': fens_salesvolume_list,
             'sub_detail': sub_salesvolume_list,
         }
