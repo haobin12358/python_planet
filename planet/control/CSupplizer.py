@@ -225,7 +225,6 @@ class CSupplizer:
                 })
         return Success('删除成功')
 
-
     @token_required
     def change_password(self):
         if not is_supplizer() and not is_admin():

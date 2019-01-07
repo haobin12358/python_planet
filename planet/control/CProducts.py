@@ -752,7 +752,9 @@ class CProducts:
                 for product in products:
                     to_approvals.append(product.PRid)
                     product.PRstatus = ProductStatus.auditing.value
-                    brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('品牌已删除')
+                    brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid,
+                                                      ProductBrand.isdelete == False).first_('品牌已删除')
+                    # todo 判断分类
                 msg = '上架成功'
             else:
                 for product in products:
