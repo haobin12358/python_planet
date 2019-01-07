@@ -304,7 +304,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         skuid, prid, skustock = data.get('skuid'), data.get('prid'), data.get('skustock', 1)
         gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
-        Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+        product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                               Products.PRstatus == ProductStatus.usual.value
                               ).first_('当前商品状态不允许进行申请')
         assert sku.PRid == prid, 'sku与商品信息不对应'
@@ -344,9 +344,19 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 award_instance = GuessNumAwardApply.create(award_dict)
                 gnaaid_list.append(award_dict['GNAAid'])
                 award_instance_list.append(award_instance)
-                # 添加到审批流
-                super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'], gnaafrom)
+                sku.SKUstock -= skustock
+                # 库存设置
+                product.PRstocks -= skustock
+                if sku.SKUstock < 0:
+                    raise StatusError('商品库存不足')
+                db.session.add(sku)
+                if product.PRstocks == 0:
+                    product.PRstatus = ProductStatus.sell_out.value
+                db.session.add(product)
+
             db.session.add_all(award_instance_list)
+        # 添加到审批流
+        super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'], gnaafrom)
         return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):

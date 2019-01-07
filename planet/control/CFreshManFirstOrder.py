@@ -337,6 +337,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     ProductSku.PRid == prid,
                     ProductSku.SKUid == skuid
                 ).first_('商品sku信息不存在')
+                self._update_stock(-skustock, product, sku)
                 fresh_first_sku = FreshManFirstSku.create({
                     'FMFSid': str(uuid.uuid1()),
                     'FMFPid': fresh_first_product.FMFPid,
@@ -410,6 +411,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                     FreshManFirstSku.SKUid == skuid
                 ).first()
+                self._update_stock(fresh_first_apply.FMFPstock - skustock, product, sku)
                 if not fresh_first_sku:
                     fresh_first_sku = FreshManFirstSku()
                     fresh_first_sku.FMFSid = str(uuid.uuid1())
@@ -421,6 +423,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     'SKUprice': float(skuprice),
                 })
                 db.session.add(fresh_first_sku)
+                # self._update_stock()
             # 删除其他的不需要的新人首单sku
             FreshManFirstSku.query.filter(
                 FreshManFirstSku.isdelete == False,
@@ -513,12 +516,19 @@ class CFreshManFirstOrder(COrder, CUser):
         form = ShelfFreshManfirstOrder().valid_data()
         fmfaid = form.fmfaid.data
         with db.auto_commit():
-            apply = FreshManFirstApply.query.filter(
+            suid = request.user.id if is_supplizer() else None
+            apply_query = FreshManFirstApply.query.filter(
                 FreshManFirstApply.isdelete == False,
-                FreshManFirstApply.SUid == request.user.id,
                 FreshManFirstApply.FMFAid == fmfaid,
                 FreshManFirstApply.FMFAstatus == ApplyStatus.wait_check.value
-            ).first_('申请已处理或不存在')
+            )
+            if suid:
+                apply_query = apply_query.filter(
+                    FreshManFirstApply.SUid == request.user.id,
+                )
+            apply = apply_query.first_('申请已处理')
+            # 库存处理
+            self._re_stock(apply)
             apply.FMFAstatus = ApplyStatus.cancle.value
             db.session.add(apply)
             # 相应的审批流
@@ -540,3 +550,37 @@ class CFreshManFirstOrder(COrder, CUser):
             date_list.append(date_str)
             begin_date += timedelta(days=1)
         return date_list
+
+    def _re_stock(self, apply):
+        """库存回复"""
+        apply_sku = FreshManFirstSku.query.join(
+            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid
+        ).filter(
+            FreshManFirstProduct.FMFAid == apply.FMFAid
+        ).first()
+        sku = ProductSku.query.filter(
+            ProductSku.SKUid == apply_sku.SKUid
+        ).first()
+        product = Products.query.filter(
+            Products.PRid == sku.PRid
+        )
+        # 加库存
+        sku.SKUstock += apply_sku.FMFPstock
+        product.PRstocks += apply_sku.FMFPstock
+        if product.PRstatus == ProductStatus.sell_out.value:
+            product.PRstatus = ProductStatus.usual.value
+        db.session.add(sku)
+        db.session.add(product)
+
+    def _update_stock(self, old_new, product, sku):
+        if not old_new:
+            return
+        product.PRstocks += old_new
+        sku.SKUstock += old_new
+        if product.PRstocks < 0:
+            raise StatusError('商品库存不足')
+        if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:
+            product.PRstatus = ProductStatus.usual.value
+        db.session.add(sku)
+        db.session.add(product)
+

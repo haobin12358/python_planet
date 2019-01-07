@@ -162,5 +162,6 @@ def create_app():
     CORS(app, supports_credentials=True)
     request_first_handler(app)
     register_ext(app)
+    error_handler(app)
     return app
 
