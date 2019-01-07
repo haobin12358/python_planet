@@ -27,7 +27,8 @@ from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode
+    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
+    UserSalesVolume
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet
@@ -577,7 +578,7 @@ class COrder(CPay, CCoupon):
         current_app.logger.info('User {0} created order evaluations'.format(user.USname))
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
-        OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
+        om = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
                                OrderMain.OMstatus == OrderMainStatus.wait_comment.value
                                ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
@@ -587,6 +588,7 @@ class COrder(CPay, CCoupon):
         get_opid_list = list()  # 从前端获取到的所有opid
         with db.auto_commit():
             orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
+            self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -986,8 +988,23 @@ class COrder(CPay, CCoupon):
             )
             return query.group_by(OrderMain.OMid).count()
 
-
-
+    def _tosalesvolume(self, amount, usid):
+        today = datetime.today()
+        user = User.query.filter_by_(USid=usid).first_('订单数据异常')
+        if user.USsupper1:
+            usv = UserSalesVolume.query.filter(
+                UserSalesVolume.isdelete == False,
+                extract('month', UserSalesVolume.createtime) == today.month,
+                extract('year', UserSalesVolume.createtime) == today.year,
+                UserSalesVolume.USid == user.USsupper1
+            ).first()
+            if not usv:
+                usv = UserSalesVolume.create({
+                    'USVid': str(uuid.uuid1()),
+                    'USid': user.USsupper1,
+                    'USVamount': 0
+                })
+            usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
 
     @staticmethod
     def _get_order_count(arg, k):
