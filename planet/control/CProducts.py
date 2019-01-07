@@ -311,7 +311,7 @@ class CProducts:
                 'PRid': prid,
                 'PRtitle': data.get('prtitle'),
                 'PRprice': data.get('prprice'),
-                'PRlinePrice': data.get('prlinePrice'),
+                'PRlinePrice': data.get('prlineprice'),
                 'PRfreight': data.get('prfreight'),
                 'PRstocks': prstocks,
                 'PRmainpic': data.get('prmainpic'),
