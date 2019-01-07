@@ -369,6 +369,12 @@ class CApproval(BASEAPPROVAL):
     def get_approval_list(self):
         data = parameter_required(('ptid',))
         filter_starttime, filter_endtime = data.get('starttime', '2018-12-01'), data.get('endtime', '2100-01-01')
+        avstatus = getattr(ApplyStatus, data.get('avstatus', 'wait_check'))
+        if avstatus:
+            avstatus = avstatus.value
+        else:
+            avstatus = 0
+
         if is_admin():
             admin = Admin.query.filter_by_(ADid=request.user.id).first_()
             if not admin:
@@ -378,9 +384,11 @@ class CApproval(BASEAPPROVAL):
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
             # ptytype = ActivityType(int(data.get('pttype'))).name
             ap_querry = Approval.query.filter(
-                    Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
-                    Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
-                    Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
+                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
+                Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
+                Approval.AVstatus == avstatus,
+                Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False,
+
             )
             # 四个活动可通过申请时间筛选
             if pt.PTid == 'tomagicbox':
@@ -1301,3 +1309,7 @@ class CApproval(BASEAPPROVAL):
     def refuse_activationcode(self, approval_model, refuse_abo):
         aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
         aca.ACAapplyStatus = ApplyStatus.reject.value
+
+    def get_avstatus(self):
+        data = {level.name: level.zh_value for level in ApplyStatus}
+        return Success('获取所有状态成功', data=data)
