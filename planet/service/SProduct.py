@@ -57,7 +57,7 @@ class SProducts(SBase):
     def get_categorys(self, args):
         """获取分类"""
         return self.session.query(ProductCategory).filter_by_(**args).\
-            order_by(ProductCategory.PCsort).all()
+            order_by(ProductCategory.PCsort, ProductCategory.createtime).all()
 
     @close_session
     def get_category_one(self, args, error=None):
@@ -82,7 +82,7 @@ class SProducts(SBase):
         return self.session.query(ProductScene).filter_(ProductScene.PSname.contains(kw),
                                                         ProductScene.isdelete == False
                                                         ).order_by(ProductScene.PSsort,
-                                                                   ProductScene.createtime.desc()).all()
+                                                                   ProductScene.createtime).all()
 
     @close_session
     def get_items(self, args, order=(Items.ITsort, )):

@@ -2,7 +2,7 @@
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku
 
 
 # 添加一些默认的数据
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     #     # make_items()
     #     # make_acvitity()
     #     make_permissiontype()
-    #     with db.auto_commit():
+        with db.auto_commit():
     #         aps = Approval.query.all()
     #         for ap in aps:
     #             pt = ap.AVname.split('2018')[0]
@@ -201,9 +201,16 @@ if __name__ == '__main__':
     #     pass
     #     make_permissiontype()
         # make_items()
-        pt = PermissionType.query.filter(PermissionType.PTid == 'toactivationcode').first()
-        print(pt.__dict__)
-
+        # pt = PermissionType.query.filter(PermissionType.PTid == 'toactivationcode').first()
+        # print(pt.__dict__)
+            products = ProductSku.query.all()
+            index = 1
+            sn_list = []
+            for product_sku in products:
+                if product_sku.SKUsn in sn_list:
+                    product_sku.SKUsn = product_sku.SKUsn + str(index)
+                    index += 1
+                sn_list.append(product_sku.SKUsn)
 
         # make_items()
         # make_commsion()

@@ -28,7 +28,7 @@ class CItems:
         items_query = Items.query.filter_(Items.isdelete == False, Items.ITtype == ittype,
                                           Items.ITrecommend == recommend, Items.ITauthority != ItemAuthrity.other.value,
                                           Items.ITposition != ItemPostion.other.value,
-                                          ).order_by(Items.ITsort, Items.ITid)
+                                          ).order_by(Items.ITsort, Items.createtime)
 
         if psid:
             items_query = items_query.outerjoin(SceneItem, SceneItem.ITid == Items.ITid
@@ -105,8 +105,9 @@ class CItems:
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
         with db.auto_commit():
+            itsort = self._check_itsort(form.itsort.data, form.ittype.data)
             item_dict = {'ITname': form.itname.data,
-                         'ITsort': form.itsort.data,
+                         'ITsort': itsort,
                          'ITdesc': form.itdesc.data,
                          'ITtype': form.ittype.data,
                          'ITrecommend': form.itrecommend.data,
@@ -136,3 +137,12 @@ class CItems:
             else:
                 SceneItem.query.filter_by(ITid=itid).delete_()  # psid = [] 为空时，删除所有该标签场景的关联
         return Success('修改成功', {'itid': itid})
+
+    def _check_itsort(self, itsort, ittype):
+
+        if itsort < 1:
+            return 1
+        count_item = Items.query.filter_by_(ITtype=ittype).count()
+        if itsort > count_item:
+            return count_item
+        return count_item

@@ -89,13 +89,15 @@ class CCategory(CProducts):
         pcname = data.get('pcname')
         pcpic = data.get('pcpic')
         parentpcid = data.get('parentpcid')
-        pcsort = data.get('pcsort', 1)
+        # pcsort = self._check_sort(data.get('pcid'), data.get('pcsort', 1))
+        pcsort = int(data.get('pcsort', 1))
         pctoppic = data.get('pctoppic')
         with db.auto_commit():
             current_category = ProductCategory.query.filter(
                 ProductCategory.isdelete == False,
                 ProductCategory.PCid == data.get('pcid')
             ).first_('分类不存在')
+            pcsort = self._check_sort(current_category.PCtype, pcsort, parentpcid)
             if parentpcid:
                 parent_cat = ProductCategory.query.filter(
                     ProductCategory.isdelete == False,
@@ -135,4 +137,10 @@ class CCategory(CProducts):
                 for sub in subs:
                     self._sub_category(sub, deep, parent_ids)
 
-
+    def _check_sort(self, pctype, pcsort, parentpcid=None):
+        count_pc = ProductCategory.query.filter_by_(PCtype=pctype, ParentPCid=parentpcid).count()
+        if pcsort < 1:
+            return 1
+        if pcsort > count_pc:
+            return count_pc
+        return pcsort

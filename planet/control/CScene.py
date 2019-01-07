@@ -42,6 +42,7 @@ class CScene(object):
         psid, pspic, psname, pssort = form.psid.data, form.pspic.data, form.psname.data, form.pssort.data
         isdelete = form.isdelete.data
         with db.auto_commit():
+            pssort = self._check_sort(pssort)
             product_scene = ProductScene.query.filter(ProductScene.isdelete == False,
                                                       ProductScene.PSid == psid
                                                       ).first_('不存在的场景')
@@ -55,3 +56,11 @@ class CScene(object):
             if isdelete is True:
                 SceneItem.query.filter_by(PSid=psid).delete_()
         return Success('更新成功', {'psid': psid})
+
+    def _check_sort(self, pssort):
+        if pssort < 1:
+            return 1
+        count_ps = ProductScene.query.filter_by_().count()
+        if pssort > count_ps:
+            return count_ps
+        return pssort
