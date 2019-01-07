@@ -380,7 +380,7 @@ class CCoupon(object):
 
     def _can_collect(self, coupon):
         # 发放完毕或抢空
-        can_not_collect = (coupon.COlimitNum and not coupon.COremainNum) or (
+        can_not_collect = (not coupon.COcanCollect) or (coupon.COlimitNum and not coupon.COremainNum) or (
                 coupon.COsendStarttime and coupon.COsendStarttime > datetime.now()) or (
                 coupon.COsendEndtime and coupon.COsendEndtime < datetime.now())
         return not can_not_collect
