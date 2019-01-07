@@ -10,7 +10,6 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
-from planet.control.CApproval import CApproval
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval
@@ -60,6 +59,9 @@ def auto_evaluate():
     with db.auto_commit():
         s_list = list()
         current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
+        from planet.control.COrder import COrder
+        corder = COrder()
+        current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
         count = 0
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_(
@@ -80,14 +82,16 @@ def auto_evaluate():
                     user = User.query.filter_by(USid=order_main.USid).first()
                     if order_part.OPisinORA:
                         continue
-                    # 佣金到账
-                    user_commision = UserCommission.query.filter(
-                        UserCommission.isdelete == False,
-                        UserCommission.OPid == order_part.OPid
-                    ).update({
-                        'UCstatus': UserCommissionStatus.in_account.value
-                    })
-                    current_app.logger.info('佣金到账数量 {}'.format(user_commision))
+
+                    # user_commision = UserCommission.query.filter(
+                    #     UserCommission.isdelete == False,
+                    #     UserCommission.OPid == order_part.OPid
+                    # ).update({
+                    #     'UCstatus': UserCommissionStatus.in_account.value
+                    # })
+                    corder._commsion_into_count(order_part) # 佣金到账
+                    corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
+                    # current_app.logger.info('佣金到账数量 {}'.format(user_commision))
                     if user:
                         usname, usheader = user.USname, user.USheader
                     else:
@@ -171,6 +175,7 @@ def auto_agree_task(avid):
         Approval.AVstatus == ApplyStatus.wait_check.value,
         Approval.AVid == avid
     ).first()
+    from planet.control.CApproval import CApproval
     cacpproval = CApproval()
     with db.auto_commit():
         if approval:
