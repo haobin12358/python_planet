@@ -212,6 +212,9 @@ class CApproval(BASEAPPROVAL):
     @get_session
     @token_required
     def add_adminpermission(self):
+        if not is_hign_level_admin():
+            raise AuthorityError("不是超级管理员")
+
         admin = Admin.query.filter_by_(ADid=request.user.id).first_("权限被回收")
         if admin.ADlevel != AdminLevel.super_admin.value:
             raise AuthorityError('权限不够')
@@ -341,14 +344,19 @@ class CApproval(BASEAPPROVAL):
                 ap_num = Approval.query.filter(
                     Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
                     Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
+                    Approval.AVstatus == ApplyStatus.wait_check.value,
                     Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
                 ).count()
 
+                # 退货申请 异常处理
+                if pt.PTid == 'toreturn':
+                    ap_num = OrderRefundApply.query.filter_by_(ORAstatus=ApplyStatus.wait_check.value).count()
                 pt.fill('approval_num', ap_num)
         elif is_supplizer():
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商账号已回收')
             pt_list = PermissionType.query.filter(
                 PermissionType.PTid == Approval.PTid, Approval.AVstartid == sup.SUid,
+                Approval.AVstatus == ApplyStatus.wait_check.value,
                 PermissionType.isdelete == False, Approval.isdelete == False
             ).all()
             # todo 供应商的审批类型筛选
@@ -629,6 +637,8 @@ class CApproval(BASEAPPROVAL):
     @get_session
     @token_required
     def add_pi_and_pe_and_ap(self):
+        if not is_hign_level_admin():
+            raise AuthorityError("不是超级管理员")
         admin = Admin.query.filter_by_(ADid=request.user.id).first_('管理员权限被回收')
         # data = parameter_required(('piname', 'ptid', 'pelevel', 'ad_list'))
         data = parameter_required(('piname', 'ptid', 'ad_list'))
@@ -700,6 +710,7 @@ class CApproval(BASEAPPROVAL):
             start = (User.query.filter_by_(USid=ap.AVstartid).first()
                      or Admin.query.filter_by_(ADid=ap.AVstartid).first()
                      or Supplizer.query.filter_by_(SUid=ap.AVstartid).first())
+
             content = News.query.filter_by_(NEid=ap.AVcontent).first()
             if not start or not content:
                 # ap_list.remove(ap)
