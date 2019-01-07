@@ -38,7 +38,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume
+    CashNotes, UserSalesVolume, Coupon
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -431,7 +431,6 @@ class CUser(SUser, BASEAPPROVAL):
     # def wx_login(self):
     #     pass
 
-    @get_session
     @token_required
     def get_home(self):
         """获取个人主页信息"""
@@ -439,13 +438,23 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get user is {0}'.format(user))
         if not user:
             raise ParamsError('token error')
-        uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
+        # uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
+        # 过滤下可以使用的数量
+        time_now = datetime.datetime.now()
+        count = db.session.query(func.count(CouponUser.COid)).join(
+            Coupon, CouponUser.COid == Coupon.COid
+        ).filter(
+            CouponUser.USid == request.user.id,
+            or_(Coupon.COvalidEndTime < time_now, Coupon.COvalidEndTime.is_(None)),
+            or_(Coupon.COvalidStartTime > time_now, Coupon.COvalidStartTime.is_(None)),
+            CouponUser.UCalreadyUse == False,
+        ).first()
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
-        user.fill('uscoupon', uscoupon or 0)
+        user.fill('uscoupon', count[0] or 0)
         self.__user_fill_uw_total(user)
         return Success('获取首页用户信息成功', data=user)
 

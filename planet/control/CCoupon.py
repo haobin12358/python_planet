@@ -385,7 +385,6 @@ class CCoupon(object):
                 coupon.COsendEndtime and coupon.COsendEndtime < datetime.now())
         return not can_not_collect
 
-
     def _isavalible(self, coupon, user_coupon=None):
         # 判断是否可用
         time_now = datetime.now()
