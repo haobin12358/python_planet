@@ -152,7 +152,7 @@ class CNews(BASEAPPROVAL):
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} is geting news content'.format(sup.ADname))
+            current_app.logger.info('Supplizer {0} is geting news content'.format(sup.SUname))
             tourist = 'supplizer'
         else:
             usid = request.user.id
@@ -460,20 +460,34 @@ class CNews(BASEAPPROVAL):
             super().create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
 
-    @admin_required
     def del_news(self):
         """删除资讯"""
-        usid = request.user.id
-        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        current_app.logger.info("Admin {} del news".format(user.ADname))
+        if is_tourist():
+            raise TokenError()
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {0} delete news'.format(admin.ADname))
+        elif is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {0} delete news'.format(sup.SUname))
+        else:
+            usid = request.user.id
+            user = self.snews.get_user_by_id(usid)
+            current_app.logger.info('User {0} is delete news'.format(user.USname))
         data = parameter_required(('neid',))
         neids = data.get('neid')
         with db.auto_commit():
             for neid in neids:
-                News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能删除已下架状态的资讯')
-                del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
-                if not del_info:
-                    raise StatusError('服务器繁忙')
+                news = News.query.filter_by_(NEid=neid).first_('该资讯已被删除')
+                if is_admin():
+                    if news.NEstatus != NewsStatus.refuse.value:
+                        raise StatusError('只能删除已下架状态的资讯')
+                else:
+                    if news.USid != usid:
+                        raise StatusError('只能删除自己发送的资讯')
+                News.query.filter_by(NEid=neid, isdelete=False).delete_()
                 NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
                 NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
                 NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
@@ -481,10 +495,10 @@ class CNews(BASEAPPROVAL):
                 NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
                 NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
                 # 如果在审核中，同时取消在进行的审批流
-                # if news.NEstatus == NewsStatus.auditing:
-                #     approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
-                #                                               AVstatus=ApplyStatus.wait_check.value).first()
-                #     approval_info.AVstatus = ApplyStatus.cancle.value
+                if news.NEstatus == NewsStatus.auditing:
+                    approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
+                                                              AVstatus=ApplyStatus.wait_check.value).first()
+                    approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('删除成功', {'neid': neid})
 
     @token_required
