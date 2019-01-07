@@ -10,12 +10,12 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
     is_admin, is_supplizer
-from planet.config.enums import ItemType, NewsStatus, ApprovalType, ApplyFrom
+from planet.config.enums import ItemType, NewsStatus, ApprovalType, ApplyFrom, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -382,11 +382,12 @@ class CNews(BASEAPPROVAL):
         product = json.dumps(product) if product not in self.empty else None
 
         with self.snews.auto_commit() as s:
+            s.query(News).filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能修改已下架状态的资讯')
             session_list = []
             news_info = {
                 'NEtitle': data.get('netitle'),
                 'NEtext': data.get('netext'),
-                # 'NEstatus': NewsStatus.usual.value,
+                'NEstatus': NewsStatus.auditing.value,
                 # 'NEsource': 'web',
                 'COid': coupon,
                 'PRid': product,
@@ -455,6 +456,8 @@ class CNews(BASEAPPROVAL):
             })
             session_list.append(changelog)
             s.add_all(session_list)
+            # 添加到审批流
+            super().create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
 
     @admin_required
@@ -464,18 +467,24 @@ class CNews(BASEAPPROVAL):
         user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
         current_app.logger.info("Admin {} del news".format(user.ADname))
         data = parameter_required(('neid',))
-        neid = data.get('neid')
-        News.query.filter_by_(NEid=neid).first_('没有该资讯或已被删除')
+        neids = data.get('neid')
         with db.auto_commit():
-            del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
-            if not del_info:
-                raise StatusError('服务器繁忙')
-            NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
-            NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
-            NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
-            NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
-            NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
-            NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
+            for neid in neids:
+                News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能删除已下架状态的资讯')
+                del_info = News.query.filter_by(NEid=neid, isdelete=False).delete_()
+                if not del_info:
+                    raise StatusError('服务器繁忙')
+                NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
+                NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
+                NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
+                NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
+                NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
+                NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
+                # 如果在审核中，同时取消在进行的审批流
+                # if news.NEstatus == NewsStatus.auditing:
+                #     approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
+                #                                               AVstatus=ApplyStatus.wait_check.value).first()
+                #     approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('删除成功', {'neid': neid})
 
     @token_required
@@ -491,7 +500,7 @@ class CNews(BASEAPPROVAL):
         if news.NEstatus != NewsStatus.usual.value:
             raise StatusError('该资讯当前状态不允许点赞')
         tftype = data.get('tftype')  # {1:点赞, 0:点踩}
-        if not re.match(r'^[0|1]$', str(tftype)):
+        if not re.match(r'^[01]$', str(tftype)):
             raise ParamsError('tftype, 参数异常')
         msg = '已取消'
         is_favorite = self.snews.news_is_favorite(neid, usid)
@@ -723,7 +732,7 @@ class CNews(BASEAPPROVAL):
 
     @staticmethod
     def _check_admin(usid):
-        return Admin.query.filter_by_(ADid=usid).first_('用户不存在')
+        return Admin.query.filter_by_(ADid=usid).first_('管理员账号状态异常')
 
     @staticmethod
     def _check_supplizer(usid):
@@ -741,19 +750,14 @@ class CNews(BASEAPPROVAL):
 
     @admin_required
     def news_shelves(self):
-        """资讯上下架"""
+        """资讯下架"""
         usid = request.user.id
-        user = Admin.query.filter_by_(ADid=usid).first_('没有该管理账号信息')
-        current_app.logger.info("Admin {} audit news".format(user.ADname))
-        data = parameter_required(('neid', 'nestatus'))
-        neid = data.get('neid')
-        nestatus = data.get('nestatus')
-        if not re.match(r'^[0|1|2]$', str(nestatus)):
-            raise ParamsError('nestatus, 参数异常')
-        with self.snews.auto_commit() as s:
-            s.query(News).filter_by(NEid=neid).first_('没有找到该资讯')
-            update_info = s.query(News).filter_by(NEid=neid).update({'NEstatus': nestatus})
-            if not update_info:
-                raise SystemError('修改失败, 服务器繁忙')
-        operation = {"0": "下架成功", "1": "上架成功", "2": "已将状态改为审核中"}
-        return Success(operation[str(nestatus)], {'neid': neid})
+        user = self._check_admin(usid)
+        data = parameter_required(('neid',))
+        neids = data.get('neid')
+        current_app.logger.info("Admin {0} shelve news".format(user.ADname))
+        with db.auto_commit():
+            for neid in neids:
+                news = News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.usual.value).first_('只能下架已上架状态的资讯')
+                news.NEstatus = NewsStatus.refuse.value
+        return Success('下架成功', {'neid': neid})
