@@ -80,6 +80,7 @@ class GuessNum(Base):
     __tablename__ = 'GuessNum'
     GNid = Column(String(64), primary_key=True)
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
+    GNAAid = Column(String(64), comment='对应的申请单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
     SKUid = Column(String(64), nullable=False, comment='当日奖品')
@@ -101,6 +102,7 @@ class GuessAwardFlow(Base):
     GAFid = Column(String(64), primary_key=True)
     GNid = Column(String(64), nullable=False, unique=True, comment='个人参与记录')
     GAFstatus = Column(Integer, default=0, comment='领奖状态 0 待领奖, 10 已领取 20 过期')
+    OMid = Column(String(64), default='0')
 
 
 class GuessNumAwardApply(Base):
@@ -167,6 +169,14 @@ class MagicBoxOpen(Base):
     MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
     MBOprice = Column(Float, nullable=False, comment='此时价格')
     MBOhasShare = Column(Boolean, default=False, comment='是否分享出去, 待用字段')
+
+
+class MagicBoxFlow(Base):
+    """领取记录"""
+    __tablename__ = 'MagicBoxFlow'
+    MBFid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), nullable=False)
+    MBJid = Column(String(64), nullable=False, comment='来源参与')
 
 
 class FreshManFirstApply(Base):
