@@ -16,7 +16,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -27,7 +27,8 @@ from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
-    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode
+    AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
+    UserSalesVolume
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet
@@ -583,7 +584,7 @@ class COrder(CPay, CCoupon):
         current_app.logger.info('User {0} created order evaluations'.format(user.USname))
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
-        OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
+        om = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
                                OrderMain.OMstatus == OrderMainStatus.wait_comment.value
                                ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
@@ -593,6 +594,7 @@ class COrder(CPay, CCoupon):
         get_opid_list = list()  # 从前端获取到的所有opid
         with db.auto_commit():
             orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
+            self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -695,6 +697,22 @@ class COrder(CPay, CCoupon):
                                     "ERROR >>> {1}".format(order_part_id, e))
             db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    @admin_required
+    def set_autoevaluation_time(self):
+        """设置自动评价超过x天的订单：x"""
+        data = parameter_required(('day',))
+        day = data.get('day', 7)
+        cfs = ConfigSettings()
+        cfs.set_item('autoevaluateparams', 'day', str(day))
+        return Success('设置成功', {'day': day})
+
+    @admin_required
+    def get_autoevaluation_time(self):
+        """获取自动评价超过x天的订单：x"""
+        cfs = ConfigSettings()
+        day = cfs.get_item('autoevaluateparams', 'day')
+        return Success('获取成功', {'day': day})
 
     def get_evaluation(self):
         """获取订单评价"""
@@ -1012,8 +1030,24 @@ class COrder(CPay, CCoupon):
             )
             return query.group_by(OrderMain.OMid).count()
 
-
-
+    def _tosalesvolume(self, amount, usid):
+        today = datetime.today()
+        user = User.query.filter_by_(USid=usid).first_('订单数据异常')
+        if user.USsupper1:
+            usv = UserSalesVolume.query.filter(
+                UserSalesVolume.isdelete == False,
+                extract('month', UserSalesVolume.createtime) == today.month,
+                extract('year', UserSalesVolume.createtime) == today.year,
+                UserSalesVolume.USid == user.USsupper1
+            ).first()
+            if not usv:
+                usv = UserSalesVolume.create({
+                    'USVid': str(uuid.uuid1()),
+                    'USid': user.USsupper1,
+                    'USVamount': 0
+                })
+                db.session.add(usv)
+            usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
 
     @staticmethod
     def _get_order_count(arg, k):

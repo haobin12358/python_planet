@@ -335,7 +335,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
 
         token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
@@ -378,7 +378,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
         token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
@@ -444,7 +444,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fields = self.USER_FIELDS[:]
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', uscoupon or 0)
         self.__user_fill_uw_total(user)
         return Success('获取首页用户信息成功', data=user)
@@ -461,7 +461,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
         umfront = self.get_usermedia(user.USid, 1)
         if umfront:
@@ -809,7 +809,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
         user.fields = ['USname', 'USrealname', 'USheader', 'USlevel', 'USgender', "UStelphone"]
-        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         return Success('获取店主申请页成功', data=user)
 
     @get_session
@@ -1290,7 +1290,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('openid', openid)
         user.fill('usidentification', self.__conver_idcode(user.USidentification))
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        user.fill('usidname', '行装会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
 
@@ -1335,7 +1335,7 @@ class CUser(SUser, BASEAPPROVAL):
         return_user.fields = self.USER_FIELDS[:]
         return_user.fill('usidentification', self.__conver_idcode(return_user.USidentification))
         return_user.fill('usbirthday', self.__update_birthday_str(return_user.USbirthday))
-        return_user.fill('usidname', '行装会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
+        return_user.fill('usidname', '大行星会员' if uslevel != self.AGENT_TYPE else "合作伙伴")
         self.__user_fill_uw_total(return_user)
         token = usid_to_token(usid, model='User', level=uslevel, username=return_user.USname)
         return Success('登录成功', data={'token': token, 'user': return_user})
@@ -1487,7 +1487,7 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_salesvolume_all(self):
         """获取团队销售额"""
-        # todo 销售额表自动插入
+
         today = datetime.datetime.now()
         args = request.args.to_dict()
         month = args.get('month') or today.month
@@ -1520,6 +1520,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
         sub_salesvolume_list = []
         sub_list = User.query.filter_by_(USsupper1=request.user.id, USlevel=self.AGENT_TYPE).all()
+        sub_amount = 0
         for sub in sub_list:
             us_salesvolume = UserSalesVolume.query.filter(
                 UserSalesVolume.isdelete == False,
@@ -1532,9 +1533,10 @@ class CUser(SUser, BASEAPPROVAL):
                 'USname': sub.USname,
                 'USsalesvolume': amount
             })
+            sub_amount += amount
         usvamout = usv_month.USVamount if usv_month else 0
         data = {
-            'usvamout': usvamout,
+            'usvamout': float('%.2f' % (float(usvamout) + float(sub_amount))),
             'fens_detail': fens_salesvolume_list,
             'sub_detail': sub_salesvolume_list,
         }

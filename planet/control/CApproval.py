@@ -398,7 +398,7 @@ class CApproval(BASEAPPROVAL):
             else:
                 ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
-            pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
+            pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
             ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         self.__fill_approval(pt, ap_list)
@@ -553,7 +553,7 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def get_permissiontype(self):
         data = parameter_required(('ptid', ))
-        pt = Permission.query.filter_by_(PTid=data.get('ptid')).first_('参数异常')
+        pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('参数异常')
         pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
         pe_list = []
         pe_level_list = [pelevel.PELevel for pelevel in pe_level_list]
