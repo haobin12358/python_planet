@@ -382,7 +382,7 @@ class CApproval(BASEAPPROVAL):
                     Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                     Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False
             )
-            # 魔盒和猜数字可进行申请时间筛选
+            # 四个活动可通过申请时间筛选
             if pt.PTid == 'tomagicbox':
                 ap_list = ap_querry.outerjoin(MagicBoxApply, MagicBoxApply.MBAid == Approval.AVcontent
                                               ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
@@ -395,6 +395,19 @@ class CApproval(BASEAPPROVAL):
                                                         GuessNumAwardApply.GNAAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
                                                                    GuessNumAwardApply.GNAAstarttime.desc()).all()
+            elif pt.PTid == 'totrialcommodity':
+                ap_list = ap_querry.outerjoin(TrialCommodity, TrialCommodity.TCid == Approval.AVcontent
+                                              ).filter(TrialCommodity.ApplyStartTime >= filter_starttime,
+                                                       TrialCommodity.AgreeEndTime <= filter_endtime
+                                                       ).order_by(Approval.AVstatus.desc(),
+                                                                  TrialCommodity.ApplyStartTime.desc()).all()
+            elif pt.PTid == 'tofreshmanfirstproduct':
+                ap_list = ap_querry.outerjoin(FreshManFirstApply, FreshManFirstApply.FMFAid == Approval.AVcontent
+                                              ).filter(FreshManFirstApply.FMFAstartTime >= filter_starttime,
+                                                       FreshManFirstApply.FMFAendTime <= filter_endtime
+                                                       ).order_by(Approval.AVstatus.desc(),
+                                                                  FreshManFirstApply.FMFAstartTime.desc()).all()
+
             else:
                 ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
