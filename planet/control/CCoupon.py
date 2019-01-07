@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from planet.common.error_response import StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required
+from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType
 from planet.extensions.register_ext import db
@@ -42,6 +42,8 @@ class CCoupon(object):
             items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
                 CouponItem.COid == coupon.COid
             ).all()
+            if not is_admin() and not is_supplizer():
+                coupon.COcanCollect = self._can_collect(coupon)
             # 优惠券时候对象
             coupon.fill('items', items)
             coupon.fill('title_subtitle', self._title_subtitle(coupon))
@@ -80,7 +82,7 @@ class CCoupon(object):
                 # CouponUser.UCalreadyUse == False,  # 未用
             ).order_by(CouponUser.createtime.desc()).all_with_page()
         elif can_use is False:
-            user_coupons =user_coupon.filter(
+            user_coupons = user_coupon.filter(
                 or_(
                     Coupon.COisAvailable == False,
                     # CouponUser.UCalreadyUse == True,
@@ -179,7 +181,7 @@ class CCoupon(object):
                 Coupon.COid == coid,
                 Coupon.isdelete == False
             ).first_('优惠券不存在')
-            coupon.update({
+            coupon_dict = {
                 'COname': form.coname.data,
                 'COisAvailable': form.coisavailable.data,
                 'COcanCollect': form.coiscancollect.data,
@@ -194,7 +196,10 @@ class CCoupon(object):
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
-            }, 'dont ignore')
+            }
+            if form.colimitnum.data:
+                coupon_dict.setdefault('COremainNum', form.colimitnum.data)
+            coupon.update(coupon_dict, 'dont ignore')
             db.session.add(coupon)
             for itid in itids:
                 Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
@@ -274,7 +279,7 @@ class CCoupon(object):
             if coupon.COlimitNum:
                 # 共领取的数量
                 if not coupon.COremainNum:
-                    raise StatusError('来晚了')
+                    raise StatusError('已发放完毕')
                 coupon.COremainNum = coupon.COremainNum - 1  # 剩余数量减1
                 s_list.append(coupon)
             if coupon.COsendStarttime and coupon.COsendStarttime > datetime.now():
@@ -372,6 +377,14 @@ class CCoupon(object):
             'left_logo': left_logo,
             'left_text': left_text
         }
+
+    def _can_collect(self, coupon):
+        # 发放完毕或抢空
+        can_not_collect = (coupon.COlimitNum and not coupon.COremainNum) or (
+                coupon.COsendStarttime and coupon.COsendStarttime > datetime.now()) or (
+                coupon.COsendEndtime and coupon.COsendEndtime < datetime.now())
+        return not can_not_collect
+
 
     def _isavalible(self, coupon, user_coupon=None):
         # 判断是否可用

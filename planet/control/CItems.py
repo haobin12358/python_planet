@@ -28,7 +28,7 @@ class CItems:
         items_query = Items.query.filter_(Items.isdelete == False, Items.ITtype == ittype,
                                           Items.ITrecommend == recommend, Items.ITauthority != ItemAuthrity.other.value,
                                           Items.ITposition != ItemPostion.other.value,
-                                          ).order_by(Items.ITsort, Items.ITid)
+                                          )
 
         if psid:
             items_query = items_query.outerjoin(SceneItem, SceneItem.ITid == Items.ITid
@@ -45,6 +45,7 @@ class CItems:
             items_query = items_query.filter(
                 Items.ITname.contains(kw)
             )
+        items_query = items_query.order_by(Items.ITposition.desc(), Items.createtime, Items.ITsort, Items.ITid)
         items = items_query.all()
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)

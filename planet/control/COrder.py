@@ -1041,7 +1041,9 @@ class COrder(CPay, CCoupon):
             query = query.filter(
                 cast(OrderRefundApply.createtime, Date) == day,
             )
-            return query.group_by(OrderMain.OMid).count()
+        if suid:
+            query = query.filter(OrderMain.PRcreateId == suid)
+        return query.group_by(OrderMain.OMid).count()
 
     def _tosalesvolume(self, amount, usid):
         today = datetime.today()
