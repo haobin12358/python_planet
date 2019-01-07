@@ -355,7 +355,7 @@ class COrder(CPay, CCoupon):
 
                             coupon_for_in_this = {
                                 prid: Decimal(str(price)) for prid, price in coupon_for_in_this.items() if
-                            prid in coupon_for_prids
+                                prid in coupon_for_prids
                             }
                             coupon_for_sum = sum(coupon_for_in_this.values())  # 优惠券支持的商品的总价
                             if coupon.COdownLine > coupon_for_sum:
@@ -436,7 +436,7 @@ class COrder(CPay, CCoupon):
             # s.add_all(model_bean)
         from planet.extensions.tasks import auto_cancle_order
 
-        auto_cancle_order.apply_async(args=omids, countdown=5 * 3600, expires=6 * 3600,)
+        auto_cancle_order.apply_async(args=omids, countdown=5 * 3600, expires=6 * 3600, )
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2
@@ -585,8 +585,8 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('evaluation', 'omid'))
         omid = data.get('omid')
         om = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
-                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                               ).first_('无此订单或当前状态不能进行评价')
+                                    OrderMain.OMstatus == OrderMainStatus.wait_comment.value
+                                    ).first_('无此订单或当前状态不能进行评价')
         # 主单号包含的所有副单
         order_part_with_main = OrderPart.query.filter(OrderPart.OMid == omid, OrderPart.isdelete == False).all()
         evaluation_instance_list = list()
@@ -691,7 +691,8 @@ class COrder(CPay, CCoupon):
                         # 商品总体评分变化
                         other_product_info = Products.query.filter_by_(PRid=other_order_part_info.PRid).first()
                         other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
-                        Products.query.filter_by_(PRid=other_product_info.PRid).update({'PRaverageScore': other_average_score})
+                        Products.query.filter_by_(PRid=other_product_info.PRid).update(
+                            {'PRaverageScore': other_average_score})
                     except Exception as e:
                         gennerc_log("Other Evaluation ERROR: Update Product Score OPid >>> {0}, "
                                     "ERROR >>> {1}".format(order_part_id, e))
@@ -837,7 +838,8 @@ class COrder(CPay, CCoupon):
                     refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
                                                            OrderMain.USid == usid,
                                                            OrderMain.isdelete == False,
-                                                           OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                           OrderMain.OMfrom.in_(
+                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                            *filter_args).distinct().count()
                 else:
                     refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
@@ -846,7 +848,7 @@ class COrder(CPay, CCoupon):
                                  OrderPart.OPisinORA == True),
                             (OrderMain.OMinRefund == True)),
                         OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
-                    *filter_args).distinct().count()
+                        *filter_args).distinct().count()
                 data.append(  #
                     {
                         'count': refund_count,
@@ -969,16 +971,20 @@ class COrder(CPay, CCoupon):
         if days:
             days = days.replace(' ', '').split(',')
             days = list(map(lambda x: datetime.strptime(x, '%Y-%m-%d').date(), days))
+        else:
+            days = []
         suid = request.user.id if is_supplizer() else None
         datas = []
         for day in days:
             data = {
                 'day_total': self._history_order('total', day=day,
-                                                   status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
-                'day_count': self._history_order('count', day=day),
+                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 suid=suid),
+                'day_count': self._history_order('count', day=day, suid=suid),
                 'wai_pay_count': self._history_order('count', day=day,
-                                                      status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
-                'in_refund': self._inrefund(day),
+                                                     status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
+                                                     suid=suid),
+                'in_refund': self._inrefund(day=day, suid=suid),
                 'day': day
             }
             datas.append(data)
@@ -986,24 +992,27 @@ class COrder(CPay, CCoupon):
             # 获取系统全部
             data = {
                 'day_total': self._history_order('total',
-                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
-                'day_count': self._history_order('count'),
-                'wai_pay_count': self._history_order('count',
-                                                     status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
-                'in_refund': self._inrefund(day),
+                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 suid=suid),
+                'day_count': self._history_order('count', suid=suid),
+                'wai_pay_count': 0,
+                'in_refund': 0,
+                'day': None
             }
+            datas.append(data)
         return Success(data=datas)
 
     def _history_order(self, *args, **kwargs):
         with db.auto_commit() as session:
-            status = kwargs.pop('status', None)
-            day = kwargs.pop('day', None)
+            status = kwargs.get('status', None)
+            day = kwargs.get('day', None)
+            suid = kwargs.get('suid', None)
             if 'total' in args:
                 query = session.query(func.sum(OrderMain.OMtrueMount))
             elif 'count' in args:
                 query = session.query(func.count(OrderMain.OMid))
             elif 'refund' in args:
-                self._inrefund(*args, **kwargs)
+                return self._inrefund(*args, **kwargs)
             query = query.filter(OrderMain.isdelete == False)
             if status is not None:
                 query = query.filter(status)
@@ -1011,9 +1020,13 @@ class COrder(CPay, CCoupon):
                 query = query.filter(
                     cast(OrderMain.createtime, Date) == day,
                 )
+            if suid is not None:
+                query = query.filter(OrderMain.PRcreateId == suid)
             return query.first()[0] or 0
 
-    def _inrefund(self, day):
+    def _inrefund(self, *args, **kwargs):
+        suid = kwargs.get('suid')
+        day = kwargs.get('day')
         query = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
             OrderMain.isdelete == False,
             or_(and_(OrderPart.isdelete == False,
