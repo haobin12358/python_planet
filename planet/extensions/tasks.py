@@ -8,6 +8,7 @@ from sqlalchemy import cast, Date
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
@@ -53,8 +54,11 @@ def fetch_share_deal():
 @celery.task(name='auto_evaluate')
 def auto_evaluate():
     """超时自动评价订单"""
+    cfs = ConfigSettings()
+    limit_time = cfs.get_item('autoevaluateparams', 'day')
     with db.auto_commit():
         s_list = list()
+        current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
         from planet.control.COrder import COrder
         corder = COrder()
         current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
@@ -62,10 +66,10 @@ def auto_evaluate():
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_(
                                                  [OrderFrom.carts.value, OrderFrom.product_info.value]),
-                                             OrderMain.createtime <= datetime.now() - timedelta(days=30)
+                                             OrderMain.createtime <= datetime.now() - timedelta(days=int(limit_time))
                                              ).all()  # 所有超过30天待评价的商品订单
         if not order_mains:
-            current_app.logger.info(">>>>>>  没有超过30天未评价的商品订单  <<<<<<")
+            current_app.logger.info(">>>>>>  没有超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
         else:
             for order_main in order_mains:
                 order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
@@ -116,7 +120,7 @@ def auto_evaluate():
                         average_score = round((float(product_info.PRaverageScore) + 10) / 2)
                         Products.query.filter_by_(PRid=order_part.PRid).update({'PRaverageScore': average_score})
                     except Exception as e:
-                        current_app.logger.info("Auto Evaluation , Update Product Score ERROR, is {}".format(e))
+                        current_app.logger.info("更改商品评分失败, 商品可能已被删除；Update Product Score ERROR ：{}".format(e))
 
                 # 更改主单待评价状态为已完成
                 change_status = OrderMain.query.filter_by_(OMid=order_main.OMid).update(
@@ -130,8 +134,10 @@ def auto_evaluate():
         current_app.logger.info(">>>>>> 自动评价任务结束，共更改{}条数据  <<<<<<".format(count))
 
 
+@celery.task(name='fix_evaluate_status_error')
 def fix_evaluate_status_error():
     """修改评价异常数据（已评价，未修改状态）"""
+    current_app.logger.info("----->  开始检测商品评价异常数据  <-----")
     with db.auto_commit():
         order_evaluations = OrderEvaluation.query.filter_by_().all()
         count = 0
@@ -141,22 +147,24 @@ def fix_evaluate_status_error():
                                                                                         )).first()
             if not om:
                 om_info = OrderMain.query.filter(OrderMain.OMid == oe.OMid).first()
-                print("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
+                current_app.logger.info("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
                 continue
             omid = om.OMid
             omstatus = om.OMstatus
             if int(omstatus) == OrderMainStatus.wait_comment.value:
-                print("-->  已存在评价的主单id为 {}，未修改前的主单状态为{}  <--".format(str(omid), str(omstatus)))
-                print("-->  开始更改状态  <--")
+                current_app.logger.info("-->  已存在评价的主单id为 {}，未修改前的主单状态为{}  <--".format(str(omid), str(omstatus)))
+                current_app.logger.info("-->  开始更改状态  <--")
                 upinfo = OrderMain.query.filter_by_(OMid=omid).update({'OMstatus': OrderMainStatus.ready.value})
                 count += 1
                 if upinfo:
-                    print("-->  {}:更改状态成功  <--".format(str(omid)))
+                    current_app.logger.info("-->  {}:更改状态成功  <--".format(str(omid)))
                 else:
-                    print("-->  {}:更改失败  <--".format(str(omid)))
-                print("--------------分割线----------------------")
-                print("--------------分割线----------------------")
-        print("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
+                    current_app.logger.info("-->  {}:更改失败  <--".format(str(omid)))
+                current_app.logger.info("--------------分割线----------------------")
+                current_app.logger.info("--------------分割线----------------------")
+            else:
+                current_app.logger.info("----->  没有发现商品评价异常数据  <-----")
+        current_app.logger.info("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
 
 @celery.task()

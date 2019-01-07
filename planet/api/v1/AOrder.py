@@ -21,6 +21,7 @@ class AOrder(Resource):
             'order_feight': self.corder.get_order_feight,
             'confirm': self.corder.confirm,
             'update_price': self.corder.update_price,
+            'autoevaluation': self.corder.set_autoevaluation_time,
             'test_to_pay': self.corder.test_to_pay,   # 测试接口 注意删除
             'test_to_send': self.corder.test_to_send,   # 测试接口 注意删除
         }
@@ -33,6 +34,7 @@ class AOrder(Resource):
             'count': self.corder.get_order_count,
             'evaluation': self.corder.get_evaluation,
             'history_detail': self.corder.history_detail,
+            'autoevaluation': self.corder.get_autoevaluation_time,
         }
         return apis
 

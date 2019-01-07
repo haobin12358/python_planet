@@ -16,7 +16,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -552,9 +552,15 @@ class COrder(CPay, CCoupon):
                 ProductSku.query.filter_by_(SKUid=skuid).update({
                     'SKUstock': ProductSku.SKUstock + opnum
                 })
-                Products.query.filter_by_(PRid=prid).update({
-                    'PRstocks': Products.PRstocks + opnum
-                })
+                product = Products.query.filter(Products.isdelete == False,
+                                                Products.PRid == prid).first()
+                if not product:
+                    return
+                # 如果商品已售罄, 则重新上架
+                if product.PRstatus == ProductStatus.sell_out.value:
+                    product.PRstatus = ProductStatus.usual.value
+                product.PRstocks += opnum
+                db.session.add(product)
 
     @token_required
     def delete(self):
@@ -691,6 +697,22 @@ class COrder(CPay, CCoupon):
                                     "ERROR >>> {1}".format(order_part_id, e))
             db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    @admin_required
+    def set_autoevaluation_time(self):
+        """设置自动评价超过x天的订单：x"""
+        data = parameter_required(('day',))
+        day = data.get('day', 7)
+        cfs = ConfigSettings()
+        cfs.set_item('autoevaluateparams', 'day', str(day))
+        return Success('设置成功', {'day': day})
+
+    @admin_required
+    def get_autoevaluation_time(self):
+        """获取自动评价超过x天的订单：x"""
+        cfs = ConfigSettings()
+        day = cfs.get_item('autoevaluateparams', 'day')
+        return Success('获取成功', {'day': day})
 
     def get_evaluation(self):
         """获取订单评价"""
@@ -940,17 +962,37 @@ class COrder(CPay, CCoupon):
 
     @token_required
     def history_detail(self):
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
         form = HistoryDetailForm().valid_data()
-        day = form.day.data or date.today()
-        data = {
-            'day_total': self._history_order('total', day=day,
-                                               status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
-            'day_count': self._history_order('count', day=day),
-            'wai_pay_count': self._history_order('count', day=day,
-                                                  status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
-            'in_refund': self._inrefund(day)
-        }
-        return Success(data=data)
+        days = form.days.data
+        if days:
+            days = days.replace(' ', '').split(',')
+            days = list(map(lambda x: datetime.strptime(x, '%Y-%m-%d').date(), days))
+        suid = request.user.id if is_supplizer() else None
+        datas = []
+        for day in days:
+            data = {
+                'day_total': self._history_order('total', day=day,
+                                                   status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
+                'day_count': self._history_order('count', day=day),
+                'wai_pay_count': self._history_order('count', day=day,
+                                                      status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
+                'in_refund': self._inrefund(day),
+                'day': day
+            }
+            datas.append(data)
+        if not days:
+            # 获取系统全部
+            data = {
+                'day_total': self._history_order('total',
+                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value),
+                'day_count': self._history_order('count'),
+                'wai_pay_count': self._history_order('count',
+                                                     status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value),
+                'in_refund': self._inrefund(day),
+            }
+        return Success(data=datas)
 
     def _history_order(self, *args, **kwargs):
         with db.auto_commit() as session:

@@ -155,7 +155,7 @@ class RefundConfirmRecvForm(BaseForm):
 
 
 class HistoryDetailForm(BaseForm):
-    day = DateField()
+    days = StringField()
 
 
 class ActRuleSetFrom(BaseForm):
