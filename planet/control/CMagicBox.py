@@ -322,6 +322,7 @@ class CMagicBox(CUser, COrder):
         mbaid_list = list()
         with db.auto_commit():
             for day in time_list:
+                # todo 对应每天的库存记录
                 # 先检测是否存在相同skuid，相同日期的申请
                 exist_apply_sku = MagicBoxApply.query.filter(MagicBoxApply.SKUid == skuid,
                                                              MagicBoxApply.isdelete == False,

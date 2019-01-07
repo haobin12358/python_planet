@@ -332,12 +332,12 @@ class CFreshManFirstOrder(COrder, CUser):
                 skuid = sku.get('skuid')
                 skuprice = sku.get('skuprice')
                 skustock = sku.get('skustock')
-                sku = ProductSku.query.filter(
+                sku_instance = ProductSku.query.filter(
                     ProductSku.isdelete == False,
                     ProductSku.PRid == prid,
                     ProductSku.SKUid == skuid
                 ).first_('商品sku信息不存在')
-                self._update_stock(-skustock, product, sku)
+                self._update_stock(-int(skustock), product, sku_instance)
                 fresh_first_sku = FreshManFirstSku.create({
                     'FMFSid': str(uuid.uuid1()),
                     'FMFPid': fresh_first_product.FMFPid,
@@ -411,7 +411,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                     FreshManFirstSku.SKUid == skuid
                 ).first()
-                self._update_stock(fresh_first_apply.FMFPstock - skustock, product, sku)
+                self._update_stock(fresh_first_apply.FMFPstock - int(skustock), product, sku)
                 if not fresh_first_sku:
                     fresh_first_sku = FreshManFirstSku()
                     fresh_first_sku.FMFSid = str(uuid.uuid1())
@@ -565,22 +565,21 @@ class CFreshManFirstOrder(COrder, CUser):
             Products.PRid == sku.PRid
         )
         # 加库存
-        sku.SKUstock += apply_sku.FMFPstock
-        product.PRstocks += apply_sku.FMFPstock
-        if product.PRstatus == ProductStatus.sell_out.value:
-            product.PRstatus = ProductStatus.usual.value
-        db.session.add(sku)
-        db.session.add(product)
+        self._update_stock(apply_sku.FMFPstock, product, sku)
 
     def _update_stock(self, old_new, product, sku):
         if not old_new:
             return
-        product.PRstocks += old_new
-        sku.SKUstock += old_new
+        current_app.logger.info(product.PRstocks)
+        product.PRstocks = product.PRstocks + old_new
+        sku.SKUstock += sku.SKUstock + old_new
+        current_app.logger.info(product.PRstocks)
         if product.PRstocks < 0:
             raise StatusError('商品库存不足')
         if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:
             product.PRstatus = ProductStatus.usual.value
+        if product.PRstocks == 0:
+            product.PRstatus = ProductStatus.sell_out.value
         db.session.add(sku)
         db.session.add(product)
 
