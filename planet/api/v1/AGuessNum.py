@@ -14,6 +14,7 @@ class AGuessNum(Resource):
             'apply_award': self.cguessnum.apply_award,
             'update_apply': self.cguessnum.update_apply,
             'shelf_award': self.cguessnum.shelf_award,
+            'delete': self.cguessnum.delete_apply,
         }
         return apis
 

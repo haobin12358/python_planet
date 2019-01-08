@@ -22,5 +22,6 @@ class AMagicBox(Resource):
             'update_apply': self.cmagicbox.update_apply,
             'shelf_award': self.cmagicbox.shelf_award,
             'award_detail': self.cmagicbox.award_detail,
+            'delete': self.cmagicbox.delete_apply,
         }
         return apis

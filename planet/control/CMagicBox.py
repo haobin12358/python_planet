@@ -261,8 +261,18 @@ class CMagicBox(CUser, COrder):
             suid = None
         else:
             raise AuthorityError()
-        award_list = MagicBoxApply.query.filter_by_(SUid=suid).order_by(MagicBoxApply.MBAstarttime.desc(),
-                                                                        MagicBoxApply.createtime.desc()).all_with_page()
+        data = parameter_required()
+        mbastatus = data.get('mbastatus')
+        if str(mbastatus) == 'all':
+            mbastatus = None
+        else:
+            mbastatus = ApplyStatus(mbastatus).value
+        starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
+        award_list = MagicBoxApply.query.filter_(MagicBoxApply.SUid == suid, MagicBoxApply.MBAstatus == mbastatus
+                                                 ).filter(MagicBoxApply.MBAstarttime >= starttime,
+                                                          MagicBoxApply.MBAstarttime <= endtime
+                                                          ).order_by(MagicBoxApply.MBAstarttime.desc(),
+                                                                     MagicBoxApply.createtime.desc()).all_with_page()
         for award in award_list:
             award.Gearsone = json.loads(award.Gearsone)
             award.Gearstwo = json.loads(award.Gearstwo)
@@ -328,7 +338,7 @@ class CMagicBox(CUser, COrder):
                                                              MagicBoxApply.SUid == request.user.id,
                                                              MagicBoxApply.MBAstarttime == day).first()
                 if exist_apply_sku:
-                    raise ParamsError('您已添加过相同日期的申请')
+                    raise ParamsError('您已添加过{}日的申请'.format(day))
                 award_dict = {
                     'MBAid': str(uuid.uuid1()),
                     'SUid': request.user.id,
@@ -374,7 +384,7 @@ class CMagicBox(CUser, COrder):
         apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
                                                 MagicBoxApply.MBAstatus.in_([ApplyStatus.reject.value,
                                                                             ApplyStatus.cancle.value])
-                                                ).first_('只有下架或撤销状态的申请可以进行修改')
+                                                ).first_('只有已拒绝或撤销状态下的申请可以进行修改')
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可修改自己提交的申请')
         mbafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
@@ -461,6 +471,30 @@ class CMagicBox(CUser, COrder):
                                                       AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('取消成功', {'mbaid': mbaid})
+
+    def delete_apply(self):
+        """删除申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} delete magicbox apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} magicbox apply'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('mbaid',))
+        mbaid = data.get('mbaid')
+        with db.auto_commit():
+            apply_info = MagicBoxApply.query.filter_by_(MBAid=mbaid).first_('无此申请记录')
+            if sup:
+                assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
+            if apply_info.MBAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value]:
+                raise StatusError('只能删除已拒绝或已撤销状态下的申请')
+            apply_info.isdelete = True
+        return Success('删除成功', {'mbaid': mbaid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
