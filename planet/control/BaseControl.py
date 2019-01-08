@@ -190,7 +190,7 @@ class BASEAPPROVAL():
             start_model = None
 
         content.fill('uWbalance', uw.UWbalance)
-        return start_model, contentid
+        return start_model, content
 
     def __fill_agent(self, startid, contentid=None):
         # 填充成为代理商内容
