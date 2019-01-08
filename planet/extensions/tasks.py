@@ -190,6 +190,7 @@ def auto_agree_task(avid):
             current_app.logger.info('审批流状态有误')
             # 如果不存在的商品, 需要将审批流失效
             approval.AVstatus = ApplyStatus.cancle.value
+        db.session.add(approval)
 
 
 @celery.task()

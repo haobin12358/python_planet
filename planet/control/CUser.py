@@ -17,7 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus
+    ApplyStatus, ApplyFrom
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -27,7 +27,7 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
-    admin_required
+    admin_required, is_supplizer
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -1457,15 +1457,24 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     @token_required
     def apply_cash(self):
+        if is_admin():
+            commision_for = ApplyFrom.platform.value
+        elif is_supplizer():
+            commision_for = ApplyFrom.supplizer.value
+        else:
+            commision_for = ApplyFrom.user.value
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
         # user = self.get_user_by_id(reqbuest.user.id)
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
-        uw = UserWallet.query.filter_by_(USid=request.user.id).first()
+        uw = UserWallet.query.filter(
+            UserWallet.USid == request.user.id,
+            UserWallet.isdelete == False,
+            UserWallet.CommisionFor == commision_for
+        ).first()
         balance = uw.UWcash if uw else 0
-
         if float(data.get('cncashnum')) > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
@@ -1477,11 +1486,13 @@ class CUser(SUser, BASEAPPROVAL):
             'CNbankDetail': data.get('cnbankdetail'),
             'CNcardNo': data.get('cncardno'),
             'CNcashNum': data.get('cncashnum'),
-            'CNcardName': data.get('cncardname')
+            'CNcardName': data.get('cncardname'),
+            'CommisionFor': commision_for
         })
         db.session.add(cn)
+        db.session.flush()
         # 创建审批流
-        self.create_approval('tocash', request.user.id, cn.CNid)
+        self.create_approval('tocash', request.user.id, cn.CNid, commision_for)
         return Success('已成功提交提现申请， 我们将在3个工作日内完成审核，请及时关注您的账户余额')
 
     def get_bankname(self):

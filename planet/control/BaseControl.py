@@ -43,12 +43,12 @@ class JSONEncoder(_JSONEncoder):
 class BASEAPPROVAL():
     sapproval = SApproval()
 
-    def create_approval(self, avtype, startid, avcontentid, applyfrom=None):
+    def create_approval(self, avtype, startid, avcontentid, applyfrom=None, **kwargs):
 
         gennerc_log('start create approval ptid = {0}'.format(avtype))
         pt = PermissionType.query.filter_by_(PTid=avtype).first_('参数异常')
 
-        start, content = self.__get_approvalcontent(pt, startid, avcontentid)
+        start, content = self.__get_approvalcontent(pt, startid, avcontentid, applyfrom=applyfrom, **kwargs)
         db.session.expunge_all()
         av = Approval.create({
             "AVid": str(uuid.uuid1()),
@@ -171,13 +171,23 @@ class BASEAPPROVAL():
             return None, None
         return start, content
 
-    def __fill_cash(self, startid, contentid):
+    def __fill_cash(self, startid, contentid, **kwargs):
         # 填充提现内容
-        start_model = User.query.filter_by_(USid=startid).first()
+        apply_from = kwargs.get('applyfrom', ApplyFrom.user.value)
+        if apply_from == ApplyFrom.user.value:
+            start_model = User.query.filter_by_(USid=startid).first()
+        elif apply_from == ApplyFrom.supplizer.value:
+            start_model = Supplizer.query.filter_by_(SUid=startid).first()
+        elif apply_from == ApplyFrom.platform.value:
+            start_model = Admin.query.filter(Admin.isdelete == False,
+                                             Admin.ADid == startid).first()
+        else:
+            start_model = None
         content = CashNotes.query.filter_by_(CNid=contentid).first()
-        uw = UserWallet.query.filter_by_(USid=startid).first()
+        uw = UserWallet.query.filter_by_(USid=startid,
+                                         CommisionFor=apply_from).first()
         if not start_model or not content or not uw:
-            return None
+            start_model = None
 
         content.fill('uWbalance', uw.UWbalance)
         return start_model, contentid
@@ -307,9 +317,9 @@ class BASEAPPROVAL():
         self.__fill_product_detail(content)
         return start_model, content
 
-    def __fill_approval(self, pt, start, content):
+    def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
-            return self.__fill_cash(start, content)
+            return self.__fill_cash(start, content, **kwargs)
         elif pt.PTid == 'toagent':
             return self.__fill_agent(start, content)
         elif pt.PTid == 'toshelves':
@@ -332,8 +342,8 @@ class BASEAPPROVAL():
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
-    def __get_approvalcontent(self, pt, startid, avcontentid):
-        start, content = self.__fill_approval(pt, startid, avcontentid)
+    def __get_approvalcontent(self, pt, startid, avcontentid, **kwargs):
+        start, content = self.__fill_approval(pt, startid, avcontentid, **kwargs)
         if not (start and content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
