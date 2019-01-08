@@ -983,10 +983,10 @@ class CUser(SUser, BASEAPPROVAL):
         integral = SignInAward.query.filter(
             SignInAward.SIAday >= user.UScontinuous, SignInAward.isdelete == False).order_by(SignInAward.SIAday).first()
         if not integral:
-            integral = ConfigSettings.get_item('integralbase', 'integral')
+            integral = ConfigSettings().get_item('integralbase', 'integral')
         else:
             integral = integral.SIAnum
-            
+
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': request.user.id,
@@ -1377,12 +1377,13 @@ class CUser(SUser, BASEAPPROVAL):
             signin_today = False
         cfg = ConfigSettings()
         rule = cfg.get_item('integralrule', 'rule')
-
+        sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         dis_dict = {
             'usintegral': user.USintegral,
             'uscontinuous': user.UScontinuous or 0,
             'signin_today': signin_today,
-            'integralrule': rule
+            'integralrule': rule,
+            'signrule': sia_list
         }
         return Success('获取优惠中心成功', data=dis_dict)
 
@@ -1691,3 +1692,28 @@ class CUser(SUser, BASEAPPROVAL):
             cash_note.fill('cnstatus', ApplyStatus(cash_note.CNstatus).zh_value)
 
         return Success('获取提现记录成功' ,data=cash_notes)
+
+    @token_required
+    def set_signin_default(self):
+        if not is_admin():
+            raise AuthorityError()
+        data = request.json
+        default_integral = str(data.get('integral'))
+        if not re.match(r'^\d+$', default_integral):
+            raise ParamsError('默认积分无效')
+        default_rule = str(data.get('rule'))
+        cfg = ConfigSettings()
+        cfg.set_item('integralbase', 'integral', default_integral)
+        cfg.set_item('integralrule', 'rule', default_rule)
+
+        return Success('修改成功')
+
+    def get_signin_default(self):
+        if not is_admin():
+            raise AuthorityError
+        cfg = ConfigSettings()
+        # sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
+        # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
+        del_rule = cfg.get_item('integralrule', 'rule')
+        del_integral = cfg.get_item('integralbase', 'integral')
+        return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
