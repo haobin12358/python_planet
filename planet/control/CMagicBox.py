@@ -17,7 +17,7 @@ from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, M
     MagicBoxRecvAwardForm
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity, ProductBrand, \
     AddressArea, UserAddress, AddressCity, AddressProvince, OrderMain, Products, OrderPart, ProductSku, OrderPay, \
-    Approval, ProductImage, ProductSkuValue, Supplizer, Admin
+    Approval, ProductImage, ProductSkuValue, Supplizer, Admin, MagicBoxFlow
 from .CUser import CUser
 from .COrder import COrder
 
@@ -233,6 +233,12 @@ class CMagicBox(CUser, COrder):
             # 用户参与状态改变
             magic_box_join.MBJstatus = ActivityRecvStatus.ready_recv.value
             db.session.add(magic_box_join)
+            # 记录订单
+            db.session.add(MagicBoxFlow.create({
+                'MBFid': str(uuid.uuid1()),
+                'OMid': omid,
+                'MBJid': magic_box_join.MBJid
+            }))
             # 支付数据表
             order_pay_dict = {
                 'OPayid': str(uuid.uuid1()),
