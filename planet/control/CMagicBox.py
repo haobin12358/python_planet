@@ -556,6 +556,30 @@ class CMagicBox(CUser, COrder):
             apply_info.isdelete = True
         return Success('删除成功', {'mbaid': mbaid})
 
+    def shelves(self):
+        """下架申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+            current_app.logger.info('Supplizer {} delete magicbox apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
+            current_app.logger.info('Admin {} magicbox apply'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('mbaid',))
+        mbaid = data.get('mbaid')
+        with db.auto_commit():
+            apply_info = MagicBoxApply.query.filter_by_(MBAid=mbaid).first_('无此申请记录')
+            if sup:
+                assert apply_info.SUid == usid, '供应商只能下架自己的申请'
+            if apply_info.MBAstatus != ApplyStatus.agree.value:
+                raise StatusError('只能下架已通过的申请')
+            apply_info.MBAstatus = ApplyStatus.reject.value
+        return Success('下架成功', {'mbaid': mbaid})
+
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
         date_list = []

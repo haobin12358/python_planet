@@ -278,11 +278,11 @@ class CGuessNum(COrder, BASEAPPROVAL):
         else:
             raise AuthorityError()
         data = parameter_required()
-        gnaastatus = data.get('gnaastatus')
+        gnaastatus = data.get('gnaastatus', 'all')
         if str(gnaastatus) == 'all':
             gnaastatus = None
         else:
-            gnaastatus = ApplyStatus(gnaastatus).value
+            gnaastatus = getattr(ApplyStatus, gnaastatus).value
         starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
         award_list = GuessNumAwardApply.query.filter_(GuessNumAwardApply.SUid == suid,
                                                       GuessNumAwardApply.GNAAstatus == gnaastatus
@@ -370,7 +370,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
             db.session.add_all(award_instance_list)
         # 添加到审批流
-        super().create_approval('toguessnum', request.user.id, award_dict['GNAAid'], gnaafrom)
+        [super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom) for gnaaid in gnaaid_list]
         return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):
@@ -466,11 +466,11 @@ class CGuessNum(COrder, BASEAPPROVAL):
         """删除申请"""
         if is_supplizer():
             usid = request.user.id
-            sup = self._check_supplizer(usid)
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
             current_app.logger.info('Supplizer {} delete guessnum apply'.format(sup.SUname))
         elif is_admin():
             usid = request.user.id
-            admin = self._check_admin(usid)
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
             current_app.logger.info('Admin {} guessnum apply'.format(admin.ADname))
             sup = None
         else:
@@ -486,6 +486,29 @@ class CGuessNum(COrder, BASEAPPROVAL):
             apply_info.isdelete = True
         return Success('删除成功', {'gnaaid': gnaaid})
 
+    def shelves(self):
+        """下架申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+            current_app.logger.info('Supplizer {} delete guessnum apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
+            current_app.logger.info('Admin {} guessnum apply'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('gnaaid',))
+        gnaaid = data.get('gnaaid')
+        with db.auto_commit():
+            apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
+            if sup:
+                assert apply_info.SUid == usid, '供应商只能下架自己的申请'
+            if apply_info.GNAAstatus != ApplyStatus.agree.value:
+                raise StatusError('只能下架已通过的申请')
+            apply_info.GNAAstatus = ApplyStatus.reject.value
+        return Success('下架成功', {'mbaid': gnaaid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
