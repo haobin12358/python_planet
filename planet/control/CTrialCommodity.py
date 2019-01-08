@@ -266,7 +266,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             session_list.append(commodity)
             db.session.add_all(session_list)
             # 添加进审批流
-            super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
+        super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
         return Success("添加成功", {'tcid': tcid})
 
     def update_commodity(self):
@@ -484,7 +484,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                     raise AuthorityError('仅可重新提交自己上传的商品')
             commodity.TCstatus = TrialCommodityStatus.auditing.value
             # 重新创建一个审批流
-            super().create_approval('totrialcommodity', usid, tcid, nefrom)
+        super().create_approval('totrialcommodity', usid, tcid, nefrom)
         return Success('提交成功', {'tcid': tcid})
 
     def del_commodity(self):
