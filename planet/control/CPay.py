@@ -251,33 +251,36 @@ class CPay():
         user_level3commision = Decimal(
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
-
-        planet_commision = Decimal(str(default_planetcommision))
-        # 用户佣金和平台佣金
-        if suid:
-            # 平台所有能分的钱
-            commision_total = order_part.OPsubTrueTotal * (
-                    user_level1commision + user_level2commision + user_level3commision + planet_commision) / 100
-        else:
-            commision_total = order_part.OPsubTrueTotal
+        # 平台 + 用户 抽成
+        planet_and_user_rate = Decimal(str(order_part.SkudevideRate or default_planetcommision)) / 100
+        # 平台固定抽成
+        planet_rate = Decimal(default_planetcommision) / 100
+        planet_commision = order_part.OPsubTotal * planet_rate
+        user_rate = planet_and_user_rate - planet_rate
+        # 用户佣金
+        user_commision = order_part.OPsubTotal * user_rate  # 给用户的佣金
+        commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)  # 给供应商的钱
+        commision_for_supplizer = self.get_two_float(commision_for_supplizer)
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
             user_level1commision = self._current_commission(up1.USCommission1, user_level1commision) / 100  # 个人佣金比
-            up1_base = order_part.OPsubTrueTotal * user_level1commision
+            up1_base = user_commision * user_level1commision
             if up2 and up2.USlevel > 1:
                 user_level2commision = self._current_commission(up2.USCommission2, user_level2commision) / 100  # 个人佣金比
-                up2_base = order_part.OPsubTrueTotal * user_level2commision
+                up2_base = user_commision * user_level2commision
                 # 偏移
                 up1_up2 = up1.CommisionLevel - up2.CommisionLevel
                 up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, reduce_ratio, increase_ratio)
                 if up3 and up3.USlevel > 1:
                     user_level3commision = self._current_commission(up3.USCommission3, user_level3commision) / 100  # 个人佣金比
-                    up3_base = order_part.OPsubTrueTotal * user_level3commision
+                    up3_base = user_commision * user_level3commision
                     up2_up3 = up2.CommisionLevel - up3.CommisionLevel
                     up2_base, up3_base = self._caculate_offset(up2_up3, up2_base, up3_base, reduce_ratio,
                                                                increase_ratio)
         if up1_base:
+            up1_base = self.get_two_float(up1_base)
+            user_commision -= up1_base
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -291,6 +294,8 @@ class CPay():
             })
             db.session.add(commision_account)
         if up2_base:
+            up2_base = self.get_two_float(up2_base)
+            user_commision -= up2_base
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -304,6 +309,8 @@ class CPay():
             })
             db.session.add(commision_account)
         if up3_base:
+            up3_base = self.get_two_float(up3_base)
+            user_commision -= up3_base
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -316,8 +323,15 @@ class CPay():
                 'FromUsid': user.USid
             })
             db.session.add(commision_account)
+        planet_remain = user_commision + planet_commision
+        # 优惠券计算
+        order_coupon = order_part.order_coupon
+        if order_coupon:
+            if order_coupon.SUid:
+                commision_for_supplizer -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
+            else:
+                planet_remain -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
         # 平台剩余佣金
-        planet_remain = commision_total - up1_base - up2_base - up3_base
         commision_account = UserCommission.create({
             'UCid': str(uuid.uuid1()),
             'OMid': order_part.OMid,
@@ -333,12 +347,11 @@ class CPay():
         db.session.add(commision_account)
         # 供应商获取佣金
         if suid:
-            supplizer_remain = order_part.OPsubTrueTotal - commision_total
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
                 'OPid': order_part.OPid,
-                'UCcommission': supplizer_remain,
+                'UCcommission': commision_for_supplizer,
                 'USid': suid,
                 'CommisionFor': ApplyFrom.supplizer.value,
                 'PRtitle': order_part.PRtitle,
@@ -449,6 +462,13 @@ class CPay():
             Items.ITid == 'upgrade_product',
             ProductItems.PRid.in_(prid_list),
         ).first()
+
+    @staticmethod
+    def get_two_float(f_str, n=2):
+        f_str = str(f_str)
+        a, b, c = f_str.partition('.')
+        c = (c+"0"*n)[:n]
+        return Decimal(".".join([a, c]))
 
 if __name__ == '__main__':
     res = CPay()

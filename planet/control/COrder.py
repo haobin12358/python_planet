@@ -175,6 +175,7 @@ class COrder(CPay, CCoupon):
             user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
             up1 = user.USsupper1
             up2 = user.USsupper2
+            up3 = user.USsupper3
             body = set()  # 付款时候需要使用的字段
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
@@ -265,6 +266,7 @@ class COrder(CPay, CCoupon):
                         'PRfrom': product_instance.PRfrom,
                         'UPperid': up1,
                         'UPperid2': up2,
+                        'UPperid3': up3
                         # 'PRcreateId': product_instance.CreaterId
                     }
                     order_part_instance = OrderPart.create(order_part_dict)
@@ -380,6 +382,7 @@ class COrder(CPay, CCoupon):
                                                                 order_part.PRid] / coupon_for_sum)
                                 if order_part.OPsubTrueTotal <= 0:
                                     order_part.OPsubTrueTotal = 0.01
+                                order_part.UseCoupon = True
                                 s.add(order_part)
                                 s.flush()
 
