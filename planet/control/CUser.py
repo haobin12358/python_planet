@@ -38,7 +38,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon
+    CashNotes, UserSalesVolume, Coupon, SignInAward
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -980,10 +980,17 @@ class CUser(SUser, BASEAPPROVAL):
             user.UScontinuous = 1
             gennerc_log('今天是第一次签到 uscontinuous %s' % user.UScontinuous)
 
+        integral = SignInAward.query.filter(
+            SignInAward.SIAday >= user.UScontinuous, SignInAward.isdelete == False).order_by(SignInAward.SIAday).first()
+        if not integral:
+            integral = ConfigSettings.get_item('integralbase', 'integral')
+        else:
+            integral = integral.SIAnum
+            
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': request.user.id,
-            'UIintegral': ConfigSettings().get_item('integralbase', 'integral'),
+            'UIintegral': integral,
             'UIaction': UserIntegralAction.signin.value,
             'UItype': UserIntegralType.income.value
         })
