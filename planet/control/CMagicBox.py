@@ -353,14 +353,16 @@ class CMagicBox(CUser, COrder):
                 'SKUid': skuid,
                 'OSnum': skustock
             }))
+            self._update_stock(-skustock, skuid=skuid)
             for day in time_list:
                 # 先检测是否存在相同skuid,相同日期的申请
                 exist_apply_sku = MagicBoxApply.query.filter(MagicBoxApply.SKUid == skuid,
                                                              MagicBoxApply.isdelete == False,
                                                              MagicBoxApply.SUid == request.user.id,
-                                                             MagicBoxApply.MBAstarttime == day).first()
-                if exist_apply_sku:
-                    raise ParamsError('您已添加过相同日期的申请')
+                                                             MagicBoxApply.MBAstarttime == day,
+                                                             ).first()
+                # if exist_apply_sku:
+                #     raise ParamsError('您已添加过相同日期的申请')
 
                 award_dict = {
                     'MBAid': str(uuid.uuid1()),
@@ -430,7 +432,7 @@ class CMagicBox(CUser, COrder):
                 'Gearsone': gearsone,
                 'Gearstwo': gearstwo,
                 'Gearsthree': gearsthree,
-                'SKUstock': int(skustock),
+                # 'SKUstock': int(skustock),
                 'MBAstatus': ApplyStatus.wait_check.value,
                 'MBAfrom': mbafrom,
             }
