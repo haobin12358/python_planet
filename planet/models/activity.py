@@ -115,13 +115,25 @@ class GuessNumAwardApply(Base):
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
     SKUprice = Column(Float, default=0.01, comment='参与价格')
-    SKUstock = Column(Integer, comment='库存')
+    # SKUstock = Column(Integer, comment='库存')
+    OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式
     GNAAfrom = Column(Integer, comment='申请来源, 0:供应商, 1: 平台管理员')
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
     GNAArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, default=GNAAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=GNAAendtime, comment='最终确认结束时间')
+
+    @property
+    def SKUstock(self):
+        from flask import current_app
+        current_app.logger.info('注意: 调用了skustock<<<')
+        out_stock = OutStock.query.filter(
+            OutStock.OSid == self.OSid,
+            OutStock.isdelete == False,
+        ).first()
+        if out_stock:
+            return out_stock.OSnum
 
 
 class MagicBoxApply(Base):
