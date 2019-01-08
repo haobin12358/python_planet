@@ -1589,6 +1589,7 @@ class CUser(SUser, BASEAPPROVAL):
             user_total = user_agent_amount + user_fens_total + user_agent_total
 
         else:
+            gennerc_log('user_agent_amount {} + user_fens_amount {} + user_fens_total {}+ user_agent_total {}'.format(user_agent_amount , user_fens_amount , user_fens_total , user_agent_total))
             user_total = user_agent_amount + user_fens_amount + user_fens_total + user_agent_total
 
         user.fill('team_sales', user_total)
