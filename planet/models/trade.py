@@ -92,6 +92,8 @@ class OrderPart(Base):
     OPisinORA = Column(Boolean, default=False, comment='是否在售后')
     # 卖家信息
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    # 商品让利比
+    SkudevideRate = Column(DECIMAL(scale=2), comment='商品让利比例')
     UPperid = Column(String(64), comment='上级id')  # 方便查询下级
     UPperid2 = Column(String(64), comment='上上级id')
     UPperid3 = Column(String(64), comment='上上上级id')
@@ -99,6 +101,7 @@ class OrderPart(Base):
     USCommission1 = Column(DECIMAL(scale=2), comment='一级佣金比')
     USCommission2 = Column(DECIMAL(scale=2), comment='二级佣金比')
     USCommission3 = Column(DECIMAL(scale=2), comment='三级佣金比')
+    UseCoupon = Column(Boolean, default=False, comment='是否优惠券')
 
     @property
     def SKUpic(self):

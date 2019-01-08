@@ -56,6 +56,7 @@ class ProductSku(Base):
     SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
     SKUstock = Column(BIGINT, comment='库存')
     SKUsn = Column(String(64), default=SKUid, nullable=False, unique=True, comment='sku编码')
+    SkudevideRate = Column(DECIMAL(scale=2), comment='商品让利比例')
 
 
 class ProductSkuValue(Base):

@@ -1,6 +1,9 @@
+import json
+
 from sqlalchemy import String, DECIMAL, Integer
 
 from planet.common.base_model import Base, Column
+from planet.common.error_response import StatusError
 
 
 class Commision(Base):
@@ -18,4 +21,11 @@ class Commision(Base):
     ReduceRatio = Column(String(32), default='["0", "0", "0", "0"]', comment='级差减额, 共四级')
     IncreaseRatio = Column(String(32), default='["0", "0", "0", "0"]', comment='级差增额')
 
+    @classmethod
+    def devide_rate_baseline(cls):
+        commision = cls.query.filter(cls.isdelete == False).first()
+        if commision:
+            level_commision = json.loads(commision.Levelcommision)
+            return level_commision[-1]
+        raise StatusError('项目需要初始化')
 
