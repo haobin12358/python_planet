@@ -69,6 +69,7 @@ class OrderCoupon(Base):
     COid = Column(String(64), nullable=False, comment='优惠券id')
     OMid = Column(String(64), nullable=False, comment='主单id')
     OCreduce = Column(Float, nullable=False, comment='减额')
+    SUid = Column(String(64), comment='来源供应商, 如为none则为平台')
 
 
 class OrderPart(Base):
@@ -106,6 +107,10 @@ class OrderPart(Base):
     @property
     def SKUpic(self):
         return self.PRmainpic
+
+    @property
+    def order_coupon(self):
+         return OrderCoupon.query.filter(OrderCoupon.isdelete == False, OrderCoupon.OMid == self.OMid).first()
 
     @property
     def PRcreateId(self):
@@ -255,7 +260,7 @@ class Coupon(Base):
     COdesc = Column(String(255), comment='描述')
     COlimitNum = Column(Integer, default=0, comment='发放数量')
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
-    SUid = Column(String(64), comment='来源供应商, 如为0则为平台')
+    SUid = Column(String(64), default=0, comment='来源供应商, 如为0则为平台')
     ADid = Column(String(64), comment='创建人')
 
 

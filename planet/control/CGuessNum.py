@@ -15,7 +15,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
-    ProductSkuValue, ProductImage, Approval, Supplizer, Admin
+    ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay
@@ -167,11 +167,18 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 GuessNumAwardApply.AgreeStartime <= guess_num.GNdate,
                 GuessNumAwardApply.AgreeEndtime >= guess_num.GNdate,
             ).first()
-            if guess_num_apply.SKUstock is not None:
-                guess_num_apply.SKUstock -= 1
-                if guess_num_apply.SKUstock < 0:
+            out_stock = OutStock.query.filter(OutStock.OSid == guess_num_apply.OSid
+                                              ).first()
+            if out_stock.OSnum is not None:
+                out_stock.OSnum = out_stock.OSnum - 1
+                if out_stock.OSnum < 0:
                     raise StatusError('库存不足, 活动结束')
-                s_list.append(guess_num_apply)
+                db.session.flush()
+            # if guess_num_apply.SKUstock is not None:
+            #     guess_num_apply.SKUstock -= 1
+            #     if guess_num_apply.SKUstock < 0:
+            #         raise StatusError('库存不足, 活动结束')
+            #     s_list.append(guess_num_apply)
             price = guess_num.Price
             suid = guess_num_apply.SUid if guess_num_apply.GNAAfrom else None
             # 领奖流水
@@ -284,12 +291,24 @@ class CGuessNum(COrder, BASEAPPROVAL):
         else:
             gnaastatus = getattr(ApplyStatus, gnaastatus).value
         starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
-        award_list = GuessNumAwardApply.query.filter_(GuessNumAwardApply.SUid == suid,
-                                                      GuessNumAwardApply.GNAAstatus == gnaastatus
-                                                      ).filter(GuessNumAwardApply.GNAAstarttime >= starttime,
+        out_stocks_query = OutStock.query.join(GuessNumAwardApply, GuessNumAwardApply.OSid == OutStock.OSid
+                                               ).group_by(OutStock.OSid).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
+                                                                                  GuessNumAwardApply.createtime.desc())
+        if suid:
+            out_stocks_query = out_stocks_query.filter(GuessNumAwardApply.SUid == suid)
+        out_stocks = out_stocks_query.all()
+        award_list = list()
+        for out_stock in out_stocks:
+            awards = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
+                                                     GuessNumAwardApply.OSid == out_stock.OSid
+                                                     ).filter_(GuessNumAwardApply.GNAAstatus == gnaastatus,
+                                                               GuessNumAwardApply.GNAAstarttime >= starttime,
                                                                GuessNumAwardApply.GNAAstarttime <= endtime
-                                                               ).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
-                                                                          GuessNumAwardApply.createtime.desc()).all_with_page()
+                                                               ).all()
+            for award in awards:
+                award.fill('skustock', out_stock.OSnum)
+            award_list.extend(awards)
+
         for award in award_list:
             sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
             award.fill('skupic', sku['SKUpic'])
@@ -308,7 +327,25 @@ class CGuessNum(COrder, BASEAPPROVAL):
             else:
                 name = ''
             award.fill('authname', name)
-        return Success(data=award_list)
+            award.fill('createtime', award.createtime)
+
+        # 筛选后重新分页
+        page = int(data.get('page_num', 1)) or 1
+        count = int(data.get('page_size', 15)) or 15
+        total_count = len(award_list)
+        if page < 1:
+            page = 1
+        total_page = int(total_count / int(count)) or 1
+        start = (page - 1) * count
+        if start > total_count:
+            start = 0
+        if total_count / (page * count) < 0:
+            ad_return_list = award_list[start:]
+        else:
+            ad_return_list = award_list[start: (page * count)]
+        request.page_all = total_page
+        request.mount = total_count
+        return Success(data=ad_return_list)
 
     def apply_award(self):
         """申请添加奖品"""
@@ -334,7 +371,16 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
         award_instance_list = list()
         gnaaid_list = list()
+        skustock = int(skustock)
         with db.auto_commit():
+            # 活动出库单
+            osid = str(uuid.uuid1())
+            db.session.add(OutStock.create({
+                'OSid': osid,
+                'SKUid': skuid,
+                'OSnum': skustock
+            }))
+            super(CGuessNum, self)._update_stock(-skustock, skuid=skuid)
             for day in time_list:
                 # 先检测是否存在相同skuid，相同日期的申请
                 exist_apply_sku = GuessNumAwardApply.query.filter(GuessNumAwardApply.SKUid == skuid,
@@ -351,27 +397,27 @@ class CGuessNum(COrder, BASEAPPROVAL):
                     'GNAAstarttime': day,
                     'GNAAendtime': day,
                     'SKUprice': float(data.get('skuprice', 0.01)),
-                    'SKUstock': int(skustock),
+                    # 'SKUstock': int(skustock),
+                    'OSid': osid,
                     'GNAAstatus': ApplyStatus.wait_check.value,
                     'GNAAfrom': gnaafrom,
                 }
                 award_instance = GuessNumAwardApply.create(award_dict)
                 gnaaid_list.append(award_dict['GNAAid'])
                 award_instance_list.append(award_instance)
-                sku.SKUstock -= skustock
-                # 库存设置
-                product.PRstocks -= skustock
-                if sku.SKUstock < 0:
-                    raise StatusError('商品库存不足')
-                db.session.add(sku)
-                if product.PRstocks == 0:
-                    product.PRstatus = ProductStatus.sell_out.value
-                db.session.add(product)
-
+                # sku.SKUstock -= skustock
+                # # 库存设置
+                # product.PRstocks -= skustock
+                # if sku.SKUstock < 0:
+                #     raise StatusError('商品库存不足')
+                # db.session.add(sku)
+                # if product.PRstocks == 0:
+                #     product.PRstatus = ProductStatus.sell_out.value
+                # db.session.add(product)
             db.session.add_all(award_instance_list)
         # 添加到审批流
         for gnaaid in gnaaid_list:
-            super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
+            super(CGuessNum, self).create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
         return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):
@@ -400,13 +446,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'GNAAstarttime': data.get('gnaastarttime'),
                 'GNAAendtime': data.get('gnaastarttime'),
                 'SKUprice': float(data.get('skuprice', 0.01)),
-                'SKUstock': int(skustock),
+                # 'SKUstock': int(skustock),
                 'GNAAstatus': ApplyStatus.wait_check.value,
                 'GNAAfrom': gnaafrom,
             }
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).update(award_dict)
-        super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
+        super(CGuessNum, self).create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
 
         return Success('修改成功', {'gnaaid': gnaaid})
 
@@ -452,11 +498,22 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnaaid = data.get('gnaaid')
         with db.auto_commit():
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
+            other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
+                                                               GuessNumAwardApply.GNAAid != gnaaid,
+                                                               GuessNumAwardApply.GNAAstatus != ApplyStatus.cancle.value,
+                                                               GuessNumAwardApply.OSid == apply_info.OSid,
+                                                               ).first()
+            current_app.logger.info("有其他的同库存申请{}".format(other_apply_info))
             if apply_info.GNAAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
             if apply_info.SUid != request.user.id:
                 raise AuthorityError('仅可撤销自己提交的申请')
             apply_info.GNAAstatus = ApplyStatus.cancle.value
+            # 是否修改库存
+            if not other_apply_info:
+                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
+                                                  ).first()
+                super(CGuessNum, self)._update_stock(out_stock.OSnum, skuid=apply_info.SKUid)
             # 同时将正在进行的审批流改为取消
             approval_info = Approval.query.filter_by_(AVcontent=gnaaid, AVstartid=request.user.id,
                                                       AVstatus=ApplyStatus.wait_check.value).first()

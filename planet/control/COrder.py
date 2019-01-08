@@ -175,6 +175,7 @@ class COrder(CPay, CCoupon):
             user = s.query(User).filter_by_({'USid': usid}).first_('无效用户')
             up1 = user.USsupper1
             up2 = user.USsupper2
+            up3 = user.USsupper3
             body = set()  # 付款时候需要使用的字段
             # 用户的地址信息
             user_address_instance = s.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
@@ -265,8 +266,11 @@ class COrder(CPay, CCoupon):
                         'PRfrom': product_instance.PRfrom,
                         'UPperid': up1,
                         'UPperid2': up2,
+                        'UPperid3': up3,
+                        'SkudevideRate': sku_instance.SkudevideRate
                         # 'PRcreateId': product_instance.CreaterId
                     }
+                    current_app.logger.info('当前商品让利为{}'.format(sku_instance.SkudevideRate) )
                     order_part_instance = OrderPart.create(order_part_dict)
                     order_part_list.append(order_part_instance)
                     # model_bean.append(order_part_instance)
@@ -380,6 +384,7 @@ class COrder(CPay, CCoupon):
                                                                 order_part.PRid] / coupon_for_sum)
                                 if order_part.OPsubTrueTotal <= 0:
                                     order_part.OPsubTrueTotal = 0.01
+                                order_part.UseCoupon = True
                                 s.add(order_part)
                                 s.flush()
 
@@ -1502,14 +1507,15 @@ class COrder(CPay, CCoupon):
     def _update_stock(self, old_new, product=None, sku=None, **kwargs):
         if not old_new:
             return
+        current_app.logger.info(">>> 进行库存变更 <<<")
         skuid = kwargs.get('skuid')
         if skuid:
             sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
-        current_app.logger.info(product.PRstocks)
+        current_app.logger.info("初始库存：{}".format(product.PRstocks))
         product.PRstocks = product.PRstocks + old_new
         sku.SKUstock += sku.SKUstock + old_new
-        current_app.logger.info(product.PRstocks)
+        current_app.logger.info("本次更新后为：{}".format(product.PRstocks))
         if product.PRstocks < 0:
             raise StatusError('商品库存不足')
         if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:

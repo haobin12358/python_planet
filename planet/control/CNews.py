@@ -225,6 +225,8 @@ class CNews(BASEAPPROVAL):
             coid_list = json.loads(coids)
             for coid in coid_list:
                 coupon = Coupon.query.filter_by_(COid=coid).first()
+                if not coupon:
+                    continue
                 coupon_detail = CCoupon()._title_subtitle(coupon)
                 coupon.fill('title_subtitle', coupon_detail)
                 coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first() if usid else False
