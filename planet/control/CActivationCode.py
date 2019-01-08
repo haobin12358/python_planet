@@ -41,7 +41,7 @@ class CActivationCode(BASEAPPROVAL):
                 'ACAvouchers': vouchers
             })
             db.session.add(apply)
-            self.create_approval('toactivationcode', request.user.id, apply.ACAid)
+        self.create_approval('toactivationcode', request.user.id, apply.ACAid)
         return Success('提交成功')
 
     def get_rule(self):

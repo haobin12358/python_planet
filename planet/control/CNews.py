@@ -361,7 +361,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
             # 添加到审批流
-            super().create_approval('topublish', usid, neid, nefrom)
+        super().create_approval('topublish', usid, neid, nefrom)
         return Success('添加成功', {'neid': neid})
 
     @admin_required

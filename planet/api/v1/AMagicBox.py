@@ -23,5 +23,6 @@ class AMagicBox(Resource):
             'shelf_award': self.cmagicbox.shelf_award,
             'award_detail': self.cmagicbox.award_detail,
             'delete': self.cmagicbox.delete_apply,
+            'shelves': self.cmagicbox.shelves,
         }
         return apis

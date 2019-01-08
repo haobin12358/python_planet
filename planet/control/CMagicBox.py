@@ -409,8 +409,9 @@ class CMagicBox(CUser, COrder):
                 award_instance_list.append(award_instance)
                 mbaid_list.append(award_dict['MBAid'])
             db.session.add_all(award_instance_list)
-            # 添加到审批流
-            [super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
+        # 添加到审批流
+        [self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
+
         return Success('申请添加成功', {'mbaid': mbaid_list})
 
     def update_apply(self):
@@ -461,7 +462,7 @@ class CMagicBox(CUser, COrder):
             }
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             MagicBoxApply.query.filter_by_(MBAid=mbaid).update(award_dict)
-        super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
+        self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
         return Success('修改成功', {'mbaid': mbaid})
 
     def award_detail(self):
@@ -555,6 +556,30 @@ class CMagicBox(CUser, COrder):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
         return Success('删除成功', {'mbaid': mbaid})
+
+    def shelves(self):
+        """下架申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+            current_app.logger.info('Supplizer {} delete magicbox apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
+            current_app.logger.info('Admin {} magicbox apply'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('mbaid',))
+        mbaid = data.get('mbaid')
+        with db.auto_commit():
+            apply_info = MagicBoxApply.query.filter_by_(MBAid=mbaid).first_('无此申请记录')
+            if sup:
+                assert apply_info.SUid == usid, '供应商只能下架自己的申请'
+            if apply_info.MBAstatus != ApplyStatus.agree.value:
+                raise StatusError('只能下架已通过的申请')
+            apply_info.MBAstatus = ApplyStatus.reject.value
+        return Success('下架成功', {'mbaid': mbaid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
