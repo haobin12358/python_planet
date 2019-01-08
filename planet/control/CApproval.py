@@ -439,6 +439,7 @@ class CApproval(BASEAPPROVAL):
             start = ap.AVstartdetail or 'null'
             ap.fill('content', json.loads(content))
             ap.fill('start', json.loads(start))
+            ap.add('createtime')
 
         return Success('获取待审批列表成功', data=ap_list)
 
