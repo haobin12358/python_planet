@@ -477,10 +477,10 @@ class CFreshManFirstOrder(COrder, CUser):
         query = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False)
         if suid:
             query = query.filter(FreshManFirstApply.SUid == suid,
-                                 FreshManFirstApply.FMFAfrom == 0)
+                                 FreshManFirstApply.FMFAfrom == ApplyFrom.supplizer.value)
         if adid:
             query = query.filter(FreshManFirstApply.SUid == adid,
-                                 FreshManFirstApply.FMFAfrom == 1)
+                                 FreshManFirstApply.FMFAfrom == ApplyFrom.platform.value)
         if status is not None:
             query = query.filter(FreshManFirstApply.FMFAstatus == status)
         applys = query.order_by(FreshManFirstApply.createtime.desc()).all_with_page()
@@ -563,23 +563,6 @@ class CFreshManFirstOrder(COrder, CUser):
         ).first()
         product = Products.query.filter(
             Products.PRid == sku.PRid
-        )
+        ).first()
         # 加库存
         self._update_stock(apply_sku.FMFPstock, product, sku)
-
-    def _update_stock(self, old_new, product, sku):
-        if not old_new:
-            return
-        current_app.logger.info(product.PRstocks)
-        product.PRstocks = product.PRstocks + old_new
-        sku.SKUstock += sku.SKUstock + old_new
-        current_app.logger.info(product.PRstocks)
-        if product.PRstocks < 0:
-            raise StatusError('商品库存不足')
-        if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:
-            product.PRstatus = ProductStatus.usual.value
-        if product.PRstocks == 0:
-            product.PRstatus = ProductStatus.sell_out.value
-        db.session.add(sku)
-        db.session.add(product)
-

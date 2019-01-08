@@ -20,7 +20,7 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus
+    UserIdentityStatus, ActivityRecvStatus
 from planet.config.cfgsetting import ConfigSettings
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -31,7 +31,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
-    OrderRefund, UserWallet
+    OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, MagicBoxJoin
 
 
 class COrder(CPay, CCoupon):
@@ -520,7 +520,7 @@ class COrder(CPay, CCoupon):
         usid = request.user.id
         order_main = OrderMain.query.filter_by_({
             'OMid': omid,
-            'OMstatus': OrderMainStatus.wait_pay.value
+            # 'OMstatus': OrderMainStatus.wait_pay.value
         }).first_('指定订单不存在')
         if is_supplizer() and order_main.PRcreateId != usid:
             raise AuthorityError()
@@ -533,6 +533,8 @@ class COrder(CPay, CCoupon):
         with db.auto_commit():
             # 主单状态修改
             order_main.OMstatus = OrderMainStatus.cancle.value
+            omfrom = order_main.OMfrom
+            omid = order_main.OMid
             db.session.add(order_main)
             # 优惠券返回
             if order_main.UseCoupon is True:
@@ -549,18 +551,47 @@ class COrder(CPay, CCoupon):
                 skuid = order_part.SKUid
                 opnum = order_part.OPnum
                 prid = order_part.PRid
-                ProductSku.query.filter_by_(SKUid=skuid).update({
-                    'SKUstock': ProductSku.SKUstock + opnum
-                })
-                product = Products.query.filter(Products.isdelete == False,
-                                                Products.PRid == prid).first()
-                if not product:
-                    return
-                # 如果商品已售罄, 则重新上架
-                if product.PRstatus == ProductStatus.sell_out.value:
-                    product.PRstatus = ProductStatus.usual.value
-                product.PRstocks += opnum
-                db.session.add(product)
+                sku_instance = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
+                product = Products.query.filter(Products.PRid == prid).first()
+                # 库存修改
+                if omfrom <= OrderFrom.product_info.value:
+                    self._update_stock(opnum, product, sku_instance)
+                elif omfrom == OrderFrom.guess_num_award.value:
+                    guessawardflow = GuessAwardFlow.query.filter(
+                        GuessAwardFlow.isdelete == False,
+                        GuessAwardFlow.OMid == omid
+                    ).first()
+                    guess_num = GuessNum.query.filter(
+                        GuessNum.GNid == guessawardflow.GNid
+                    ).first()
+                    apply = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.isdelete == False,
+                        GuessNumAwardApply.GNAAid == guess_num.GNNAid
+                    ).update({
+                        'SKUstock': GuessNumAwardApply.SKUstock + opnum
+                    })
+                    guessawardflow.GFAstatus = ActivityRecvStatus.wait_recv.value
+                    db.session.add(guessawardflow)
+                elif omfrom == OrderFrom.fresh_man.value:
+                    # todo
+                    pass
+                elif omfrom == OrderFrom.magic_box.value:
+                    current_app.logger.info('活动魔盒订单')
+                    magic_box_flow = MagicBoxFlow.query.filter(
+                        MagicBoxFlow.OMid == omid,
+                    ).first()
+                    magic_box_join = MagicBoxJoin.query.filter(
+                        MagicBoxJoin.MBJid == magic_box_flow.MBJid
+                    ).first()
+                    magic_box_join.MBJstatus = ActivityRecvStatus.wait_recv.value
+                    db.session.add(magic_box_join)
+                    current_app.logger.info('改魔盒的领取状态{}'.format(dict(magic_box_join)))
+                    db.session.add(magic_box_join)
+                    magic_box_apply = MagicBoxApply.query.filter(
+                        MagicBoxApply.isdelete == False,
+                        MagicBoxApply.MBAid == magic_box_join.MBAid
+                    ).first()
+                    # todo 库存操作
 
     @token_required
     def delete(self):
@@ -1447,3 +1478,24 @@ class COrder(CPay, CCoupon):
                     order_refund_instance.ORlogisticData = json.loads(order_refund_instance.ORlogisticData)
                 except Exception:
                     current_app.logger.error('售后物流出错')
+
+    def _update_stock(self, old_new, product=None, sku=None, **kwargs):
+        if not old_new:
+            return
+        skuid = kwargs.get('skuid')
+        if skuid:
+            sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
+            product = Products.query.filter(Products.PRid == sku.PRid).first()
+        current_app.logger.info(product.PRstocks)
+        product.PRstocks = product.PRstocks + old_new
+        sku.SKUstock += sku.SKUstock + old_new
+        current_app.logger.info(product.PRstocks)
+        if product.PRstocks < 0:
+            raise StatusError('商品库存不足')
+        if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:
+            product.PRstatus = ProductStatus.usual.value
+        if product.PRstocks == 0:
+            product.PRstatus = ProductStatus.sell_out.value
+        db.session.add(sku)
+        db.session.add(product)
+

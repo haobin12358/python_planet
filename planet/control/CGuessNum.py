@@ -57,6 +57,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'PRid': today_raward.PRid,
                 'SKUid': today_raward.SKUid,
                 'Price': today_raward.SKUprice,
+                'GNNAid': today_raward.GNAAid
                 # 'GNdate': gndate
             })
             db.session.add(guess_instance)
@@ -80,6 +81,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             else:
                 raise NotFound('未参与')
         if join_history:
+            # todo 换一种查询方式, 不使用日期筛选, 而使用gnnaid筛选
             correct_num = CorrectNum.query.filter(
                 CorrectNum.CNdate == join_history.GNdate
             ).first()
@@ -183,6 +185,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
             product_brand_instance = ProductBrand.query.filter_by({'PBid': pbid}).first_()
             # 领奖状态改变
             guess_award_flow_instance.GAFstatus = ActivityRecvStatus.ready_recv.value
+            omid = str(uuid.uuid1())
+            guess_award_flow_instance.OMid = omid
             s_list.append(guess_award_flow_instance)
             # 用户的地址信息
             user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
@@ -198,7 +202,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
             omrecvname = user_address_instance.UAname
 
             # 创建订单
-            omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str
             # 主单
             order_main_dict = {
