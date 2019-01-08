@@ -68,7 +68,5 @@ class CSigninSetting():
     @get_session
     @token_required
     def get_all(self):
-        if not is_admin():
-            raise AuthorityError()
         sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         return Success('获取设置成功', data=sia_list)
