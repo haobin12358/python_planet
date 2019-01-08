@@ -1498,14 +1498,15 @@ class COrder(CPay, CCoupon):
     def _update_stock(self, old_new, product=None, sku=None, **kwargs):
         if not old_new:
             return
+        current_app.logger.info(">>> 进行库存变更 <<<")
         skuid = kwargs.get('skuid')
         if skuid:
             sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
-        current_app.logger.info(product.PRstocks)
+        current_app.logger.info("初始库存：{}".format(product.PRstocks))
         product.PRstocks = product.PRstocks + old_new
         sku.SKUstock += sku.SKUstock + old_new
-        current_app.logger.info(product.PRstocks)
+        current_app.logger.info("本次更新后为：{}".format(product.PRstocks))
         if product.PRstocks < 0:
             raise StatusError('商品库存不足')
         if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:

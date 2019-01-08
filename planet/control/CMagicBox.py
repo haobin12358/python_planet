@@ -513,6 +513,7 @@ class CMagicBox(CUser, COrder):
             other_apply_info = MagicBoxApply.query.filter(
                 MagicBoxApply.isdelete == False,
                 MagicBoxApply.MBAid != mbaid,
+                MagicBoxApply.MBAstatus != ApplyStatus.cancle.value,
                 MagicBoxApply.OSid == apply_info.OSid,
             ).first()
             if apply_info.MBAstatus != ApplyStatus.wait_check.value:
