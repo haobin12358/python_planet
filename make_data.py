@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import json
+from decimal import Decimal
+
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
@@ -186,35 +189,39 @@ def make_permissiontype():
         })
         db.session.add(toactivationcode)
 
+from json import JSONEncoder as _JSONEncoder
+from datetime import datetime, date
+
+class JSONEncoder(_JSONEncoder):
+    """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
+    def default(self, o):
+
+        if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
+            res = dict(o)
+            new_res = {k.lower(): v for k, v in res.items()}
+            return new_res
+        if isinstance(o, datetime):
+            # 也可以序列化时间类型的对象
+            return o.strftime('%Y-%m-%d %H:%M:%S')
+        if isinstance(o, date):
+            return o.strftime('%Y-%m-%d')
+        if isinstance(o, type):
+            raise o()
+
+        if isinstance(o, Decimal):
+            return round(float(o), 2)
+        raise TypeError(repr(o) + " is not JSON serializable")
+
 
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-    #     # make_items()
-    #     # make_acvitity()
-    #     make_permissiontype()
-        with db.auto_commit():
-    #         aps = Approval.query.all()
-    #         for ap in aps:
-    #             pt = ap.AVname.split('2018')[0]
-    #             ap.PTid = pt
-    #     pass
-    #     make_permissiontype()
-        # make_items()
-        # pt = PermissionType.query.filter(PermissionType.PTid == 'toactivationcode').first()
-        # print(pt.__dict__)
-            products = ProductSku.query.all()
-            index = 1
-            sn_list = []
-            for product_sku in products:
-                if product_sku.SKUsn in sn_list:
-                    product_sku.SKUsn = product_sku.SKUsn + str(index)
-                    index += 1
-                sn_list.append(product_sku.SKUsn)
-
-        # make_items()
-        # make_commsion()
-        # make_acvitity()
-        # make_permissiontype()
+        if __name__ == "__main__":
+            app = create_app()
+            with app.app_context():
+                admin = PermissionType.query.first_()
+                admin_str = json.dumps(admin, cls=JSONEncoder)
+                print(admin.__dict__)
+                print(admin_str)
 
 

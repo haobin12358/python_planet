@@ -432,8 +432,10 @@ class CApproval(BASEAPPROVAL):
             ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         for ap in ap_list:
             ap.hide('AVcontentdetail', 'AVstartdetail')
-            ap.fill('content', json.loads(ap.AVcontentdetail))
-            ap.fill('start', json.loads(ap.AVstartdetail))
+            content = ap.AVcontentdetail or 'null'
+            start = ap.AVstartdetail or 'null'
+            ap.fill('content', json.loads(content))
+            ap.fill('start', json.loads(start))
 
         return Success('获取待审批列表成功', data=ap_list)
 

@@ -1,11 +1,10 @@
 import uuid
-import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
-from flask import request
 import json
 
-from planet.config.cfgsetting import ConfigSettings
+
 from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, ApplyFrom, UserMediaType, \
     TrialCommodityStatus
 from planet.common.error_response import SystemError, ParamsError
@@ -14,32 +13,53 @@ from planet.extensions.register_ext import db
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
-    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue
+    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base
 from planet.service.SApproval import SApproval
+from json import JSONEncoder as _JSONEncoder
+
+
+class JSONEncoder(_JSONEncoder):
+    """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
+
+    def default(self, o):
+
+        if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
+            res = dict(o)
+            new_res = {k.lower(): v for k, v in res.items()}
+            return new_res
+        if isinstance(o, datetime):
+            # 也可以序列化时间类型的对象
+            return o.strftime('%Y-%m-%d %H:%M:%S')
+        if isinstance(o, date):
+            return o.strftime('%Y-%m-%d')
+        if isinstance(o, type):
+            raise o()
+        if isinstance(o, Decimal):
+            return round(float(o), 2)
+
+        raise TypeError(repr(o) + " is not JSON serializable")
 
 
 class BASEAPPROVAL():
     sapproval = SApproval()
 
-    def create_approval(self, avtype, startid,  avcontentid, applyfrom=None):
-        # avtype = int(avtype)
+    def create_approval(self, avtype, startid, avcontentid, applyfrom=None):
+
         gennerc_log('start create approval ptid = {0}'.format(avtype))
         pt = PermissionType.query.filter_by_(PTid=avtype).first_('参数异常')
 
-        start, content = self.__fill_approval(pt, startid, avcontentid)
-        if not start and content:
-            raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
-
+        start, content = self.__get_approvalcontent(pt, startid, avcontentid)
+        db.session.expunge_all()
         av = Approval.create({
             "AVid": str(uuid.uuid1()),
-            "AVname": avtype + datetime.datetime.now().strftime('%Y%m%d%H%M%S'),
+            "AVname": avtype + datetime.now().strftime('%Y%m%d%H%M%S'),
             "PTid": avtype,
             "AVstartid": startid,
             "AVlevel": 1,
             "AVstatus": ApplyStatus.wait_check.value,
             "AVcontent": avcontentid,
-            'AVstartdetail': json.dumps(start),
-            'AVcontentdetail': json.dumps(content),
+            'AVstartdetail': json.dumps(start, cls=JSONEncoder),
+            'AVcontentdetail': json.dumps(content, cls=JSONEncoder),
         })
 
         with self.sapproval.auto_commit() as s:
@@ -311,3 +331,9 @@ class BASEAPPROVAL():
             return self.__fill_activationcode(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
+
+    def __get_approvalcontent(self, pt, startid, avcontentid):
+        start, content = self.__fill_approval(pt, startid, avcontentid)
+        if not (start and content):
+            raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
+        return start, content
