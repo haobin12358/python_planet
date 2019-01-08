@@ -11,6 +11,7 @@ class ACoupon(Resource):
         apis = {
             'list_user_coupon': self.ccoupon.list_user_coupon,
             'list': self.ccoupon.list,
+            'get': self.ccoupon.get,
         }
         return apis
 
