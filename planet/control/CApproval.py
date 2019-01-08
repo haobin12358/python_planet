@@ -433,15 +433,19 @@ class CApproval(BASEAPPROVAL):
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
             ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
+        res = []
         for ap in ap_list:
+            if not ap.AVstartdetail:
+                continue
             ap.hide('AVcontentdetail', 'AVstartdetail')
             content = ap.AVcontentdetail or 'null'
             start = ap.AVstartdetail or 'null'
             ap.fill('content', json.loads(content))
             ap.fill('start', json.loads(start))
             ap.add('createtime')
+            res.append(ap)
 
-        return Success('获取待审批列表成功', data=ap_list)
+        return Success('获取待审批列表成功', data=res)
 
     @get_session
     @token_required

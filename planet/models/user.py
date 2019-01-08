@@ -217,6 +217,7 @@ class CashNotes(Base):
     __tablename__ = 'CashNotes'
     CNid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
+    CommisionFor = Column(Integer, default=20, comment='0 平台, 10 供应商, 20 普通用户')
     CNbankName = Column(Text, comment='开户行')
     CNbankDetail = Column(Text, comment='开户网点详情')
     CNcardNo = Column(String(32), comment='卡号')
