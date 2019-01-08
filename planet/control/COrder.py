@@ -266,9 +266,11 @@ class COrder(CPay, CCoupon):
                         'PRfrom': product_instance.PRfrom,
                         'UPperid': up1,
                         'UPperid2': up2,
-                        'UPperid3': up3
+                        'UPperid3': up3,
+                        'SkudevideRate': sku_instance.SkudevideRate
                         # 'PRcreateId': product_instance.CreaterId
                     }
+                    current_app.logger.info('当前商品让利为{}'.format(sku_instance.SkudevideRate) )
                     order_part_instance = OrderPart.create(order_part_dict)
                     order_part_list.append(order_part_instance)
                     # model_bean.append(order_part_instance)

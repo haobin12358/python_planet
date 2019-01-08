@@ -281,6 +281,7 @@ class CPay():
         if up1_base:
             up1_base = self.get_two_float(up1_base)
             user_commision -= up1_base
+            current_app.logger.info('一级获得佣金: {}'.format(up1_base))
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -296,6 +297,7 @@ class CPay():
         if up2_base:
             up2_base = self.get_two_float(up2_base)
             user_commision -= up2_base
+            current_app.logger.info('二级获得佣金: {}'.format(up2_base))
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -311,6 +313,7 @@ class CPay():
         if up3_base:
             up3_base = self.get_two_float(up3_base)
             user_commision -= up3_base
+            current_app.logger.info('三级获得佣金: {}'.format(up3_base))
             commision_account = UserCommission.create({
                 'UCid': str(uuid.uuid1()),
                 'OMid': order_part.OMid,
@@ -331,20 +334,7 @@ class CPay():
                 commision_for_supplizer -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
             else:
                 planet_remain -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
-        # 平台剩余佣金
-        commision_account = UserCommission.create({
-            'UCid': str(uuid.uuid1()),
-            'OMid': order_part.OMid,
-            'OPid': order_part.OPid,
-            'UCcommission': planet_remain,
-            'USid': '0',
-            'CommisionFor': ApplyFrom.platform.value,
-            'PRtitle': order_part.PRtitle,
-            'SKUpic': order_part.SKUpic,
-            'UCstatus': UCstatus,
-            'FromUsid': user.USid
-        })
-        db.session.add(commision_account)
+
         # 供应商获取佣金
         if suid:
             commision_account = UserCommission.create({
@@ -360,6 +350,24 @@ class CPay():
                 'FromUsid': user.USid
             })
             db.session.add(commision_account)
+            current_app.logger.info('供应商获取佣金: {}'.format(commision_account.UCcommission))
+        else:
+            planet_remain += commision_for_supplizer
+        # 平台剩余佣金
+        commision_account = UserCommission.create({
+            'UCid': str(uuid.uuid1()),
+            'OMid': order_part.OMid,
+            'OPid': order_part.OPid,
+            'UCcommission': planet_remain,
+            'USid': '0',
+            'CommisionFor': ApplyFrom.platform.value,
+            'PRtitle': order_part.PRtitle,
+            'SKUpic': order_part.SKUpic,
+            'UCstatus': UCstatus,
+            'FromUsid': user.USid
+        })
+        db.session.add(commision_account)
+        current_app.logger.info('平台获取: {}'.format(planet_remain))
 
     def _caculate_offset(self, low_high, user_low_base, user_hign_base, reduce_ratio, increase_ratio):
         """计算偏移后的佣金"""

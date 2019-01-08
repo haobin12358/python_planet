@@ -295,6 +295,7 @@ class CProducts:
                 skuprice = float(sku.get('skuprice'))
                 skustock = int(sku.get('skustock'))
                 skudeviderate = sku.get('skudeviderate')
+
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                 prstocks += int(skustock)
                 sku_dict = {
@@ -380,6 +381,8 @@ class CProducts:
                 }))
             # todo 审批流
             s.add_all(session_list)
+        # db.session.expunge_all()
+        # todo 重复添加
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
@@ -433,6 +436,7 @@ class CProducts:
                         raise ParamsError('skuattritedetail与prattribute不符')
                     skuprice = sku.get('skuprice')
                     skustock = sku.get('skustock')
+                    skudeviderate = sku.get('skudeviderate')
                     assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                     # 更新或添加删除
                     if 'skuid' in sku:
@@ -446,7 +450,8 @@ class CProducts:
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             'SKUstock': int(skustock),
                             'SKUprice': sku.get('skuprice'),
-                            'SKUsn': sn
+                            'SKUsn': sn,
+                            'SkudevideRate': skudeviderate
                         })
                         session_list.append(sku_instance)
                     else:
@@ -458,7 +463,8 @@ class CProducts:
                             'SKUstock': int(skustock),
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             # 'isdelete': sku.get('isdelete'),
-                            'SKUsn': sku.get('skusn')
+                            'SKUsn': sku.get('skusn'),
+                            'SkudevideRate': skudeviderate
                         })
                         sn = sku.get('skusn')
                         self._check_sn(sn=sn)
@@ -493,7 +499,6 @@ class CProducts:
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
                 'PRstatus': ProductStatus.auditing.value,
-
             }
             # if product.PRstatus == ProductStatus.sell_out.value:
             #     product.PRstatus = ProductStatus.usual.value
