@@ -129,7 +129,8 @@ class MagicBoxApply(Base):
     MBAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
-    SKUstock = Column(Integer, comment='库存')
+    # SKUstock = Column(Integer, comment='库存')
+    OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式
     MBAfrom = Column(Integer, comment='申请来源')
     PRid = Column(String(64), nullable=False, comment='商品id')
     PBid = Column(String(64), nullable=False, comment='品牌id')
@@ -232,3 +233,12 @@ class FreshManJoinFlow(Base):
 class SignInAward(Base):
     __tablename__ = 'SignInAward'
     SIAid = Column(String(64), primary_key=True)
+
+
+class OutStock(Base):
+    """活动sku出库单, 减少改动, 仅魔盒和猜数字使用"""
+    __tablename__ = 'OutStock'
+    OSid = Column(String(64), primary_key=True)
+    SKUid = Column(String(64), nullable=False, comment='出库sku')
+    OSnum = Column(BIGINT, default=1, comment='活动出库数量')
+
