@@ -83,9 +83,12 @@ class CNews(BASEAPPROVAL):
             if usid:
                 is_favorite = self.snews.news_is_favorite(news.NEid, usid)
                 favorite = 1 if is_favorite else 0
+                is_own = 1 if news.USid == usid else 0
             else:
                 favorite = 0
+                is_own = 0
             news.fill('is_favorite', favorite)
+            news.fill('is_own', is_own)
             # 显示审核状态
             if userid or is_admin():
                 news_status = news.NEstatus
@@ -162,7 +165,7 @@ class CNews(BASEAPPROVAL):
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
-        news.fields = ['NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
+        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
 
         if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
             if news.NEstatus == NewsStatus.usual.value:
@@ -174,13 +177,16 @@ class CNews(BASEAPPROVAL):
                     pass
 
         if usid:
+            is_own = 1 if news.USid == usid else 0
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
             is_trample = self.snews.news_is_trample(neid, usid)
             trample = 1 if is_trample else 0
         else:
+            is_own = 0
             favorite = 0
             trample = 0
+        news.fill('is_own', is_own)
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
         # news_author = self.snews.get_user_by_id(news.USid)
@@ -232,6 +238,8 @@ class CNews(BASEAPPROVAL):
             prid_list = json.loads(prids)
             for prid in prid_list:
                 product = Products.query.filter_by_(PRid=prid).first()
+                if not product:
+                    continue
                 product.fields = ['PRid', 'PRtitle', 'PRprice', 'PRlinePrice', 'PRmainpic']
                 brand = ProductBrand.query.filter_by_(PBid=product.PBid).first()
                 product.fill('brand', brand)
@@ -480,13 +488,13 @@ class CNews(BASEAPPROVAL):
         neids = data.get('neid')
         with db.auto_commit():
             for neid in neids:
-                news = News.query.filter_by_(NEid=neid).first_('该资讯已被删除')
+                news = News.query.filter_by_(NEid=neid).first_('未找到该资讯或已被删除')
                 if is_admin():
                     if news.NEstatus != NewsStatus.refuse.value:
                         raise StatusError('只能删除已下架状态的资讯')
                 else:
                     if news.USid != usid:
-                        raise StatusError('只能删除自己发送的资讯')
+                        raise StatusError('只能删除自己发布的资讯')
                 News.query.filter_by(NEid=neid, isdelete=False).delete_()
                 NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
                 NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
@@ -499,7 +507,7 @@ class CNews(BASEAPPROVAL):
                     approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
                                                               AVstatus=ApplyStatus.wait_check.value).first()
                     approval_info.AVstatus = ApplyStatus.cancle.value
-        return Success('删除成功', {'neid': neid})
+        return Success('删除成功', {'neid': neids})
 
     @token_required
     def news_favorite(self):
@@ -774,4 +782,4 @@ class CNews(BASEAPPROVAL):
             for neid in neids:
                 news = News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.usual.value).first_('只能下架已上架状态的资讯')
                 news.NEstatus = NewsStatus.refuse.value
-        return Success('下架成功', {'neid': neid})
+        return Success('下架成功', {'neid': neids})

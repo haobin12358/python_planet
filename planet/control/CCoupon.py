@@ -30,7 +30,13 @@ class CCoupon(object):
         coupons = Coupon.query.filter(
             Coupon.isdelete == False
         )
-        usid = 'tourist' if is_tourist() else request.user.id
+        usid = suid = adid = None
+        if is_supplizer():
+            suid = request.user.id
+        elif is_admin():
+            adid = request.user.id
+        elif not is_tourist():
+            usid = request.user.id
         if itid:
             coupons = coupons.join(CouponItem, CouponItem.COid == Coupon.COid).filter(
                 CouponItem.ITid == itid,
@@ -39,17 +45,32 @@ class CCoupon(object):
         coupons = coupons.order_by(Coupon.createtime.desc(), Coupon.COid).all_with_page()
         for coupon in coupons:
             # 标签
-            items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
-                CouponItem.COid == coupon.COid
-            ).all()
-            if not is_admin() and not is_supplizer():
-                coupon.COcanCollect = self._can_collect(coupon)
-            # 优惠券时候对象
-            coupon.fill('items', items)
-            coupon.fill('title_subtitle', self._title_subtitle(coupon))
-            coupon_user = CouponUser.query.filter_by_({'USid': usid, 'COid': coupon.COid}).first()
-            coupon.fill('ready_collected', bool(coupon_user))
+            self._coupon(coupon, usid=usid)
         return Success(data=coupons)
+
+    def get(self):
+        data = parameter_required(('coid', ))
+        coid = data.get('coid')
+        coupon = Coupon.query.filter(
+            Coupon.COid == coid,
+            Coupon.isdelete == False,
+        ).first()
+        self._coupon(coupon)
+        return Success(data=coupon)
+
+    def _coupon(self, coupon, **kwargs):
+        items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
+            CouponItem.COid == coupon.COid
+        ).all()
+        if not is_admin() and not is_supplizer():
+            coupon.COcanCollect = self._can_collect(coupon)
+        # 优惠券时候对象
+        coupon.fill('items', items)
+        coupon.fill('title_subtitle', self._title_subtitle(coupon))
+        usid = kwargs.get('usid')
+        if usid:
+            coupon_user = CouponUser.query.filter_by({'USid': usid, 'COid': coupon.COid}).first()
+            coupon.fill('ready_collected', bool(coupon_user))
 
     @token_required
     def list_user_coupon(self):
@@ -181,6 +202,9 @@ class CCoupon(object):
                 Coupon.COid == coid,
                 Coupon.isdelete == False
             ).first_('优惠券不存在')
+            # 已经可以使用的不可以修改
+            if coupon.COsendStarttime is None or coupon.COsendStarttime < datetime.now():
+                raise StatusError('已经开放领取不可修改')
             coupon_dict = {
                 'COname': form.coname.data,
                 'COisAvailable': form.coisavailable.data,

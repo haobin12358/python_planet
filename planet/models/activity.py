@@ -109,7 +109,7 @@ class GuessNumAwardApply(Base):
     """申请参与猜数字"""
     __tablename__ = 'GuessNumAward'
     GNAAid = Column(String(64), primary_key=True)
-    SUid = Column(String(64), comment='供应商id')
+    SUid = Column(String(64), comment='发布者id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     PRid = Column(String(64), nullable=False, comment='商品id')
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
@@ -127,7 +127,7 @@ class GuessNumAwardApply(Base):
 class MagicBoxApply(Base):
     __tablename__ = 'MagicBoxApply'
     MBAid = Column(String(64), primary_key=True)
-    SUid = Column(String(64), comment='供应商id')
+    SUid = Column(String(64), comment='发布者id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
     # SKUstock = Column(Integer, comment='库存')
     OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式

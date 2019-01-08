@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime, date, timedelta
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import cast, Date, extract
 
 from planet.common.error_response import StatusError, ParamsError, NotFound, AuthorityError
@@ -277,8 +277,19 @@ class CGuessNum(COrder, BASEAPPROVAL):
             suid = None
         else:
             raise AuthorityError()
-        award_list = GuessNumAwardApply.query.filter_by_(SUid=suid).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
-                                                                             GuessNumAwardApply.createtime.desc()).all_with_page()
+        data = parameter_required()
+        gnaastatus = data.get('gnaastatus')
+        if str(gnaastatus) == 'all':
+            gnaastatus = None
+        else:
+            gnaastatus = ApplyStatus(gnaastatus).value
+        starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
+        award_list = GuessNumAwardApply.query.filter_(GuessNumAwardApply.SUid == suid,
+                                                      GuessNumAwardApply.GNAAstatus == gnaastatus
+                                                      ).filter(GuessNumAwardApply.GNAAstarttime >= starttime,
+                                                               GuessNumAwardApply.GNAAstarttime <= endtime
+                                                               ).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
+                                                                          GuessNumAwardApply.createtime.desc()).all_with_page()
         for award in award_list:
             sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
             award.fill('skupic', sku['SKUpic'])
@@ -371,7 +382,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == gnaaid,
                                                      GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.reject.value,
                                                                                        ApplyStatus.cancle.value])
-                                                     ).first_('只有下架或撤销状态的申请可以进行修改')
+                                                     ).first_('只有已拒绝或撤销状态的申请可以进行修改')
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可修改自己提交的申请')
         gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
@@ -450,6 +461,31 @@ class CGuessNum(COrder, BASEAPPROVAL):
                                                       AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('取消成功', {'gnaaid': gnaaid})
+
+    def delete_apply(self):
+        """删除申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} delete guessnum apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} guessnum apply'.format(admin.ADname))
+            sup = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('gnaaid',))
+        gnaaid = data.get('gnaaid')
+        with db.auto_commit():
+            apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
+            if sup:
+                assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
+            if apply_info.GNAAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value]:
+                raise StatusError('只能删除已拒绝或已撤销状态下的申请')
+            apply_info.isdelete = True
+        return Success('删除成功', {'gnaaid': gnaaid})
+
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
