@@ -370,7 +370,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
             db.session.add_all(award_instance_list)
         # 添加到审批流
-        [super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom) for gnaaid in gnaaid_list]
+        for gnaaid in gnaaid_list:
+            super().create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
         return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def update_apply(self):

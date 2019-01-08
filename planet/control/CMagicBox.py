@@ -409,8 +409,9 @@ class CMagicBox(CUser, COrder):
                 award_instance_list.append(award_instance)
                 mbaid_list.append(award_dict['MBAid'])
             db.session.add_all(award_instance_list)
-            # 添加到审批流
-            [super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
+        # 添加到审批流
+        for mbaid in mbaid_list:
+            super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
         return Success('申请添加成功', {'mbaid': mbaid_list})
 
     def update_apply(self):
