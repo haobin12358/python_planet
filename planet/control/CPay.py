@@ -22,7 +22,7 @@ from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products
-from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -251,8 +251,15 @@ class CPay():
         user_level3commision = Decimal(
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
-        # 平台 + 用户 抽成
-        planet_and_user_rate = Decimal(str(order_part.SkudevideRate or default_planetcommision)) / 100
+        # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
+        planet_and_user_rate = order_part.SkudevideRate  # todo 查询sku的让利
+        if not planet_and_user_rate:
+            sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
+            if sku:
+                planet_and_user_rate = sku.SkudevideRate
+        if not planet_and_user_rate:
+            planet_and_user_rate = default_planetcommision
+        planet_and_user_rate = Decimal(planet_and_user_rate) / 100
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
         planet_commision = order_part.OPsubTotal * planet_rate

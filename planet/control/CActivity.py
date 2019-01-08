@@ -5,7 +5,7 @@ from datetime import date
 from flask import request
 
 from planet.common.success_response import Success
-from planet.common.token_handler import is_tourist, is_admin, admin_required
+from planet.common.token_handler import is_tourist, is_admin, admin_required, is_supplizer
 from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, TrialCommodityStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
@@ -147,7 +147,7 @@ class CActivity(CUser):
         act_instance.hide('ACid', 'ACbackGround', 'ACbutton', 'ACtopPic')
         if ac_type == 'magic_box':  # 魔盒
             if not mbjid:
-                product, magic_apply = db.session.query(Products, MagicBoxApply).join(
+                query = db.session.query(Products, MagicBoxApply).join(
                     ProductSku, ProductSku.PRid == Products.PRid
                 ).join(
                     MagicBoxApply, MagicBoxApply.SKUid == ProductSku.SKUid
@@ -155,7 +155,12 @@ class CActivity(CUser):
                     MagicBoxApply.AgreeStartime <= today,
                     MagicBoxApply.AgreeEndtime >= today,
                     MagicBoxApply.isdelete == False,
-                ).first_('活动未在进行')
+                )
+                if not is_admin() and not is_supplizer():
+                    query = query.filter(
+                        MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                   )
+                product, magic_apply = query.first_('活动未在进行中')
                 mbaid = magic_apply.MBAid
             else:
                 magic_box_join = MagicBoxJoin.query.filter(
@@ -202,6 +207,7 @@ class CActivity(CUser):
                     mbp_history = MagicBoxOpen.query.filter_by_({'MBJid': magic_box_join.MBJid}).order_by(MagicBoxOpen.createtime.desc()).limit(4).all()
                     magic_apply.fill('open_history', mbp_history)
 
+        # todo 是否需要判断前后台
         elif ac_type == 'guess_num':
             apply = Products.query.join(
                 ProductSku, Products.PRid == ProductSku.PRid

@@ -159,7 +159,7 @@ class CMagicBox(CUser, COrder):
             out_stock = OutStock.query.filter(
                 OutStock.OSid == magic_box_apply.OSid
             ).first()
-            if out_stock.OSnum is not None:
+            if out_stock and out_stock.OSnum is not None:
                 out_stock.OSnum = out_stock.OSnum - 1
                 if out_stock.OSnum < 0:
                     raise StatusError('库存不足, 活动结束')
