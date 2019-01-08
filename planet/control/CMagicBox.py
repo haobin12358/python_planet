@@ -409,9 +409,8 @@ class CMagicBox(CUser, COrder):
                 award_instance_list.append(award_instance)
                 mbaid_list.append(award_dict['MBAid'])
             db.session.add_all(award_instance_list)
-        for mbaid in mbaid_list:
             # 添加到审批流
-            super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
+            [super().create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
         return Success('申请添加成功', {'mbaid': mbaid_list})
 
     def update_apply(self):
@@ -537,11 +536,11 @@ class CMagicBox(CUser, COrder):
         """删除申请"""
         if is_supplizer():
             usid = request.user.id
-            sup = self._check_supplizer(usid)
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
             current_app.logger.info('Supplizer {} delete magicbox apply'.format(sup.SUname))
         elif is_admin():
             usid = request.user.id
-            admin = self._check_admin(usid)
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
             current_app.logger.info('Admin {} magicbox apply'.format(admin.ADname))
             sup = None
         else:
