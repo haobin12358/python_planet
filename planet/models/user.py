@@ -33,6 +33,7 @@ class User(Base):
     USqrcode = Column(Text, url=True, comment='用户二维码')
     USpaycode = Column(Text, comment='支付密码')
     UScontinuous = Column(Integer, default=0, comment='连续签到天数')
+    UStoAgentTime = Column(DateTime, comment='成为代理商时间')
 
 
 class UserLoginTime(Base):
@@ -186,11 +187,12 @@ class AddressArea(Base):
 
 
 class UserSalesVolume(Base):
-    """用户销售额 按月统计，需要总额需要累加 只累加粉丝的订单销售额"""
+    """用户销售额 按月统计，需要总额需要累加 只累加自己的订单销售额"""
     __tablename__ = 'UserSalesvolume'
     USVid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
     USVamount = Column(DECIMAL(precision=28, scale=2), comment='月度总额')
+    USVamountagent = Column(DECIMAL(precision=28, scale=2), comment='月度代理商直销总额')
 
 
 class UserInvitation(Base):

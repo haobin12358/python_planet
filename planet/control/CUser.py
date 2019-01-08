@@ -1527,52 +1527,73 @@ class CUser(SUser, BASEAPPROVAL):
         if user.USlevel != self.AGENT_TYPE:
             raise AuthorityError('代理商权限已过期')
 
-        usv_month = UserSalesVolume.query.filter(
-            UserSalesVolume.isdelete == False,
-            extract('month', UserSalesVolume.createtime) == month,
-            extract('year', UserSalesVolume.createtime) == year,
-            UserSalesVolume.USid == request.user.id
-        ).first()
-        fens_list = User.query.filter(
-            User.isdelete == False,
-            User.USsupper1 == request.user.id, User.USlevel != self.AGENT_TYPE).all()
-        fens_salesvolume_list = []
-        for fens in fens_list:
-            order_list = OrderMain.query.filter_by_(USid=fens.USid, OMstatus=OrderMainStatus.ready.value).all()
-
-            us_salesvolume = sum(order_main.OMtrueMount for order_main in order_list)
-            fens_salesvolume_list.append({
+        self._get_salesvolume(user, month, year)
+        fens_list = [
+            {
                 'USheader': fens['USheader'],
                 'USname': fens.USname,
-                'USsalesvolume': us_salesvolume
-            })
-        sub_salesvolume_list = []
-        sub_list = User.query.filter_by_(USsupper1=request.user.id, USlevel=self.AGENT_TYPE).all()
-        sub_amount = 0
-        for sub in sub_list:
-            us_salesvolume = UserSalesVolume.query.filter(
-                UserSalesVolume.isdelete == False,
-                extract('month', UserSalesVolume.createtime) == month,
-                extract('year', UserSalesVolume.createtime) == year,
-                UserSalesVolume.USid == sub.USid).first()
-            sub_salevolume = sum(
-                order_main.OMtrueMount for order_main in OrderMain.query.filter_by_(
-                    USid=sub.USid, OMstatus=OrderMainStatus.ready.value).all())
-
-            amount = us_salesvolume.USVamount if us_salesvolume else 0
-            sub_salesvolume_list.append({
-                'USheader': sub['USheader'],
-                'USname': sub.USname,
-                'USsalesvolume': float('%.2f' % (float(amount) + float(sub_salevolume)))
-            })
-            sub_amount += amount
-        usvamout = usv_month.USVamount if usv_month else 0
+                'USsalesvolume': fens.fens_amount
+            } for fens in user.fens
+        ]
+        sub_list = [{
+            'USheader': sub['USheader'],
+            'USname': sub.USname,
+            'USsalesvolume': float('%.2f' % (sub.team_sales))
+        } for sub in user.subs]
         data = {
-            'usvamout': float('%.2f' % (float(usvamout) + float(sub_amount))),
-            'fens_detail': fens_salesvolume_list,
-            'sub_detail': sub_salesvolume_list,
+            'usvamout': float('%.2f' % (float(user.team_sales))),
+            'fens_detail': fens_list,
+            'sub_detail': sub_list,
         }
         return Success('获取收益详情成功', data=data)
+
+    def _get_salesvolume(self, user, month, year, position=0, deeplen=3):
+        user_total = 0
+        user_fens_total = 0
+        user_agent_total = 0
+        user_usv = UserSalesVolume.query.filter(
+            UserSalesVolume.USid == user.USid,
+            extract('month', UserSalesVolume.createtime) == month,
+            extract('year', UserSalesVolume.createtime) == year,
+            UserSalesVolume.isdelete == False).first()
+        user_fens_amount = user_usv.USVamount if user_usv else 0
+        user_agent_amount = user_usv.USVamountagent if user_usv else 0
+        if position >= deeplen:
+            user.fill('team_sales', user_fens_amount)
+            return
+        position += 1
+
+        fens_list = User.query.filter(
+            User.isdelete == False, User.USsupper1 == user.USid, User.USlevel != self.AGENT_TYPE).all()
+        sub_agent_list = User.query.filter(
+            User.isdelete == False, User.USsupper1 == user.USid, User.USlevel == self.AGENT_TYPE).all()
+
+        for fens in fens_list:
+            usv = UserSalesVolume.query.filter(
+                UserSalesVolume.USid == fens.USid,
+                extract('month', UserSalesVolume.createtime) == month,
+                extract('year', UserSalesVolume.createtime) == year,
+                UserSalesVolume.isdelete == False).first()
+            fens_amount = usv.USVamount if usv else 0
+            user_fens_total += fens_amount
+            fens.fill('fens_amount', fens_amount)
+
+        for sub_agent in sub_agent_list:
+
+            self._get_salesvolume(sub_agent, month, year, position)
+
+            user_agent_total += sub_agent.team_sales
+
+        # 第一级不计算粉丝销售额
+        if position == 1:
+            user_total = user_agent_amount + user_fens_total + user_agent_total
+
+        else:
+            user_total = user_agent_amount + user_fens_amount + user_fens_total + user_agent_total
+
+        user.fill('team_sales', user_total)
+        user.fill('fens', fens_list)
+        user.fill('subs', sub_agent_list)
 
     @token_required
     def list_user_commison(self):

@@ -1095,21 +1095,25 @@ class COrder(CPay, CCoupon):
     def _tosalesvolume(self, amount, usid):
         today = datetime.today()
         user = User.query.filter_by_(USid=usid).first_('订单数据异常')
-        if user.USsupper1:
+        if user:
             usv = UserSalesVolume.query.filter(
                 UserSalesVolume.isdelete == False,
                 extract('month', UserSalesVolume.createtime) == today.month,
                 extract('year', UserSalesVolume.createtime) == today.year,
-                UserSalesVolume.USid == user.USsupper1
+                UserSalesVolume.USid == user.USid
             ).first()
             if not usv:
                 usv = UserSalesVolume.create({
                     'USVid': str(uuid.uuid1()),
                     'USid': user.USsupper1,
-                    'USVamount': 0
+                    'USVamount': 0,
+                    'USVamountagent': 0
                 })
                 db.session.add(usv)
-            usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
+            if user.USlevel == UserIdentityStatus.agent.value:
+                usv.USVamountagent = float('%.2f' % (float(amount) + float(usv.USVamountagent)))
+            else:
+                usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
 
     @staticmethod
     def _get_order_count(arg, k):
