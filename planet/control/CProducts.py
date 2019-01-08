@@ -294,6 +294,7 @@ class CProducts:
                 sku_detail_list.append(skuattritedetail)
                 skuprice = float(sku.get('skuprice'))
                 skustock = int(sku.get('skustock'))
+                skudeviderate = sku.get('skudeviderate')
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                 prstocks += int(skustock)
                 sku_dict = {
@@ -303,7 +304,8 @@ class CProducts:
                     'SKUprice': round(skuprice, 2),
                     'SKUstock': int(skustock),
                     'SKUattriteDetail': json.dumps(skuattritedetail),
-                    'SKUsn': sn
+                    'SKUsn': sn,
+                    'SkudevideRate': skudeviderate
                 }
                 sku_instance = ProductSku.create(sku_dict)
                 session_list.append(sku_instance)
