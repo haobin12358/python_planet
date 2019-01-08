@@ -5,8 +5,9 @@ from collections import namedtuple
 
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask import current_app, request
+from sqlalchemy.exc import IntegrityError
 
-from .error_response import ApiError, BaseError, SystemError
+from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
 
@@ -66,6 +67,10 @@ def error_handler(app):
             if app.config['DEBUG']:
                 return SystemError(e.args)
             return SystemError()
+
+    @app.errorhandler(IntegrityError)
+    def dumpli_error(e):
+        return DumpliError()
 
 
 def gennerc_log(data, info='info'):

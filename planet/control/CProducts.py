@@ -7,12 +7,11 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_, not_
 
-from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError
+from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
     admin_required
-from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
     PermissionType, ApprovalType, ProductBrandStatus
 from planet.control.BaseControl import BASEAPPROVAL
@@ -287,6 +286,8 @@ class CProducts:
             # sku
             sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
             for sku in skus:
+                sn = sku.get('skusn')
+                self._check_sn(sn=sn)
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
@@ -302,7 +303,7 @@ class CProducts:
                     'SKUprice': round(skuprice, 2),
                     'SKUstock': int(skustock),
                     'SKUattriteDetail': json.dumps(skuattritedetail),
-                    'SKUsn': sku.get('skusn')
+                    'SKUsn': sn
                 }
                 sku_instance = ProductSku.create(sku_dict)
                 session_list.append(sku_instance)
@@ -424,6 +425,7 @@ class CProducts:
                 sku_ids = []  # 此时传入的skuid
                 prstock = 0
                 for sku in skus:
+
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
                         raise ParamsError('skuattritedetail与prattribute不符')
@@ -433,6 +435,8 @@ class CProducts:
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
+                        sn = sku.get('skusn')
+                        self._check_sn(sn=sn, skuid=skuid)
                         sku_ids.append(skuid)
                         sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
                         sku_instance.update({
@@ -440,11 +444,10 @@ class CProducts:
                             'SKUattriteDetail': json.dumps(skuattritedetail),
                             'SKUstock': int(skustock),
                             'SKUprice': sku.get('skuprice'),
-                            'SKUsn': sku.get('skusn')
+                            'SKUsn': sn
                         })
                         session_list.append(sku_instance)
                     else:
-
                         sku_instance = ProductSku.create({
                             'SKUid': str(uuid.uuid1()),
                             'PRid': prid,
@@ -455,6 +458,8 @@ class CProducts:
                             # 'isdelete': sku.get('isdelete'),
                             'SKUsn': sku.get('skusn')
                         })
+                        sn = sku.get('skusn')
+                        self._check_sn(sn=sn)
                         new_sku.append(sku_instance)
                         session_list.append(sku_instance)
                     prstock += sku_instance.SKUstock
@@ -875,4 +880,18 @@ class CProducts:
         from .COrder import COrder
         corder = COrder()
         corder._update_stock(old_new, product, sku, **kwargs)
+
+    def _check_sn(self, **kwargs):
+        current_app.logger.info(kwargs)
+        sn = kwargs.get('sn')
+        skuid = kwargs.get('skuid')
+        exists_sn_query = ProductSku.query.filter(
+            # ProductSku.isdelete == False,
+            ProductSku.SKUsn == sn,
+        )
+        if skuid:
+            exists_sn_query = exists_sn_query.filter(ProductSku.SKUid != skuid)
+        exists_sn = exists_sn_query.first()
+        if exists_sn:
+            raise DumpliError('重复sn编码: {}'.format(sn))
 
