@@ -23,7 +23,7 @@ class ConfigSettings(object):
     def __init__(self, config_file_path='planet/config/planet.cfg'):
         self.cf = ConfigParser()
         self.config_file_path = config_file_path
-        self.cf.read(self.config_file_path, encoding='gbk')
+        self.cf.read(self.config_file_path)
 
     def get_item(self, section, option):
         print(type(self.cf.get(section, option)))
