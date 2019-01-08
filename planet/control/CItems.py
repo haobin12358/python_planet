@@ -146,4 +146,4 @@ class CItems:
         count_item = Items.query.filter_by_(ITtype=ittype).count()
         if itsort > count_item:
             return count_item
-        return count_item
+        return itsort

@@ -242,9 +242,12 @@ class FreshManJoinFlow(Base):
 
 
 class SignInAward(Base):
+    """签到设置表"""
     __tablename__ = 'SignInAward'
     SIAid = Column(String(64), primary_key=True)
-
+    SIAday = Column(Integer, comment='持续天数')
+    SIAnum = Column(Integer, comment='累加积分')
+    
 
 class OutStock(Base):
     """活动sku出库单, 减少改动, 仅魔盒和猜数字使用"""

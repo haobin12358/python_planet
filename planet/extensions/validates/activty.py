@@ -6,7 +6,7 @@ from sqlalchemy import cast, Date
 from planet.common.error_response import StatusError, DumpliError
 from planet.config.enums import Client, ActivityRecvStatus, PayType
 from planet.extensions.register_ext import db
-from planet.models import AddressArea, AddressCity, AddressProvince, UserAddress
+from planet.models import AddressArea, AddressCity, AddressProvince, UserAddress, SignInAward
 from planet.models.activity import GuessNum, Activity, MagicBoxJoin
 from .base_form import *
 
@@ -119,3 +119,11 @@ class ListFreshmanFirstOrderApply(BaseForm):
 class ShelfFreshManfirstOrder(BaseForm):
     fmfaid = StringField(validators=[DataRequired('请指定申请单')])
 
+#
+# class SignInSetting(BaseForm):
+#     siaday = FieldList(F('连续签到数', [DataRequired('连续签到数不能为空')]) )
+#     sianum = FieldList(IntegerField('积分数', [DataRequired('积分不能为空')]))
+
+
+class SignIndelete(BaseForm):
+    siaid = StringField()
