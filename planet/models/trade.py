@@ -319,10 +319,3 @@ class ActivationCodeRule(Base):
     ACRbankAddress = Column(String(125), nullable=False, comment='支行地址')
     ACRAgreeMent = Column(Text, comment='协议')
     ACRisShow = Column(Boolean, default=True, comment='是否显示')
-
-
-
-
-
-# todo 激活码使用
-# todo 各种审核人, 原因
