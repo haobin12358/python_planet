@@ -80,7 +80,7 @@ class GuessNum(Base):
     __tablename__ = 'GuessNum'
     GNid = Column(String(64), primary_key=True)
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
-    GNAAid = Column(String(64), comment='对应的申请单id')
+    GNNAid = Column(String(64), comment='对应的申请单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
     SKUid = Column(String(64), nullable=False, comment='当日奖品')
