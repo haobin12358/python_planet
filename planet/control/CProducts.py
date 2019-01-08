@@ -293,7 +293,7 @@ class CProducts:
                 sku_detail_list.append(skuattritedetail)
                 skuprice = float(sku.get('skuprice'))
                 skustock = int(sku.get('skustock'))
-                assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
+                assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                 prstocks += int(skustock)
                 sku_dict = {
                     'SKUid': str(uuid.uuid1()),
@@ -429,7 +429,7 @@ class CProducts:
                         raise ParamsError('skuattritedetail与prattribute不符')
                     skuprice = sku.get('skuprice')
                     skustock = sku.get('skustock')
-                    assert skuprice > 0 and skustock > 0, 'sku价格或库存错误'
+                    assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                     # 更新或添加删除
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
@@ -871,5 +871,8 @@ class CProducts:
             return pc_list
         return self._up_category(p_category.ParentPCid, pc_list)
 
-
+    def _update_stock(self, old_new, product=None, sku=None, **kwargs):
+        from .COrder import COrder
+        corder = COrder()
+        corder._update_stock(old_new, product, sku, **kwargs)
 

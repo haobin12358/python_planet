@@ -147,6 +147,17 @@ class MagicBoxApply(Base):
     AgreeStartime = Column(Date, default=MBAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=MBAendtime, comment='最终确认结束时间')
 
+    @property
+    def SKUstock(self):
+        from flask import current_app
+        current_app.logger.info('注意: 调用了skustock<<<')
+        out_stock = OutStock.query.filter(
+            OutStock.OSid == self.OSid,
+            OutStock.isdelete == False,
+        ).first()
+        if out_stock:
+            return out_stock.OSnum
+
 
 class MagicBoxJoin(Base):
     """参与活动"""

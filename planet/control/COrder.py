@@ -1479,13 +1479,13 @@ class COrder(CPay, CCoupon):
                 except Exception:
                     current_app.logger.error('售后物流出错')
 
-
-
-
-
-    def _update_stock(self, old_new, product, sku):
+    def _update_stock(self, old_new, product=None, sku=None, **kwargs):
         if not old_new:
             return
+        skuid = kwargs.get('skuid')
+        if skuid:
+            sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
+            product = Products.query.filter(Products.PRid == sku.PRid).first()
         current_app.logger.info(product.PRstocks)
         product.PRstocks = product.PRstocks + old_new
         sku.SKUstock += sku.SKUstock + old_new
