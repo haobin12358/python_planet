@@ -28,7 +28,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
-    UserSalesVolume
+    UserSalesVolume, OutStock
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, MagicBoxJoin
@@ -557,21 +557,28 @@ class COrder(CPay, CCoupon):
                 if omfrom <= OrderFrom.product_info.value:
                     self._update_stock(opnum, product, sku_instance)
                 elif omfrom == OrderFrom.guess_num_award.value:
-                    guessawardflow = GuessAwardFlow.query.filter(
-                        GuessAwardFlow.isdelete == False,
-                        GuessAwardFlow.OMid == omid
-                    ).first()
-                    guess_num = GuessNum.query.filter(
-                        GuessNum.GNid == guessawardflow.GNid
-                    ).first()
-                    apply = GuessNumAwardApply.query.filter(
-                        GuessNumAwardApply.isdelete == False,
-                        GuessNumAwardApply.GNAAid == guess_num.GNNAid
-                    ).update({
-                        'SKUstock': GuessNumAwardApply.SKUstock + opnum
-                    })
-                    guessawardflow.GFAstatus = ActivityRecvStatus.wait_recv.value
-                    db.session.add(guessawardflow)
+                    pass
+                    # guessawardflow = GuessAwardFlow.query.filter(
+                    #     GuessAwardFlow.isdelete == False,
+                    #     GuessAwardFlow.OMid == omid
+                    # ).first()
+                    # guess_num = GuessNum.query.filter(
+                    #     GuessNum.GNid == guessawardflow.GNid
+                    # ).first()
+                    # apply = GuessNumAwardApply.query.filter(
+                    #     GuessNumAwardApply.isdelete == False,
+                    #     GuessNumAwardApply.GNAAid == guess_num.GNNAid
+                    # ).update({
+                    #     'SKUstock': GuessNumAwardApply.SKUstock + opnum
+                    # })
+                    #
+                    # stock = OutStock.query.join(
+                    #     GuessNumAwardApply, GuessNumAwardApply.
+                    # ).filter(
+                    #     OutStock.isdelete == False,
+                    # )
+                    # guessawardflow.GFAstatus = ActivityRecvStatus.wait_recv.value
+                    # db.session.add(guessawardflow)
                 elif omfrom == OrderFrom.fresh_man.value:
                     # todo
                     pass
@@ -591,6 +598,15 @@ class COrder(CPay, CCoupon):
                         MagicBoxApply.isdelete == False,
                         MagicBoxApply.MBAid == magic_box_join.MBAid
                     ).first()
+                    current_app.logger.info('osid is {}'.format(magic_box_apply.OSid))
+                    out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
+                    if out_stock:
+                        out_stock.update({
+                            'OSnum': OutStock.OSnum + opnum
+                        })
+                        current_app.logger.info('魔盒取消订单, 增加库存{}, 当前 {}'.format(opnum, out_stock.OSnum))
+                        db.session.add(out_stock)
+                    db.session.flush()
                     # todo 库存操作
 
     @token_required
