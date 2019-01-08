@@ -80,6 +80,7 @@ class GuessNum(Base):
     __tablename__ = 'GuessNum'
     GNid = Column(String(64), primary_key=True)
     GNnum = Column(String(16), nullable=False, comment='猜测的数字')
+    GNNAid = Column(String(64), comment='对应的申请单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
     SKUid = Column(String(64), nullable=False, comment='当日奖品')
@@ -101,6 +102,7 @@ class GuessAwardFlow(Base):
     GAFid = Column(String(64), primary_key=True)
     GNid = Column(String(64), nullable=False, unique=True, comment='个人参与记录')
     GAFstatus = Column(Integer, default=0, comment='领奖状态 0 待领奖, 10 已领取 20 过期')
+    OMid = Column(String(64), default='0')
 
 
 class GuessNumAwardApply(Base):
@@ -127,7 +129,8 @@ class MagicBoxApply(Base):
     MBAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='发布者id')
     SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
-    SKUstock = Column(Integer, comment='库存')
+    # SKUstock = Column(Integer, comment='库存')
+    OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式
     MBAfrom = Column(Integer, comment='申请来源')
     PRid = Column(String(64), nullable=False, comment='商品id')
     PBid = Column(String(64), nullable=False, comment='品牌id')
@@ -143,6 +146,17 @@ class MagicBoxApply(Base):
     MBArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, default=MBAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=MBAendtime, comment='最终确认结束时间')
+
+    @property
+    def SKUstock(self):
+        from flask import current_app
+        current_app.logger.info('注意: 调用了skustock<<<')
+        out_stock = OutStock.query.filter(
+            OutStock.OSid == self.OSid,
+            OutStock.isdelete == False,
+        ).first()
+        if out_stock:
+            return out_stock.OSnum
 
 
 class MagicBoxJoin(Base):
@@ -167,6 +181,14 @@ class MagicBoxOpen(Base):
     MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
     MBOprice = Column(Float, nullable=False, comment='此时价格')
     MBOhasShare = Column(Boolean, default=False, comment='是否分享出去, 待用字段')
+
+
+class MagicBoxFlow(Base):
+    """领取记录"""
+    __tablename__ = 'MagicBoxFlow'
+    MBFid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), nullable=False)
+    MBJid = Column(String(64), nullable=False, comment='来源参与')
 
 
 class FreshManFirstApply(Base):
@@ -222,3 +244,12 @@ class FreshManJoinFlow(Base):
 class SignInAward(Base):
     __tablename__ = 'SignInAward'
     SIAid = Column(String(64), primary_key=True)
+
+
+class OutStock(Base):
+    """活动sku出库单, 减少改动, 仅魔盒和猜数字使用"""
+    __tablename__ = 'OutStock'
+    OSid = Column(String(64), primary_key=True)
+    SKUid = Column(String(64), nullable=False, comment='出库sku')
+    OSnum = Column(BIGINT, default=1, comment='活动出库数量')
+

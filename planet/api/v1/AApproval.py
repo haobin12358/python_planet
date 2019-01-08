@@ -33,6 +33,7 @@ class Aapproval(Resource):
             'get_all_permissiontype': self.approval.get_all_permissiontype,
             'get_permissionitem': self.approval.get_permissionitem,
             'get_permissiontype': self.approval.get_permissiontype,
+            'get_avstatus': self.approval.get_avstatus,
             # 'get_submit_approval': self.approval.get_submit_approval,
 
             'get_approvalnotes': self.approval.get_approvalnotes,
