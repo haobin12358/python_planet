@@ -2,10 +2,10 @@
 import uuid
 from datetime import datetime
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import or_
 
-from planet.common.error_response import StatusError
+from planet.common.error_response import StatusError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
@@ -140,6 +140,13 @@ class CCoupon(object):
         form = CouponCreateForm().valid_data()
         pbids = form.pbids.data
         prids = form.prids.data
+        adid = suid = None
+        if is_admin():
+            adid = request.user.id
+        elif is_supplizer():
+            suid = request.user.id
+        else:
+            raise AuthorityError()
         with self.strade.auto_commit() as s:
             s_list = []
             coid = str(uuid.uuid1())
@@ -160,7 +167,8 @@ class CCoupon(object):
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
-                'ADid': request.user.id
+                'ADid': adid,
+                'SUid': suid
             })
             s_list.append(coupon_instance)
             for itid in itids:
@@ -283,6 +291,16 @@ class CCoupon(object):
             ).first_('优惠券不存在')
             coupon.isdelete = True
             db.session.add(coupon)
+            # 删除用户的优惠券
+            coupon_user = CouponUser.query.filter(
+                CouponUser.isdelete == False,
+                CouponUser.COid == coid
+            ).delete_()
+            coupon_for = CouponFor.query.filter(
+                CouponFor.isdelete == False,
+                CouponFor.COid == coid
+            ).delete_()
+            current_app.logger.info('删除优惠券的同时 将{}个用户拥有的优惠券也删除'.format(coupon_user))
         return Success('删除成功')
 
     @token_required
