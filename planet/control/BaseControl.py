@@ -107,11 +107,12 @@ class BASEAPPROVAL():
             return
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
-        if isinstance(getattr(product, 'PRremarks') or '{}', str):
-            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+        if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
+            product.PRremarks = json.loads(getattr(product, 'PRremarks', None) or '{}')
         pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
         if skuid:
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
+            product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
 
         elif isinstance(product, FreshManFirstProduct):
             fmfs = FreshManFirstSku.query.filter_by_(FMFPid=product.FMFPid).all()
@@ -125,6 +126,7 @@ class BASEAPPROVAL():
                 skus.append(sku)
             # skus = ProductSku.query.filter(ProductSku.SKUid == FreshManFirstSku.SKUid)
         else:
+            product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
 
         sku_value_item = []
@@ -155,11 +157,10 @@ class BASEAPPROVAL():
         #             'value': value
         #         })
 
-        categorys = ' > '.join(self.__get_category(product.PCid))
         product.fill('SkuValue', sku_value_item_reverse)
         product.fill('brand', pb)
         product.fill('skus', skus)
-        product.fill('categorys', categorys)
+
 
     def __fill_publish(self, startid, contentid):
         """填充资讯发布"""
