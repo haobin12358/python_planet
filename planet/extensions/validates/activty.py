@@ -114,6 +114,8 @@ class ListFreshmanFirstOrderApply(BaseForm):
     suid = StringField()
     adid = StringField()
     status = IntegerField()
+    starttime = StringField(default='2019-01-01')
+    endtime = StringField(default='2100-01-01')
 
 
 class ShelfFreshManfirstOrder(BaseForm):

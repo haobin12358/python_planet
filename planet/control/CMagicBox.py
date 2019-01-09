@@ -450,8 +450,14 @@ class CMagicBox(CUser, COrder):
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                                         Products.PRstatus == ProductStatus.usual.value
                                         ).first_('仅可将已上架的商品用于申请')  # 当前商品状态不允许进行申请
-
         assert sku.PRid == prid, 'sku与商品信息不对应'
+        other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                      MagicBoxApply.MBAid != mbaid,
+                                                      MagicBoxApply.MBAstatus.notin_(
+                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value]),
+                                                      MagicBoxApply.OSid == apply_info.OSid,
+                                                      ).first()
+        current_app.logger.info("其他的同批次共用库存申请 --> {}".format(other_apply_info))
         with db.auto_commit():
             award_dict = {
                 'SUid': request.user.id,
@@ -471,7 +477,15 @@ class CMagicBox(CUser, COrder):
             }
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             MagicBoxApply.query.filter_by_(MBAid=mbaid).update(award_dict)
-        self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
+            # 是否修改库存
+            if not other_apply_info:
+                # 如果没有同批正在上架或审核中的，将库存从商品中重新减出来
+                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
+                                                  ).first()
+                super(CMagicBox, self)._update_stock(-out_stock.OSnum, skuid=apply_info.SKUid)
+
+        # 重新添加到审批流
+        super(CMagicBox, self).create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
         return Success('修改成功', {'mbaid': mbaid})
 
     def award_detail(self):
@@ -522,9 +536,10 @@ class CMagicBox(CUser, COrder):
             other_apply_info = MagicBoxApply.query.filter(
                 MagicBoxApply.isdelete == False,
                 MagicBoxApply.MBAid != mbaid,
-                MagicBoxApply.MBAstatus != ApplyStatus.cancle.value,
+                MagicBoxApply.MBAstatus.notin_([ApplyStatus.cancle.value, ApplyStatus.reject.value]),
                 MagicBoxApply.OSid == apply_info.OSid,
             ).first()
+            current_app.logger.info("其他的同库存申请 --> {}".format(other_apply_info))
             if apply_info.MBAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
             if apply_info.SUid != request.user.id:

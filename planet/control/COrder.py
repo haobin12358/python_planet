@@ -1512,10 +1512,14 @@ class COrder(CPay, CCoupon):
         if skuid:
             sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
-        current_app.logger.info("初始库存：{}".format(product.PRstocks))
+        if sku and product:
+            current_app.logger.info("初始商品库存：{}".format(product.PRstocks))
+            current_app.logger.info("初始sku库存：{}".format(sku.SKUstock))
         product.PRstocks = product.PRstocks + old_new
-        sku.SKUstock += sku.SKUstock + old_new
-        current_app.logger.info("本次更新后为：{}".format(product.PRstocks))
+        sku.SKUstock = sku.SKUstock + old_new
+        if sku and product:
+            current_app.logger.info("本次更新后商品库存为：{}".format(product.PRstocks))
+            current_app.logger.info("本次更新后sku库存为：{}".format(sku.SKUstock))
         if product.PRstocks < 0:
             raise StatusError('商品库存不足')
         if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:

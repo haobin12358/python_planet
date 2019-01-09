@@ -469,6 +469,7 @@ class CFreshManFirstOrder(COrder, CUser):
         if not is_supplizer() and not is_admin():
             raise AuthorityError()
         form = ListFreshmanFirstOrderApply().valid_data()
+        starttime, endtime = form.starttime.data, form.endtime.data
         suid = form.suid.data
         if is_supplizer():
             suid = request.user.id
@@ -483,7 +484,9 @@ class CFreshManFirstOrder(COrder, CUser):
                                  FreshManFirstApply.FMFAfrom == ApplyFrom.platform.value)
         if status is not None:
             query = query.filter(FreshManFirstApply.FMFAstatus == status)
-        applys = query.order_by(FreshManFirstApply.createtime.desc()).all_with_page()
+        applys = query.filter(FreshManFirstApply.FMFAstartTime >= starttime,
+                              FreshManFirstApply.FMFAendTime <= endtime).order_by(
+            FreshManFirstApply.createtime.desc()).all_with_page()
         for apply in applys:
             # 状态中文
             apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
