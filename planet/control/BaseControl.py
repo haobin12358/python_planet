@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import json
 
+from flask import current_app
 
 from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, ApplyFrom, UserMediaType, \
     TrialCommodityStatus
@@ -347,3 +348,30 @@ class BASEAPPROVAL():
         if not (start and content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
+
+
+class BaseController:
+    @staticmethod
+    def get_two_float(f_str, n=2):
+        f_str = str(f_str)
+        a, b, c = f_str.partition('.')
+        c = (c + "0" * n)[:n]
+        return Decimal(".".join([a, c]))
+
+    def _commision_preview(self, *args, **kwargs):
+        """
+        计算最低比例
+        :param price:  价格
+        :param planet_rate:  平台最低比
+        :param planet_and_user_rate: 供应商让利比
+        :return:
+        """
+        price = Decimal(str(kwargs.get('price')))
+        planet_rate = Decimal(str(kwargs.get('planet_rate')))
+        planet_and_user_rate = Decimal(str(kwargs.get('planet_and_user_rate')))
+        current_user_rate = Decimal(str(kwargs.get('current_user_rate'))) / 100
+        planet_rate = Decimal(planet_rate) / 100
+        user_rate = planet_and_user_rate - planet_rate
+        user_commision = price * user_rate  # 给用户的佣金
+        current_user_comm = current_user_rate * user_commision
+        return self.get_two_float(current_user_comm)

@@ -144,14 +144,7 @@ class CSupplizer:
             raise AuthorityError()
         form = SupplizerGetForm().valid_data()
         supplizer = form.supplizer
-        supplizer.hide('SUpassword')
-        favor = UserWallet.query.filter(
-            UserWallet.isdelete == False,
-            UserWallet.USid == supplizer.SUid,
-            UserWallet.CommisionFor == ApplyFrom.supplizer.value
-        ).first()
-        supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
-        supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
+        self._fill_supplizer(supplizer)
         pbs = ProductBrand.query.filter(
             ProductBrand.isdelete == False,
             ProductBrand.SUid == supplizer.SUid
@@ -162,6 +155,18 @@ class CSupplizer:
                 pb.add('pbstatus_zh')
         supplizer.fill('pbs', pbs)
         return Success(data=supplizer)
+
+    def _fill_supplizer(self, supplizer):
+        supplizer.hide('SUpassword')
+        favor = UserWallet.query.filter(
+            UserWallet.isdelete == False,
+            UserWallet.USid == supplizer.SUid,
+            UserWallet.CommisionFor == ApplyFrom.supplizer.value
+        ).first()
+        supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
+        supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
+        supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
+
 
     @admin_required
     def offshelves(self):

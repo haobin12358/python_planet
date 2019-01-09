@@ -1739,3 +1739,7 @@ class CUser(SUser, BASEAPPROVAL):
         del_rule = cfg.get_item('integralrule', 'rule')
         del_integral = cfg.get_item('integralbase', 'integral')
         return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
+
+    def _check_for_update(self, *args, **kwargs):
+        """代理商是否可以升级"""
+        pass

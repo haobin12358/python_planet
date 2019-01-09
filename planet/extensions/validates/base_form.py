@@ -6,6 +6,7 @@ from werkzeug.datastructures import MultiDict
 from wtforms import *
 from wtforms.validators import *   # 不要删掉这一行
 from wtforms import StringField as _StringField
+from wtforms import IntegerField as _IntegerField
 import collections
 from planet.common.error_response import ParamsError
 
@@ -17,6 +18,17 @@ class StringField(_StringField):
             self.data = valuelist[0]
         elif self.data is None:
             return None
+
+
+class IntegerField(_IntegerField):
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            try:
+                self.data = int(valuelist[0])
+            except ValueError:
+                self.data = None
+                raise ValueError(self.gettext('不是一个正确的整数'))
 
 
 class BaseForm(Form):

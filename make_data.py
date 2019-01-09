@@ -5,7 +5,7 @@ from decimal import Decimal
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin
 
 
 # 添加一些默认的数据
@@ -127,61 +127,61 @@ def make_acvitity():
 
 def make_permissiontype():
     with db.auto_commit():
-        # toagent = PermissionType.create({
-        #     'PTid': 'toagent',
-        #     'PTname': '代理商申请',
-        #     'PTmodelName': 'User'
-        # })
-        # db.session.add(toagent)
-        #
-        # tocash = PermissionType.create({
-        #     'PTid': 'tocash',
-        #     'PTname': '提现申请',
-        #     'PTmodelName': 'CashNotes'
-        # })
-        # db.session.add(tocash)
-        # toshelves = PermissionType.create({
-        #     'PTid': 'toshelves',
-        #     'PTname': '商品上架申请',
-        #     'PTmodelName': 'Products'
-        # })
-        # db.session.add(toshelves)
-        # topublish = PermissionType.create({
-        #     'PTid': 'topublish',
-        #     'PTname': '资讯发布申请',
-        #     'PTmodelName': 'News'
-        # })
-        # db.session.add(topublish)
-        # toguessnum = PermissionType.create({
-        #     'PTid': 'toguessnum',
-        #     'PTname': '猜数字活动申请',
-        #     'PTmodelName': 'GuessNumAwardApply'
-        # })
-        # db.session.add(toguessnum)
-        # tomagicbox = PermissionType.create({
-        #     'PTid': 'tomagicbox',
-        #     'PTname': '魔盒活动申请',
-        #     'PTmodelName': 'MagicBoxApply'
-        # })
-        # db.session.add(tomagicbox)
-        # tofreshmanfirstproduct = PermissionType.create({
-        #     'PTid': 'tofreshmanfirstproduct',
-        #     'PTname': '新人首单商品活动申请',
-        #     'PTmodelName': 'FreshManFirstApply'
-        # })
-        # db.session.add(tofreshmanfirstproduct)
-        # totrialcommodity = PermissionType.create({
-        #     'PTid': 'totrialcommodity',
-        #     'PTname': '试用商品上架申请',
-        #     'PTmodelName': 'TrialCommodity'
-        # })
-        # db.session.add(totrialcommodity)
-        # toreturn = PermissionType.create({
-        #     'PTid': 'toreturn',
-        #     'PTname': '退货审请',
-        #     'PTmodelName': 'TrialCommodity'
-        # })
-        # db.session.add(toreturn)
+        toagent = PermissionType.create({
+            'PTid': 'toagent',
+            'PTname': '代理商申请',
+            'PTmodelName': 'User'
+        })
+        db.session.add(toagent)
+
+        tocash = PermissionType.create({
+            'PTid': 'tocash',
+            'PTname': '提现申请',
+            'PTmodelName': 'CashNotes'
+        })
+        db.session.add(tocash)
+        toshelves = PermissionType.create({
+            'PTid': 'toshelves',
+            'PTname': '商品上架申请',
+            'PTmodelName': 'Products'
+        })
+        db.session.add(toshelves)
+        topublish = PermissionType.create({
+            'PTid': 'topublish',
+            'PTname': '资讯发布申请',
+            'PTmodelName': 'News'
+        })
+        db.session.add(topublish)
+        toguessnum = PermissionType.create({
+            'PTid': 'toguessnum',
+            'PTname': '猜数字活动申请',
+            'PTmodelName': 'GuessNumAwardApply'
+        })
+        db.session.add(toguessnum)
+        tomagicbox = PermissionType.create({
+            'PTid': 'tomagicbox',
+            'PTname': '魔盒活动申请',
+            'PTmodelName': 'MagicBoxApply'
+        })
+        db.session.add(tomagicbox)
+        tofreshmanfirstproduct = PermissionType.create({
+            'PTid': 'tofreshmanfirstproduct',
+            'PTname': '新人首单商品活动申请',
+            'PTmodelName': 'FreshManFirstApply'
+        })
+        db.session.add(tofreshmanfirstproduct)
+        totrialcommodity = PermissionType.create({
+            'PTid': 'totrialcommodity',
+            'PTname': '试用商品上架申请',
+            'PTmodelName': 'TrialCommodity'
+        })
+        db.session.add(totrialcommodity)
+        toreturn = PermissionType.create({
+            'PTid': 'toreturn',
+            'PTname': '退货审请',
+            'PTmodelName': 'TrialCommodity'
+        })
+        db.session.add(toreturn)
         toactivationcode = PermissionType.create({
             'PTid': 'toactivationcode',
             'PTname': '激活码购买申请',
@@ -189,28 +189,20 @@ def make_permissiontype():
         })
         db.session.add(toactivationcode)
 
-from json import JSONEncoder as _JSONEncoder
-from datetime import datetime, date
 
-class JSONEncoder(_JSONEncoder):
-    """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
-    def default(self, o):
-
-        if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
-            res = dict(o)
-            new_res = {k.lower(): v for k, v in res.items()}
-            return new_res
-        if isinstance(o, datetime):
-            # 也可以序列化时间类型的对象
-            return o.strftime('%Y-%m-%d %H:%M:%S')
-        if isinstance(o, date):
-            return o.strftime('%Y-%m-%d')
-        if isinstance(o, type):
-            raise o()
-
-        if isinstance(o, Decimal):
-            return round(float(o), 2)
-        raise TypeError(repr(o) + " is not JSON serializable")
+def make_admin():
+    with db.auto_commit():
+        from werkzeug.security import generate_password_hash
+        db.session.add(Admin.create({
+            'ADid': 'adid1',
+            'ADnum': 100001,
+            'ADname': '管理员',
+            'ADtelphone': '13588046135',
+            'ADpassword': generate_password_hash('12345'),
+            'ADfirstname': '管理员',
+            'ADheader': '/img/defaulthead/2018/11/28/db7067a8-f2d0-11e8-80bc-00163e08d30f.png',
+            'ADlevel': 1,
+        }))
 
 
 if __name__ == '__main__':
@@ -219,9 +211,13 @@ if __name__ == '__main__':
         if __name__ == "__main__":
             app = create_app()
             with app.app_context():
-                admin = PermissionType.query.first_()
-                admin_str = json.dumps(admin, cls=JSONEncoder)
-                print(admin.__dict__)
-                print(admin_str)
+                # admin = PermissionType.query.first_()
+                # admin_str = json.dumps(admin, cls=JSONEncoder)
+                # print(admin.__dict__)
+                # print(admin_str)
+                # make_acvitity()
+                # make_items()
+                # make_permissiontype()
+                make_admin()
 
 

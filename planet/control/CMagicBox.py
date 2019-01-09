@@ -67,7 +67,16 @@ class CMagicBox(CUser, COrder):
             current_level_json[0] = list(map(lambda x: int(x) * -1, current_level_json[0].split('-')))  # 第0个元素是-
             if len(current_level_json) == 2:
                 current_level_json[1] = list(map(int, current_level_json[1].split('-')))  # 第1个元素是+
-            random_choice_first = random.choice(current_level_json)  # 选择是- 还是+
+            # todo level2, 减价: 增价  7:3
+            if level == 2:
+                random_num = random.randint(0, 9)
+                random_choice_first = current_level_json[0] if random_num < 7 else current_level_json[1]
+            # todo level3, 减价: 增加  6:4
+            elif level == 3:
+                random_num = random.randint(0, 9)
+                random_choice_first = current_level_json[0] if random_num < 6 else current_level_json[1]
+            else:
+                random_choice_first = random.choice(current_level_json)  # 选择是- 还是+
             final_reduce = random.uniform(*random_choice_first)  # 最终价格变动
             final_reduce = round(Decimal(final_reduce), 2)
             # 价格计算

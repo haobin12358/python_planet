@@ -14,7 +14,7 @@ from planet.common.token_handler import token_required, is_admin, is_shop_keeper
     admin_required
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
     PermissionType, ApprovalType, ProductBrandStatus
-from planet.control.BaseControl import BASEAPPROVAL
+from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
@@ -23,7 +23,7 @@ from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
 
-class CProducts:
+class CProducts(BaseController):
     def __init__(self):
         self.sproduct = SProducts()
 
@@ -42,7 +42,7 @@ class CProducts:
         else:
             praveragescore = round(praveragescore)
         product.PRaverageScore = praveragescore
-        product.fill('fiveaveragescore', praveragescore/2)
+        product.fill('fiveaveragescore', praveragescore / 2)
         product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
         # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         product.PRattribute = json.loads(product.PRattribute)
@@ -54,20 +54,40 @@ class CProducts:
         # brand = self.sproduct.get_product_brand_one({'PBid': product.PBid}) or {}
         brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first() or {}
         product.fill('brand', brand)
+        # 预计佣金
+        comm = Commision.query.filter(Commision.isdelete == False).first()
+        try:
+            commision = json.loads(comm.Levelcommision)
+            level1commision = commision[0]  # 一级分销商
+            planetcommision = commision[-1]  # 平台收费比例
+        except ValueError:
+            current_app.logger.info('ValueError error')
+        except IndexError:
+            current_app.logger.info('IndexError error')
         # sku
         skus = self.sproduct.get_sku({'PRid': prid})
         sku_value_item = []
         sku_price = []
+        preview_get = []
         for sku in skus:
             sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
             sku_price.append(sku.SKUprice)
+            preview_get.append(
+                self._commision_preview(
+                    price=sku.SKUprice,
+                    planet_rate=planetcommision,
+                    planet_and_user_rate=sku.SkudevideRate or planetcommision,
+                    current_user_rate=level1commision
+            ))
         product.fill('skus', skus)
+        product.fill('profict', str(self.get_two_float(Decimal(product.PRprice) * Decimal(level1commision) / 100)))
         is_open_gift = ProductItems.query.filter(
             ProductItems.isdelete == False,
             ProductItems.PRid == prid,
             ProductItems.ITid == 'upgrade_product'
         ).first()
+
         if not is_open_gift:
             min_price = min(sku_price)
             max_price = max(sku_price)
@@ -75,6 +95,7 @@ class CProducts:
                 product.fill('price_range', '{}-{}'.format('%.2f' % min_price, '%.2f' % max_price))
             else:
                 product.fill('price_range', "%.2f" % min_price)
+            # 预计
         # sku value
         # 是否有skuvalue, 如果没有则自行组装
         sku_value_instance = ProductSkuValue.query.filter_by_({
@@ -112,15 +133,7 @@ class CProducts:
         month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
         product.fill('month_sale_value', month_sale_value)
         product.fill('items', items)
-        # 预计佣金
-        comm = Commision.query.filter(Commision.isdelete == False).first()
-        try:
-            level1commision = json.loads(comm.Levelcommision)[0]
-        except ValueError:
-            current_app.logger.info('ValueError error')
-        except IndexError:
-            current_app.logger.info('IndexError error')
-        product.fill('profict', float(round(Decimal(product.PRprice) * Decimal(level1commision) / 100, 2)))
+
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
                 product.fill('pcids', self._up_category_id(product.PCid))
@@ -159,7 +172,8 @@ class CProducts:
 
         filter_args = [
             Products.PBid == pbid,
-            or_(and_(*[Products.PRtitle.contains(x) for x in kw]), and_(*[ProductBrand.PBname.contains(x) for x in kw])),
+            or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+                and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             ProductItems.ITid == itid,
             Products.PRstatus == prstatus,
@@ -171,11 +185,12 @@ class CProducts:
                 itauthority = data.get('itauthority')
                 if not itposition:  # 位置 标签的未知
                     filter_args.extend([Items.ITposition != ItemPostion.other.value,
-                                       Items.ITposition != ItemPostion.new_user_page.value])
+                                        Items.ITposition != ItemPostion.new_user_page.value])
                 else:
                     filter_args.append(Items.ITposition == int(itposition))
                 if not itauthority:
-                    filter_args.append(or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
+                    filter_args.append(
+                        or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
                 else:
                     filter_args.append(Items.ITauthority == int(itauthority))
         # products = self.sproduct.get_product_list(filter_args, [order_by, ])
@@ -202,8 +217,8 @@ class CProducts:
             query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
                 SupplizerProduct.SUid.is_(None)
             )
-        products = query.filter_(*filter_args).\
-              order_by(order_by).all_with_page()
+        products = query.filter_(*filter_args). \
+            order_by(order_by).all_with_page()
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
@@ -330,7 +345,7 @@ class CProducts:
             }
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
-            #sku value
+            # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
                 if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
@@ -364,7 +379,8 @@ class CProducts:
             if items:
                 for item in items:
                     itid = item.get('itid')
-                    item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_('指定标签{}不存在'.format(itid))
+                    item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_(
+                        '指定标签{}不存在'.format(itid))
                     item_product_dict = {
                         'PIid': str(uuid.uuid1()),
                         'PRid': prid,
@@ -385,13 +401,13 @@ class CProducts:
         # todo 重复添加
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
         # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('添加成功', {'prid': prid})
 
     @token_required
     def update_product(self):
         """更新商品"""
-        data = parameter_required(('prid', ))
+        data = parameter_required(('prid',))
         if is_admin():
             product_from = ProductFrom.platform.value
         elif is_supplizer():
@@ -614,7 +630,7 @@ class CProducts:
 
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
         # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('更新成功')
 
     @token_required
@@ -625,7 +641,7 @@ class CProducts:
             product_from = ProductFrom.supplizer.value
         else:
             raise AuthorityError()
-        data = parameter_required(('prid', ))
+        data = parameter_required(('prid',))
         product = Products.query.filter(Products.isdelete == False,
                                         Products.PRid == data.get('prid')).first_('商品不存在')
         if is_supplizer():
@@ -636,12 +652,12 @@ class CProducts:
             db.session.add(product)
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product.PRid, product_from)
         # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('申请成功')
 
     @token_required
     def delete(self):
-        data = parameter_required(('prid', ))
+        data = parameter_required(('prid',))
         prid = data.get('prid')
         with self.sproduct.auto_commit() as s:
             s.query(Products).filter_by(PRid=prid).delete_()
@@ -686,7 +702,7 @@ class CProducts:
         """删除, 供应商只可以删除自己的"""
         if not is_admin() and not is_supplizer():
             raise AuthorityError()
-        data = parameter_required(('prids', ))
+        data = parameter_required(('prids',))
         prids = data.get('prids') or []
         with db.auto_commit():
             query = Products.query.filter(
@@ -733,7 +749,7 @@ class CProducts:
             db.session.add(product)
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
         # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success(msg)
 
     @token_required
@@ -775,7 +791,7 @@ class CProducts:
         for prid in to_approvals:
             avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
             # 5 分钟后自动通过
-            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60,)
+            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success(msg)
 
     def search_history(self):
@@ -901,4 +917,3 @@ class CProducts:
         exists_sn = exists_sn_query.first()
         if exists_sn:
             raise DumpliError('重复sn编码: {}'.format(sn))
-
