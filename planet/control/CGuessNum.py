@@ -437,8 +437,16 @@ class CGuessNum(COrder, BASEAPPROVAL):
         Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                               Products.PRstatus == ProductStatus.usual.value
                               ).first_('仅可将已上架的商品用于申请')  # 当前商品状态不允许进行申请
-
         assert sku.PRid == prid, 'sku与商品信息不对应'
+
+        other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
+                                                           GuessNumAwardApply.GNAAid != gnaaid,
+                                                           GuessNumAwardApply.GNAAstatus.notin_(
+                                                               [ApplyStatus.cancle.value,
+                                                                ApplyStatus.reject.value]),
+                                                           GuessNumAwardApply.OSid == apply_info.OSid,
+                                                           ).first()
+        current_app.logger.info("其他的同批次共用库存申请 --> {}".format(other_apply_info))
         with db.auto_commit():
             award_dict = {
                 'SKUid': skuid,
@@ -452,6 +460,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
             }
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).update(award_dict)
+            # 是否修改库存
+            if not other_apply_info:
+                # 如果没有同批正在上架或审核中的，将库存从商品中重新减出来
+                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
+                                                  ).first()
+                super(CGuessNum, self)._update_stock(-out_stock.OSnum, skuid=apply_info.SKUid)
+        # 重新添加到审批流
         super(CGuessNum, self).create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
 
         return Success('修改成功', {'gnaaid': gnaaid})
@@ -500,10 +515,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
             other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
                                                                GuessNumAwardApply.GNAAid != gnaaid,
-                                                               GuessNumAwardApply.GNAAstatus != ApplyStatus.cancle.value,
+                                                               GuessNumAwardApply.GNAAstatus.notin_(
+                                                                   [ApplyStatus.cancle.value,
+                                                                    ApplyStatus.reject.value]),
                                                                GuessNumAwardApply.OSid == apply_info.OSid,
                                                                ).first()
-            current_app.logger.info("有其他的同库存申请{}".format(other_apply_info))
+            current_app.logger.info("其他的同库存申请 --> {}".format(other_apply_info))
             if apply_info.GNAAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
             if apply_info.SUid != request.user.id:
