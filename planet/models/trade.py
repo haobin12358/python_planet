@@ -139,6 +139,17 @@ class OrderRefundApply(Base):
     ORAnote = Column(String(255), comment='备注')
 
 
+class OrderRefundNotes(Base):
+    __tablename__ = 'OrderRefundNotes'
+    ORNid = Column(String(64), primary_key=True)
+    OMid = Column(String(64), index=True)
+    OPid = Column(String(64), index=True)
+    UserName = Column(String(32), comment='处理人')
+    USid = Column(String(64), comment='用户id, 通常是供应商id')
+    ORNaction = Column(Integer, default=1, comment='审批意见 1 同意,0 提交 -1：拒绝')
+    ORNabo = Column(Text, comment='备注')
+
+
 class DisputeType(Base):
     """售后纠纷的一些内置理由"""
     __tablename__ = 'DisputeType'
