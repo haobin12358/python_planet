@@ -85,6 +85,8 @@ class OrderPart(Base):
     SKUattriteDetail = Column(Text, nullable=False, comment='sku详情[]')
     SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='单价')
     PRtitle = Column(String(255), nullable=False, comment='商品标题')
+    SKUsn = Column(String(64), comment='sku编码')
+    PCname = Column(String(255), comment='分类名')
     PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
     OPnum = Column(Integer, default=1, comment='数量')
     OPsubTotal = Column(DECIMAL(precision=28, scale=2), default=SKUprice, comment='价格小计')
