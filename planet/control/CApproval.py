@@ -19,7 +19,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
-    ActivationCodeApply, UserActivationCode
+    ActivationCodeApply, UserActivationCode, OutStock
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -926,6 +926,19 @@ class CApproval(BASEAPPROVAL):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
         gnaa.GNAAstatus = ApplyStatus.reject.value
         gnaa.GNAArejectReason = refuse_abo
+        # 是否进行库存变化
+        other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
+                                                           GuessNumAwardApply.GNAAid != gnaa.GNAAid,
+                                                           GuessNumAwardApply.GNAAstatus.notin_(
+                                                               [ApplyStatus.cancle.value,
+                                                                ApplyStatus.reject.value]),
+                                                           GuessNumAwardApply.OSid == gnaa.OSid,
+                                                           ).first()
+        if not other_apply_info:
+            out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == gnaa.OSid
+                                              ).first()
+            from planet.control.COrder import COrder
+            COrder()._update_stock(out_stock.OSnum, skuid=gnaa.SKUid)
 
     def agree_magicbox(self, approval_model):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
@@ -944,6 +957,19 @@ class CApproval(BASEAPPROVAL):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
         mba.MBAstatus = ApplyStatus.reject.value
         mba.MBArejectReason = refuse_abo
+        # 是否进行库存变化
+        other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                      MagicBoxApply.MBAid != mba.MBAid,
+                                                      MagicBoxApply.MBAstatus.notin_(
+                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value]),
+                                                      MagicBoxApply.OSid == mba.OSid,
+                                                      ).first()
+        if not other_apply_info:
+            out_stock = OutStock.query.filter(OutStock.isdelete == False,
+                                              OutStock.OSid == mba.OSid
+                                              ).first()
+            from planet.control.COrder import COrder
+            COrder()._update_stock(out_stock.OSnum, skuid=mba.SKUid)
 
     def agree_freshmanfirstproduct(self, approval_model):
         ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')

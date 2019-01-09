@@ -1512,6 +1512,7 @@ class COrder(CPay, CCoupon):
         if skuid:
             sku = ProductSku.query.filter(ProductSku.SKUid == skuid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
+        if sku and product:
             current_app.logger.info("初始商品库存：{}".format(product.PRstocks))
             current_app.logger.info("初始sku库存：{}".format(sku.SKUstock))
         product.PRstocks = product.PRstocks + old_new
