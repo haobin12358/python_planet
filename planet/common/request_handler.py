@@ -67,10 +67,10 @@ def error_handler(app):
             if app.config['DEBUG']:
                 return SystemError(e.args)
             return SystemError()
-
-    @app.errorhandler(IntegrityError)
-    def dumpli_error(e):
-        return DumpliError()
+    #
+    # @app.errorhandler(IntegrityError)
+    # def dumpli_error(e):
+    #     return DumpliError()
 
 
 def gennerc_log(data, info='info'):
