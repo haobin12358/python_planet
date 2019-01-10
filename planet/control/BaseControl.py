@@ -364,7 +364,8 @@ class BASEAPPROVAL():
 
     def __get_approvalcontent(self, pt, startid, avcontentid, **kwargs):
         start, content = self.__fill_approval(pt, startid, avcontentid, **kwargs)
-        if not (start and content):
+        gennerc_log('get start {0} content {1}'.format(start, content))
+        if not (start or content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
 

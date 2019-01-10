@@ -26,6 +26,8 @@ class AUser(Resource):
             'apply_cash': self.user.apply_cash,  # 提现申请
             'update_user_commision': self.user.update_user_commision,  # 设置个人佣金比
             'set_signin_default': self.user.set_signin_default,  # 设置默认签到规则
+            'settlenment': self.user.settlenment,  # 供应商确认结算
+            'create_settlenment': self.user.create_settlenment,  # 供应商确认结算创建
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -57,6 +59,6 @@ class AUser(Resource):
             'list_fans': self.user.list_fans,  # 获取某人粉丝列表
             'get_cash_notes': self.user.get_cash_notes,  # 获取某人提现申请记录
             'get_signin_default': self.user.get_signin_default,  # 获取默认签到规则
-
+            'get_settlenment': self.user.get_settlenment,  # 获取结算记录
         }
         return apis

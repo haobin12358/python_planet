@@ -225,5 +225,3 @@ if __name__ == '__main__':
                 # make_items()
                 make_permissiontype()
                 # make_admin()
-
-

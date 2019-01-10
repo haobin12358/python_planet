@@ -792,6 +792,7 @@ class CUser(SUser, BASEAPPROVAL):
         # 资质认证
         self.check_idcode(data, user)
         check_result, check_reason = self.__check_qualifications(user)
+        db.session.flush()
         if check_result:
             # 资质认证ok，创建审批流
             avid = self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
@@ -1760,8 +1761,9 @@ class CUser(SUser, BASEAPPROVAL):
         """代理商是否可以升级"""
         pass
 
+    @get_session
     @token_required
-    def Settlement(self):
+    def settlenment(self):
         """确认结算"""
         if not is_supplizer():
             raise AuthorityError('权限不足')
@@ -1780,10 +1782,10 @@ class CUser(SUser, BASEAPPROVAL):
             SupplizerSettlement.SSid == ssid, SupplizerSettlement.isdelete == False).first()
         if not ss:
             raise ParamsError('还在统计结算数据，晚点重试')
-        if ss.SSstatus != SupplizerSettementStatus.settlementing:
+        if ss.SSstatus != SupplizerSettementStatus.settlementing.value:
             raise TimeError('结算处理中')
 
-        action = data.get('action')
+        action = data.get('action', ApplyStatus.agree.value)
         anabo = data.get('anabo')
         if int(action) == ApprovalAction.agree.value:
             ss.SSstatus = SupplizerSettementStatus.settlemented.value
@@ -1805,7 +1807,46 @@ class CUser(SUser, BASEAPPROVAL):
             db.session.add(ssa)
             db.session.flush()
 
-            self.create_approval('tosettlement', su.SUid, ssa.SSAid)
+            self.create_approval('tosettlenment', su.SUid, ssa.SSAid)
 
         return Success('结算处理')
 
+    @get_session
+    @token_required
+    def create_settlenment(self):
+        today = datetime.datetime.now()
+        su_comiission_list = UserCommission.query.filter(
+            UserCommission.USid == request.user.id,
+            UserCommission.isdelete == False,
+            UserCommission.UCstatus == UserCommissionStatus.in_account.value,
+            UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+            extract('month', UserCommission.createtime) == today.month,
+            extract('year', UserCommission.createtime) == today.year
+        ).all()
+        ss_total = sum(su.UCcommission or 0 for su in su_comiission_list)
+
+        ss = SupplizerSettlement.create({
+            'SSid': str(uuid.uuid1()),
+            'SUid': request.user.id,
+            'SSdealamount': float('%.2f' %float(ss_total)),
+            'SSstatus': SupplizerSettementStatus.settlementing.value
+        })
+        db.session.add(ss)
+        return Success('创建结算记录成功')
+
+    @token_required
+    def get_settlenment(self):
+        # if not is_supplizer():
+        #     raise AuthorityError('')
+        su = Supplizer.query.filter(
+            Supplizer.SUid == request.user.id, Supplizer.isdelete == False).first_('账号已回收')
+        ss_list = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SUid == request.user.id,
+            SupplizerSettlement.isdelete == False
+        ).all()
+
+        for ss in ss_list:
+            ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
+            ss.fill('suname', su.SUname)
+            ss.add('createtime')
+        return Success('获取结算记录成功', data=ss_list)

@@ -393,10 +393,12 @@ class CApproval(BASEAPPROVAL):
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
             # ptytype = ActivityType(int(data.get('pttype'))).name
             ap_querry = Approval.query.filter(
-                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
+                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == Approval.PTid,
                 Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                 Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False,
             )
+            # import ipdb
+            # ipdb.set_trace()
             if avstatus is not None:
                 gennerc_log('sql avstatus = {0}'.format(avstatus.value))
                 ap_querry = ap_querry.filter(Approval.AVstatus == avstatus.value)
@@ -428,7 +430,10 @@ class CApproval(BASEAPPROVAL):
                                                                   FreshManFirstApply.FMFAstartTime.desc()).all()
 
             else:
-                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
+                # ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+                # import ipdb
+                # ipdb.set_trace()
+                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
