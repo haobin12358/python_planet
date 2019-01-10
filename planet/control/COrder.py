@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 import tablib
-from flask import request, current_app
+from flask import request, current_app, send_file, send_from_directory
 from sqlalchemy import extract, or_, and_, cast, Date, func
 
 from planet.common.logistics import Logistics
@@ -78,7 +78,8 @@ class COrder(CPay, CCoupon):
                 ).filter(
                     or_(and_(OrderPart.isdelete == False,
                              OrderPart.OPisinORA == True),
-                        (OrderMain.OMinRefund == True))
+                        (OrderMain.OMinRefund == True),
+                        )
                 )
 
                 if orastatus is not None:  # 售后的审核状态
@@ -160,10 +161,10 @@ class COrder(CPay, CCoupon):
                 self._fill_order_refund(order_main, order_refund_apply_instance, False)
         return Success(data=order_mains)
 
-    # @token_required
+    @token_required
     def export_xls(self):
-        # if not is_supplizer() and not is_admin():
-        #     raise AuthorityError()
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
         now = datetime.now()
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)
@@ -177,13 +178,15 @@ class COrder(CPay, CCoupon):
         book = tablib.Databook([list_part, list_refund, confirms])
         aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
         abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
-        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir,  xls_name=self._generic_omno() + '.xls')
+        xls_name = self._generic_omno() + '.xls'
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir,  xls_name=xls_name)
         abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
         if not os.path.isdir(abs_dir):
             os.makedirs(abs_dir)
         with open(abs_file, 'wb') as f:
             f.write(book.xls)
-        return Success(data=HTTP_HOST + '/' + aletive_file)
+        # return Success(data=HTTP_HOST + '/' + aletive_file)
+        return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
     def _list_part(self, form, *args, **kwargs):
         omstatus = form.omstatus.data  # 过滤参数

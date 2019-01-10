@@ -199,8 +199,6 @@ def create_settlenment():
 @celery.task()
 def auto_agree_task(avid):
     current_app.logger.info('avid is {}'.format(avid))
-
-
     from planet.control.CApproval import CApproval
     cp = CApproval()
     with db.auto_commit():
