@@ -461,6 +461,7 @@ class CUser(SUser, BASEAPPROVAL):
             Coupon, CouponUser.COid == Coupon.COid
         ).filter(
             CouponUser.USid == request.user.id,
+            CouponUser.isdelete == False,
             or_(Coupon.COvalidEndTime < time_now, Coupon.COvalidEndTime.is_(None)),
             or_(Coupon.COvalidStartTime > time_now, Coupon.COvalidStartTime.is_(None)),
             CouponUser.UCalreadyUse == False,
