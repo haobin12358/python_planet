@@ -533,8 +533,10 @@ class CUser(SUser, BASEAPPROVAL):
             useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'AAid']
             uadefault = 1 if useraddress.UAdefault is True else 0
             addressinfo = self._get_addressinfo_by_areaid(useraddress.AAid)
-            useraddress.fill('addressinfo', addressinfo + getattr(useraddress, 'UAtext', ''))
+            useraddress.fill('addressinfo', addressinfo[0] + getattr(useraddress, 'UAtext', ''))
             useraddress.fill('uadefault', uadefault)
+            useraddress.fill('acid', addressinfo[1])
+            useraddress.fill('apid', addressinfo[2])
         return Success('获取个人地址成功', data=useraddress_list)
 
     @get_session
@@ -692,8 +694,8 @@ class CUser(SUser, BASEAPPROVAL):
         if not address:
             raise NotFound('用户未设置任何地址信息')
         addressinfo = self._get_addressinfo_by_areaid(address.AAid)
-        address.fill('areainfo', addressinfo)
-        address.fill('addressinfo', addressinfo + getattr(address, 'UAtext', ''))
+        address.fill('areainfo', addressinfo[0])
+        address.fill('addressinfo', addressinfo[0] + getattr(address, 'UAtext', ''))
         uadefault = 1 if address.UAdefault is True else 0
         address.fill('uadefault', uadefault)
         address.hide('USid')
@@ -736,12 +738,12 @@ class CUser(SUser, BASEAPPROVAL):
             area, city, province = self.get_addressinfo_by_areaid(areaid)
         except Exception as e:
             gennerc_log("NOT FOUND this areaid, ERROR is {}".format(e))
-            province = {"APname": ''}
-            city = {"ACname": ''}
+            province = {"APname": '', "APid": ''}
+            city = {"ACname": '', "ACid": ''}
             area = {"AAname": ''}
         address = getattr(province, "APname", '') + ' ' + getattr(city, "ACname", '') + ' ' + getattr(
             area, "AAname", '') + ' '
-        return address
+        return address, city['ACid'], province['APid']
 
     # @get_session
     # @token_required
