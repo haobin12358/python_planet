@@ -14,9 +14,10 @@ from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
-    DisputeTypeType, OrderRefundOrstatus, PayType
+    DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus
 from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
+from planet.models import UserCommission
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay, OrderRefundNotes
 from planet.service.STrade import STrade
@@ -158,8 +159,11 @@ class CRefund(object):
                         old_total_fee=old_total_fee
                     )
                     msg = '已同意, 正在退款'
-                    # 佣金
-                    self._cancle_commision()
+                    # 佣金退
+                    if refund_apply_instance.OPid:
+                        self._cancle_commision(order_part=order_part_instance)
+                    if refund_apply_instance.OMid:
+                        self._cancle_commision(order_main=order_main_instance)
 
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 取消原来的退货表, (主要是因为因为可能因撤销为未完全删除)
@@ -442,7 +446,7 @@ class CRefund(object):
             s_list = []
             OrderRefundNotes.query.filter(
                 OrderRefundNotes.isdelete == False,
-                OrderRefundNotes.OMid == OrderMain.OMid
+                OrderRefundNotes.OMid == omid
             ).delete_()
             order_main = s.query(OrderMain).filter_(
                 OrderMain.OMid == omid,
@@ -558,6 +562,21 @@ class CRefund(object):
     def _cancle_commision(self, *args, **kwargs):
         order_main = kwargs.get('order_main')
         order_part = kwargs.get('order_part')
-        
+        if order_main:
+            order_parts = OrderPart.query.filter(
+                OrderPart.isdelete == False,
+                OrderPart.OMid == order_main.OMid
+            ).all()
+            for order_part in order_parts:
+                self._cancle_commision(order_part=order_part)
+        elif order_part:
+            user_commision = UserCommission.query.filter(
+                UserCommission.isdelete == False,
+                UserCommission.OPid == order_part.OPid,
+                UserCommission.UCstatus == UserCommissionStatus.preview.value
+            ).update({
+                'UCstatus': UserCommissionStatus.error.value
+            })
+            current_app.logger.info('失效了{}个佣金到账(包括供应商到账, 平台到账)'.format(user_commision))
 
 # todo 售后物流

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import random
 import re
 import time
@@ -23,6 +24,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus
 from planet.config.cfgsetting import ConfigSettings
+from planet.config.secret import BASEDIR
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.extensions.register_ext import db
@@ -53,6 +55,7 @@ class COrder(CPay, CCoupon):
         createtime_start = form.createtime_start.data
         createtime_end = form.createtime_end.data
         order_main_query = OrderMain.query.filter(OrderMain.isdelete == False)
+        order_by = OrderMain.updatetime.desc(), OrderMain.createtime.desc()
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
@@ -68,6 +71,7 @@ class COrder(CPay, CCoupon):
         if omstatus == 'refund':
             # 后台获得售后订单(获取主单售后和附单售后)
             if is_admin() or is_supplizer():
+                order_by = (OrderRefundApply.updatetime.desc(), )
                 order_main_query = order_main_query.join(
                     OrderPart, OrderMain.OMid == OrderPart.OMid
                 ).filter(
@@ -118,7 +122,7 @@ class COrder(CPay, CCoupon):
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
         if createtime_end:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) <= createtime_end)
-        order_mains = order_main_query.order_by(OrderMain.createtime.desc()).all_with_page()
+        order_mains = order_main_query.order_by(*order_by).all_with_page()
         for order_main in order_mains:
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             for order_part in order_parts:
@@ -155,14 +159,18 @@ class COrder(CPay, CCoupon):
                 self._fill_order_refund(order_main, order_refund_apply_instance, False)
         return Success(data=order_mains)
 
-    @token_required
+    # @token_required
     def export_xls(self):
-        if not is_supplizer() and not is_admin():
-            raise AuthorityError()
+        # if not is_supplizer() and not is_admin():
+        #     raise AuthorityError()
         form = OrderListForm().valid_data()
         list_part = self._list_part(form=form, title='订单商品明细')
         list_refund = self._list_refund(form=form, title='售后sku明细')
         book = tablib.Databook([list_part, list_refund])
+        xls_dir = os.path.join(BASEDIR, 'img/xls/{year}/{month}')
+        now = datetime.now()
+        data = '/img/xls/{year}/{month}/{day}/{xls_name}'.\
+            format(year=now.day, month=now.month, day=now.day, xls_name=img_name)
         with open(self._generic_omno() + '.xls', 'wb') as f:
             f.write(book.xls)
         return Success()
@@ -171,6 +179,8 @@ class COrder(CPay, CCoupon):
         omstatus = form.omstatus.data  # 过滤参数
         createtime_start = form.createtime_start.data
         createtime_end = form.createtime_end.data
+        paytime_start = form.paytime_start.data
+        paytime_end = form.paytime_end.data
         query = db.session.query(
             OrderPart,
             OrderPay,
@@ -183,6 +193,7 @@ class COrder(CPay, CCoupon):
         ).filter(
             OrderPart.isdelete == False,
             OrderMain.isdelete == False,
+            OrderPay.isdelete == False,
         )
         if is_supplizer():
             query = query.filter(
@@ -196,6 +207,14 @@ class COrder(CPay, CCoupon):
             query = query.filter(
                 OrderMain.createtime <= createtime_end
             )
+        if paytime_start:
+            query = query.filter(
+                OrderPay.OPaytime >= paytime_start,
+            )
+        if paytime_end:
+            query = query.filter(
+                OrderPay.OPaytime <= paytime_end,
+                )
         if omstatus == 'refund':
             # 后台获得售后订单(获取主单售后和附单售后)
             if is_admin() or is_supplizer():
