@@ -22,8 +22,9 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus
 from planet.config.cfgsetting import ConfigSettings
+from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
@@ -31,7 +32,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
-    UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow
+    UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -163,22 +164,31 @@ class COrder(CPay, CCoupon):
     def export_xls(self):
         # if not is_supplizer() and not is_admin():
         #     raise AuthorityError()
-        form = OrderListForm().valid_data()
-        list_part = self._list_part(form=form, title='订单商品明细')
-        list_refund = self._list_refund(form=form, title='售后sku明细')
-        book = tablib.Databook([list_part, list_refund])
-        xls_dir = os.path.join(BASEDIR, 'img/xls/{year}/{month}')
         now = datetime.now()
-        data = '/img/xls/{year}/{month}/{day}/{xls_name}'.\
-            format(year=now.day, month=now.month, day=now.day, xls_name=img_name)
-        with open(self._generic_omno() + '.xls', 'wb') as f:
+        pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
+        tomonth_22 = date(year=now.year, month=now.month, day=22)
+        pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
+
+        form = OrderListForm().valid_data()
+        list_part = self._list_part(form=form, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        list_refund = self._list_refund(form=form, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        confirms = self._confirm_favor(form=form, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22)
+
+        book = tablib.Databook([list_part, list_refund, confirms])
+        aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
+        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir,  xls_name=self._generic_omno() + '.xls')
+        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
+        if not os.path.isdir(abs_dir):
+            os.makedirs(abs_dir)
+        with open(abs_file, 'wb') as f:
             f.write(book.xls)
-        return Success()
+        return Success(data=HTTP_HOST + '/' + aletive_file)
 
     def _list_part(self, form, *args, **kwargs):
         omstatus = form.omstatus.data  # 过滤参数
-        createtime_start = form.createtime_start.data
-        createtime_end = form.createtime_end.data
+        createtime_start = form.createtime_start.data or kwargs.get('pre_month')
+        createtime_end = form.createtime_end.data or kwargs.get('tomonth')
         paytime_start = form.paytime_start.data
         paytime_end = form.paytime_end.data
         query = db.session.query(
@@ -254,7 +264,7 @@ class COrder(CPay, CCoupon):
                 sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = 0
                 free_price = order_part.OPsubTrueTotal
             else:
-                sku_price = order_part.PRtitle
+                sku_price = order_part.SKUprice
                 sold_total = order_part.OPsubTrueTotal
                 activity_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0
                 coupon_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0
@@ -269,12 +279,12 @@ class COrder(CPay, CCoupon):
                     itd.strftime('%Y-%m-%d')
             items.append(item)
 
-        data = tablib.Dataset(*items, headers=headers, **kwargs)
+        data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
 
     def _list_refund(self, form, *args, **kwargs):
-        createtime_start = form.createtime_start.data
-        createtime_end = form.createtime_end.data
+        createtime_start = form.createtime_start.data or kwargs.get('pre_month')
+        createtime_end = form.createtime_end.data or kwargs.get('tomonth')
         query = db.session.query(OrderPart, OrderMain, OrderRefundApply, OrderRefund, OrderRefundFlow). \
             join(
             OrderMain, OrderPart.OMid == OrderMain.OMid
@@ -318,8 +328,85 @@ class COrder(CPay, CCoupon):
         headers = ['订单编号', '退款编号', '工单类型', '品牌',
                    '订单状态', '申请退款时间', '退款时间', '申请原因', 'SKU-SN', 'sku-id',
                    '商品名称', '购买件数', '退款金额', '商家承担贷款']
-        data = tablib.Dataset(*items, headers=headers, **kwargs)
+        data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
+
+    def _confirm_favor(self, form, *args, **kwargs):
+        paytime_start = form.paytime_start.data or kwargs.get('pre_month')
+        paytime_end = form.paytime_end.data or kwargs.get('tomonth')
+        suname = request.user.username
+        supplizer = Supplizer.query.filter(
+            Supplizer.isdelete == False,
+            Supplizer.SUid == request.user.id
+        ).first()
+        supplizer_account = SupplizerAccount.query.filter(
+            SupplizerAccount.isdelete == False,
+            SupplizerAccount.SUid == Supplizer.SUid
+        ).first()
+        settlement = SupplizerSettlement.query.filter(
+            SupplizerSettlement.isdelete == False,
+            SupplizerSettlement.SUid == request.user.id
+        ).first()
+        mobile = supplizer.SUloginPhone
+        currency = '人民币'
+        bank = getattr(supplizer_account, 'SAbankName', '')
+        bank_sn =getattr(supplizer_account, 'SAcardNo', '')
+        recv_name = getattr(supplizer_account, 'SACompanyName', '')
+        address = getattr(supplizer_account, 'SAbankName', '')
+
+        period = '{}至{}'.format(paytime_start.strftime('%Y-%m-%d'),
+                                paytime_end.strftime('%Y-%m-%d'),)
+        ticket_sn = settlement.SSid
+        ticket_status = getattr(settlement, 'SSstatus', None)  # 结算单状态
+        if ticket_status is not None:
+            ticket_status = SupplizerSettementStatus(ticket_status).zh_value
+        # 订单销售额
+        tomonth_total = self._tomonth_total(request.user.id, tomonth=paytime_end, pre_month=paytime_start)
+        preview_num = self._preview_num(request.user.id, tomonth=paytime_end, pre_month=paytime_start)
+        userwallet = UserWallet.query.filter(
+            UserWallet.isdelete == False,
+            UserWallet.USid == request.user.id,
+            UserWallet.CommisionFor == ApplyFrom.supplizer.value
+        ).first()
+        balance = userwallet.UWbalance if userwallet else 0
+        settle = getattr(settlement, 'SSdealamount', 0)
+        headers = ['供应商名', '绑定手机号', '收款账号', '币别', '开户行', '收款方名称', '公司地址',
+                   '账单周期', '结算单编号', '结算单状态', '订单销售额', '预计到账', '账户余额', '结算金额']
+        item = [suname, mobile, bank_sn, currency, bank, recv_name, address,
+                period, ticket_sn, ticket_status, tomonth_total, preview_num, balance, settle]
+        data = tablib.Dataset(item, headers=headers, title=kwargs.get('title'))
+        return data
+
+    def _preview_num(self, suid, **kwargs):
+        """预计到账"""
+        tomonth = kwargs.get('tomonth')
+        pre_month = kwargs.get('pre_month')
+        su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
+            UserCommission.USid == suid,
+            UserCommission.isdelete == False,
+            UserCommission.UCstatus == UserCommissionStatus.preview.value,
+            UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+            UserCommission.createtime < tomonth,
+            UserCommission.createtime >= pre_month,
+        ).first()
+        pre_view = su_comiission[0]
+        return pre_view
+
+    def _tomonth_total(self, suid, **kwargs):
+        tomonth = kwargs.get('tomonth')
+        pre_month = kwargs.get('pre_month')
+        total = db.session.query(func.sum(OrderMain.OMtrueMount)).join(
+            OrderPay, OrderPay.OPayno == OrderMain.OMno
+        ).filter(
+            OrderPay.isdelete == False,
+            OrderMain.isdelete == False,
+            OrderMain.OMstatus >= OrderMainStatus.wait_recv.value,
+            OrderMain.PRcreateId == suid,
+            OrderPay.createtime < tomonth,
+            OrderPay.createtime > pre_month
+        ).first()
+        return total[0] or 0
+
 
     @token_required
     def create(self):
@@ -610,7 +697,7 @@ class COrder(CPay, CCoupon):
             # s.add_all(model_bean)
         from planet.extensions.tasks import auto_cancle_order
 
-        auto_cancle_order.apply_async(args=omids, countdown=5 * 3600, expires=6 * 3600, )
+        auto_cancle_order.apply_async(args=omids, countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2
@@ -1645,12 +1732,12 @@ class COrder(CPay, CCoupon):
                 # 不同身份进账时间不同
                 # 如果是供应商，只增加期望值
                 if user_commision.CommisionFor == ApplyFrom.supplizer.value:
-                    user_wallet.UWexpect = float('%.2f'% (user_wallet.UWexpect + user_commision.UCcommission))
+                    user_wallet.UWexpect = Decimal(str(user_wallet.UWexpect)) + user_commision.UCcommission
                 else:
                     # 其他身份直接到账
-                    user_wallet.UWbalance = float('%.2f'% (user_wallet.UWbalance + user_commision.UCcommission))
-                    user_wallet.UWtotal = float('%.2f'% (user_wallet.UWtotal + user_commision.UCcommission))
-                    user_wallet.UWcash = float('%.2f'% (user_wallet.UWcash + user_commision.UCcommission))
+                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance)) + user_commision.UCcommission
+                    user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal)) + user_commision.UCcommission
+                    user_wallet.UWcash = Decimal(str(user_wallet.UWcash)) + user_commision.UCcommission
                 db.session.add(user_wallet)
             else:
                 # 创建和更新一个逻辑
@@ -1765,6 +1852,8 @@ class COrder(CPay, CCoupon):
                 OrderRefundNotes.OMid == order_main.OMid
             ).order_by(OrderRefundNotes.createtime.desc()).first()
             if order_refund_notes:
+                order_refund_apply_instance = self._get_refund_apply({'OMid': order_main.OMid})
+                self._fill_order_refund(order_main, order_refund_apply_instance)
                 order_main.fill('order_refund_notes', order_refund_notes)
         elif order_part:
             order_refund_notes = OrderRefundNotes.query.filter(
@@ -1772,4 +1861,7 @@ class COrder(CPay, CCoupon):
                 OrderRefundNotes.OPid == order_part.OPid
             ).order_by(OrderRefundNotes.createtime.desc()).first()
             if order_refund_notes:
+                opid = order_part.OPid
+                order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
+                self._fill_order_refund(order_part, order_refund_apply_instance)
                 order_part.fill('order_refund_notes', order_refund_notes)

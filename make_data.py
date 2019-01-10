@@ -214,14 +214,13 @@ def make_admin():
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
-        if __name__ == "__main__":
-            app = create_app()
-            with app.app_context():
-                # admin = PermissionType.query.first_()
-                # admin_str = json.dumps(admin, cls=JSONEncoder)
-                # print(admin.__dict__)
-                # print(admin_str)
-                # make_acvitity()
-                # make_items()
-                make_permissiontype()
-                # make_admin()
+        app = create_app()
+        with app.app_context():
+            # admin = PermissionType.query.first_()
+            # admin_str = json.dumps(admin, cls=JSONEncoder)
+            # print(admin.__dict__)
+            # print(admin_str)
+            # make_acvitity()
+            # make_items()
+            make_permissiontype()
+            # make_admin()

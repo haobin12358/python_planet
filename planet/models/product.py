@@ -24,7 +24,7 @@ class Products(Base):
     PBid = Column(String(64), comment='品牌id')
     PRdesc = Column(LONGTEXT, comment='商品详细介绍', url_list=True)
     PRremarks = Column(String(255), comment='备注')
-    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 店主发布')
+    PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 供应商发布')
     PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
@@ -202,8 +202,8 @@ class SupplizerAccount(Base):
     """供应商账户信息表"""
     __tablename__ = 'SupplizerAccount'
     SAid = Column(String(64), primary_key=True)
-    SPid = Column(String(64), comment='供应商id')
-    SAbankName = Column(Text,comment='开户行')
+    SUid = Column(String(64), comment='供应商id')
+    SAbankName = Column(Text, comment='开户行')
     SAbankDetail = Column(Text, comment='开户网点详情')
     SAcardNo = Column(String(32), comment='卡号')
     SAcardName = Column(Text, comment='开户人')
