@@ -12,6 +12,7 @@ class QuestOutline(Base):
     QOname = Column(Text, comment='问题大纲名称')
     QOstatus = Column(Integer, default=0, comment='问题大纲状态 0 草稿 1 上线 2 失效')
     QOcreateId = Column(String(64), comment='创建人id')
+    QOtype = Column(Integer, default=111, comment='展示对象 111 前台用户 222 后台用户')
 
 
 class Quest(Base):

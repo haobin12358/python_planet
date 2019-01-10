@@ -6,8 +6,8 @@ from planet.config.enums import AdminStatus, QuestAnswerNoteType
 from planet.common.error_response import AuthorityError, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin
-from planet.models import Quest, QuestOutline, Answer, User, AnswerUser, Admin, QuestAnswerNote
+from planet.common.token_handler import token_required, is_admin, is_supplizer
+from planet.models import Quest, QuestOutline, Answer, User, AnswerUser, Admin, QuestAnswerNote, Supplizer
 from planet.common.request_handler import gennerc_log
 from planet.common.base_service import get_session, db
 
@@ -19,7 +19,14 @@ class CQuestanswer():
 
     def get_all_quest(self):
         """用户客服页获取所有的问题列表之后通过问题id获取答案"""
-        qo_list = QuestOutline.query.filter_(QuestOutline.isdelete == False).all()
+        data = request.args.to_dict()
+        qotype = data.get('qotype')
+        if not qotype or int(qotype) != 222:
+            qotype = 111
+
+        qo_list = QuestOutline.query.filter(
+            QuestOutline.isdelete == False, QuestOutline.QOtype == int(qotype)).all()
+
         qo_return_list = []
         for qo in qo_list:
             qo.fields = self.QuestOutlineFields[:]
@@ -36,7 +43,10 @@ class CQuestanswer():
     @token_required
     def get_answer(self):
         """通过问题id 获取答案"""
-        user = User.query.filter_(User.USid == request.user.id).first_('用户不存在')
+        if is_supplizer():
+            user = Supplizer.query.filter(Supplizer.SUid == request.user.id).first()
+        else:
+            user = User.query.filter_(User.USid == request.user.id).first_('用户不存在')
         data = parameter_required(('quid',))
         answer_model = Answer.query.filter_(Answer.QUid == data.get('quid'), Answer.isdelete == False).first()
         answer_model.fields = self.AnswerFields[:]
@@ -60,22 +70,26 @@ class CQuestanswer():
         if not is_admin():
             raise AuthorityError('权限不足')
         data = parameter_required(('qoicon', 'qoname'))
+        qotype = data.get('qotype')
         admin = Admin.query.filter(
             Admin.ADid == request.user.id, Admin.ADstatus == AdminStatus.normal.value).first_('权限被收回')
+        if qotype != 222:
+            qotype = 111
         qo_filter = QuestOutline.query.filter_(
-            QuestOutline.QOname == data.get('qoname'), QuestOutline.isdelete == False).first()
+            QuestOutline.QOname == data.get('qoname'), QuestOutline.QOtype == qotype,
+            QuestOutline.isdelete == False).first()
         # 查看是否为修改
         if data.get('qoid'):
             qo_model = QuestOutline.query.filter_(
                 QuestOutline.isdelete == False, QuestOutline.QOid == data.get('qoid')).first()
             if qo_model:
-                self.__update_questoutline(data, qo_model, qo_filter)
+                self.__update_questoutline(data, qo_model, qotype, qo_filter)
                 qo_model.fields = self.QuestOutlineFields[:]
                 return Success('修改问题分类成功', data=qo_model)
 
         # 名称重复的增加 暂时变更为修改，后期可以扩展为整个分类的迁移
         if qo_filter:
-            self.__update_questoutline(data, qo_filter)
+            self.__update_questoutline(data, qo_filter, qotype)
             qo_filter.fields = self.QuestOutlineFields[:]
             return Success('修改问题分类成功', data=qo_filter)
 
@@ -84,6 +98,7 @@ class CQuestanswer():
             'QOid': str(uuid.uuid1()),
             'QOicon': data.get('qoicon'),
             'QOname': data.get('qoname'),
+            'QOtype': qotype,
             'QOcreateId': admin.ADid
         })
         db.session.add(qo_instance)
@@ -154,7 +169,7 @@ class CQuestanswer():
             qo.fill('question', question_list)
         return Success('获取客服问题列表成功', data=qo_list)
 
-    def __update_questoutline(self, data, qo_model, qo_filter=None):
+    def __update_questoutline(self, data, qo_model, qotype, qo_filter=None):
         """
         修改问题分类
         :param data: request的data
@@ -172,6 +187,9 @@ class CQuestanswer():
                 raise ParamsError('问题分类名不能与已有分类名相同')
             qanaction += '修改name为 {0}'.format(data.get('qoname'))
             qo_model.QOname = data.get('qoname')
+        if qotype != int(qo_model.QOtype):
+            qanaction += '修改类型为{0}'.format(qotype)
+            qo_model.QOtype = qotype
         if qanaction:
             qan_instance = QuestAnswerNote.create({
                 'QANid': str(uuid.uuid1()),

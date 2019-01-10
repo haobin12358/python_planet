@@ -309,7 +309,7 @@ class CUser(SUser, BASEAPPROVAL):
             if not user or not (user.USrealname and user.USidentification):
                 raise InsufficientConditionsError('没有实名认证')
 
-        elif commision_for == ApplyFrom.supplizer:
+        elif commision_for == ApplyFrom.supplizer.value:
             sa = SupplizerAccount.query.filter(
                 SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
             if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
@@ -1531,7 +1531,8 @@ class CUser(SUser, BASEAPPROVAL):
             commision_for = ApplyFrom.user.value
         # 提现资质校验
         self.__check_apply_cash(commision_for)
-        data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
+        # data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
+        data = parameter_required(('cncashnum',))
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
         # user = self.get_user_by_id(reqbuest.user.id)
@@ -1558,6 +1559,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNbankDetail': sa.SAbankDetail,
                 'CNcardNo': sa.SAcardNo,
                 'CNcashNum': data.get('cncashnum'),
+                'CNcardName': sa.SAcardName,
+                'CommisionFor': commision_for
             })
             kw.setdefault('CNcompanyName', sa.SACompanyName)
             kw.setdefault('CNICIDcode', sa.SAICIDcode)

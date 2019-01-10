@@ -98,7 +98,7 @@ class DefaltSettig(object):
         },
         'create_settlenment': {
             'task': 'create_settlenment',
-            'schedule':crontab(day_of_month=11)
+            'schedule': crontab(hour=4, minute=30, day_of_month=11)
         }
     }
 
