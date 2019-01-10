@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_
@@ -10,7 +10,8 @@ from planet.common.error_response import ParamsError, AuthorityError, StatusErro
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
-from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom, ApplyStatus
+from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom, ApplyStatus, \
+    ProductBrandStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
@@ -25,8 +26,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         if is_tourist():
             usid = None
             tourist = 1
-            time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
-                           TrialCommodity.AgreeEndTime >= datetime.now(),
+            time_filter = (TrialCommodity.AgreeStartTime <= date.today(),
+                           TrialCommodity.AgreeEndTime >= date.today(),
                            TrialCommodity.TCstocks > 0)
         elif is_admin():
             usid = request.user.id
@@ -45,22 +46,37 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             user = self._verify_user(usid)
             current_app.logger.info('User {0} get commodity list'.format(user.USname))
             tourist = 0
-            time_filter = (TrialCommodity.AgreeStartTime <= datetime.now(),
-                           TrialCommodity.AgreeEndTime >= datetime.now(),
+            time_filter = (TrialCommodity.AgreeStartTime <= date.today(),
+                           TrialCommodity.AgreeEndTime >= date.today(),
                            TrialCommodity.TCstocks > 0)
 
         args = parameter_required(('page_num', 'page_size'))
-        kw = args.get('kw', '').split() or ['']
+        kw = args.get('kw')
         tcstatus = args.get('tcstatus', 'upper')
         if str(tcstatus) not in ['upper', 'auditing', 'reject', 'cancel', 'sell_out', 'all']:
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
-        commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
-                                                          and_(*[ProductBrand.PBname.contains(x) for x in kw]),
-                                                          ),
-                                                      TrialCommodity.isdelete == False,
-                                                      TrialCommodity.TCstatus == tcstatus,
-                                                      *time_filter).order_by(TrialCommodity.createtime.desc()).all_with_page()
+        commodity_query = TrialCommodity.query.filter(TrialCommodity.isdelete == False)
+        commodity_query = commodity_query.join(ProductBrand, ProductBrand.PBid == TrialCommodity.PBid).filter(
+            ProductBrand.isdelete == False,
+            ProductBrand.PBstatus == ProductBrandStatus.upper.value
+        )
+        if tcstatus:
+            commodity_query = commodity_query.filter(TrialCommodity.TCstatus == tcstatus)
+        if time_filter:
+            commodity_query = commodity_query.filter(*time_filter)
+        if kw:
+            commodity_query = commodity_query.filter(
+                or_(ProductBrand.PBname.contains(kw),
+                    TrialCommodity.TCtitle.contains(kw))
+            )
+        # commodity_list = TrialCommodity.query.filter_(or_(and_(*[TrialCommodity.TCtitle.contains(x) for x in kw]),
+        #                                                   and_(*[ProductBrand.PBname.contains(x) for x in kw]),
+        #                                                   ),
+        #                                               TrialCommodity.isdelete == False,
+        #                                               TrialCommodity.TCstatus == tcstatus,
+        #                                               *time_filter).order_by(TrialCommodity.createtime.desc()).all_with_page()
+        commodity_list = commodity_query.order_by(TrialCommodity.createtime.desc()).all_with_page()
         for commodity in commodity_list:
             commodity.hide('TCrejectReason')
             if commodity.TCstatus == TrialCommodityStatus.reject.value:
