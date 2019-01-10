@@ -201,6 +201,8 @@ class BASEAPPROVAL():
         content = SettlenmentApply.query.filter(
             SettlenmentApply.SSAid == contentid, SettlenmentApply.isdelete == False).first()
         uw = UserWallet.query.filter(UserWallet.USid == startid, UserWallet.isdelete == False).first()
+        if not start_model or not content:
+            return None, None
         if not uw:
             content.fill('uwtotal', uw.UWtotal or 0)
             content.fill('uwbalance', uw.UWbalance or 0)
@@ -321,7 +323,7 @@ class BASEAPPROVAL():
         #
         start_model = User.query.filter_by_(USid=startid).first()
         content = ActivationCodeApply.query.filter_by_(ACAid=contentid).first()
-        if not start_model or content:
+        if not start_model or not content:
             return None, None
         return start_model, content
 

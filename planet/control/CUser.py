@@ -1911,3 +1911,7 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('suname', su.SUname)
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
+
+    @token_required
+    def set_supplizeraccount(self):
+        pass
