@@ -188,6 +188,12 @@ def make_permissiontype():
             'PTmodelName': 'ActivationCodeApply'
         })
         db.session.add(toactivationcode)
+        tosettlenment = PermissionType.create({
+            'PTid': 'tosettlenment',
+            'PTname': '供应商结算异常申请',
+            'PTmodelName': 'SettlenmentApply'
+        })
+        db.session.add(tosettlenment)
 
 
 def make_admin():
@@ -217,7 +223,5 @@ if __name__ == '__main__':
                 # print(admin_str)
                 # make_acvitity()
                 # make_items()
-                # make_permissiontype()
-                make_admin()
-
-
+                make_permissiontype()
+                # make_admin()

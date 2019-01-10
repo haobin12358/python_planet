@@ -14,7 +14,7 @@ from planet.extensions.register_ext import db
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
-    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base
+    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -161,7 +161,6 @@ class BASEAPPROVAL():
         product.fill('brand', pb)
         product.fill('skus', skus)
 
-
     def __fill_publish(self, startid, contentid):
         """填充资讯发布"""
         start = User.query.filter_by_(USid=startid).first() or \
@@ -192,6 +191,23 @@ class BASEAPPROVAL():
             start_model = None
 
         content.fill('uWbalance', uw.UWbalance)
+        return start_model, content
+
+    def __fill_settlenment(self, startid, contentid):
+        start_model = Supplizer.query.filter(Supplizer.SUid == startid, Supplizer.isdelete == False).first()
+        content = SettlenmentApply.query.filter(
+            SettlenmentApply.SSAid == contentid, SettlenmentApply.isdelete == False).first()
+        uw = UserWallet.query.filter(UserWallet.USid == startid, UserWallet.isdelete == False).first()
+        if not uw:
+            content.fill('uwtotal', uw.UWtotal or 0)
+            content.fill('uwbalance', uw.UWbalance or 0)
+            content.fill('uwexpect', uw.UWexpect or 0)
+            content.fill('uwcash', uw.UWcash or 0)
+        else:
+            content.fill('uwtotal', 0)
+            content.fill('uwbalance', 0)
+            content.fill('uwexpect', 0)
+            content.fill('uwcash', 0)
         return start_model, content
 
     def __fill_agent(self, startid, contentid=None):
@@ -341,12 +357,15 @@ class BASEAPPROVAL():
             raise ParamsError('退货申请前往订单页面实现')
         elif pt.PTid == 'toactivationcode':
             return self.__fill_activationcode(start, content)
+        elif pt.PTid == 'tosettlenment':
+            return self.__fill_settlenment(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
     def __get_approvalcontent(self, pt, startid, avcontentid, **kwargs):
         start, content = self.__fill_approval(pt, startid, avcontentid, **kwargs)
-        if not (start and content):
+        gennerc_log('get start {0} content {1}'.format(start, content))
+        if not (start or content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
 

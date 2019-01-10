@@ -4,15 +4,16 @@ from datetime import date, timedelta, datetime
 
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date
+from sqlalchemy import cast, Date, extract
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus
+from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
+    SupplizerSettementStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission, Approval
+    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement
 
 celery = Celery()
 
@@ -61,7 +62,6 @@ def auto_evaluate():
         current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
         from planet.control.COrder import COrder
         corder = COrder()
-        current_app.logger.info(">>>>>>  开始检测超过30天未评价的商品订单  <<<<<<")
         count = 0
         order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
                                              OrderMain.OMfrom.in_(
@@ -166,6 +166,31 @@ def fix_evaluate_status_error():
                 current_app.logger.info("----->  没有发现商品评价异常数据  <-----")
         current_app.logger.info("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
+@celery.task(name='create_settlenment')
+def create_settlenment():
+    """每月22号创建结算单"""
+    current_app.logger.info("----->  开始创建供应商结算单  <-----")
+    with db.auto_commit():
+        su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
+        for su in su_list:
+            today = datetime.now()
+            su_comiission_list = UserCommission.query.filter(
+                UserCommission.USid == su.SUid,
+                UserCommission.isdelete == False,
+                UserCommission.UCstatus == UserCommissionStatus.in_account.value,
+                UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+                extract('month', UserCommission.createtime) == today.month,
+                extract('year', UserCommission.createtime) == today.year
+            ).all()
+            ss_total = sum(su.UCcommission or 0 for su in su_comiission_list)
+
+            ss = SupplizerSettlement.create({
+                'SSid': str(uuid.uuid1()),
+                'SUid': su.SUid,
+                'SSdealamount': float('%.2f' % float(ss_total)),
+                'SSstatus': SupplizerSettementStatus.settlementing.value
+            })
+            db.session.add(ss)
 
 @celery.task()
 def auto_agree_task(avid):

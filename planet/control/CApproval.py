@@ -11,7 +11,7 @@ from flask import request
 from planet.common.base_service import get_session
 from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
-    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom
+    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
@@ -19,7 +19,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
-    ActivationCodeApply, UserActivationCode, OutStock
+    ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -393,10 +393,12 @@ class CApproval(BASEAPPROVAL):
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first()
             # ptytype = ActivityType(int(data.get('pttype'))).name
             ap_querry = Approval.query.filter(
-                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == pt.PTid,
+                Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == Approval.PTid,
                 Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                 Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False,
             )
+            # import ipdb
+            # ipdb.set_trace()
             if avstatus is not None:
                 gennerc_log('sql avstatus = {0}'.format(avstatus.value))
                 ap_querry = ap_querry.filter(Approval.AVstatus == avstatus.value)
@@ -428,7 +430,10 @@ class CApproval(BASEAPPROVAL):
                                                                   FreshManFirstApply.FMFAstartTime.desc()).all()
 
             else:
-                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
+                # ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+                # import ipdb
+                # ipdb.set_trace()
+                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
@@ -775,6 +780,8 @@ class CApproval(BASEAPPROVAL):
             pass
         elif approval_model.PTid == 'toactivationcode':
             self.agree_activationcode(approval_model)
+        elif approval_model.PTid == 'tosettlenment':
+            self.agree_settlenment(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -803,6 +810,8 @@ class CApproval(BASEAPPROVAL):
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
             pass
+        elif approval_model.PTid == 'tosettlenment':
+            self.refuse_settlenment(approval_model, refuse_abo)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -870,7 +879,8 @@ class CApproval(BASEAPPROVAL):
                 'USid': user.USid,
                 'UWbalance': 0,
                 'UWtotal': 0,
-                'UWcash': 0
+                'UWcash': 0,
+                'UWexpect': 0
             }))
         # todo 增加用户成为代理商之前邀请的未成为其他代理商或其他代理商粉丝的用户为自己的粉丝
         fens_list = UserInvitation.query.filter_by_(USInviter=user.USid).all()
@@ -1015,3 +1025,24 @@ class CApproval(BASEAPPROVAL):
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}
         return Success('获取所有状态成功', data=data)
+
+    def agree_settlenment(self, approval_model):
+        ssa = SettlenmentApply.query.filter(
+            SettlenmentApply.SSAid == approval_model.AVcontent,
+            SettlenmentApply.isdelete == False).first_('结算申请数据异常')
+        ssa.SSAstatus = ApplyStatus.agree.value
+
+        ss = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SSid == ssa.SSid, SupplizerSettlement.isdelete == False).first_('结算申请数据异常')
+        ss.SSstatus = SupplizerSettementStatus.settlementing.value
+
+    def refuse_settlenment(self, approval_model, refuse_abo):
+        ssa = SettlenmentApply.query.filter(
+            SettlenmentApply.SSAid == approval_model.AVcontent,
+            SettlenmentApply.isdelete == False).first_('结算申请数据异常')
+        ssa.SSAstatus = ApplyStatus.reject.value
+
+        ss = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SSid == ssa.SSid, SupplizerSettlement.isdelete == False).first_('结算申请数据异常')
+
+        ss.SSstatus = SupplizerSettementStatus.settlementing.value

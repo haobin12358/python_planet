@@ -25,6 +25,11 @@ class ProductFrom(Enum):
     # ..其他
 
 
+class UserAddressFrom(Enum):
+    user = 0, '用户'
+    supplizer = 10, '供应商'
+
+
 class ProductBrandStatus(Enum):
     """品牌状态"""
     upper = 0, '上架'
@@ -500,6 +505,7 @@ class ApprovalAction(Enum):
     submit = 0, '提交'
     cancle = -10, '取消'
 
+
 class PermissionNotesType(Enum):
     pt = 1, '审批流类型'
     pi = 0, '权限标签'
@@ -510,6 +516,13 @@ class PermissionNotesType(Enum):
 class UserMediaType(Enum):
     umfront = 1, '身份证正面'
     umback = 2, '身份证反面'
+
+
+class SupplizerSettementStatus(Enum):
+    settlementing = 0, '结算中'
+    settlemented = 1, '已结算'
+    approvaling = -1, '结算异常处理中'
+
 
 # class MagicBoxStatus()
 if __name__ == '__main__':

@@ -17,34 +17,36 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom
+
+
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
-    WXLoginError, StatusError
+    WXLoginError, StatusError, InsufficientConditionsError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
-    admin_required, is_supplizer
+    admin_required, is_supplizer, common_user
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
+from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
+from planet.extensions.register_ext import mp_server, mp_subscribe, db
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
-from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -300,6 +302,20 @@ class CUser(SUser, BASEAPPROVAL):
                 'apptype': WXLoginFrom.app.value
             }
 
+    def __check_apply_cash(self, commision_for):
+        """校验提现资质"""
+        if commision_for == ApplyFrom.user.value:
+            user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first()
+            if not user or not (user.USrealname and user.USidentification):
+                raise InsufficientConditionsError('没有实名认证')
+
+        elif commision_for == ApplyFrom.supplizer:
+            sa = SupplizerAccount.query.filter(
+                SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
+            if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
+                              and sa.SACompanyName and sa.SAICIDcode and sa.SAaddress and sa.SAbankAccount):
+                raise InsufficientConditionsError('账户信息和开票不完整，请补全账户信息和开票信息')
+
     @get_session
     def login(self):
         """手机验证码登录"""
@@ -498,14 +514,21 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取身份证详情成功', data=user)
 
     @get_session
-    @token_required
     def get_useraddress(self):
         """获取用户地址列表"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
-        useraddress_list = self.get_useraddress_by_usid(user.USid)
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} get address list'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} get address list'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
+        useraddress_list = self.get_useraddress_by_usid(usid, uafrom)
         for useraddress in useraddress_list:
             useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'AAid']
             uadefault = 1 if useraddress.UAdefault is True else 0
@@ -515,30 +538,39 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取个人地址成功', data=useraddress_list)
 
     @get_session
-    @token_required
     def add_useraddress(self):
         """添加收货地址"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} add address'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} add address'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         data = parameter_required(('uaname', 'uaphone', 'uatext', 'aaid'))
         uaid = str(uuid.uuid1())
         uadefault = data.get('uadefault', 0)
         uaphone = data.get('uaphone')
         uapostalcode = data.get('uapostalcode', '000000')
         aaid = data.get('aaid')
-        if not re.match(r'^[0|1]$', str(uadefault)):
+        if not re.match(r'^[01]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
-        if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+        if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
         self.get_addressinfo_by_areaid(aaid)
-        default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+        default_address = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'UAdefault': True,
+                                                          'isdelete': False})
         if default_address:
             if str(uadefault) == '1':
-                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
+                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False},
+                                                               {'UAdefault': False})
                 if not updateinfo:
                     raise SystemError('服务器繁忙')
                 uadefault = True
@@ -548,23 +580,33 @@ class CUser(SUser, BASEAPPROVAL):
             uadefault = True
         address = UserAddress.create({
             'UAid': uaid,
-            'USid': request.user.id,
+            'USid': usid,
             'UAname': data.get('uaname'),
             'UAphone': uaphone,
             'UAtext': data.get('uatext'),
             'UApostalcode': uapostalcode,
             'AAid': aaid,
-            'UAdefault': uadefault
+            'UAdefault': uadefault,
+            'UAFrom': uafrom
         })
         db.session.add(address)
         return Success('创建地址成功', {'uaid': uaid})
 
     @get_session
-    @token_required
     def update_useraddress(self):
         """修改收货地址"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} update address'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} update address'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         data = parameter_required(('uaid',))
         uaid = data.get('uaid')
         uadefault = data.get('uadefault')
@@ -572,25 +614,29 @@ class CUser(SUser, BASEAPPROVAL):
         uapostalcode = data.get('uapostalcode')
         uaisdelete = data.get('uaisdelete', 0)
         aaid = data.get('aaid')
-        if not re.match(r'^[0|1]$', str(uaisdelete)):
+        if not re.match(r'^[01]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
         usaddress = self.get_useraddress_by_filter({'UAid': uaid, 'isdelete': False})
         if not usaddress:
             raise NotFound('未找到要修改的地址信息')
+        assert usaddress.USid == usid, '只能修改自己账户下的地址'
         if aaid:
             self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
-            anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
+            anyone = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'isdelete': False,
+                                                     'UAdefault': False})
             if anyone:
                 self.update_useraddress_by_filter({'UAid': anyone.UAid, 'isdelete': False}, {'UAdefault': True})
         uaisdelete = True if str(uaisdelete) == '1' else False
         if uadefault:
-            if not re.match(r'^[0|1]$', str(uadefault)):
+            if not re.match(r'^[01]$', str(uadefault)):
                 raise ParamsError('uadefault, 参数异常')
-            default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+            default_address = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'UAdefault': True,
+                                                              'isdelete': False})
             if default_address:
                 if str(uadefault) == '1':
-                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
+                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False},
+                                                                   {'UAdefault': False})
                     if not updateinfo:
                         raise SystemError('服务器繁忙')
                     uadefault = True
@@ -599,7 +645,7 @@ class CUser(SUser, BASEAPPROVAL):
             else:
                 uadefault = True
         if uaphone:
-            if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+            if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
                 raise ParamsError('请填写正确的手机号码')
         if uapostalcode:
             if not re.match(r'^\d{6}$', str(uapostalcode)):
@@ -621,17 +667,26 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('修改地址成功', {'uaid': uaid})
 
     @get_session
-    @token_required
     def get_one_address(self):
         """获取单条地址信息详情"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} get address content'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} get address content'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         args = request.args.to_dict()
         uaid = args.get('uaid')
         if uaid:
             uafilter = {'UAid': uaid, 'isdelete': False}
         else:
-            uafilter = {'USid': user.USid, 'UAdefault': True, 'isdelete': False}
+            uafilter = {'USid': user.USid, 'UAFrom': uafrom, 'UAdefault': True, 'isdelete': False}
         get_address = self.get_useraddress_by_filter(uafilter)
         any_address = self.get_useraddress_by_filter({'USid': user.USid, 'isdelete': False})
         if not any_address:
@@ -778,6 +833,7 @@ class CUser(SUser, BASEAPPROVAL):
         # 资质认证
         self.check_idcode(data, user)
         check_result, check_reason = self.__check_qualifications(user)
+        db.session.flush()
         if check_result:
             # 资质认证ok，创建审批流
             avid = self.create_approval(self.APPROVAL_TYPE, request.user.id, request.user.id)
@@ -1471,6 +1527,8 @@ class CUser(SUser, BASEAPPROVAL):
             commision_for = ApplyFrom.supplizer.value
         else:
             commision_for = ApplyFrom.user.value
+        # 提现资质校验
+        self.__check_apply_cash(commision_for)
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
@@ -1743,3 +1801,93 @@ class CUser(SUser, BASEAPPROVAL):
     def _check_for_update(self, *args, **kwargs):
         """代理商是否可以升级"""
         pass
+
+    @get_session
+    @token_required
+    def settlenment(self):
+        """确认结算"""
+        if not is_supplizer():
+            raise AuthorityError('权限不足')
+        today = datetime.datetime.now()
+        data = request.json
+
+        day = today.day
+        if 1 < day < 22:
+            raise TimeError('未到结算时间，每月22号之后可以结算')
+        su = Supplizer.query.filter(Supplizer.SUid == request.user.id, Supplizer.isdelete == False).first()
+        if not su:
+            raise AuthorityError('账号已被回收')
+        ssid = data.get('ssid')
+
+        ss = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SSid == ssid, SupplizerSettlement.isdelete == False).first()
+        if not ss:
+            raise ParamsError('还在统计结算数据，晚点重试')
+        if ss.SSstatus != SupplizerSettementStatus.settlementing.value:
+            raise TimeError('结算处理中')
+
+        action = data.get('action', ApplyStatus.agree.value)
+        anabo = data.get('anabo')
+        if int(action) == ApprovalAction.agree.value:
+            ss.SSstatus = SupplizerSettementStatus.settlemented.value
+            uw = UserWallet.query.filter(
+                UserWallet.USid == su.SUid, UserWallet.isdelete == False,
+                UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
+            uw.UWbalance = float('%.2f' % (float(uw.UWbalance) + float(ss.SSdealamount)))
+            uw.UWcash = float('%.2f' % (float(uw.UWcash) + float(ss.SSdealamount)))
+            uw.UWtotal = float('%.2f' % (float(uw.UWtotal) + float(ss.SSdealamount)))
+            uw.UWexpect = float('%.2f' % (float(uw.UWexpect) - float(ss.SSdealamount)))
+        else:
+            ss.SSstatus = SupplizerSettementStatus.approvaling.value
+            ssa = SettlenmentApply.create({
+                'SSAid': str(uuid.uuid1()),
+                'SUid': su.SUid,
+                'SSid': ss.SSid,
+                'SSAabo': anabo
+            })
+            db.session.add(ssa)
+            db.session.flush()
+
+            self.create_approval('tosettlenment', su.SUid, ssa.SSAid)
+
+        return Success('结算处理')
+
+    @get_session
+    @token_required
+    def create_settlenment(self):
+        today = datetime.datetime.now()
+        su_comiission_list = UserCommission.query.filter(
+            UserCommission.USid == request.user.id,
+            UserCommission.isdelete == False,
+            UserCommission.UCstatus == UserCommissionStatus.in_account.value,
+            UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+            extract('month', UserCommission.createtime) == today.month,
+            extract('year', UserCommission.createtime) == today.year
+        ).all()
+        ss_total = sum(su.UCcommission or 0 for su in su_comiission_list)
+
+        ss = SupplizerSettlement.create({
+            'SSid': str(uuid.uuid1()),
+            'SUid': request.user.id,
+            'SSdealamount': float('%.2f' %float(ss_total)),
+            'SSstatus': SupplizerSettementStatus.settlementing.value
+        })
+        db.session.add(ss)
+        return Success('创建结算记录成功')
+
+    @token_required
+    def get_settlenment(self):
+        # if not is_supplizer():
+        #     raise AuthorityError('')
+        su = Supplizer.query.filter(
+            Supplizer.SUid == request.user.id, Supplizer.isdelete == False).first_('账号已回收')
+        ss_list = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SUid == request.user.id,
+            SupplizerSettlement.isdelete == False
+        ).all()
+
+        for ss in ss_list:
+            ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
+            ss.fill('suname', su.SUname)
+            ss.add('createtime')
+        return Success('获取结算记录成功', data=ss_list)

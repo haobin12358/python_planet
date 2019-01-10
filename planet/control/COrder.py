@@ -22,7 +22,7 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.secret import BASEDIR
 from planet.control.CCoupon import CCoupon
@@ -1642,19 +1642,38 @@ class COrder(CPay, CCoupon):
                 UserWallet.CommisionFor == user_commision.CommisionFor
             ).first()
             if user_wallet:
-                user_wallet.UWbalance += user_commision.UCcommission
-                user_wallet.UWtotal += user_commision.UCcommission
-                user_wallet.UWcash += user_commision.UCcommission
+                # 不同身份进账时间不同
+                # 如果是供应商，只增加期望值
+                if user_commision.CommisionFor == ApplyFrom.supplizer.value:
+                    user_wallet.UWexpect = float('%.2f'% (user_wallet.UWexpect + user_commision.UCcommission))
+                else:
+                    # 其他身份直接到账
+                    user_wallet.UWbalance = float('%.2f'% (user_wallet.UWbalance + user_commision.UCcommission))
+                    user_wallet.UWtotal = float('%.2f'% (user_wallet.UWtotal + user_commision.UCcommission))
+                    user_wallet.UWcash = float('%.2f'% (user_wallet.UWcash + user_commision.UCcommission))
                 db.session.add(user_wallet)
             else:
-                user_wallet_instance = UserWallet.create({
-                    'UWid': str(uuid.uuid1()),
-                    'USid': user_commision.USid,
-                    'UWbalance': user_commision.UCcommission,
-                    'UWtotal': user_commision.UCcommission,
-                    'UWcash': user_commision.UCcommission,
-                    'CommisionFor': user_commision.CommisionFor
-                })
+                # 创建和更新一个逻辑
+                if user_commision.CommisionFor == ApplyFrom.supplizer.value:
+                    user_wallet_instance = UserWallet.create({
+                        'UWid': str(uuid.uuid1()),
+                        'USid': user_commision.USid,
+                        'UWexpect': user_commision.UCcommission,
+                        'UWbalance': 0,
+                        'UWtotal': 0,
+                        'UWcash': 0,
+                        'CommisionFor': user_commision.CommisionFor
+                    })
+                else:
+                    user_wallet_instance = UserWallet.create({
+                        'UWid': str(uuid.uuid1()),
+                        'USid': user_commision.USid,
+                        'UWbalance': user_commision.UCcommission,
+                        'UWtotal': user_commision.UCcommission,
+                        'UWcash': user_commision.UCcommission,
+                        'UWexpect': user_commision.UCcommission,
+                        'CommisionFor': user_commision.CommisionFor
+                    })
                 db.session.add(user_wallet_instance)
             current_app.logger.info('佣金到账数量 {}'.format(user_commision))
         return opid
