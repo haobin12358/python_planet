@@ -24,6 +24,8 @@ class OrderListForm(BaseForm):
     createtime_end = DateField('结束时间')
     orastatus = IntegerField('审核处理状态')
     orstatus = IntegerField('售后物流处理状态')
+    paytime_start = DateField('付款开始时间')
+    paytime_end = DateField('付款结束时间')
 
     def validate_omstatus(self, raw):
         try:
