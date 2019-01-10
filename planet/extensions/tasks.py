@@ -4,7 +4,7 @@ from datetime import date, timedelta, datetime
 
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date, extract
+from sqlalchemy import cast, Date, extract, func
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
@@ -166,6 +166,7 @@ def fix_evaluate_status_error():
                 current_app.logger.info("----->  没有发现商品评价异常数据  <-----")
         current_app.logger.info("----->  更新结束，共更改{}条数据  <-----".format(str(count)))
 
+
 @celery.task(name='create_settlenment')
 def create_settlenment():
     """每月22号创建结算单"""
@@ -174,16 +175,18 @@ def create_settlenment():
         su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
         for su in su_list:
             today = datetime.now()
-            su_comiission_list = UserCommission.query.filter(
+            pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
+            tomonth_22 = date(year=today.year, month=today.month, day=22)
+            pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
+            su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
                 UserCommission.USid == su.SUid,
                 UserCommission.isdelete == False,
                 UserCommission.UCstatus == UserCommissionStatus.in_account.value,
                 UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                extract('month', UserCommission.createtime) == today.month,
-                extract('year', UserCommission.createtime) == today.year
-            ).all()
-            ss_total = sum(su.UCcommission or 0 for su in su_comiission_list)
-
+                UserCommission.createtime < tomonth_22,
+                UserCommission.createtime >= pre_month_22,
+            ).first()
+            ss_total = su_comiission[0]
             ss = SupplizerSettlement.create({
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
@@ -192,17 +195,18 @@ def create_settlenment():
             })
             db.session.add(ss)
 
+
 @celery.task()
 def auto_agree_task(avid):
     current_app.logger.info('avid is {}'.format(avid))
-    approval = Approval.query.filter(
-        Approval.isdelete == False,
-        Approval.AVstatus == ApplyStatus.wait_check.value,
-        Approval.AVid == avid
-    ).first()
     from planet.control.CApproval import CApproval
     cp = CApproval()
     with db.auto_commit():
+        approval = Approval.query.filter(
+            Approval.isdelete == False,
+            Approval.AVstatus == ApplyStatus.wait_check.value,
+            Approval.AVid == avid
+        ).first()
         if approval:
             current_app.logger.info('5分钟自动同意')
             current_app.logger.info(dict(approval))
@@ -211,7 +215,7 @@ def auto_agree_task(avid):
         try:
             cp.agree_action(approval)
             approval.AVstatus = ApplyStatus.agree.value
-        except NotFound:
+        except NotFound :
             current_app.logger.info('审批流状态有误')
             # 如果不存在的商品, 需要将审批流失效
             approval.AVstatus = ApplyStatus.cancle.value
@@ -219,17 +223,18 @@ def auto_agree_task(avid):
 
 
 @celery.task()
-def auto_cancle_order(omid):
-    from planet.control.COrder import COrder
-    order_main = OrderMain.query.filter(OrderMain.isdelete == False,
-                                        OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
-                                        OrderMain.OMid == omid).first()
-    if not order_main:
-        current_app.logger.info('订单已支付或已取消')
-        return
-    current_app.logger.info('订单自动取消{}'.format(dict(order_main)))
-    corder = COrder()
-    corder._cancle(order_main)
+def auto_cancle_order(args):
+    for omid in args:
+        from planet.control.COrder import COrder
+        order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                            OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
+                                            OrderMain.OMid == omid).first()
+        if not order_main:
+            current_app.logger.info('订单已支付或已取消')
+            return
+        current_app.logger.info('订单自动取消{}'.format(dict(order_main)))
+        corder = COrder()
+        corder._cancle(order_main)
 
 
 
@@ -238,7 +243,7 @@ if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         # fetch_share_deal()
-        auto_evaluate()
+        create_settlenment()
 
 # # 今日结果
 # db_today = CorrectNum.query.filter(
