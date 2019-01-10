@@ -855,7 +855,7 @@ class CApproval(BASEAPPROVAL):
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
         cn.CNstatus = ApprovalAction.agree.value
-        uw.UWbalance = float('%.2f' %(uw.UWbalance - cn.CNcashNum))
+        uw.UWbalance = Decimal(str(uw.UWbalance)) - Decimal(str(cn.CNcashNum))
 
     def refuse_cash(self, approval_model, refuse_abo):
         if not approval_model:
@@ -867,7 +867,7 @@ class CApproval(BASEAPPROVAL):
         cn.CNrejectReason = refuse_abo
         uw = UserWallet.query.filter_by_(USid=cn.USid).first_("提现审批异常数据")
         # 拒绝提现时，回退申请的钱到可提现余额里
-        uw.UWcash = float('%.2f' %(float(uw.UWcash) + float(cn.CNcashNum)))
+        uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(cn.CNcashNum))
 
     def agree_agent(self, approval_model):
         user = User.query.filter_by_(USid=approval_model.AVstartid).first_('数据异常')

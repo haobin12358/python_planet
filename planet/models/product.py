@@ -186,8 +186,8 @@ class Supplizer(Base):
     SUregisteredTime = Column(DateTime, comment='注册时间')
     SUlegalPerson = Column(Text, comment='法人姓名')
     SUemail = Column(String(256), comment='供应商邮箱')
-    SUlegalPersonIDcardFront = Column(Text, comment='法人身份证正面')
-    SUlegalPersonIDcardBack = Column(Text, comment='法人身份证正面')
+    SUlegalPersonIDcardFront = Column(Text, url=True, comment='法人身份证正面')
+    SUlegalPersonIDcardBack = Column(Text, url=True, comment='法人身份证正面')
 
 
 class SupplizerProduct(Base):

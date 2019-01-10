@@ -14,7 +14,8 @@ from planet.extensions.register_ext import db
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
-    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply
+    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
+    SupplizerSettlement
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -203,7 +204,11 @@ class BASEAPPROVAL():
         uw = UserWallet.query.filter(UserWallet.USid == startid, UserWallet.isdelete == False).first()
         if not start_model or not content:
             return None, None
+        ss = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SSid == content.SSid, SupplizerSettlement.isdelete == False).first_('结算异常申请数据异常')
+
         if not uw:
+
             content.fill('uwtotal', uw.UWtotal or 0)
             content.fill('uwbalance', uw.UWbalance or 0)
             content.fill('uwexpect', uw.UWexpect or 0)
@@ -213,6 +218,7 @@ class BASEAPPROVAL():
             content.fill('uwbalance', 0)
             content.fill('uwexpect', 0)
             content.fill('uwcash', 0)
+        content.fill('createtime', ss.createtime)
         return start_model, content
 
     def __fill_agent(self, startid, contentid=None):

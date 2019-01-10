@@ -3,11 +3,11 @@ import re
 import uuid
 import json
 from threading import Thread
-
 from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
+from planet.common.base_service import get_session
 from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -16,7 +16,7 @@ from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, A
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer, ProductBrand, Products, UserWallet
+from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount
 
 
 class CSupplizer:
@@ -75,6 +75,14 @@ class CSupplizer:
                 'SUpassword': generate_password_hash(form.supassword.data),
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
+                'SUbusinessLicense': form.subusinesslicense.data,
+                'SUregisteredFund': form.suregisteredfund.data,
+                'SUmainCategory': form.sumaincategory.data,
+                'SUregisteredTime': form.suregisteredtime.data,
+                'SUlegalPerson': form.sulegalperson.data,
+                'SUemail': form.suemail.data,
+                'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
+                'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
             })
             db.session.add(supperlizer)
             if pbids:
@@ -112,6 +120,7 @@ class CSupplizer:
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
+                'SUemail': form.suemail.data,
             }, null='dont ignore')
             db.session.add(supplizer)
             if pbids and is_admin():
@@ -302,9 +311,47 @@ class CSupplizer:
             response_send_message = SendSMS(mobile, params)
             if not response_send_message:
                 current_app.logger.error('发送失败')
+    @get_session
+    @token_required
+    def set_supplizeraccount(self):
+        if not is_supplizer():
+            raise AuthorityError
 
+        from flask import request
+        data = request.json
+        # todo 数据校验
+        sa = SupplizerAccount.query.filter(
+            SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
 
+        if sa:
+            for key in sa.__dict__:
+                if str(key).lower() in data:
+                    if str(key).lower() == 'suid':
+                        continue
+                    setattr(sa, key, data.get(str(key).lower()))
+        else:
+            sa_dict = {}
+            for key in SupplizerAccount.__dict__:
 
+                if str(key).lower() in data:
+                    if str(key).lower() == 'suid':
+                        continue
+                    if not data.get(str(key).lower()):
+                        continue
+                    sa_dict.setdefault(key, data.get(str(key).lower()))
+            sa_dict.setdefault('SAid', str(uuid.uuid1()))
+            sa_dict.setdefault('SUid', request.user.id)
+            sa = SupplizerAccount.create(sa_dict)
+            db.session.add(sa)
 
+        return Success('设置供应商账户信息成功')
 
+    @token_required
+    def get_supplizeraccount(self):
 
+        from flask import request
+        sa = SupplizerAccount.query.filter(
+            SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
+        # if not sa:
+
+        return Success('获取供应商账户信息成功', data=sa)

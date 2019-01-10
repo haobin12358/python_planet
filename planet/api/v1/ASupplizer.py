@@ -11,6 +11,7 @@ class ASupplizer(Resource):
             'list': self.csupplizer.list,
             'get': self.csupplizer.get,
             'code': self.csupplizer.send_reset_password_code,
+            'get_supplizeraccount': self.csupplizer.get_supplizeraccount,
         }
         return apis
 
@@ -22,5 +23,6 @@ class ASupplizer(Resource):
             'reset_password': self.csupplizer.reset_password,
             'change_password': self.csupplizer.change_password,
             'offshelves': self.csupplizer.offshelves,
+            'set_supplizeraccount': self.csupplizer.set_supplizeraccount,
         }
         return apis

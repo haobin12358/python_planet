@@ -1789,7 +1789,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
-            cash_note.fill('cnstatus', ApplyStatus(cash_note.CNstatus).zh_value)
+            cash_note.fill('cnstatus', ApprovalAction(cash_note.CNstatus).zh_value)
 
         return Success('获取提现记录成功' ,data=cash_notes)
 
@@ -1912,6 +1912,3 @@ class CUser(SUser, BASEAPPROVAL):
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
 
-    @token_required
-    def set_supplizeraccount(self):
-        pass
