@@ -1,4 +1,5 @@
 import random
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -361,6 +362,9 @@ class CMagicBox(CUser, COrder):
         elif not isinstance(gearsthree, list):
             raise ParamsError('gearsthree格式错误')
         gearsone, gearstwo, gearsthree = json.dumps(gearsone), json.dumps(gearstwo), json.dumps(gearsthree)
+        for test_str in (gearsone, gearstwo, gearsthree):
+            if not re.match(r'^\[(\"\d+\-\d+\"\,? ?)+\]$', test_str):
+                raise ParamsError('档次变化金额只能填写数字')
         mbafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
@@ -379,6 +383,8 @@ class CMagicBox(CUser, COrder):
         award_instance_list = list()
         mbaid_list = list()
         skustock = int(skustock)
+        if skustock == 0:
+            raise ParamsError('申请参与的库存数不能为0')
         with db.auto_commit():
             # 活动出库单
             osid = str(uuid.uuid1())
