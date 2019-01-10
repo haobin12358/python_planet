@@ -687,11 +687,10 @@ class CUser(SUser, BASEAPPROVAL):
             uafilter = {'UAid': uaid, 'isdelete': False}
         else:
             uafilter = {'USid': user.USid, 'UAFrom': uafrom, 'UAdefault': True, 'isdelete': False}
-        get_address = self.get_useraddress_by_filter(uafilter)
-        any_address = self.get_useraddress_by_filter({'USid': user.USid, 'isdelete': False})
-        if not any_address:
+        address = self.get_useraddress_by_filter(uafilter) or self.get_useraddress_by_filter({'USid': user.USid,
+                                                                                              'isdelete': False})
+        if not address:
             raise NotFound('用户未设置任何地址信息')
-        address = get_address or any_address
         addressinfo = self._get_addressinfo_by_areaid(address.AAid)
         address.fill('areainfo', addressinfo)
         address.fill('addressinfo', addressinfo + getattr(address, 'UAtext', ''))
