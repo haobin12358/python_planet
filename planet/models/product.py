@@ -180,7 +180,14 @@ class Supplizer(Base):
     SUpassword = Column(String(255), comment='供应商密码密文')
     SUheader = Column(String(255), comment='头像', url=True)
     SUcontract = Column(Text, url_list=True, comment='合同列表')
-    # 其他
+    SUbusinessLicense = Column(Text, url=True, comment='营业执照')
+    SUregisteredFund = Column(String(255), comment='注册资金')
+    SUmainCategory = Column(Text, comment='主营类目')
+    SUregisteredTime = Column(DateTime, comment='注册时间')
+    SUlegalPerson = Column(Text, comment='法人姓名')
+    SUemail = Column(String(256), comment='供应商邮箱')
+    SUlegalPersonIDcardFront = Column(Text, comment='法人身份证正面')
+    SUlegalPersonIDcardBack = Column(Text, comment='法人身份证正面')
 
 
 class SupplizerProduct(Base):
@@ -189,6 +196,42 @@ class SupplizerProduct(Base):
     SPid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, index=True, comment='商品id')
     SUid = Column(String(64), nullable=False, comment='供应商id')
+
+
+class SupplizerAccount(Base):
+    """供应商账户信息表"""
+    __tablename__ = 'SupplizerAccount'
+    SAid = Column(String(64), primary_key=True)
+    SPid = Column(String(64), comment='供应商id')
+    SAbankName = Column(Text,comment='开户行')
+    SAbankDetail = Column(Text, comment='开户网点详情')
+    SAcardNo = Column(String(32), comment='卡号')
+    SAcardName = Column(Text, comment='开户人')
+    SACompanyName = Column(Text, comment='公司名')
+    SAICIDcode = Column(Text, comment='纳税识别码')
+    SAaddress = Column(Text, comment='地址电话')
+    SAbankAccount = Column(Text, comment='开票信息的银行账户')
+
+
+class SupplizerSettlement(Base):
+    """供应商结算记录"""
+    __tablename__ = 'SupplizerSettlement'
+    SSid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商id')
+    SSstatus = Column(Integer, default=0, comment='结算状态 0 结算中 1 已结算 -1 结算异常处理中 ')
+    SSdealTime = Column(DateTime, comment='确认核算时间')
+    SSdealamount = Column(DECIMAL(precision=28, scale=2), comment='确认核算金额')
+
+
+class SettlenmentApply(Base):
+    """供应商结算异常申请"""
+    __tablename__ = 'SettlenmentApply'
+    SSAid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商id')
+    SSid = Column(String(64), comment='结算id')
+    SSAabo = Column(Text, comment='结算异常原因')
+    SSArejectReason = Column(Text, comment='拒绝理由')
+    SSAstatus = Column(Integer, default=0, comment='申请状态')
 
 
 # class SupplizerBrand(Base):

@@ -139,55 +139,7 @@ def make_permissiontype():
             'PTname': '提现申请',
             'PTmodelName': 'CashNotes'
         })
-        db.session.add(tocash)
-        toshelves = PermissionType.create({
-            'PTid': 'toshelves',
-            'PTname': '商品上架申请',
-            'PTmodelName': 'Products'
-        })
-        db.session.add(toshelves)
-        topublish = PermissionType.create({
-            'PTid': 'topublish',
-            'PTname': '资讯发布申请',
-            'PTmodelName': 'News'
-        })
-        db.session.add(topublish)
-        toguessnum = PermissionType.create({
-            'PTid': 'toguessnum',
-            'PTname': '猜数字活动申请',
-            'PTmodelName': 'GuessNumAwardApply'
-        })
-        db.session.add(toguessnum)
-        tomagicbox = PermissionType.create({
-            'PTid': 'tomagicbox',
-            'PTname': '魔盒活动申请',
-            'PTmodelName': 'MagicBoxApply'
-        })
-        db.session.add(tomagicbox)
-        tofreshmanfirstproduct = PermissionType.create({
-            'PTid': 'tofreshmanfirstproduct',
-            'PTname': '新人首单商品活动申请',
-            'PTmodelName': 'FreshManFirstApply'
-        })
-        db.session.add(tofreshmanfirstproduct)
-        totrialcommodity = PermissionType.create({
-            'PTid': 'totrialcommodity',
-            'PTname': '试用商品上架申请',
-            'PTmodelName': 'TrialCommodity'
-        })
-        db.session.add(totrialcommodity)
-        toreturn = PermissionType.create({
-            'PTid': 'toreturn',
-            'PTname': '退货审请',
-            'PTmodelName': 'TrialCommodity'
-        })
-        db.session.add(toreturn)
-        toactivationcode = PermissionType.create({
-            'PTid': 'toactivationcode',
-            'PTname': '激活码购买申请',
-            'PTmodelName': 'ActivationCodeApply'
-        })
-        db.session.add(toactivationcode)
+        db.session.add(tosettlenment)
 
 
 def make_admin():

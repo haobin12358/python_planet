@@ -110,3 +110,9 @@ class WXLoginError(BaseError):
     status = 405
     status_code = 405012
     message = '微信登录失败'
+
+
+class InsufficientConditionsError(BaseError):
+    status = 405
+    status_code = 40513
+    message = '条件不足'

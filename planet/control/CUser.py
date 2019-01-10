@@ -17,13 +17,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
-    WXLoginError, StatusError
+    WXLoginError, StatusError, InsufficientConditionsError
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
@@ -34,17 +34,17 @@ from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
+from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
+from planet.extensions.register_ext import mp_server, mp_subscribe, db
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
-from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -299,6 +299,20 @@ class CUser(SUser, BASEAPPROVAL):
                 'usfilter': 'USopenid1',
                 'apptype': WXLoginFrom.app.value
             }
+
+    def __check_apply_cash(self, commision_for):
+        """校验提现资质"""
+        if commision_for == ApplyFrom.user.value:
+            user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first()
+            if not user or not (user.USrealname and user.USidentification):
+                raise InsufficientConditionsError('没有实名认证')
+
+        elif commision_for == ApplyFrom.supplizer:
+            sa = SupplizerAccount.query.filter(
+                SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
+            if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
+                              and sa.SACompanyName and sa.SAICIDcode and sa.SAaddress and sa.SAbankAccount):
+                raise InsufficientConditionsError('账户信息和开票不完整，请补全账户信息和开票信息')
 
     @get_session
     def login(self):
@@ -1471,6 +1485,8 @@ class CUser(SUser, BASEAPPROVAL):
             commision_for = ApplyFrom.supplizer.value
         else:
             commision_for = ApplyFrom.user.value
+        # 提现资质校验
+        self.__check_apply_cash(commision_for)
         data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
@@ -1743,3 +1759,53 @@ class CUser(SUser, BASEAPPROVAL):
     def _check_for_update(self, *args, **kwargs):
         """代理商是否可以升级"""
         pass
+
+    @token_required
+    def Settlement(self):
+        """确认结算"""
+        if not is_supplizer():
+            raise AuthorityError('权限不足')
+        today = datetime.datetime.now()
+        data = request.json
+
+        day = today.day
+        if 1 < day < 22:
+            raise TimeError('未到结算时间，每月22号之后可以结算')
+        su = Supplizer.query.filter(Supplizer.SUid == request.user.id, Supplizer.isdelete == False).first()
+        if not su:
+            raise AuthorityError('账号已被回收')
+        ssid = data.get('ssid')
+
+        ss = SupplizerSettlement.query.filter(
+            SupplizerSettlement.SSid == ssid, SupplizerSettlement.isdelete == False).first()
+        if not ss:
+            raise ParamsError('还在统计结算数据，晚点重试')
+        if ss.SSstatus != SupplizerSettementStatus.settlementing:
+            raise TimeError('结算处理中')
+
+        action = data.get('action')
+        anabo = data.get('anabo')
+        if int(action) == ApprovalAction.agree.value:
+            ss.SSstatus = SupplizerSettementStatus.settlemented.value
+            uw = UserWallet.query.filter(
+                UserWallet.USid == su.SUid, UserWallet.isdelete == False,
+                UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
+            uw.UWbalance = float('%.2f' % (float(uw.UWbalance) + float(ss.SSdealamount)))
+            uw.UWcash = float('%.2f' % (float(uw.UWcash) + float(ss.SSdealamount)))
+            uw.UWtotal = float('%.2f' % (float(uw.UWtotal) + float(ss.SSdealamount)))
+            uw.UWexpect = float('%.2f' % (float(uw.UWexpect) - float(ss.SSdealamount)))
+        else:
+            ss.SSstatus = SupplizerSettementStatus.approvaling.value
+            ssa = SettlenmentApply.create({
+                'SSAid': str(uuid.uuid1()),
+                'SUid': su.SUid,
+                'SSid': ss.SSid,
+                'SSAabo': anabo
+            })
+            db.session.add(ssa)
+            db.session.flush()
+
+            self.create_approval('tosettlement', su.SUid, ssa.SSAid)
+
+        return Success('结算处理')
+

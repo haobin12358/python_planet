@@ -212,6 +212,7 @@ class UserWallet(Base):
     UWbalance = Column(DECIMAL(precision=28, scale=2), comment='用户账户余额')
     UWtotal = Column(DECIMAL(precision=28, scale=2), comment='用户账户总额')
     UWcash = Column(DECIMAL(precision=28, scale=2), comment='用户账号可提现余额')
+    UWexpect = Column(DECIMAL(precision=28, scale=2), comment='用户账号预期到账金额')
 
 
 class CashNotes(Base):
