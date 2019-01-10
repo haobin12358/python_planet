@@ -45,7 +45,7 @@ class STrade(SBase):
     @close_session
     def get_orderrefundapply_one(self, args, error=None):
         """获取单个售后申请"""
-        return self.session.query(OrderRefundApply).filter_by_(args).first_(error)
+        return self.session.query(OrderRefundApply).filter_by_(args).order_by(OrderRefundApply.createtime.desc()).first_(error)
 
 
     @close_session

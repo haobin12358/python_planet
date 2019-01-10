@@ -18,7 +18,7 @@ from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, 
 from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
-    OrderRefundFlow, OrderPay
+    OrderRefundFlow, OrderPay, OrderRefundNotes
 from planet.service.STrade import STrade
 
 
@@ -122,16 +122,16 @@ class CRefund(object):
             s_list = []
             refund_apply_instance = s.query(OrderRefundApply).filter_by_({'ORAid': oraid, 'ORAstatus': ApplyStatus.wait_check.value }).first_('申请已处理或不存在')
             refund_apply_instance.ORAcheckTime = datetime.now()
+            # 获取订单
+            if refund_apply_instance.OMid:
+                order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
+            else:
+                order_part_instance = s.query(OrderPart).filter(OrderPart.OPid == refund_apply_instance.OPid).first()
+                order_main_instance = s.query(OrderMain).filter_by({'OMid': order_part_instance.OMid}).first()
             if agree is True:
                 refund_apply_instance.ORAstatus = ApplyStatus.agree.value
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.only_money.value:  # 仅退款
                     # 退款流水表
-                    # 售后申请中可能没有omid或没有opid, 下句有误
-                    if refund_apply_instance.OMid:
-                        order_main_instance = s.query(OrderMain).filter_by({'OMid': refund_apply_instance.OMid}).first()
-                    else:
-                        order_part_instance = s.query(OrderPart).filter(OrderPart.OPid == refund_apply_instance.OPid).first()
-                        order_main_instance = s.query(OrderMain).filter_by({'OMid': order_part_instance.OMid}).first()
                     order_pay_instance = s.query(OrderPay).filter(
                         OrderPay.isdelete == False,
                         OrderPay.OPayno == order_main_instance.OPayno
@@ -158,6 +158,8 @@ class CRefund(object):
                         old_total_fee=old_total_fee
                     )
                     msg = '已同意, 正在退款'
+                    # 佣金
+                    self._cancle_commision()
 
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 取消原来的退货表, (主要是因为因为可能因撤销为未完全删除)
@@ -189,6 +191,28 @@ class CRefund(object):
                 refund_apply_instance.ORAstatus = ApplyStatus.agree.value
             else:
                 refund_apply_instance.ORAstatus = ApplyStatus.reject.value
+                if refund_apply_instance.OMid:
+                    order_main_instance.OMinRefund = False
+                    db.session.add(order_main_instance)
+                    db.session.add(OrderRefundNotes.create({
+                        'ORNid': str(uuid.uuid1()),
+                        'OMid': refund_apply_instance.OMid,
+                        'UserName': request.user.username,
+                        'USid': request.user.id,
+                        'ORNaction': -1,  # 拒绝
+                        'ORNabo': data.get('oracheckreason')
+                    }))
+                else:
+                    order_part_instance.OPisinORA = False
+                    db.session.add(order_part_instance)
+                    db.session.add(OrderRefundNotes.create({
+                        'ORNid': str(uuid.uuid1()),
+                        'OPid': order_part_instance.OPid,
+                        'UserName': request.user.username,
+                        'USid': request.user.id,
+                        'ORNaction': -1,  # 拒绝
+                        'ORNabo': data.get('oracheckreason')
+                    }))
                 msg = '拒绝成功'
             refund_apply_instance.ORAcheckReason = data.get('oracheckreason')
             refund_apply_instance.ORAcheckTime = datetime.now()
@@ -231,6 +255,14 @@ class CRefund(object):
                 # TODO 执行退款
                 # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
                 # old_total_fee = order_pay_instance.OPayMount
+                refund_flow_instance = OrderRefundFlow.create({
+                    'ORFid': str(uuid.uuid1()),
+                    'ORAid': oraid,
+                    'ORAmount': refund_apply_instance.ORAmount,
+                    'OPayno': order_main_instance.OPayno,
+                    'OPayType': order_pay_instance.OPayType,
+                })
+                db.session.add(refund_flow_instance)
                 mount = 0.01
                 old_total_fee = 0.01
                 self._refund_to_user(  # 执行退款, 待测试
@@ -312,6 +344,11 @@ class CRefund(object):
                 OrderPart.OPid == opid,
                 OrderPart.isdelete == False
             ).first_('不存在的订单详情')
+            # 删除原来的
+            OrderRefundNotes.query.filter(
+                OrderRefundNotes.isdelete == False,
+                OrderRefundNotes.OPid == order_part.OPid
+            ).delete_()
             # 所在主单的副单个数
             order_part_count = OrderPart.query.filter_by_({
                 'OMid': order_part.OMid
@@ -346,9 +383,10 @@ class CRefund(object):
             ).first_('不存在的订单')
             if order_main.OMinRefund == True:
                 raise DumpliError('主订单已在售后中, 请勿重复申请')
-            apply = OrderRefundApply.query.filter_by_({
-                'OPid': opid
-            }).first()
+            apply = OrderRefundApply.query.filter(
+                OrderRefundApply.OPid == opid,
+                OrderRefundApply.isdelete == False,
+                OrderRefundApply.ORAstatus != ApplyStatus.reject.value).first()
             if apply and apply.ORAstatus != ApplyStatus.cancle.value:
                 raise DumpliError('订单已在售后中, 请勿重复申请')
             elif apply:
@@ -366,9 +404,9 @@ class CRefund(object):
             ORAproductStatus(oraproductstatus)
             oramount = data.get('oramount')
             if oramount:
-                oramount = float(oramount)
+                oramount = Decimal(str((oramount)))
             if not oramount or oramount > order_part.OPsubTrueTotal:
-                raise ParamsError('oramount退款金额不正确')
+                raise ParamsError('退款金额不正确')
             oraddtionvoucher = data.get('oraddtionvoucher')
             if oraddtionvoucher and isinstance(oraddtionvoucher, list):
                 oraddtionvoucher = oraddtionvoucher
@@ -402,6 +440,10 @@ class CRefund(object):
     def _order_main_refund(self, omid, usid, data):
         with self.strade.auto_commit() as s:
             s_list = []
+            OrderRefundNotes.query.filter(
+                OrderRefundNotes.isdelete == False,
+                OrderRefundNotes.OMid == OrderMain.OMid
+            ).delete_()
             order_main = s.query(OrderMain).filter_(
                 OrderMain.OMid == omid,
                 OrderMain.OMstatus.notin_([
@@ -414,16 +456,20 @@ class CRefund(object):
             if order_main.OMinRefund is True:
                 raise DumpliError('已经在售后中')
             # 之前的申请
-            apply = OrderRefundApply.query.filter_by_({
-                # 'ORAstatus': ApplyStatus.cancle.value,
-                'OMid': order_main.OMid
-            }).first()
-            # if not cancled_apply:
-            #     raise DumpliError('订单已在售后中, 请勿重复申请')
+            apply = OrderRefundApply.query.filter(
+                OrderRefundApply.isdelete == False,
+                OrderRefundApply.OMid == order_main.OMid,
+                OrderRefundApply.ORAstatus.notin_([
+                    ApplyStatus.reject.value,
+                    ApplyStatus.cancle.value,
+                ]),
+            ).first()
+            if apply:
+                raise DumpliError('订单已在售后中, 请勿重复申请')
             if apply:
                 apply.isdelete = True
                 s_list.append(apply)
-            # 申请主单售后, 所有的副单不可以有在未撤销的售后状态
+            # 申请主单售后, 所有的副单不可以有在未撤销的售后状态或未被拒绝
             order_parts_in_refund = OrderPart.query.filter_by_({
                 'OMid': omid,
                 'OPisinORA': True
@@ -439,7 +485,6 @@ class CRefund(object):
                 elif part_apply:
                     part_apply.isdelete = True
                     s_list.append(part_apply)
-            current_app.logger.info('删除原来的申请')
             order_main.OMinRefund = True  # 主单状态
             s_list.append(order_main)
             # 申请参数校验
@@ -453,7 +498,7 @@ class CRefund(object):
                 raise ParamsError('orastate参数错误')
             oramount = data.get('oramount')
             if oramount:
-                oramount = float(oramount)
+                oramount = Decimal(str(oramount))
             if not oramount or oramount > order_main.OMtrueMount:
                 raise ParamsError('oramount退款金额不正确')
             # 不改变副单的状态
@@ -509,5 +554,10 @@ class CRefund(object):
             if result["code"] != "10000":
                 raise ApiError('退款错误')
         return result
+
+    def _cancle_commision(self, *args, **kwargs):
+        order_main = kwargs.get('order_main')
+        order_part = kwargs.get('order_part')
+        
 
 # todo 售后物流

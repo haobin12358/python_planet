@@ -35,6 +35,7 @@ class AOrder(Resource):
             'evaluation': self.corder.get_evaluation,
             'history_detail': self.corder.history_detail,
             'autoevaluation': self.corder.get_autoevaluation_time,
+            'export_xls': self.corder.export_xls,
         }
         return apis
 

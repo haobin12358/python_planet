@@ -176,6 +176,7 @@ class CMagicBox(CUser, COrder):
             prid = magic_box_apply.PRid
             skuid = magic_box_apply.SKUid
             price = magic_box_join.MBJcurrentPrice
+            old_price = magic_box_join.MBJprice
             pbid = magic_box_apply.PBid
             current_app.logger.info(pbid)
             product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
@@ -209,7 +210,7 @@ class CMagicBox(CUser, COrder):
                 'PBid': pbid,
                 'OMclient': omclient,
                 'OMfreight': 0,  # 运费暂时为0
-                'OMmount': price,
+                'OMmount': old_price,
                 'OMmessage': ommessage,
                 'OMtrueMount': price,
                 # 收货信息
@@ -229,7 +230,7 @@ class CMagicBox(CUser, COrder):
                 'PRattribute': product.PRattribute,
                 'SKUattriteDetail': sku.SKUattriteDetail,
                 'PRtitle': product.PRtitle,
-                'SKUprice': price,
+                'SKUprice': old_price,
                 'PRmainpic': product.PRmainpic,
                 'OPnum': 1,
                 'PRid': product.PRid,
@@ -238,6 +239,7 @@ class CMagicBox(CUser, COrder):
                 'PRfrom': product.PRfrom,
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
+                'UPperid3': user.USsupper3,
                 # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
