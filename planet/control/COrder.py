@@ -56,7 +56,7 @@ class COrder(CPay, CCoupon):
         createtime_start = form.createtime_start.data
         createtime_end = form.createtime_end.data
         order_main_query = OrderMain.query.filter(OrderMain.isdelete == False)
-        order_by = OrderMain.updatetime.desc(), OrderMain.createtime.desc()
+        order_by = [OrderMain.updatetime.desc(), OrderMain.createtime.desc()]
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
@@ -70,35 +70,8 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMinRefund == False
             )
         if omstatus == 'refund':
-            # 后台获得售后订单(获取主单售后和附单售后)
-            if is_admin() or is_supplizer():
-                order_by = (OrderRefundApply.updatetime.desc(), )
-                order_main_query = order_main_query.join(
-                    OrderPart, OrderMain.OMid == OrderPart.OMid
-                ).filter(
-                    or_(and_(OrderPart.isdelete == False,
-                             OrderPart.OPisinORA == True),
-                        (OrderMain.OMinRefund == True),
-                        )
-                )
-
-                if orastatus is not None:  # 售后的审核状态
-                    order_main_query = order_main_query.filter(
-                        or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
-                        OrderRefundApply.ORAstatus == orastatus,
-                        OrderRefundApply.isdelete == False
-                    )
-                if orstatus is not None:  # 售后的物流状态
-                    order_main_query = order_main_query.filter(
-                        or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
-                        OrderRefundApply.ORAid == OrderRefund.ORAid,
-                        OrderRefund.ORstatus == orstatus
-                    )
-            else:
-                order_main_query = order_main_query.filter(
-                    OrderMain.OMinRefund == True
-                )
-
+            order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
+            # order_by = [OrderRefundApply.updatetime.desc()]
         elif omstatus:
             order_main_query = order_main_query.filter(*omstatus)
         if is_supplizer():
@@ -169,7 +142,6 @@ class COrder(CPay, CCoupon):
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)
         pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
-
         form = OrderListForm().valid_data()
         list_part = self._list_part(form=form, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
         list_refund = self._list_refund(form=form, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
@@ -409,7 +381,6 @@ class COrder(CPay, CCoupon):
             OrderPay.createtime > pre_month
         ).first()
         return total[0] or 0
-
 
     @token_required
     def create(self):
@@ -1153,13 +1124,15 @@ class COrder(CPay, CCoupon):
                                                                [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                            *filter_args).distinct().count()
                 else:
-                    refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
-                        OrderMain.isdelete == False,
-                        or_(and_(OrderPart.isdelete == False,
-                                 OrderPart.OPisinORA == True),
-                            (OrderMain.OMinRefund == True)),
-                        OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
-                        *filter_args).distinct().count()
+                    order_main_query = self._refund_query(OrderMain.query, None, None)
+                    refund_count = order_main_query.group_by(OrderMain.OMid).count()
+                    # refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
+                    #     OrderMain.isdelete == False,
+                    #     or_(and_(OrderPart.isdelete == False,
+                    #              OrderPart.OPisinORA == True),
+                    #         (OrderMain.OMinRefund == True)),
+                    #     OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                    #     *filter_args).distinct().count()
                 data.append(  #
                     {
                         'count': refund_count,
@@ -1203,13 +1176,12 @@ class COrder(CPay, CCoupon):
                                                                [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                            *filter_args).distinct().count()
                 else:
-                    refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
-                        OrderMain.isdelete == False,
-                        or_(and_(OrderPart.isdelete == False,
-                                 OrderPart.OPisinORA == True),
-                            (OrderMain.OMinRefund == True)),
-                        OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
-                        *filter_args).distinct().count()
+                    order_main_query = self._refund_query(OrderMain.query.filter(
+                        OrderMain.OMfrom.in_(
+                            [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                        *filter_args
+                    ), None, None)
+                    refund_count = order_main_query.group_by(OrderMain.OMid).count()
                 data.append(  #
                     {
                         'count': refund_count,
@@ -1868,3 +1840,50 @@ class COrder(CPay, CCoupon):
                 order_refund_apply_instance = self._get_refund_apply({'OPid': opid})
                 self._fill_order_refund(order_part, order_refund_apply_instance)
                 order_part.fill('order_refund_notes', order_refund_notes)
+
+    def _refund_query(self, order_main_query, orastatus, orstatus):
+        # 后台获得售后订单(获取主单售后和附单售后)
+        if is_admin() or is_supplizer():
+            current_app.logger.info('查看售后的订单')
+            order_main_query = order_main_query.join(
+                OrderPart, OrderMain.OMid == OrderPart.OMid
+            ).filter(
+                or_(and_(OrderRefundApply.OMid == OrderMain.OMid, OrderRefundApply.isdelete == False),
+                    and_(OrderPart.OPid == OrderRefundApply.OPid, OrderRefundApply.isdelete == False,
+                         OrderPart.isdelete == False)),
+            ).filter(
+                or_(
+                    and_(OrderPart.isdelete == False, OrderPart.OPisinORA == True),
+                    OrderMain.OMinRefund == True,
+                    and_(OrderRefundApply.OMid == OrderMain.OMid,
+                         OrderRefundApply.isdelete == False,
+                         OrderRefundApply.ORAstatus == ApplyStatus.reject.value,
+                         OrderMain.OMinRefund == False
+                         ),
+                    and_(OrderRefundApply.OPid == OrderPart.OPid,
+                         OrderPart.isdelete == False,
+                         OrderRefundApply.isdelete == False,
+                         OrderRefundApply.ORAstatus == ApplyStatus.reject.value,
+                         OrderPart.OPisinORA == False,
+                         ),
+                )
+            )
+            print(order_main_query.count())
+            if orastatus is not None:  # 售后的审核状态
+                order_main_query = order_main_query.filter(
+                    or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
+                    OrderRefundApply.ORAstatus == orastatus,
+                    OrderRefundApply.isdelete == False
+                )
+            if orstatus is not None:  # 售后的物流状态
+                order_main_query = order_main_query.filter(
+                    or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
+                    OrderRefundApply.ORAid == OrderRefund.ORAid,
+                    OrderRefund.ORstatus == orstatus
+                )
+        else:
+            order_main_query = order_main_query.filter(
+                OrderMain.OMinRefund == True
+            )
+        return order_main_query
+
