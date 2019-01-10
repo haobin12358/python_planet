@@ -444,6 +444,9 @@ class CMagicBox(CUser, COrder):
         elif not isinstance(gearsthree, list):
             raise ParamsError('gearsthree格式错误')
         gearsone, gearstwo, gearsthree = json.dumps(gearsone), json.dumps(gearstwo), json.dumps(gearsthree)
+        for test_str in (gearsone, gearstwo, gearsthree):
+            if not re.match(r'^\[(\"\d+\-\d+\"\,? ?)+\]$', test_str):
+                raise ParamsError('档次变化金额只能填写数字')
         apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
                                                 MagicBoxApply.MBAstatus.in_([ApplyStatus.reject.value,
                                                                             ApplyStatus.cancle.value])
