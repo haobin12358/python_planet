@@ -1544,20 +1544,41 @@ class CUser(SUser, BASEAPPROVAL):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
         uw.UWcash = float('%.2f' %(float(uw.UWcash) - float(data.get('cncashnum'))))
-        cn = CashNotes.create({
-            'CNid': str(uuid.uuid1()),
-            'USid': request.user.id,
-            'CNbankName': data.get('cnbankname'),
-            'CNbankDetail': data.get('cnbankdetail'),
-            'CNcardNo': data.get('cncardno'),
-            'CNcashNum': data.get('cncashnum'),
-            'CNcardName': data.get('cncardname'),
-            'CommisionFor': commision_for
-        })
+        kw = {}
+        if commision_for == ApplyFrom.supplizer.value:
+            sa = SupplizerAccount.query.filter(
+                SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
+            cn = CashNotes.create({
+                'CNid': str(uuid.uuid1()),
+                'USid': request.user.id,
+                'CNbankName': sa.SAbankName,
+                'CNbankDetail': sa.SAbankDetail,
+                'CNcardNo': sa.SAcardNo,
+                'CNcashNum': data.get('cncashnum'),
+            })
+            kw.setdefault('CNcompanyName', sa.SACompanyName)
+            kw.setdefault('CNICIDcode', sa.SAICIDcode)
+            kw.setdefault('CNaddress', sa.SAaddress)
+            kw.setdefault('CNbankAccount', sa.SAbankAccount)
+
+        else:
+            user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first()
+
+            cn = CashNotes.create({
+                'CNid': str(uuid.uuid1()),
+                'USid': request.user.id,
+                'CNbankName': data.get('cnbankname'),
+                'CNbankDetail': data.get('cnbankdetail'),
+                'CNcardNo': data.get('cncardno'),
+                'CNcashNum': data.get('cncashnum'),
+                'CNcardName': user.USrealname,
+                'CommisionFor': commision_for
+            })
         db.session.add(cn)
         db.session.flush()
         # 创建审批流
-        self.create_approval('tocash', request.user.id, cn.CNid, commision_for)
+
+        self.create_approval('tocash', request.user.id, cn.CNid, commision_for, **kw)
         return Success('已成功提交提现申请， 我们将在3个工作日内完成审核，请及时关注您的账户余额')
 
     def get_bankname(self):

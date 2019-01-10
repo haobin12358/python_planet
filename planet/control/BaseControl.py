@@ -191,6 +191,9 @@ class BASEAPPROVAL():
             start_model = None
 
         content.fill('uWbalance', uw.UWbalance)
+        for key in kwargs:
+            content.fill(key, kwargs.get(key))
+
         return start_model, content
 
     def __fill_settlenment(self, startid, contentid):

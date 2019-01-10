@@ -202,7 +202,7 @@ class SupplizerAccount(Base):
     """供应商账户信息表"""
     __tablename__ = 'SupplizerAccount'
     SAid = Column(String(64), primary_key=True)
-    SPid = Column(String(64), comment='供应商id')
+    SUid = Column(String(64), comment='供应商id')
     SAbankName = Column(Text,comment='开户行')
     SAbankDetail = Column(Text, comment='开户网点详情')
     SAcardNo = Column(String(32), comment='卡号')
