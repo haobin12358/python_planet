@@ -177,6 +177,7 @@ class CMagicBox(CUser, COrder):
             prid = magic_box_apply.PRid
             skuid = magic_box_apply.SKUid
             price = magic_box_join.MBJcurrentPrice
+            old_price = magic_box_join.MBJprice
             pbid = magic_box_apply.PBid
             current_app.logger.info(pbid)
             product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
@@ -210,7 +211,7 @@ class CMagicBox(CUser, COrder):
                 'PBid': pbid,
                 'OMclient': omclient,
                 'OMfreight': 0,  # 运费暂时为0
-                'OMmount': price,
+                'OMmount': old_price,
                 'OMmessage': ommessage,
                 'OMtrueMount': price,
                 # 收货信息
@@ -230,7 +231,7 @@ class CMagicBox(CUser, COrder):
                 'PRattribute': product.PRattribute,
                 'SKUattriteDetail': sku.SKUattriteDetail,
                 'PRtitle': product.PRtitle,
-                'SKUprice': price,
+                'SKUprice': old_price,
                 'PRmainpic': product.PRmainpic,
                 'OPnum': 1,
                 'PRid': product.PRid,
@@ -239,6 +240,7 @@ class CMagicBox(CUser, COrder):
                 'PRfrom': product.PRfrom,
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
+                'UPperid3': user.USsupper3,
                 # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
@@ -444,6 +446,9 @@ class CMagicBox(CUser, COrder):
         elif not isinstance(gearsthree, list):
             raise ParamsError('gearsthree格式错误')
         gearsone, gearstwo, gearsthree = json.dumps(gearsone), json.dumps(gearstwo), json.dumps(gearsthree)
+        for test_str in (gearsone, gearstwo, gearsthree):
+            if not re.match(r'^\[(\"\d+\-\d+\"\,? ?)+\]$', test_str):
+                raise ParamsError('档次变化金额只能填写数字')
         apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
                                                 MagicBoxApply.MBAstatus.in_([ApplyStatus.reject.value,
                                                                             ApplyStatus.cancle.value])

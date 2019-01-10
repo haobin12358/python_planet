@@ -1,6 +1,6 @@
 from planet.common.base_service import SBase
 from planet.models import IdentifyingCode, User, UserCommission, UserLoginTime, UserAddress, AddressProvince, \
-    AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes, UserIntegral
+    AddressCity, AddressArea, UserMedia, IDCheck, Admin, AdminNotes, UserIntegral, Supplizer
 from sqlalchemy import or_, and_, extract
 
 
@@ -29,12 +29,18 @@ class SUser(SBase):
     def get_user_by_id(self, usid):
         return User.query.filter(User.USid == usid, User.isdelete == False).first_('用户不存在')
 
+    def get_supplizer_by_id(self, usid):
+        return Supplizer.query.filter_by_(SUid=usid).first_('没有找到该供应商信息')
+
     def get_user_by_tel(self, ustel):
         return User.query.filter(User.UStelphone == ustel, User.isdelete == False).first_()
 
-    def get_useraddress_by_usid(self, usid):
-        return UserAddress.query.filter(UserAddress.USid == usid, UserAddress.isdelete == False
-                                                      ).order_by(UserAddress.UAdefault.desc()).all_with_page()
+    def get_useraddress_by_usid(self, usid, uafrom=0):
+        return UserAddress.query.filter(UserAddress.USid == usid,
+                                        UserAddress.isdelete == False,
+                                        UserAddress.UAFrom == uafrom
+                                        ).order_by(UserAddress.UAdefault.desc(), UserAddress.createtime.desc()
+                                                   ).all_with_page()
 
     def get_useraddress_by_filter(self, uafilter):
         """根据条件获取地址"""

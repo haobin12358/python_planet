@@ -411,7 +411,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                     FreshManFirstSku.SKUid == skuid
                 ).first()
-                self._update_stock(fresh_first_apply.FMFPstock - int(skustock), product, sku)
+                # self._update_stock(fresh_first_apply.FMFPstock - int(skustock), product, sku)
                 if not fresh_first_sku:
                     fresh_first_sku = FreshManFirstSku()
                     fresh_first_sku.FMFSid = str(uuid.uuid1())

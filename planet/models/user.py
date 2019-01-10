@@ -115,13 +115,14 @@ class UserAddress(Base):
     """
     __tablename__ = 'UserAddress'
     UAid = Column(String(64), primary_key=True)
-    USid = Column(String(64), comment='用户')
+    USid = Column(String(64), comment='用户id/供应商id')
     UAname = Column(String(16), nullable=False, comment='收货人姓名')
     UAphone = Column(String(16), nullable=False, comment='收货人电话')
     UAtext = Column(String(255), nullable=False, comment='具体地址')
     UApostalcode = Column(String(8), comment='邮政编码')
     UAdefault = Column(Boolean, default=False, comment='默认收获地址')
     AAid = Column(String(8), nullable=False, comment='关联的区域id')
+    UAFrom = Column(Integer, default=0, comment='地址所属 0:用户 10:供应商')
 
 
 class UserMedia(Base):

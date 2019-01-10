@@ -17,7 +17,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom
+
+
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
@@ -27,7 +29,7 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
-    admin_required, is_supplizer
+    admin_required, is_supplizer, common_user
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -512,14 +514,21 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取身份证详情成功', data=user)
 
     @get_session
-    @token_required
     def get_useraddress(self):
         """获取用户地址列表"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
-        useraddress_list = self.get_useraddress_by_usid(user.USid)
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} get address list'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} get address list'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
+        useraddress_list = self.get_useraddress_by_usid(usid, uafrom)
         for useraddress in useraddress_list:
             useraddress.fields = ['UAid', 'UAname', 'UAphone', 'UAtext', 'UApostalcode', 'AAid']
             uadefault = 1 if useraddress.UAdefault is True else 0
@@ -529,30 +538,39 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取个人地址成功', data=useraddress_list)
 
     @get_session
-    @token_required
     def add_useraddress(self):
         """添加收货地址"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise TokenError('token error')
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} add address'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} add address'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         data = parameter_required(('uaname', 'uaphone', 'uatext', 'aaid'))
         uaid = str(uuid.uuid1())
         uadefault = data.get('uadefault', 0)
         uaphone = data.get('uaphone')
         uapostalcode = data.get('uapostalcode', '000000')
         aaid = data.get('aaid')
-        if not re.match(r'^[0|1]$', str(uadefault)):
+        if not re.match(r'^[01]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
-        if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+        if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
         self.get_addressinfo_by_areaid(aaid)
-        default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+        default_address = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'UAdefault': True,
+                                                          'isdelete': False})
         if default_address:
             if str(uadefault) == '1':
-                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
+                updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False},
+                                                               {'UAdefault': False})
                 if not updateinfo:
                     raise SystemError('服务器繁忙')
                 uadefault = True
@@ -562,23 +580,33 @@ class CUser(SUser, BASEAPPROVAL):
             uadefault = True
         address = UserAddress.create({
             'UAid': uaid,
-            'USid': request.user.id,
+            'USid': usid,
             'UAname': data.get('uaname'),
             'UAphone': uaphone,
             'UAtext': data.get('uatext'),
             'UApostalcode': uapostalcode,
             'AAid': aaid,
-            'UAdefault': uadefault
+            'UAdefault': uadefault,
+            'UAFrom': uafrom
         })
         db.session.add(address)
         return Success('创建地址成功', {'uaid': uaid})
 
     @get_session
-    @token_required
     def update_useraddress(self):
         """修改收货地址"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} update address'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} update address'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         data = parameter_required(('uaid',))
         uaid = data.get('uaid')
         uadefault = data.get('uadefault')
@@ -586,25 +614,29 @@ class CUser(SUser, BASEAPPROVAL):
         uapostalcode = data.get('uapostalcode')
         uaisdelete = data.get('uaisdelete', 0)
         aaid = data.get('aaid')
-        if not re.match(r'^[0|1]$', str(uaisdelete)):
+        if not re.match(r'^[01]$', str(uaisdelete)):
             raise ParamsError('uaisdelete, 参数异常')
         usaddress = self.get_useraddress_by_filter({'UAid': uaid, 'isdelete': False})
         if not usaddress:
             raise NotFound('未找到要修改的地址信息')
+        assert usaddress.USid == usid, '只能修改自己账户下的地址'
         if aaid:
             self.get_addressinfo_by_areaid(aaid)
         if str(uaisdelete) == '1' and usaddress.UAdefault is True:
-            anyone = self.get_useraddress_by_filter({'isdelete': False, 'UAdefault': False})
+            anyone = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'isdelete': False,
+                                                     'UAdefault': False})
             if anyone:
                 self.update_useraddress_by_filter({'UAid': anyone.UAid, 'isdelete': False}, {'UAdefault': True})
         uaisdelete = True if str(uaisdelete) == '1' else False
         if uadefault:
-            if not re.match(r'^[0|1]$', str(uadefault)):
+            if not re.match(r'^[01]$', str(uadefault)):
                 raise ParamsError('uadefault, 参数异常')
-            default_address = self.get_useraddress_by_filter({'UAdefault': True, 'isdelete': False})
+            default_address = self.get_useraddress_by_filter({'USid': usid, 'UAFrom': uafrom, 'UAdefault': True,
+                                                              'isdelete': False})
             if default_address:
                 if str(uadefault) == '1':
-                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False}, {'UAdefault': False})
+                    updateinfo = self.update_useraddress_by_filter({'UAid': default_address.UAid, 'isdelete': False},
+                                                                   {'UAdefault': False})
                     if not updateinfo:
                         raise SystemError('服务器繁忙')
                     uadefault = True
@@ -613,7 +645,7 @@ class CUser(SUser, BASEAPPROVAL):
             else:
                 uadefault = True
         if uaphone:
-            if not re.match(r'^1[3|4|5|7|8|9][0-9]{9}$', str(uaphone)):
+            if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
                 raise ParamsError('请填写正确的手机号码')
         if uapostalcode:
             if not re.match(r'^\d{6}$', str(uapostalcode)):
@@ -635,17 +667,26 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('修改地址成功', {'uaid': uaid})
 
     @get_session
-    @token_required
     def get_one_address(self):
         """获取单条地址信息详情"""
-        user = self.get_user_by_id(request.user.id)
-        gennerc_log('get user is {0}'.format(user))
+        if common_user():
+            usid = request.user.id
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} get address content'.format(user.USname))
+            uafrom = UserAddressFrom.user.value
+        elif is_supplizer():
+            usid = request.user.id
+            supplizer = self.get_supplizer_by_id(usid)
+            current_app.logger.info('Supplizer {0} get address content'.format(supplizer.SUname))
+            uafrom = UserAddressFrom.supplizer.value
+        else:
+            raise TokenError()
         args = request.args.to_dict()
         uaid = args.get('uaid')
         if uaid:
             uafilter = {'UAid': uaid, 'isdelete': False}
         else:
-            uafilter = {'USid': user.USid, 'UAdefault': True, 'isdelete': False}
+            uafilter = {'USid': user.USid, 'UAFrom': uafrom, 'UAdefault': True, 'isdelete': False}
         get_address = self.get_useraddress_by_filter(uafilter)
         any_address = self.get_useraddress_by_filter({'USid': user.USid, 'isdelete': False})
         if not any_address:

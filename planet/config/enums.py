@@ -25,6 +25,11 @@ class ProductFrom(Enum):
     # ..其他
 
 
+class UserAddressFrom(Enum):
+    user = 0, '用户'
+    supplizer = 10, '供应商'
+
+
 class ProductBrandStatus(Enum):
     """品牌状态"""
     upper = 0, '上架'

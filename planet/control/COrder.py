@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 
+import tablib
 from flask import request, current_app
 from sqlalchemy import extract, or_, and_, cast, Date, func
 
@@ -28,10 +29,11 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
-    UserSalesVolume, OutStock
+    UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
-    OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, MagicBoxJoin
+    OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
+    MagicBoxJoin
 
 
 class COrder(CPay, CCoupon):
@@ -54,8 +56,8 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
-
         if omfrom is None:
+            # 默认获取非活动订单
             order_main_query = order_main_query.filter(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
         else:
@@ -152,6 +154,153 @@ class COrder(CPay, CCoupon):
                 order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
                 self._fill_order_refund(order_main, order_refund_apply_instance, False)
         return Success(data=order_mains)
+
+    @token_required
+    def export_xls(self):
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
+        form = OrderListForm().valid_data()
+        list_part = self._list_part(form=form, title='订单商品明细')
+        list_refund = self._list_refund(form=form, title='售后sku明细')
+        book = tablib.Databook([list_part, list_refund])
+        with open(self._generic_omno() + '.xls', 'wb') as f:
+            f.write(book.xls)
+        return Success()
+
+    def _list_part(self, form, *args, **kwargs):
+        omstatus = form.omstatus.data  # 过滤参数
+        createtime_start = form.createtime_start.data
+        createtime_end = form.createtime_end.data
+        query = db.session.query(
+            OrderPart,
+            OrderPay,
+            OrderLogistics,  # 发货时间
+            OrderMain,
+        ).outerjoin(OrderMain, OrderMain.OMid == OrderPart.OMid). \
+            outerjoin(OrderPay, OrderPay.OPayno == OrderMain.OPayno). \
+            outerjoin(
+            OrderLogistics, OrderLogistics.OMid == OrderMain.OMid
+        ).filter(
+            OrderPart.isdelete == False,
+            OrderMain.isdelete == False,
+        )
+        if is_supplizer():
+            query = query.filter(
+                OrderMain.PRcreateId == request.user.id
+            )
+        if createtime_start:
+            query = query.filter(
+                OrderMain.createtime >= createtime_start
+            )
+        if createtime_end:
+            query = query.filter(
+                OrderMain.createtime <= createtime_end
+            )
+        if omstatus == 'refund':
+            # 后台获得售后订单(获取主单售后和附单售后)
+            if is_admin() or is_supplizer():
+                query = query.filter(
+                    or_(and_(OrderPart.isdelete == False,
+                             OrderPart.OPisinORA == True),
+                        (OrderMain.OMinRefund == True)))
+            else:
+                query = query.filter(
+                    OrderMain.OMinRefund == True
+                )
+        elif omstatus:
+            query = query.filter(*omstatus)
+        results = query.all()
+        headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌',
+                   '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
+                   '商品编码', '商品名称', '购买件数',
+                   '销售单价', '销售总价',
+                   '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价')
+        items = []
+        for result in results:
+            order_part, order_pay, order_logistic, order_main = result
+            if order_main is None:
+                current_app.logger.info('出现None数据')
+                continue
+            item = [
+                getattr(order_main, 'OMno', None), getattr(order_part, 'createtime', None),
+                getattr(order_pay, 'createtime', None), getattr(order_logistic, 'createtime', None),
+                order_main.PBname,
+                getattr(order_main, 'OMrecvName', None), getattr(order_main, 'OMrecvAddress', None),
+                getattr(order_part, 'SKUsn', None), getattr(order_part, 'PCname', None),
+                getattr(order_main, 'PRid', None),
+                '{}-{}'.format(order_part.PRtitle, '-'.join(json.loads(order_part.SKUattriteDetail))),
+                order_part.OPnum
+            ]
+            if order_main.OMfrom == OrderFrom.fresh_man.value:
+                sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = 0
+                free_price = order_part.OPsubTrueTotal
+            else:
+                sku_price = order_part.PRtitle
+                sold_total = order_part.OPsubTrueTotal
+                activity_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0
+                coupon_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0
+                true_pay = order_part.OPsubTrueTotal
+                free_price = 0
+            activity_name = OrderFrom(order_main.OMfrom).zh_value
+            item.extend([
+                sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price
+            ])
+            for itd in item:
+                if isinstance(itd, datetime):
+                    itd.strftime('%Y-%m-%d')
+            items.append(item)
+
+        data = tablib.Dataset(*items, headers=headers, **kwargs)
+        return data
+
+    def _list_refund(self, form, *args, **kwargs):
+        createtime_start = form.createtime_start.data
+        createtime_end = form.createtime_end.data
+        query = db.session.query(OrderPart, OrderMain, OrderRefundApply, OrderRefund, OrderRefundFlow). \
+            join(
+            OrderMain, OrderPart.OMid == OrderMain.OMid
+        ).join(
+            OrderRefundApply,
+            or_(
+                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderPart.OPisinORA == True),
+                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderMain.OMinRefund == True)),
+        ).outerjoin(OrderRefund, and_(OrderRefund.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)). \
+            outerjoin(OrderRefundFlow,
+                      and_(OrderRefundFlow.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)) \
+            .filter(
+            OrderPart.isdelete == False,
+            OrderMain.isdelete == False,
+            OrderRefundApply.isdelete == False
+        )
+        if is_supplizer():
+            query = query.filter(OrderMain.PRcreateId == request.user.id)
+        if createtime_start:
+            query = query.filter(
+                OrderMain.createtime >= createtime_start
+            )
+        if createtime_end:
+            query = query.filter(
+                OrderMain.createtime <= createtime_end
+            )
+        results = query.all()
+        items = []
+        for result in results:
+            order_part, order_main, refund_apply, refund, refund_flow = result
+            item = [order_main.OMno, refund_apply.ORAsn, OrderRefundORAstate(refund_apply.ORAstate).zh_value,
+                    order_main.PBname,
+                    OrderMainStatus(order_main.OMstatus).zh_value, refund_apply.createtime.strftime('%Y-%m-%d'),
+                    getattr(refund_flow, 'createtime', ''),
+                    '{}-{}'.format(refund_apply.ORAreason, refund_apply.ORAaddtion or ''),
+                    order_part.SKUsn, order_part.SKUid,
+                    '{}-{}'.format(order_part.PRtitle, '-'.join(json.loads(order_part.SKUattriteDetail))),
+                    order_part.OPnum, refund_apply.ORAmount, refund_apply.ORAmount
+                    ]
+            items.append(item)
+        headers = ['订单编号', '退款编号', '工单类型', '品牌',
+                   '订单状态', '申请退款时间', '退款时间', '申请原因', 'SKU-SN', 'sku-id',
+                   '商品名称', '购买件数', '退款金额', '商家承担贷款']
+        data = tablib.Dataset(*items, headers=headers, **kwargs)
+        return data
 
     @token_required
     def create(self):
@@ -254,6 +403,7 @@ class COrder(CPay, CCoupon):
                         'OMid': omid,
                         'OPid': opid,
                         'SKUid': skuid,
+                        'SKUsn': sku_instance.SKUsn,
                         'PRattribute': product_instance.PRattribute,
                         'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
@@ -270,7 +420,7 @@ class COrder(CPay, CCoupon):
                         'SkudevideRate': sku_instance.SkudevideRate
                         # 'PRcreateId': product_instance.CreaterId
                     }
-                    current_app.logger.info('当前商品让利为{}'.format(sku_instance.SkudevideRate) )
+                    current_app.logger.info('当前商品让利为{}'.format(sku_instance.SkudevideRate))
                     order_part_instance = OrderPart.create(order_part_dict)
                     order_part_list.append(order_part_instance)
                     # model_bean.append(order_part_instance)
@@ -483,10 +633,12 @@ class COrder(CPay, CCoupon):
             order_main = self.strade.get_ordermain_one({'OMid': omid}, '该订单不存在')
         else:
             order_main = self.strade.get_ordermain_one({'OMid': omid, 'USid': request.user.id}, '该订单不存在')
+        self._fill_refund_notes(order_main=order_main)
         order_parts = self.strade.get_orderpart_list({'OMid': omid})
         for order_part in order_parts:
             order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
             order_part.PRattribute = json.loads(order_part.PRattribute)
+            self._fill_refund_notes(order_part=order_part)
             # 状态
             # 副单售后状态信息
             if order_part.OPisinORA is True:
@@ -604,7 +756,8 @@ class COrder(CPay, CCoupon):
                         MagicBoxApply.MBAid == magic_box_join.MBAid
                     ).first()
                     current_app.logger.info('osid is {}'.format(magic_box_apply.OSid))
-                    out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
+                    out_stock = OutStock.query.filter(OutStock.isdelete == False,
+                                                      OutStock.OSid == magic_box_apply.OSid).first()
                     if out_stock:
                         out_stock.update({
                             'OSnum': OutStock.OSnum + opnum
@@ -858,6 +1011,53 @@ class COrder(CPay, CCoupon):
                         'omfrom': ','.join(list(map(str, act_value)))
                     }
                 )
+        elif ordertype == 'all':
+            if not is_admin() and not is_supplizer():
+                data = [  # 获取各状态的数量, '已完成'和'已取消'除外
+                    {'count': self._get_order_count(filter_args, k),
+                     'name': getattr(OrderMainStatus, k).zh_value,
+                     'status': getattr(OrderMainStatus, k).value}
+                    for k in OrderMainStatus.all_member() if k not in [
+                        OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+                    ]
+                ]
+            else:
+                data = [  # 获取各状态的数量
+                    {'count': self._get_order_count(filter_args, k),
+                     'name': getattr(OrderMainStatus, k).zh_value,
+                     'status': getattr(OrderMainStatus, k).value}
+                    for k in OrderMainStatus.all_member()
+                ]
+            data.insert(  #
+                0, {
+                    'count': OrderMain.query.filter_(OrderMain.isdelete == False, *filter_args).distinct().count(),
+                    'name': '全部',
+                    'status': None
+                }
+            )
+            if extentions == 'refund':
+                if not is_admin() and not is_supplizer():
+                    refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
+                                                           OrderMain.USid == usid,
+                                                           OrderMain.isdelete == False,
+                                                           OrderMain.OMfrom.in_(
+                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                           *filter_args).distinct().count()
+                else:
+                    refund_count = OrderMain.query.join(OrderPart, OrderPart.OMid == OrderMain.OMid).filter_(
+                        OrderMain.isdelete == False,
+                        or_(and_(OrderPart.isdelete == False,
+                                 OrderPart.OPisinORA == True),
+                            (OrderMain.OMinRefund == True)),
+                        OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]),
+                        *filter_args).distinct().count()
+                data.append(  #
+                    {
+                        'count': refund_count,
+                        'name': '售后中',
+                        'status': 40,  # 售后表示数字
+                    }
+                )
         else:
             filter_args.append(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
@@ -913,17 +1113,6 @@ class COrder(CPay, CCoupon):
     @token_required
     def get_can_use_coupon(self):
         """获取可以使用的个人优惠券"""
-        """
-
-       "pbid": "pbid1",
-        "skus": [
-            {
-                "skuid": "d64799ef-4477-4adb-a0de-b350cb2bc302",
-                "nums": 6
-            }
-        ]
-    }
-        """
         usid = request.user.id
         with self.strade.auto_commit() as s:
             order_price = Decimal()  # 订单实际价格
@@ -1548,3 +1737,20 @@ class COrder(CPay, CCoupon):
         db.session.add(sku)
         db.session.add(product)
 
+    def _fill_refund_notes(self, *args, **kwargs):
+        order_main = kwargs.get('order_main')
+        order_part = kwargs.get('order_part')
+        if order_main:
+            order_refund_notes = OrderRefundNotes.query.filter(
+                OrderRefundNotes.isdelete == False,
+                OrderRefundNotes.OMid == order_main.OMid
+            ).order_by(OrderRefundNotes.createtime.desc()).first()
+            if order_refund_notes:
+                order_main.fill('order_refund_notes', order_refund_notes)
+        elif order_part:
+            order_refund_notes = OrderRefundNotes.query.filter(
+                OrderRefundNotes.isdelete == False,
+                OrderRefundNotes.OPid == order_part.OPid
+            ).order_by(OrderRefundNotes.createtime.desc()).first()
+            if order_refund_notes:
+                order_part.fill('order_refund_notes', order_refund_notes)
