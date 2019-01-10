@@ -1004,12 +1004,13 @@ class COrder(CPay, CCoupon):
         """获取订单评价"""
         if not is_tourist():
             usid = request.user.id
-            User.query.filter(User.USid == usid).first_('用户状态异常')
+            if not is_admin() and not is_supplizer():
+                User.query.filter(User.USid == usid).first_('用户状态异常')
             tourist = 0
         else:
             tourist = 1
             usid = None
-        args = parameter_required(('page_num', 'page_size'))
+        args = parameter_required()
         prid = args.get('prid')
         my_post = args.get('my_post')
         if str(my_post) == '1':
