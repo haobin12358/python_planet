@@ -71,6 +71,7 @@ class COrder(CPay, CCoupon):
             )
         if omstatus == 'refund':
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
+            # order_by = [OrderRefundApply.updatetime.desc()]
         elif omstatus:
             order_main_query = order_main_query.filter(*omstatus)
         if is_supplizer():
@@ -1868,14 +1869,7 @@ class COrder(CPay, CCoupon):
                 )
             )
             print(order_main_query.count())
-            if orastatus == ApplyStatus.reject.value:
-                order_main_query = order_main_query.filter(
-                    and_(OrderRefundApply.ORAstatus == ApplyStatus.reject.value,
-                         or_(OrderRefundApply.OMid == OrderMain.OMid, and_(OrderRefundApply.OPid == OrderPart.OPid,
-                                                                           OrderPart.isdelete == False)),
-                         OrderRefundApply.isdelete == False, )
-                )
-            elif orastatus is not None:  # 售后的审核状态
+            if orastatus is not None:  # 售后的审核状态
                 order_main_query = order_main_query.filter(
                     or_(OrderMain.OMid == OrderRefundApply.OMid, OrderPart.OPid == OrderRefundApply.OPid),
                     OrderRefundApply.ORAstatus == orastatus,
