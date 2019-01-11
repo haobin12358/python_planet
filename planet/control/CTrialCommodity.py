@@ -61,7 +61,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             ProductBrand.isdelete == False,
             ProductBrand.PBstatus == ProductBrandStatus.upper.value
         )
-        if tcstatus:
+        if tcstatus is not None:
             commodity_query = commodity_query.filter(TrialCommodity.TCstatus == tcstatus)
         if time_filter:
             commodity_query = commodity_query.filter(*time_filter)
