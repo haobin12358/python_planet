@@ -524,6 +524,11 @@ class SupplizerSettementStatus(Enum):
     approvaling = -1, '结算异常处理中'
 
 
+class NotesStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '发布'
+
+
 # class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
