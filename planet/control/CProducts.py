@@ -171,23 +171,16 @@ class CProducts(BaseController):
             order_by = product_order
         product_query = Products.query.filter(Products.isdelete == False)
         if pbid:
-            product_query = product_query.outerjoin(ProductBrand, ProductBrand.isdelete == False).filter(ProductBrand.isdelete == False)
+            product_query = product_query.join(ProductBrand, ProductBrand.PBid == Products.PBid).filter(ProductBrand.isdelete == False)
         if pcids:
             product_query = product_query.filter(Products.PCid.in_(pcids))
         if itid:
-            product_query = product_query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid).filter(
+            product_query = product_query.join(ProductItems, ProductItems.PRid == Products.PRid).filter(
                 ProductItems.isdelete == False,
                 ProductItems.ITid == itid
             )
-        if prstatus:
-            product_query = product_query.filter(Products.PRstatus == prstatus)
-        if kw:
-            product_query = product_query.filter(
-                or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
-                and_(*[ProductBrand.PBname.contains(x) for x in kw])),
-            )
-        if not is_admin() and not is_supplizer():
-            if not itid:
+        else:
+            if not is_admin() and not is_supplizer():
                 itposition = data.get('itposition')
                 itauthority = data.get('itauthority')
                 if ProductItems not in product_query._joinpoint.values():
@@ -195,25 +188,52 @@ class CProducts(BaseController):
                         ProductItems.isdelete == False
                     )
                 product_query = product_query.outerjoin(Items, Items.ITid == ProductItems.ITid).filter()
-                if itposition:
+                if itposition is None:
                     product_query = product_query.filter(
                         Items.ITposition != ItemPostion.other.value,
                         Items.ITposition != ItemPostion.new_user_page.value,
                     )
-                else:
+                elif itposition:
                     product_query = product_query.filter(
                         Items.ITposition == int(itposition)
                     )
 
-                if not itauthority:
+                if itauthority is None:
                     product_query = product_query.filter(
                         or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None))
                     )
-                else:
+                elif itauthority:
                     product_query = product_query.filter(
                         Items.ITauthority == int(itauthority)
                     )
 
+        if prstatus is not None:
+            current_app.logger.info('筛选的状态是 {}'.format(prstatus))
+            product_query = product_query.filter(Products.PRstatus == prstatus)
+        if kw:
+            if ProductBrand not in product_query._joinpoint.values():
+                product_query = product_query.outerjoin(ProductBrand, ProductBrand.PBid == Products.PBid)
+            product_query = product_query.filter(
+                or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+                and_(*[ProductBrand.PBname.contains(x) for x in kw], ProductBrand.isdelete == False)),
+            )
+        if is_supplizer():
+            current_app.logger.info('供应商查看自己的商品')
+            suid = request.user.id
+        else:
+            suid = data.get('suid')
+
+        if suid and suid != 'planet':
+            product_query = product_query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
+                SupplizerProduct.SUid == suid, SupplizerProduct.isdelete == False
+            )
+        elif suid:
+            product_query = product_query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
+                SupplizerProduct.SUid.is_(None), SupplizerProduct.isdelete == False,
+            )
+        products = product_query.order_by(order_by).all_with_page()
+        # products = query.filter_(*filter_args). \
+        #     order_by(order_by).all_with_page()
 
         #
         # filter_args = [
@@ -250,23 +270,23 @@ class CProducts(BaseController):
         # ).outerjoin(Items, Items.ITid == ProductItems.ITid)
         # 后台的一些筛选条件
         # 供应源筛选
-        if is_supplizer():
-            current_app.logger.info('供应商查看自己的商品')
-            suid = request.user.id
-
-        else:
-            suid = data.get('suid')
-        if suid and suid != 'planet':
-            query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid)
-            filter_args.append(
-                SupplizerProduct.SUid == suid
-            )
-        elif suid:
-            query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
-                SupplizerProduct.SUid.is_(None)
-            )
-        products = query.filter_(*filter_args). \
-            order_by(order_by).all_with_page()
+        # if is_supplizer():
+        #     current_app.logger.info('供应商查看自己的商品')
+        #     suid = request.user.id
+        #
+        # else:
+        #     suid = data.get('suid')
+        # if suid and suid != 'planet':
+        #     query = query.join(SupplizerProduct, SupplizerProduct.PRid == Products.PRid)
+        #     filter_args.append(
+        #         SupplizerProduct.SUid == suid
+        #     )
+        # elif suid:
+        #     query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
+        #         SupplizerProduct.SUid.is_(None)
+        #     )
+        # products = query.filter_(*filter_args). \
+        #     order_by(order_by).all_with_page()
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
