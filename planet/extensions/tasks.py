@@ -223,8 +223,8 @@ def auto_agree_task(avid):
 
 
 @celery.task()
-def auto_cancle_order(args):
-    for omid in args:
+def auto_cancle_order(omids):
+    for omid in omids:
         from planet.control.COrder import COrder
         order_main = OrderMain.query.filter(OrderMain.isdelete == False,
                                             OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
