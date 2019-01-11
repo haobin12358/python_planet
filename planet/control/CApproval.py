@@ -862,7 +862,8 @@ class CApproval(BASEAPPROVAL):
             return
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         if not cn:
-            raise SystemError('提现数据异常,请处理')
+            # raise SystemError('提现数据异常,请处理')
+            return
         cn.CNstatus = ApprovalAction.refuse.value
         cn.CNrejectReason = refuse_abo
         uw = UserWallet.query.filter_by_(USid=cn.USid).first_("提现审批异常数据")
@@ -895,7 +896,10 @@ class CApproval(BASEAPPROVAL):
                 fen_model.USsupper2 = user.USsupper1
 
     def refuse_agent(self, approval_model, refuse_abo):
-        user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')
+        # user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')
+        user = User.query.filter_by_(USid=approval_model.AVstartid).first()
+        if not user:
+            return
         user.USlevel = UserIdentityStatus.ordinary.value
 
     def agree_shelves(self, approval_model):
@@ -907,15 +911,23 @@ class CApproval(BASEAPPROVAL):
         product.PRstatus = ProductStatus.usual.value
 
     def refuse_shelves(self, approval_model, refuse_abo):
-        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        # product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')
+        product = Products.query.filter_by_(PRid=approval_model.AVcontent).first()
+
+        if not product:
+            return
         product.PRstatus = ProductStatus.reject.value
 
     def agree_publish(self, approval_model):
-        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        # news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first('资讯已被删除')
         news.NEstatus = NewsStatus.usual.value
 
     def refuse_publish(self, approval_model, refuse_abo):
-        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        # news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first()
+        if not news:
+            return
         news.NEstatus = NewsStatus.refuse.value
         news.NErefusereason = refuse_abo
 
@@ -933,7 +945,9 @@ class CApproval(BASEAPPROVAL):
             other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
 
     def refuse_guessnum(self, approval_model, refuse_abo):
-        gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
+        gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first()
+        if not gnaa:
+            return
         gnaa.GNAAstatus = ApplyStatus.reject.value
         gnaa.GNAArejectReason = refuse_abo
         # 是否进行库存变化
@@ -964,7 +978,10 @@ class CApproval(BASEAPPROVAL):
             other.MBArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(mba.MBAstarttime)
 
     def refuse_magicbox(self, approval_model, refuse_abo):
-        mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        # mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first()
+        if not mba:
+            return
         mba.MBAstatus = ApplyStatus.reject.value
         mba.MBArejectReason = refuse_abo
         # 是否进行库存变化
@@ -986,7 +1003,9 @@ class CApproval(BASEAPPROVAL):
         ffa.FMFAstatus = ApplyStatus.agree.value
 
     def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):
-        ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
+        ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first()
+        if not ffa:
+            return
         ffa.FMFAstatus = ApplyStatus.reject.value
         ffa.FMFArejectReson = refuse_abo
 
@@ -997,7 +1016,9 @@ class CApproval(BASEAPPROVAL):
         tc.AgreeEndTime = tc.ApplyEndTime  # todo 同意时自动填写申请时间，后期可能需要管理同意时输入灵活时间
 
     def refuse_trialcommodity(self, approval_model, refuse_abo):
-        tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
+        tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first()
+        if not tc:
+            return
         tc.TCstatus = TrialCommodityStatus.reject.value
         tc.TCrejectReason = refuse_abo
 
@@ -1019,7 +1040,9 @@ class CApproval(BASEAPPROVAL):
         db.session.add_all(uac_list)
 
     def refuse_activationcode(self, approval_model, refuse_abo):
-        aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
+        aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first()
+        if not aca:
+            return
         aca.ACAapplyStatus = ApplyStatus.reject.value
 
     def get_avstatus(self):
@@ -1039,7 +1062,9 @@ class CApproval(BASEAPPROVAL):
     def refuse_settlenment(self, approval_model, refuse_abo):
         ssa = SettlenmentApply.query.filter(
             SettlenmentApply.SSAid == approval_model.AVcontent,
-            SettlenmentApply.isdelete == False).first_('结算申请数据异常')
+            SettlenmentApply.isdelete == False).first_()
+        if not ssa:
+            return
         ssa.SSAstatus = ApplyStatus.reject.value
 
         ss = SupplizerSettlement.query.filter(

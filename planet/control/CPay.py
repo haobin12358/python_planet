@@ -252,21 +252,21 @@ class CPay():
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
         # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
-        planet_and_user_rate = order_part.SkudevideRate  # todo 查询sku的让利
+        planet_and_user_rate = Decimal(str(order_part.SkudevideRate)) # todo 查询sku的让利
         if not planet_and_user_rate:
             sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
             if sku:
-                planet_and_user_rate = sku.SkudevideRate
+                planet_and_user_rate = Decimal(str(sku.SkudevideRate))
         if not planet_and_user_rate:
             planet_and_user_rate = default_planetcommision
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
-        planet_commision = order_part.OPsubTotal * planet_rate
+        planet_commision = Decimal(str(order_part.OPsubTotal)) * planet_rate
         user_rate = planet_and_user_rate - planet_rate
         # 用户佣金
-        user_commision = order_part.OPsubTotal * user_rate  # 给用户的佣金
-        commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)  # 给供应商的钱
+        user_commision = Decimal(str(order_part.OPsubTotal)) * user_rate  # 给用户的佣金
+        commision_for_supplizer = Decimal(str(order_part.OPsubTotal)) * (Decimal('1') - planet_and_user_rate)  # 给供应商的钱
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
@@ -282,7 +282,7 @@ class CPay():
                 if up3 and up3.USlevel > 1:
                     user_level3commision = self._current_commission(up3.USCommission3, user_level3commision) / 100  # 个人佣金比
                     up3_base = user_commision * user_level3commision
-                    up2_up3 = up2.CommisionLevel - up3.CommisionLevel
+                    up2_up3 = Decimal(up2.CommisionLevel) - Decimal(up3.CommisionLevel)
                     up2_base, up3_base = self._caculate_offset(up2_up3, up2_base, up3_base, reduce_ratio,
                                                                increase_ratio)
         if up1_base:
@@ -338,9 +338,9 @@ class CPay():
         order_coupon = order_part.order_coupon
         if order_coupon:
             if order_coupon.SUid:
-                commision_for_supplizer -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
+                commision_for_supplizer -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
             else:
-                planet_remain -= (order_part.OPsubTotal - order_part.OPsubTrueTotal)
+                planet_remain -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
 
         # 供应商获取佣金
         if suid:
