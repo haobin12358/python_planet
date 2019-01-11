@@ -1250,7 +1250,7 @@ class COrder(CPay, CCoupon):
                         [Decimal(str(v)) for k, v in prid_dict.items() if k in coupon_for_prids])  # 优惠券支持的商品的总价
                     if coupon.COdownLine > coupon_for_sum:
                         continue
-                    reduce_price = coupon_for_sum * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(
+                    reduce_price = Decimal(str(coupon_for_sum)) * (1 - Decimal(str(coupon.COdiscount)) / 10) + Decimal(
                         str(coupon.COsubtration))
 
                 else:
@@ -1387,9 +1387,9 @@ class COrder(CPay, CCoupon):
                 })
                 db.session.add(usv)
             if user.USlevel == UserIdentityStatus.agent.value:
-                usv.USVamountagent = float('%.2f' % (float(amount) + float(usv.USVamountagent)))
+                usv.USVamountagent = Decimal(str(amount)) + Decimal(str(usv.USVamountagent))
             else:
-                usv.USVamount = float('%.2f' % (float(amount) + float(usv.USVamount)))
+                usv.USVamount = Decimal(str(amount)) + Decimal(str(usv.USVamount))
 
     @staticmethod
     def _get_order_count(arg, k):
@@ -1494,10 +1494,10 @@ class COrder(CPay, CCoupon):
         omid = data.get('omid')
         price = data.get('price')
         try:
-            price = float(price)
+            price = Decimal(str(price))
             if price <= 0:
                 raise TypeError()
-            price = round(price, 2)
+            # price = round(price, 2)
         except TypeError:
             raise ParamsError('价格参数不正确')
         order_main = OrderMain.query.filter(
@@ -1708,12 +1708,16 @@ class COrder(CPay, CCoupon):
                 # 不同身份进账时间不同
                 # 如果是供应商，只增加期望值
                 if user_commision.CommisionFor == ApplyFrom.supplizer.value:
-                    user_wallet.UWexpect = Decimal(str(user_wallet.UWexpect)) + user_commision.UCcommission
+                    user_wallet.UWexpect = Decimal(str(user_wallet.UWexpect or 0)) + \
+                                           Decimal(str(user_commision.UCcommission or 0))
                 else:
                     # 其他身份直接到账
-                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance)) + user_commision.UCcommission
-                    user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal)) + user_commision.UCcommission
-                    user_wallet.UWcash = Decimal(str(user_wallet.UWcash)) + user_commision.UCcommission
+                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + \
+                                            Decimal(str(user_commision.UCcommission or 0))
+                    user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + \
+                                          Decimal(str(user_commision.UCcommission))
+                    user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + \
+                                         Decimal(str(user_commision.UCcommission))
                 db.session.add(user_wallet)
             else:
                 # 创建和更新一个逻辑

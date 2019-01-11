@@ -1547,7 +1547,7 @@ class CUser(SUser, BASEAPPROVAL):
         if float(data.get('cncashnum')) > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
-        uw.UWcash = float('%.2f' %(float(uw.UWcash) - float(data.get('cncashnum'))))
+        uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(str(data.get('cncashnum')))
         kw = {}
         if commision_for == ApplyFrom.supplizer.value:
             sa = SupplizerAccount.query.filter(
@@ -1558,7 +1558,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
                 'CNcardNo': sa.SAcardNo,
-                'CNcashNum': data.get('cncashnum'),
+                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for
             })
@@ -1576,7 +1576,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNbankName': data.get('cnbankname'),
                 'CNbankDetail': data.get('cnbankdetail'),
                 'CNcardNo': data.get('cncardno'),
-                'CNcashNum': data.get('cncashnum'),
+                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
                 'CNcardName': user.USrealname,
                 'CommisionFor': commision_for
             })
@@ -1640,8 +1640,8 @@ class CUser(SUser, BASEAPPROVAL):
             extract('month', UserSalesVolume.createtime) == month,
             extract('year', UserSalesVolume.createtime) == year,
             UserSalesVolume.isdelete == False).first()
-        user_fens_amount = user_usv.USVamount if user_usv else 0
-        user_agent_amount = user_usv.USVamountagent if user_usv else 0
+        user_fens_amount = Decimal(str(user_usv.USVamount)) if user_usv else 0
+        user_agent_amount = Decimal(str(user_usv.USVamountagent)) if user_usv else 0
         if position >= deeplen:
             user.fill('team_sales', user_fens_amount)
             return
@@ -1658,7 +1658,7 @@ class CUser(SUser, BASEAPPROVAL):
                 extract('month', UserSalesVolume.createtime) == month,
                 extract('year', UserSalesVolume.createtime) == year,
                 UserSalesVolume.isdelete == False).first()
-            fens_amount = usv.USVamount if usv else 0
+            fens_amount = Decimal(str(usv.USVamount)) if usv else 0
             user_fens_total += fens_amount
             fens.fill('fens_amount', fens_amount)
 
@@ -1859,10 +1859,10 @@ class CUser(SUser, BASEAPPROVAL):
             uw = UserWallet.query.filter(
                 UserWallet.USid == su.SUid, UserWallet.isdelete == False,
                 UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
-            uw.UWbalance = float('%.2f' % (float(uw.UWbalance) + float(ss.SSdealamount)))
-            uw.UWcash = float('%.2f' % (float(uw.UWcash) + float(ss.SSdealamount)))
-            uw.UWtotal = float('%.2f' % (float(uw.UWtotal) + float(ss.SSdealamount)))
-            uw.UWexpect = float('%.2f' % (float(uw.UWexpect) - float(ss.SSdealamount)))
+            uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal((ss.SSdealamount))
+            uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(ss.SSdealamount))
+            uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(ss.SSdealamount))
+            uw.UWexpect = Decimal(str(uw.UWexpect)) - Decimal(str(ss.SSdealamount))
         else:
             ss.SSstatus = SupplizerSettementStatus.approvaling.value
             ssa = SettlenmentApply.create({
@@ -1890,7 +1890,7 @@ class CUser(SUser, BASEAPPROVAL):
             extract('month', UserCommission.createtime) == today.month,
             extract('year', UserCommission.createtime) == today.year
         ).all()
-        ss_total = sum(su.UCcommission or 0 for su in su_comiission_list)
+        ss_total = sum(Decimal(str(su.UCcommission)) or 0 for su in su_comiission_list)
 
         ss = SupplizerSettlement.create({
             'SSid': str(uuid.uuid1()),
