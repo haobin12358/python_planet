@@ -310,7 +310,16 @@ class CProducts(BaseController):
                 skuprice = float(sku.get('skuprice'))
                 skustock = int(sku.get('skustock'))
                 skudeviderate = sku.get('skudeviderate')
-
+                default_derate = Commision.devide_rate_baseline()
+                if is_supplizer():
+                    supplizer = Supplizer.query.filter(Supplizer.isdelete == False,
+                                                       Supplizer.SUid == request.user.id
+                                                       ).first()
+                    if skudeviderate:
+                            if Decimal(default_derate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                                raise StatusError('请设置最少让利比')
+                    else:
+                        skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                 prstocks += int(skustock)
                 sku_dict = {
@@ -343,6 +352,9 @@ class CProducts(BaseController):
                 'CreaterId': request.user.id,
                 'PRdescription': prdescription  # 描述
             }
+            # 库存为0 的话直接售罄
+            if prstocks == 0:
+                product_dict['PRstatus'] = ProductStatus.sell_out.value
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku value
@@ -398,8 +410,9 @@ class CProducts(BaseController):
             # todo 审批流
             s.add_all(session_list)
         # db.session.expunge_all()
-        # todo 重复添加
-        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
+        if prstocks != 0:
+            # todo 审核中的编辑会 重复添加审批
+            avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('添加成功', {'prid': prid})
@@ -469,7 +482,6 @@ class CProducts(BaseController):
                             'SKUsn': sn,
                             'SkudevideRate': skudeviderate
                         })
-                        session_list.append(sku_instance)
                     else:
                         sku_instance = ProductSku.create({
                             'SKUid': str(uuid.uuid1()),
@@ -485,7 +497,20 @@ class CProducts(BaseController):
                         sn = sku.get('skusn')
                         self._check_sn(sn=sn)
                         new_sku.append(sku_instance)
-                        session_list.append(sku_instance)
+                    # 设置分销比
+                    default_derate = Commision.devide_rate_baseline()
+                    if is_supplizer():
+                        supplizer = Supplizer.query.filter(
+                            Supplizer.isdelete == False,
+                            Supplizer.SUid == request.user.id).first()
+                        if skudeviderate:
+                            if Decimal(default_derate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                                raise StatusError('请设置最少让利比')
+                        else:
+                            skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
+                    sku_instance.SkudevideRate = skudeviderate
+                    session_list.append(sku_instance)
+
                     prstock += sku_instance.SKUstock
                 # 剩下的就是删除
                 old_sku = ProductSku.query.filter(
@@ -519,6 +544,8 @@ class CProducts(BaseController):
             # if product.PRstatus == ProductStatus.sell_out.value:
             #     product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
+            if product.PRstocks == 0:
+                product.PRstatus = ProductStatus.sell_out.value
             session_list.append(product)
             # sku value
             pskuvalue = data.get('pskuvalue')
@@ -629,8 +656,9 @@ class CProducts(BaseController):
             s.add_all(session_list)
 
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
-        # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
+        if product.PRstocks != 0:
+            # 5 分钟后自动通过
+            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('更新成功')
 
     @token_required

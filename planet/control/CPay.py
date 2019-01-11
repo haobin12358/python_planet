@@ -252,7 +252,7 @@ class CPay():
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
         # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
-        planet_and_user_rate = Decimal(str(order_part.SkudevideRate)) # todo 查询sku的让利
+        planet_and_user_rate = Decimal(str(order_part.SkudevideRate))  # todo 查询sku的让利
         if not planet_and_user_rate:
             sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
             if sku:
@@ -260,24 +260,19 @@ class CPay():
         if not planet_and_user_rate:
             planet_and_user_rate = default_planetcommision
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
-        import ipdb
-        # ipdb.set_trace()
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
 # <<<<<<< HEAD
         planet_commision = order_part.OPsubTotal * planet_rate   # 平台获得, 是总价的的百分比
-        user_commision = order_part.OPsubTotal - planet_commision  # 用户获得, 是总价 - 平台获得
+        user_commision = order_part.OPsubTotal * planet_and_user_rate - planet_commision  # 用户获得, 是总价 - 平台获得
         # user_rate = planet_and_user_rate - planet_rate  # 用户的的比例
         # 用户佣金
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
-# =======
-#         planet_commision = Decimal(str(order_part.OPsubTotal)) * planet_rate
-#         user_rate = planet_and_user_rate - planet_rate
+        commision_for_supplizer = self.get_two_float(commision_for_supplizer)
+
+        # user_rate = planet_and_user_rate - planet_rate
 #         # 用户佣金
 #         user_commision = Decimal(str(order_part.OPsubTotal)) * user_rate  # 给用户的佣金
-#         commision_for_supplizer = Decimal(str(order_part.OPsubTotal)) * (Decimal('1') - planet_and_user_rate)  # 给供应商的钱
-# >>>>>>> 2ddf6d64ba89357d2f3e8f1739647a5ae7d558b4
-#         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:

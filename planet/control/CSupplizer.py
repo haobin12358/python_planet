@@ -69,6 +69,7 @@ class CSupplizer:
                 'SUloginPhone': form.suloginphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
+                'SUbaseRate': form.subaserate.data,
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
@@ -110,18 +111,22 @@ class CSupplizer:
                 Supplizer.isdelete == False,
                 Supplizer.SUid == form.suid.data
             ).first_('供应商不存在')
-            supplizer.update({
+            supplizer_dict = {
                 'SUlinkPhone': form.sulinkphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
+                'SUbaseRate': form.subaserate.data,
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
                 'SUemail': form.suemail.data,
-            }, null='dont ignore')
+            }
+            if is_admin() and form.subaserate.data:
+                supplizer_dict['SUbaseRate'] = form.subaserate.data,
+            supplizer.update(supplizer_dict, null='dont ignore')
             db.session.add(supplizer)
             if pbids and is_admin():
                 for pbid in pbids:
