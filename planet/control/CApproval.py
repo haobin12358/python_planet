@@ -1071,3 +1071,4 @@ class CApproval(BASEAPPROVAL):
             SupplizerSettlement.SSid == ssa.SSid, SupplizerSettlement.isdelete == False).first_('结算申请数据异常')
 
         ss.SSstatus = SupplizerSettementStatus.settlementing.value
+        ss.SSArejectReason = refuse_abo
