@@ -1558,7 +1558,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
                 'CNcardNo': sa.SAcardNo,
-                'CNcashNum': data.get('cncashnum'),
+                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for
             })
@@ -1576,7 +1576,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNbankName': data.get('cnbankname'),
                 'CNbankDetail': data.get('cnbankdetail'),
                 'CNcardNo': data.get('cncardno'),
-                'CNcashNum': data.get('cncashnum'),
+                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
                 'CNcardName': user.USrealname,
                 'CommisionFor': commision_for
             })
