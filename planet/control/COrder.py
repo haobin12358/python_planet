@@ -671,7 +671,7 @@ class COrder(CPay, CCoupon):
             # s.add_all(model_bean)
         from planet.extensions.tasks import auto_cancle_order
 
-        auto_cancle_order.apply_async(args=omids, countdown=30 * 60, expires=40 * 60, )
+        auto_cancle_order.apply_async(args=(omids, ), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2
