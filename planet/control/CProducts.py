@@ -450,8 +450,8 @@ class CProducts(BaseController):
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
                         raise ParamsError('skuattritedetail与prattribute不符')
-                    skuprice = sku.get('skuprice')
-                    skustock = sku.get('skustock')
+                    skuprice = int(sku.get('skuprice', 0))
+                    skustock = int(sku.get('skustock', 0))
                     skudeviderate = sku.get('skudeviderate')
                     assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
                     # 更新或添加删除

@@ -45,14 +45,14 @@ class SupplizerCreateForm(BaseForm):
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
     pbids = FieldList(StringField('品牌'))
-    subusinesslicense = StringField('营业执照', validators=[DataRequired('营业执照不可为空')])
-    suregisteredfund = StringField('注册资金', validators=[DataRequired('注册资金不可为空')])
-    sumaincategory = StringField('主营类目', validators=[DataRequired('主营类目不可为空')])
-    suregisteredtime = DateField('注册时间', validators=[DataRequired('注册时间不可为空')])
-    sulegalperson = StringField('法人', validators=[DataRequired('法人不可为空')])
-    suemail = StringField('联系邮箱', validators=[DataRequired('联系邮箱不可为空')])
-    sulegalpersonidcardfront = StringField('法人身份证正面', validators=[DataRequired('法人身份证正面不可为空')])
-    sulegalpersonidcardback = StringField('法人身份证反面', validators=[DataRequired('法人身份证反面不可为空')])
+    subusinesslicense = StringField('营业执照')
+    suregisteredfund = StringField('注册资金',)
+    sumaincategory = StringField('主营类目', )
+    suregisteredtime = DateField('注册时间',)
+    sulegalperson = StringField('法人',)
+    suemail = StringField('联系邮箱', )
+    sulegalpersonidcardfront = StringField('法人身份证正面', )
+    sulegalpersonidcardback = StringField('法人身份证反面', )
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(
