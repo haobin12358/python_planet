@@ -1369,20 +1369,29 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get user = {0}'.format(user.__dict__))
 
         token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
-        data = {'token': token, 'user': user, 'is_new': not bool(user.UStelphone)}
+        data = {'user': user, 'is_new': not bool(user.UStelphone)}
+        if bool(user.UStelphone):
+            data.setdefault('token', token)
         gennerc_log(data)
         return Success('登录成功', data=data)
 
     @get_session
-    @token_required
+    # @token_required
     def bing_telphone(self):
         """微信绑定后手机号绑定"""
-        user_openid = self.get_user_by_id(request.user.id)
-        if not user_openid:
-            raise ParamsError('token error')
-        data = parameter_required(('ustelphone', 'identifyingcode'))
+        # user_openid = self.get_user_by_id(request.user.id)
+        # data = request.json
+        #
+        # if not user_openid:
+        #     raise ParamsError('token error')
+        data = parameter_required(('ustelphone', 'identifyingcode', 'openid', 'appfrom'))
         ustelphone = data.get('ustelphone')
         self.__check_identifyingcode(ustelphone, data.get("identifyingcode"))
+        fromdict = self.analysis_app_from(data.get('app_from'))
+        user_filter = {
+            fromdict.get('usfilter'): data.get('openid')
+        }
+        user_openid = User.query.filter_by_(user_filter).first()
         # 检查手机号是否已经注册
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
