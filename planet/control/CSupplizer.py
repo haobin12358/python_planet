@@ -12,11 +12,11 @@ from planet.common.error_response import AuthorityError, ParamsError, DumpliErro
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
-from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom
+from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount
+from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes
 
 
 class CSupplizer:
@@ -360,3 +360,56 @@ class CSupplizer:
         # if not sa:
 
         return Success('获取供应商账户信息成功', data=sa)
+
+    @token_required
+    def get_system_notes(self):
+        if is_supplizer():
+            mn_list = ManagerSystemNotes.query.filter(
+                ManagerSystemNotes.MNstatus == NotesStatus.publish.value)
+        elif is_admin():
+            mn_list = ManagerSystemNotes.query.filter(ManagerSystemNotes.isdelete == False)
+        else:
+            raise AuthorityError
+
+        mn_list = mn_list.order_by(ManagerSystemNotes.createtime.desc()).all()
+
+        for mn in mn_list:
+            mn.fill('mnstatus', NotesStatus(mn.MNstatus).zh_value)
+
+        return Success('获取通告成功', data=mn_list)
+
+    @admin_required
+    def add_update_notes(self):
+        # 创建或更新通告
+        from flask import request
+        if not is_admin():
+            raise AuthorityError
+        data = parameter_required(('mncontent','mnstatus'))
+        mnstatus = data.get('mnstatus')
+        mnstatus = getattr(NotesStatus, mnstatus, None)
+        if not mnstatus:
+            mnstatus = 0
+        else:
+            mnstatus = mnstatus.value
+
+        mncontent = data.get('mncontent')
+        mnid = data.get('mnid')
+        with db.auto_commit():
+            if mnid:
+                mn = ManagerSystemNotes.query.filter(
+                    ManagerSystemNotes.MNid == mnid, ManagerSystemNotes.isdelete==False).first()
+                if mn:
+                    mn.MNcontent = mncontent
+                    mn.MNstatus = mnstatus
+                    mn.MNupdateid = request.user.id
+                    return Success('更新通告成功', data=mn.MNid)
+
+            mn = ManagerSystemNotes.create({
+                'MNid': str(uuid.uuid1()),
+                'MNcontent': mncontent,
+                'MNstatus': mnstatus,
+                'MNcreateid': request.user.id
+            })
+
+            db.session.add(mn)
+        return Success('创建通告成功', data=mn.MNid)

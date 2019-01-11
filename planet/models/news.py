@@ -97,4 +97,12 @@ class NewsChangelog(Base):
     NCLoperation = Column(String(255), comment='进行操作')
 
 
-
+class ManagerSystemNotes(Base):
+    """后台通知"""
+    __tablename__ = 'ManagerSystemNotes'
+    MNid = Column(String(64), primary_key=True)
+    MNcontent = Column(Text, comment='通知内容')
+    # MNtarget = Column(Integer, default=1, comment='展示对象 1 超管 2 普管 3 供应商')
+    MNstatus = Column(Integer, default=0, comment='通告状态 0 草稿 1 发布')
+    MNcreateid = Column(String(64), comment='创建人')
+    MNupdateid = Column(String(64), comment='修改人')
