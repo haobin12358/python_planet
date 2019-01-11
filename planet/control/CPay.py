@@ -260,13 +260,15 @@ class CPay():
         if not planet_and_user_rate:
             planet_and_user_rate = default_planetcommision
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
+        import ipdb
+        # ipdb.set_trace()
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
-        planet_commision = order_part.OPsubTotal * planet_rate
-        user_rate = planet_and_user_rate - planet_rate
+        planet_commision = order_part.OPsubTotal * planet_rate   # 平台获得, 是总价的的百分比
+        user_commision = order_part.OPsubTotal - planet_commision  # 用户获得, 是总价 - 平台获得
+        # user_rate = planet_and_user_rate - planet_rate  # 用户的的比例
         # 用户佣金
-        user_commision = order_part.OPsubTotal * user_rate  # 给用户的佣金
-        commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)  # 给供应商的钱
+        commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
