@@ -175,6 +175,8 @@ class Supplizer(Base):
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
+    SUbaseRate = Column(DECIMAL(scale=2), comment='供应商最低让利比')
+
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
     SUpassword = Column(String(255), comment='供应商密码密文')
