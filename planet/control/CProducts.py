@@ -169,37 +169,85 @@ class CProducts(BaseController):
             order_by = product_order.desc()
         elif desc_asc == 'asc':
             order_by = product_order
-
-        filter_args = [
-            Products.PBid == pbid,
-            or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+        product_query = Products.query.filter(Products.isdelete == False)
+        if pbid:
+            product_query = product_query.outerjoin(ProductBrand, ProductBrand.isdelete == False).filter(ProductBrand.isdelete == False)
+        if pcids:
+            product_query = product_query.filter(Products.PCid.in_(pcids))
+        if itid:
+            product_query = product_query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid).filter(
+                ProductItems.isdelete == False,
+                ProductItems.ITid == itid
+            )
+        if prstatus:
+            product_query = product_query.filter(Products.PRstatus == prstatus)
+        if kw:
+            product_query = product_query.filter(
+                or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
                 and_(*[ProductBrand.PBname.contains(x) for x in kw])),
-            Products.PCid.in_(pcids),
-            ProductItems.ITid == itid,
-            Products.PRstatus == prstatus,
-        ]
-        # 标签位置和权限筛选
+            )
         if not is_admin() and not is_supplizer():
             if not itid:
                 itposition = data.get('itposition')
                 itauthority = data.get('itauthority')
-                if not itposition:  # 位置 标签的未知
-                    filter_args.extend([Items.ITposition != ItemPostion.other.value,
-                                        Items.ITposition != ItemPostion.new_user_page.value])
+                if ProductItems not in product_query._joinpoint.values():
+                    product_query = product_query.join(ProductItems, ProductItems.PRid == Products.PRid).filter(
+                        ProductItems.isdelete == False
+                    )
+                product_query = product_query.outerjoin(Items, Items.ITid == ProductItems.ITid).filter()
+                if itposition:
+                    product_query = product_query.filter(
+                        Items.ITposition != ItemPostion.other.value,
+                        Items.ITposition != ItemPostion.new_user_page.value,
+                    )
                 else:
-                    filter_args.append(Items.ITposition == int(itposition))
+                    product_query = product_query.filter(
+                        Items.ITposition == int(itposition)
+                    )
+
                 if not itauthority:
-                    filter_args.append(
-                        or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
+                    product_query = product_query.filter(
+                        or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None))
+                    )
                 else:
-                    filter_args.append(Items.ITauthority == int(itauthority))
+                    product_query = product_query.filter(
+                        Items.ITauthority == int(itauthority)
+                    )
+
+
+        #
+        # filter_args = [
+        #     Products.PBid == pbid,
+        #     or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+        #         and_(*[ProductBrand.PBname.contains(x) for x in kw])),
+        #     Products.PCid.in_(pcids),
+        #     ProductItems.ITid == itid,
+        #     Products.PRstatus == prstatus,
+        # ]
+        # 标签位置和权限筛选
+        # if not is_admin() and not is_supplizer():
+        #     if not itid:
+        #         itposition = data.get('itposition')
+        #         itauthority = data.get('itauthority')
+        #         if not itposition:  # 位置 标签的未知
+        #             filter_args.extend([Items.ITposition != ItemPostion.other.value,
+        #                                 Items.ITposition != ItemPostion.new_user_page.value,
+        #                                 ])
+        #         else:
+        #             filter_args.append(Items.ITposition == int(itposition))
+        #
+        #         if not itauthority:
+        #             filter_args.append(
+        #                 or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
+        #         else:
+        #             filter_args.append(Items.ITauthority == int(itauthority))
         # products = self.sproduct.get_product_list(filter_args, [order_by, ])
-        query = Products.query.filter(Products.isdelete == False). \
-            outerjoin(
-            ProductItems, ProductItems.PRid == Products.PRid
-        ).outerjoin(
-            ProductBrand, ProductBrand.PBid == Products.PBid
-        ).outerjoin(Items, Items.ITid == ProductItems.ITid)
+        # query = Products.query.filter(Products.isdelete == False). \
+        #     outerjoin(
+        #     ProductItems, ProductItems.PRid == Products.PRid
+        # ).outerjoin(
+        #     ProductBrand, ProductBrand.PBid == Products.PBid
+        # ).outerjoin(Items, Items.ITid == ProductItems.ITid)
         # 后台的一些筛选条件
         # 供应源筛选
         if is_supplizer():
@@ -343,6 +391,9 @@ class CProducts(BaseController):
                 'CreaterId': request.user.id,
                 'PRdescription': prdescription  # 描述
             }
+            # 库存为0 的话直接售罄
+            if prstocks == 0:
+                product_dict['PRstatus'] = ProductStatus.sell_out.value
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
             # sku value
@@ -398,8 +449,9 @@ class CProducts(BaseController):
             # todo 审批流
             s.add_all(session_list)
         # db.session.expunge_all()
-        # todo 重复添加
-        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
+        if prstocks != 0:
+            # todo 审核中的编辑会 重复添加审批
+            avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('添加成功', {'prid': prid})
@@ -519,6 +571,8 @@ class CProducts(BaseController):
             # if product.PRstatus == ProductStatus.sell_out.value:
             #     product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
+            if product.PRstocks == 0:
+                product.PRstatus = ProductStatus.sell_out.value
             session_list.append(product)
             # sku value
             pskuvalue = data.get('pskuvalue')
@@ -629,8 +683,9 @@ class CProducts(BaseController):
             s.add_all(session_list)
 
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
-        # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
+        if product.PRstocks != 0:
+            # 5 分钟后自动通过
+            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('更新成功')
 
     @token_required
