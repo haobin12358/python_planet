@@ -894,6 +894,8 @@ class CApproval(BASEAPPROVAL):
             fen_model.USsupper1 = user.USid
             if user.USsupper1:
                 fen_model.USsupper2 = user.USsupper1
+            if user.USsupper2:
+                fen_model.USsupper3 = user.USsupper2
 
     def refuse_agent(self, approval_model, refuse_abo):
         # user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')
