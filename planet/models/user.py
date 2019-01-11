@@ -53,7 +53,7 @@ class UserCommission(Base):
     USid = Column(String(64), comment='用户或供应商id 0表示平台')
     CommisionFor = Column(Integer, default=20, comment='0 平台, 10 供应商, 20 普通用户')
     FromUsid = Column(String(64), comment='订单来源用户')
-    UCstatus = Column(Integer, default=0, comment='佣金状态{-1: 异常, 0：预期到账, 1: 已到账, 2: 已提现}')
+    UCstatus = Column(Integer, default=0, comment='佣金状态{-1: 异常, 0：预期到账, 1: 已到账}')
     UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金')
     UCendTime = Column(DateTime, comment='预期到账时间')
     PRtitle = Column(String(255), comment='商品标题')

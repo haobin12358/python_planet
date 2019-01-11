@@ -251,7 +251,8 @@ class CPay():
         user_level3commision = Decimal(
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
-        # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
+        # 供应商让利比: (平台 + 用户) 抽成: 获取成功比例, 依次查找:
+        # 订单--> sku --> 供应商佣金比 --> 系统默认
         planet_and_user_rate = Decimal(str(order_part.SkudevideRate))  # todo 查询sku的让利
         if not planet_and_user_rate:
             sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
@@ -262,17 +263,11 @@ class CPay():
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
-# <<<<<<< HEAD
         planet_commision = order_part.OPsubTotal * planet_rate   # 平台获得, 是总价的的百分比
         user_commision = order_part.OPsubTotal * planet_and_user_rate - planet_commision  # 用户获得, 是总价 - 平台获得
-        # user_rate = planet_and_user_rate - planet_rate  # 用户的的比例
-        # 用户佣金
+        # 供应商佣金
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
-
-        # user_rate = planet_and_user_rate - planet_rate
-#         # 用户佣金
-#         user_commision = Decimal(str(order_part.OPsubTotal)) * user_rate  # 给用户的佣金
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
