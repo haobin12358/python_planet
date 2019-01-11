@@ -82,6 +82,7 @@ class SupplizerUpdateForm(BaseForm):
     subankname = StringField('银行名字')
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
+    subaserate = DecimalField('最低分销比')
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
 

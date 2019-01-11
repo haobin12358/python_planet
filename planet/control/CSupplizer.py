@@ -55,6 +55,7 @@ class CSupplizer:
             supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
             supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
             supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
+            supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
         return Success(data=supplizers)
 
     @admin_required
@@ -118,7 +119,7 @@ class CSupplizer:
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
-                'SUbaseRate': form.subaserate.data,
+                # 'SUbaseRate': form.subaserate.data,
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
@@ -168,6 +169,7 @@ class CSupplizer:
                 pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
                 pb.add('pbstatus_zh')
         supplizer.fill('pbs', pbs)
+        supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
         return Success(data=supplizer)
 
     def _fill_supplizer(self, supplizer):
