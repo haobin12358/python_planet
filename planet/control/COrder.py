@@ -136,6 +136,7 @@ class COrder(CPay, CCoupon):
 
     @token_required
     def export_xls(self):
+        """结算页的导出"""
         if not is_supplizer() and not is_admin():
             raise AuthorityError()
         now = datetime.now()
@@ -1891,4 +1892,62 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMinRefund == True
             )
         return order_main_query
+
+    def _fix_item(self, *args, **kwargs):
+        """
+        :param args:  {"订单编号": "2818023"}
+        :param kwargs:
+        :return:
+        """
+        if kwargs.get('headers'):
+            return self._fix_header(*args)
+        items = []
+        for arg in args:
+            assert len(arg) == 1
+            for item in arg.values():
+                items.append(item)
+        return items
+
+    def _fix_header(self, *args):
+        items = []
+        for arg in args:
+            assert len(arg) == 1
+            for item in arg.keys():
+                items.append(item)
+        return items
+
+    def _part_to_rows(self, order_part, *args, **kwargs):
+        """订单页导出所需的"""
+        order_main = kwargs.get('order_main')
+        order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
+        order_part.PRattribute = json.loads(order_part.PRattribute)
+        # 状态
+        if (is_supplizer() or is_admin()) and order_part.OPisinORA:
+            order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
+            self._fill_order_refund(order_part, order_refund_apply_instance, False)
+        # 如果是试用商品，订单信息中添加押金到期信息
+        if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
+            OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
+            usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
+            deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
+            order_main.fill('deposit_expires', deposit_expires)
+            order_part.fill('deposit_expires', deposit_expires)
+        order_pay = OrderPay.query.filter(
+            OrderPay.OPayno == order_main.OPayno,
+        ).order_by(OrderPay.createtime.desc()).first()
+        items = {
+            "订单编号": order_main.OMno,
+            '订单状态': OrderMainStatus(order_main.OMstatus).zh_value,
+            '品牌': '',
+            '商品名': '',
+            '数量': '',
+            '单价': '',
+            '总价': '',
+            '实付': '',
+            '售后中': '',
+            '收货人': '',
+            '收货电话': '',
+
+            '付款时间': getattr(order_pay, 'OPaytime', ''),
+        }
 
