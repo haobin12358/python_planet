@@ -21,6 +21,7 @@ class AFreshManFirstOrder(Resource):
             'apply_award': self.creshman.apply_award,
             'update_award': self.creshman.update_award,
             'shelf_award': self.creshman.shelf_award,
+            'delete': self.creshman.del_award,
         }
         return apis
 

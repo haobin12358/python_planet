@@ -1010,6 +1010,15 @@ class CApproval(BASEAPPROVAL):
             return
         ffa.FMFAstatus = ApplyStatus.reject.value
         ffa.FMFArejectReson = refuse_abo
+        # 进行库存恢复
+        apply_skus = FreshManFirstSku.query.join(
+            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+            FreshManFirstProduct.FMFAid == ffa.FMFAid).all()
+        from planet.control.COrder import COrder
+        for apply_sku in apply_skus:
+            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            product = Products.query.filter(Products.PRid == sku.PRid).first()
+            COrder()._update_stock(apply_sku.FMFPstock, product, sku)
 
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
