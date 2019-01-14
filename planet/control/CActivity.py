@@ -10,7 +10,7 @@ from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, Tria
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
-    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply
+    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply, OutStock
 from .CUser import CUser
 
 
@@ -44,15 +44,17 @@ class CActivity(CUser):
             act.fill('actype_zh', ActivityType(act.ACtype).zh_value)
             # 活动是否有供应商参与
             if ActivityType(act.ACtype).name == 'guess_num':
-                guess_num_count = GuessNumAwardApply.query.filter(
-                    GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
-                    GuessNumAwardApply.AgreeStartime <= today,
-                    GuessNumAwardApply.AgreeEndtime >= today,
-                    GuessNumAwardApply.isdelete == False
-                ).count()
+                guess_num_count = GuessNumAwardApply.query.join(OutStock, OutStock.OSid == GuessNumAwardApply.OSid
+                                                                ).filter(OutStock.isdelete == False,
+                                                                         GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                                                                         GuessNumAwardApply.AgreeStartime <= today,
+                                                                         GuessNumAwardApply.AgreeEndtime >= today,
+                                                                         GuessNumAwardApply.isdelete == False
+                                                                         ).count()
                 act.fill('prcount', guess_num_count)
             elif ActivityType(act.ACtype).name == 'magic_box':
-                magic_box_count = MagicBoxApply.query.filter(
+                magic_box_count = MagicBoxApply.query.join(OutStock, OutStock.OSid == MagicBoxApply.OSid).filter(
+                    OutStock.isdelete == False,
                     MagicBoxApply.isdelete == False,
                     MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
                     MagicBoxApply.AgreeStartime <= today,
@@ -68,7 +70,7 @@ class CActivity(CUser):
                 ).count()
                 act.fill('prcount', free_use_count)
             else:
-                fresh_man_count = FreshManFirstProduct.query.outerjoin(
+                fresh_man_count = FreshManFirstProduct.query.join(
                     FreshManFirstApply, FreshManFirstProduct.FMFAid == FreshManFirstApply.FMFAid
                 ).filter_(
                     FreshManFirstProduct.isdelete == False,
@@ -81,7 +83,9 @@ class CActivity(CUser):
                 result = activitys
             else:
                 if ActivityType(act.ACtype).name == 'guess_num':
-                    lasting = GuessNumAwardApply.query.filter_by_().filter(
+                    lasting = GuessNumAwardApply.query.join(OutStock, OutStock.OSid == GuessNumAwardApply.OSid).filter(
+                        OutStock.isdelete == False,
+                        GuessNumAwardApply.isdelete == False,
                         GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
                         GuessNumAwardApply.AgreeStartime <= today,
                         GuessNumAwardApply.AgreeEndtime >= today,
@@ -89,7 +93,8 @@ class CActivity(CUser):
                     if lasting:
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':
-                    lasting = MagicBoxApply.query.filter(
+                    lasting = MagicBoxApply.query.join(OutStock, OutStock.OSid == MagicBoxApply.OSid).filter(
+                        OutStock.isdelete == False,
                         MagicBoxApply.isdelete == False,
                         MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
                         MagicBoxApply.AgreeStartime <= today,
