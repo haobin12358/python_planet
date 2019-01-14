@@ -921,8 +921,7 @@ class CApproval(BASEAPPROVAL):
         product.PRstatus = ProductStatus.reject.value
 
     def agree_publish(self, approval_model):
-        # news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
-        news = News.query.filter_by_(NEid=approval_model.AVcontent).first('资讯已被删除')
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
         news.NEstatus = NewsStatus.usual.value
 
     def refuse_publish(self, approval_model, refuse_abo):

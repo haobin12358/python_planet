@@ -56,7 +56,7 @@ class SupplizerCreateForm(BaseForm):
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(
-            Supplizer.SUloginPhone == raw.data
+            Supplizer.SUloginPhone == raw.data, Supplizer.isdelete == False
         ).first()
         if is_exists:
             raise DumpliError('登陆手机号已存在')
