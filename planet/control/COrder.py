@@ -104,11 +104,11 @@ class COrder(CPay, CCoupon):
             order_mains = order_main_query.order_by(*order_by).all_with_page()
         rows = []
         for order_main in order_mains:
-            if form.export_xls.data:
-                headers, part_rows = self._part_to_row(order_main=order_main)
+            order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
+            if form.export_xls.data and order_parts:
+                headers, part_rows = self._part_to_row(order_main=order_main, order_parts=order_parts)
                 rows.extend(part_rows)
             else:
-                order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
                 for order_part in order_parts:
                     order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
                     order_part.PRattribute = json.loads(order_part.PRattribute)
@@ -241,7 +241,8 @@ class COrder(CPay, CCoupon):
                    '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
                    '商品编码', '商品名称', '购买件数',
                    '销售单价', '销售总价',
-                   '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价')
+                   '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
+                   '代理商佣金', '平台费用', '供应商剩余')
         items = []
         for result in results:
             order_part, order_pay, order_logistic, order_main = result
@@ -1921,20 +1922,13 @@ class COrder(CPay, CCoupon):
             )
         return order_main_query
 
-    def _fix_item(self, *args, **kwargs):
-        items = []
-        headers = []
-        for arg in args:
-            for header, item in arg.items():
-                items.append(item)
-                headers.append(header)
-        return headers, items
-
     def _part_to_row(self, *args, **kwargs):
         """订单页导出所需的"""
         rows = []
         order_main = kwargs.get('order_main')
-        order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
+        order_parts = kwargs.get('order_parts')
+        if not order_parts:
+            return
         for order_part in order_parts:
             order_pay = OrderPay.query.filter(
                 OrderPay.OPayno == order_main.OPayno,
@@ -1967,3 +1961,11 @@ class COrder(CPay, CCoupon):
             rows.append(items_value)
         return header, rows
 
+    def _fix_item(self, *args, **kwargs):
+        items = []
+        headers = []
+        for arg in args:
+            for header, item in arg.items():
+                items.append(item)
+                headers.append(header)
+        return headers, items
