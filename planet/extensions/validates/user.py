@@ -39,6 +39,7 @@ class SupplizerCreateForm(BaseForm):
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
+    subaserate = DecimalField('最低分销比')
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
@@ -81,6 +82,7 @@ class SupplizerUpdateForm(BaseForm):
     subankname = StringField('银行名字')
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
+    subaserate = DecimalField('最低分销比')
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
 

@@ -301,7 +301,6 @@ class CFreshManFirstOrder(COrder, CUser):
                                     Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
                                   ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
-        # 将申请事物时间分割成每天单位
         with db.auto_commit():
             fresh_first_apply = FreshManFirstApply.create({
                 'FMFAid': str(uuid.uuid1()),
@@ -359,8 +358,8 @@ class CFreshManFirstOrder(COrder, CUser):
         fmfaid = data.get('fmfaid')
         apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                                    Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
-                                  ).first_('当前商品状态不允许进行申请')
+                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
+                                        ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
         with db.auto_commit():
             fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid,
@@ -411,7 +410,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
                     FreshManFirstSku.SKUid == skuid
                 ).first()
-                # self._update_stock(fresh_first_apply.FMFPstock - int(skustock), product, sku)
+                self._update_stock(-int(skustock), product, sku)
                 if not fresh_first_sku:
                     fresh_first_sku = FreshManFirstSku()
                     fresh_first_sku.FMFSid = str(uuid.uuid1())
@@ -530,6 +529,7 @@ class CFreshManFirstOrder(COrder, CUser):
                     FreshManFirstApply.SUid == request.user.id,
                 )
             apply = apply_query.first_('申请已处理')
+
             # 库存处理
             self._re_stock(apply)
             apply.FMFAstatus = ApplyStatus.cancle.value
@@ -542,6 +542,21 @@ class CFreshManFirstOrder(COrder, CUser):
                 'AVstatus': ApplyStatus.cancle.value
             })
         return Success('撤销成功')
+
+    def del_award(self):
+        """删除申请"""
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
+        form = ShelfFreshManfirstOrder().valid_data()
+        fmfaid = form.fmfaid.data
+        with db.auto_commit():
+            apply_info = FreshManFirstApply.query.filter_by_(FMFAid=fmfaid).first_('申请未找到或已删除')
+            if is_supplizer():
+                assert apply_info.SUid == request.user.id, '供应商只能删除自己提交的申请'
+            if apply_info.FMFAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value]:
+                raise StatusError('只能删除已拒绝或已撤销状态下的申请')
+            apply_info.isdelete = True
+        return Success('删除成功', {'fmfaid': fmfaid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
@@ -556,16 +571,11 @@ class CFreshManFirstOrder(COrder, CUser):
 
     def _re_stock(self, apply):
         """库存回复"""
-        apply_sku = FreshManFirstSku.query.join(
-            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid
-        ).filter(
-            FreshManFirstProduct.FMFAid == apply.FMFAid
-        ).first()
-        sku = ProductSku.query.filter(
-            ProductSku.SKUid == apply_sku.SKUid
-        ).first()
-        product = Products.query.filter(
-            Products.PRid == sku.PRid
-        ).first()
-        # 加库存
-        self._update_stock(apply_sku.FMFPstock, product, sku)
+        apply_skus = FreshManFirstSku.query.join(
+            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+            FreshManFirstProduct.FMFAid == apply.FMFAid).all()
+        for apply_sku in apply_skus:
+            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            product = Products.query.filter(Products.PRid == sku.PRid).first()
+            # 加库存
+            self._update_stock(apply_sku.FMFPstock, product, sku)
