@@ -160,6 +160,7 @@ class CUser(SUser, BASEAPPROVAL):
 
     def __user_fill_uw_total(self, user):
         """用户增加用户余额和用户总收益"""
+        # 增加待结算佣金
         uw = UserWallet.query.filter_by_(USid=user.USid).first()
         if not uw:
             user.fill('usbalance', 0)
@@ -169,6 +170,14 @@ class CUser(SUser, BASEAPPROVAL):
             user.fill('usbalance', uw.UWbalance or 0)
             user.fill('ustotal', uw.UWtotal or 0)
             user.fill('uscash', uw.UWcash or 0)
+        ucs = UserCommission.query.filter(
+            UserCommission.USid == user.USid,
+            UserCommission.UCstatus == UserCommissionStatus.preview.value,
+            UserCommission.isdelete == False).all()
+        uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
+
+        user.fill('usexpect', '%.2f' %float(uc_total))
+
 
     def _base_decode(self, raw):
         import base64

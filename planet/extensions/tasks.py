@@ -74,6 +74,8 @@ def auto_evaluate():
             for order_main in order_mains:
                 order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
                 for order_part in order_parts:
+                    if order_part.OPisinORA is True:
+                        continue
                     exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                     if exist_evaluation:
                         current_app.logger.info(
@@ -89,7 +91,7 @@ def auto_evaluate():
                     # ).update({
                     #     'UCstatus': UserCommissionStatus.in_account.value
                     # })
-                    corder._commsion_into_count(order_part) # 佣金到账
+                    corder._commsion_into_count(order_part)  # 佣金到账
                     corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                     # current_app.logger.info('佣金到账数量 {}'.format(user_commision))
                     if user:

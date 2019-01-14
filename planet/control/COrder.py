@@ -921,9 +921,11 @@ class COrder(CPay, CCoupon):
                 if exist_evaluation:
                     raise StatusError('该订单已完成评价')
                 oescore = evaluation.get('oescore', 5)
-                if not re.match(r'^[1|2|3|4|5]$', str(oescore)):
+                if not re.match(r'^[12345]$', str(oescore)):
                     raise ParamsError('oescore, 参数错误')
                 order_part_info = OrderPart.query.filter(OrderPart.OPid == opid, OrderPart.isdelete == False).first()
+                if order_part_info.OPisinORA is True:
+                    continue
                 evaluation_dict = OrderEvaluation.create({
                     'OEid': oeid,
                     'OMid': omid,
@@ -983,6 +985,8 @@ class COrder(CPay, CCoupon):
                         OrderPart.OPid == order_part_id,
                         OrderPart.isdelete == False
                     ).first()
+                    if other_order_part_info.OPisinORA is True:
+                        continue
                     oeid = str(uuid.uuid1())
                     other_evaluation = OrderEvaluation.create({
                         'OEid': oeid,
