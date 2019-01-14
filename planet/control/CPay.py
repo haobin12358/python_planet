@@ -252,11 +252,11 @@ class CPay():
             str(self._current_commission(order_part.USCommission3, default_level3commision))
         )
         # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
-        planet_and_user_rate = Decimal(str(order_part.SkudevideRate))  # todo 查询sku的让利
+        planet_and_user_rate = Decimal(str(order_part.SkudevideRate or 0))  # todo 查询sku的让利
         if not planet_and_user_rate:
             sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
             if sku:
-                planet_and_user_rate = Decimal(str(sku.SkudevideRate))
+                planet_and_user_rate = Decimal(str(sku.SkudevideRate or 0))
         if not planet_and_user_rate:
             planet_and_user_rate = default_planetcommision
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
