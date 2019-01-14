@@ -174,7 +174,7 @@ class COrder(CPay, CCoupon):
         aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
         abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
         xls_name = self._generic_omno() + '.xls'
-        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir,  xls_name=xls_name)
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
         abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
         if not os.path.isdir(abs_dir):
             os.makedirs(abs_dir)
@@ -222,7 +222,7 @@ class COrder(CPay, CCoupon):
         if paytime_end:
             query = query.filter(
                 OrderPay.OPaytime <= paytime_end,
-                )
+            )
         if omstatus == 'refund':
             # 后台获得售后订单(获取主单售后和附单售后)
             if is_admin() or is_supplizer():
@@ -237,12 +237,12 @@ class COrder(CPay, CCoupon):
         elif omstatus:
             query = query.filter(*omstatus)
         results = query.all()
-        headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌',
+        headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
                    '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
                    '商品编码', '商品名称', '购买件数',
                    '销售单价', '销售总价',
                    '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
-                   '代理商佣金', '平台费用', '供应商剩余')
+                   '代理商佣金', '平台费用', '供应商剩余',)
         items = []
         for result in results:
             order_part, order_pay, order_logistic, order_main = result
@@ -252,7 +252,7 @@ class COrder(CPay, CCoupon):
             item = [
                 getattr(order_main, 'OMno', None), getattr(order_part, 'createtime', None),
                 getattr(order_pay, 'createtime', None), getattr(order_logistic, 'createtime', None),
-                order_main.PBname,
+                order_main.PBname, OrderMainStatus(order_main.OMstatus).zh_value,
                 getattr(order_main, 'OMrecvName', None), getattr(order_main, 'OMrecvAddress', None),
                 getattr(order_part, 'SKUsn', None), getattr(order_part, 'PCname', None),
                 getattr(order_main, 'PRid', None),
@@ -260,7 +260,8 @@ class COrder(CPay, CCoupon):
                 order_part.OPnum
             ]
             if order_main.OMfrom == OrderFrom.fresh_man.value:
-                sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = 0
+                sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = \
+                    agent_commision = planet_commision = supplizer_remain = 0
                 free_price = order_part.OPsubTrueTotal
             else:
                 sku_price = order_part.SKUprice
@@ -269,15 +270,22 @@ class COrder(CPay, CCoupon):
                 coupon_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0
                 true_pay = order_part.OPsubTrueTotal
                 free_price = 0
+                comm_flow = UserCommission.query.filter(UserCommission.isdelete == False,
+                                                        UserCommission.UCstatus != UserCommissionStatus.error.value,
+                                                        UserCommission.OPid == order_part.OPid).all()
+                agent_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 20])
+                planet_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 0])
+                supplizer_remain = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 10])
             activity_name = OrderFrom(order_main.OMfrom).zh_value
+
             item.extend([
-                sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price
+                sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
+                agent_commision, planet_commision, supplizer_remain
             ])
             for itd in item:
                 if isinstance(itd, datetime):
                     itd.strftime('%Y-%m-%d')
             items.append(item)
-
         data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
 
@@ -290,8 +298,9 @@ class COrder(CPay, CCoupon):
         ).join(
             OrderRefundApply,
             or_(
-                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderPart.OPisinORA == True),
-                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderMain.OMinRefund == True)),
+                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderMain.OMinRefund == True, OrderRefundApply.isdelete == False),
+                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderPart.OPisinORA == True, OrderRefundApply.isdelete == False)
+            ),
         ).outerjoin(OrderRefund, and_(OrderRefund.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)). \
             outerjoin(OrderRefundFlow,
                       and_(OrderRefundFlow.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)) \
@@ -310,6 +319,7 @@ class COrder(CPay, CCoupon):
             query = query.filter(
                 OrderMain.createtime <= createtime_end
             )
+        query = query.group_by(OrderPart.OPid)
         results = query.all()
         items = []
         for result in results:
@@ -325,7 +335,7 @@ class COrder(CPay, CCoupon):
                     ]
             items.append(item)
         headers = ['订单编号', '退款编号', '工单类型', '品牌',
-                   '订单状态', '申请退款时间', '退款时间', '申请原因', 'SKU-SN', 'sku-id',
+                   '订单状态', '申请退款时间', '申请时间', '申请原因', 'SKU-SN', 'sku-id',
                    '商品名称', '购买件数', '退款金额', '商家承担贷款']
         data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
@@ -346,16 +356,16 @@ class COrder(CPay, CCoupon):
             SupplizerSettlement.isdelete == False,
             SupplizerSettlement.SUid == request.user.id
         ).first()
-        mobile = supplizer.SUloginPhone
+        mobile = getattr(supplizer, 'SUloginPhone', None)
         currency = '人民币'
         bank = getattr(supplizer_account, 'SAbankName', '')
-        bank_sn =getattr(supplizer_account, 'SAcardNo', '')
+        bank_sn = getattr(supplizer_account, 'SAcardNo', '')
         recv_name = getattr(supplizer_account, 'SACompanyName', '')
         address = getattr(supplizer_account, 'SAbankName', '')
 
         period = '{}至{}'.format(paytime_start.strftime('%Y-%m-%d'),
-                                paytime_end.strftime('%Y-%m-%d'),)
-        ticket_sn = settlement.SSid
+                                paytime_end.strftime('%Y-%m-%d'), )
+        ticket_sn = getattr(settlement, 'SSid', None)
         ticket_status = getattr(settlement, 'SSstatus', None)  # 结算单状态
         if ticket_status is not None:
             ticket_status = SupplizerSettementStatus(ticket_status).zh_value
@@ -697,7 +707,7 @@ class COrder(CPay, CCoupon):
             # s.add_all(model_bean)
         from planet.extensions.tasks import auto_cancle_order
 
-        auto_cancle_order.apply_async(args=(omids, ), countdown=30 * 60, expires=40 * 60, )
+        auto_cancle_order.apply_async(args=(omids,), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = ''.join(list(body))
         openid = user.USopenid1 or user.USopenid2

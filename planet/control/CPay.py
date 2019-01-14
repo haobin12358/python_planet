@@ -384,9 +384,9 @@ class CPay():
         usid = request.user.id
         user = User.query.filter(User.isdelete == False, User.USid == usid).first()
         commision = Commision.query.filter(Commision.isdelete == False, ).order_by(Commision.createtime.desc()).first()
-        level_commision = json.loads(commision.Levelcommision)
-        ReduceRatio = json.loads(commision.ReduceRatio)
-        IncreaseRatio = json.loads(commision.IncreaseRatio)
+        level_commision = list(map(Decimal, json.loads(commision.Levelcommision)))
+        ReduceRatio = list(map(Decimal, json.loads(commision.ReduceRatio)))
+        IncreaseRatio = list(map(Decimal, json.loads(commision.IncreaseRatio)))
         level1_commision = self._current_commission(user.USCommission1, level_commision[0])
         default_planetcommision = level_commision[-1]
         up1, up2 = user, User.query.filter(User.isdelete == False, User.USid == user.USsupper1).first()
@@ -406,7 +406,7 @@ class CPay():
             small_total = Decimal(str(sku_instance.SKUprice)) * opnum
             # 订单价格计算
             order_price += small_total
-            planet_and_user_rate = self._current_commission(sku_instance.SkudevideRate, getattr(supplizer, 'SUbaseRate', ''), )
+            planet_and_user_rate = self._current_commission(sku_instance.SkudevideRate, getattr(supplizer, 'SUbaseRate', ''), default_planetcommision)
             planet_and_user_rate = Decimal(planet_and_user_rate) / 100
             # 平台固定抽成
             planet_rate = Decimal(default_planetcommision) / 100
