@@ -1439,9 +1439,6 @@ class COrder(CPay, CCoupon):
         return str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + \
                str(time.time()).replace('.', '')[-7:] + str(random.randint(1000, 9999))
 
-    def _coupon_can_use_in_order(self, coupon, coupon_user, order_price):
-        pass
-
     def _get_refund_apply(self, args):
         """获取售后申请"""
         order_refund_apply_instance = self.strade.get_orderrefundapply_one(args)
