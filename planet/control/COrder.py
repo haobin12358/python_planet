@@ -32,7 +32,8 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
-    UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement
+    UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
+    ProductCategory
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -476,7 +477,8 @@ class COrder(CPay, CCoupon):
                         'PRid': prid,
                         'PRstatus': ProductStatus.usual.value
                     }).first_('商品不存在或已下架')
-
+                    pc = s.query(ProductCategory).filter_by(PCid=product_instance.PCid).first()
+                    pcname = pc.PCname if pc else ''
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
@@ -485,6 +487,7 @@ class COrder(CPay, CCoupon):
                         'OPid': opid,
                         'SKUid': skuid,
                         'SKUsn': sku_instance.SKUsn,
+                        'PCname': pcname,
                         'PRattribute': product_instance.PRattribute,
                         'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
