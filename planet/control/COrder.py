@@ -97,41 +97,62 @@ class COrder(CPay, CCoupon):
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) >= createtime_start)
         if createtime_end:
             order_main_query = order_main_query.filter(cast(OrderMain.createtime, Date) <= createtime_end)
-        order_mains = order_main_query.order_by(*order_by).all_with_page()
+        if form.export_xls.data:
+            order_mains = order_main_query.order_by(*order_by).group_by(OrderMain.OMid).all()
+        else:
+            order_mains = order_main_query.order_by(*order_by).all_with_page()
+        rows = []
         for order_main in order_mains:
-            order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
-            for order_part in order_parts:
-                order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
-                order_part.PRattribute = json.loads(order_part.PRattribute)
+            if form.export_xls.data:
+                headers, part_rows = self._part_to_row(order_main=order_main)
+                rows.extend(part_rows)
+            else:
+                order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
+                for order_part in order_parts:
+                    order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
+                    order_part.PRattribute = json.loads(order_part.PRattribute)
+                    # 状态
+                    if (is_supplizer() or is_admin()) and order_part.OPisinORA:
+                        order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
+                        self._fill_order_refund(order_part, order_refund_apply_instance, False)
+                    # 如果是试用商品，订单信息中添加押金到期信息
+                    if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
+                        OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
+                        usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
+                        deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
+                        order_main.fill('deposit_expires', deposit_expires)
+                        order_part.fill('deposit_expires', deposit_expires)
+                order_main.fill('order_part', order_parts)
                 # 状态
-                if (is_supplizer() or is_admin()) and order_part.OPisinORA:
-                    order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
-                    self._fill_order_refund(order_part, order_refund_apply_instance, False)
-                # 如果是试用商品，订单信息中添加押金到期信息
-                if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
-                    OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
-                    usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
-                    deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
-                    order_main.fill('deposit_expires', deposit_expires)
-                    order_part.fill('deposit_expires', deposit_expires)
-            order_main.fill('order_part', order_parts)
-            # 状态
-            order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
-            order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
-            order_main.add('OMstatus_en', 'OMstatus_zh', 'createtime').hide('OPayno', 'USid', )
-            order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
-            # 用户
-            # todo 卖家订单
-            if is_admin() or is_supplizer():
-                user = User.query.filter_by_({'USid': usid}).first_()
-                if user:
-                    user.fields = ['USname', 'USheader', 'USgender']
-                    order_main.fill('user', user)
-                # 主单售后状态信息
-            if order_main.OMinRefund is True:
-                omid = order_main.OMid
-                order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
-                self._fill_order_refund(order_main, order_refund_apply_instance, False)
+                order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
+                order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
+                order_main.add('OMstatus_en', 'OMstatus_zh', 'createtime').hide('OPayno', 'USid', )
+                order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
+                # 用户
+                # todo 卖家订单
+                if is_admin() or is_supplizer():
+                    user = User.query.filter_by_({'USid': usid}).first_()
+                    if user:
+                        user.fields = ['USname', 'USheader', 'USgender']
+                        order_main.fill('user', user)
+                    # 主单售后状态信息
+                if order_main.OMinRefund is True:
+                    omid = order_main.OMid
+                    order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
+                    self._fill_order_refund(order_main, order_refund_apply_instance, False)
+        if form.export_xls.data:
+            now = datetime.now()
+            data = tablib.Dataset(*rows, headers=headers, title='订单导出页面')
+            aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
+            abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
+            xls_name = self._generic_omno() + '.xls'
+            aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
+            abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
+            if not os.path.isdir(abs_dir):
+                os.makedirs(abs_dir)
+            with open(abs_file, 'wb') as f:
+                f.write(data.xls)
+            return send_from_directory(abs_dir, xls_name, as_attachment=True)
         return Success(data=order_mains)
 
     @token_required
@@ -1894,60 +1915,48 @@ class COrder(CPay, CCoupon):
         return order_main_query
 
     def _fix_item(self, *args, **kwargs):
-        """
-        :param args:  {"订单编号": "2818023"}
-        :param kwargs:
-        :return:
-        """
-        if kwargs.get('headers'):
-            return self._fix_header(*args)
         items = []
+        headers = []
         for arg in args:
-            assert len(arg) == 1
-            for item in arg.values():
+            for header, item in arg.items():
                 items.append(item)
-        return items
+                headers.append(header)
+        return headers, items
 
-    def _fix_header(self, *args):
-        items = []
-        for arg in args:
-            assert len(arg) == 1
-            for item in arg.keys():
-                items.append(item)
-        return items
-
-    def _part_to_rows(self, order_part, *args, **kwargs):
+    def _part_to_row(self, *args, **kwargs):
         """订单页导出所需的"""
+        rows = []
         order_main = kwargs.get('order_main')
-        order_part.SKUattriteDetail = json.loads(order_part.SKUattriteDetail)
-        order_part.PRattribute = json.loads(order_part.PRattribute)
-        # 状态
-        if (is_supplizer() or is_admin()) and order_part.OPisinORA:
-            order_refund_apply_instance = self._get_refund_apply({'OPid': order_part.OPid})
-            self._fill_order_refund(order_part, order_refund_apply_instance, False)
-        # 如果是试用商品，订单信息中添加押金到期信息
-        if order_main.OMfrom == OrderFrom.trial_commodity.value and order_main.OMstatus not in [
-            OrderMainStatus.wait_pay.value, OrderMainStatus.cancle.value]:
-            usercommission = UserCommission.query.filter_by(OPid=order_part.OPid).first()
-            deposit_expires = getattr(usercommission, 'UCendTime', '') or ''
-            order_main.fill('deposit_expires', deposit_expires)
-            order_part.fill('deposit_expires', deposit_expires)
-        order_pay = OrderPay.query.filter(
-            OrderPay.OPayno == order_main.OPayno,
-        ).order_by(OrderPay.createtime.desc()).first()
-        items = {
-            "订单编号": order_main.OMno,
-            '订单状态': OrderMainStatus(order_main.OMstatus).zh_value,
-            '品牌': '',
-            '商品名': '',
-            '数量': '',
-            '单价': '',
-            '总价': '',
-            '实付': '',
-            '售后中': '',
-            '收货人': '',
-            '收货电话': '',
-
-            '付款时间': getattr(order_pay, 'OPaytime', ''),
-        }
+        order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
+        for order_part in order_parts:
+            order_pay = OrderPay.query.filter(
+                OrderPay.OPayno == order_main.OPayno,
+                OrderMain.OMstatus >= OrderMainStatus.wait_recv.value
+            ).order_by(OrderPay.createtime.desc()).first()
+            items = {
+                "订单编号": order_main.OMno,
+                '订单状态': OrderMainStatus(order_main.OMstatus).zh_value,
+                '品牌': order_main.PBname,
+                '商品名': order_part.PRtitle + '-' + '-'.join(json.loads(order_part.SKUattriteDetail)),
+                'sku编码': order_part.SKUsn,
+                '数量': order_part.OPnum,
+                '单价': order_part.SKUprice,
+                '总价': order_part.OPsubTotal,
+                '实付': order_part.OPsubTrueTotal,
+                '优惠减免': order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0,
+                '活动减免': order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0,
+                '付款时间': getattr(order_pay, 'OPaytime', ''),
+                '售后中': order_main.OMinRefund or order_part.OPisinORA,
+                '收货人': order_main.OMrecvPhone,
+                '收货电话': order_main.OMrecvPhone,
+                '地址': order_main.OMrecvAddress,
+                '来源(活动)': OrderFrom(order_main.OMfrom).zh_value,
+                '试用价': 0,
+            }
+            if order_main.OMfrom == OrderFrom.fresh_man.value:
+                items['单价'] = items['总价'] = items['实付'] = items['优惠减免'] = items['活动减免'] = 0
+                items['试用价'] = order_part.OPsubTrueTotal
+            header, items_value = self._fix_item(items)
+            rows.append(items_value)
+        return header, rows
 
