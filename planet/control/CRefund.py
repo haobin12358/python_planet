@@ -54,8 +54,9 @@ class CRefund(object):
             order_refund_apply = OrderRefundApply.query.filter_by({
                 'isdelete': False,
                 'ORAid': oraid,
-                "USid": request.user.id
-            }).first()
+                "USid": request.user.id,
+                'ORAstatus': ApplyStatus.wait_check.value
+            }).first_('售后已处理')
 
             order_refund_apply.update({
                 'ORAstatus': ApplyStatus.cancle.value

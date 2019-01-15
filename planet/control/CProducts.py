@@ -243,6 +243,14 @@ class CProducts(BaseController):
                 # 分类
                 category = self._up_category(product.PCid)
                 product.fill('category', category)
+                # sku
+                skus = ProductSku.query.filter(
+                    ProductSku.isdelete == False,
+                    ProductSku.PRid == product.PRid
+                ).all()
+                for sku in skus:
+                    sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+                product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
         # 搜索记录表
         if kw != [''] and not is_tourist():
