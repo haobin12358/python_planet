@@ -102,11 +102,11 @@ class DefaltSettig(object):
         },
         'auto_confirm_order': {  # 自动确认收货
             'task': 'auto_confirm_order',
-            'schedule': crontab(hour=4, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=3, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
         },
         'get_logistics': {  # 更新物流
             'task': 'get_logistics',
-            'schedule': crontab(hour=4, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=2, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
         },
     }
 
