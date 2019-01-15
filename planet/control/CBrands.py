@@ -142,11 +142,15 @@ class CBrands(object):
                 Items.ITtype == ItemType.brand.value,
                 Items.ITid.in_(itid)
             ).filter_by_().order_by(Items.ITsort).all_(True)
+            res = []
             for item in items:
                 itid = item.ITid
                 brands = self._get_brand_list(s, itid, pbstatus, time_order, page=False, pb_in_sub=False)
+                if not brands:
+                    continue
                 item.fill('brands', brands)
-        return Success(data=items)
+                res.append(item)
+        return Success(data=res)
 
     @token_required
     def off_shelves(self):

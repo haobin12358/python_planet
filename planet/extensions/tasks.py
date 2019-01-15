@@ -213,6 +213,7 @@ def get_logistics():
         OrderMain.OMstatus == OrderMainStatus.wait_recv.value,
         OrderLogistics.updatetime <= time_now - timedelta(days=1)
     ).all()
+    current_app.logger.info('获取物流信息, 共{}条快递单'.format(len(order_logisticss)))
     for order_logistics in order_logisticss:
         with db.auto_commit():
             order_logistics = clogistic._get_logistics(order_logistics)
@@ -235,7 +236,7 @@ def auto_confirm_order():
         OrderLogistics.OLsignStatus == LogisticsSignStatus.already_signed.value,
         OrderLogistics.updatetime <= time_now - timedelta(days=auto_confirm_day)
         ).all()
-    current_app.logger.info('auto_confirm_order, ')
+    current_app.logger.info('自动确认收货, 共{}个订单'.format(len(order_mains)))
     for order_main in order_mains:
         with db.auto_commit():
             order_main = corder._confirm(order_main=order_main)
