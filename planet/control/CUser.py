@@ -89,7 +89,7 @@ class CUser(SUser, BASEAPPROVAL):
             check_result = False
             check_reason.append("实名认证未通过")
 
-        if not self.__check_gift_order():
+        if not self._check_gift_order():
             check_result = False
             check_reason.append('没有购买开店大礼包')
         return check_result, check_reason[:]
@@ -141,7 +141,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('邀请人参数异常')
         return json.loads(model_byte.decode('utf-8'))
 
-    def __check_gift_order(self):
+    def _check_gift_order(self, e=None):
         """检查是否购买大礼包"""
         start = datetime.datetime.now().timestamp()
         op_list = OrderPart.query.filter(
@@ -156,6 +156,8 @@ class CUser(SUser, BASEAPPROVAL):
 
         end = datetime.datetime.now().timestamp()
         gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' %(end - start))))
+        if op_list and e:
+            raise StatusError(e)
         return bool(op_list)
 
     def __user_fill_uw_total(self, user):

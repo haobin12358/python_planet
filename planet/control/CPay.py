@@ -50,17 +50,23 @@ class CPay():
             raise e
         except Exception as e:
             raise ParamsError('客户端或支付方式类型错误')
-        with self.strade.auto_commit() as s:
-            session_list = []
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        with db.auto_commit():
             opayno = self.wx_pay.nonce_str
-            order_main = s.query(OrderMain).filter_by_({
+            order_main = OrderMain.query.filter_by_({
                 'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value
             }).first_('不存在的订单')
             # 原支付流水删除
-            s.query(OrderPay).filter_by({'OPayno': order_main.OPayno}).delete_()
+            OrderPay.query.filter_by({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
             order_main.OPayno = opayno
-            session_list.append(order_main)
+            # 判断订单是否是开店大礼包
+            # 是否是开店大礼包
+            if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
+                cuser = CUser()
+                cuser._check_gift_order('重复购买开店大礼包')
+            db.session.add(order_main)
             # 新建支付流水
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid1()),
@@ -69,10 +75,9 @@ class CPay():
                 'OPayMount': order_main.OMtrueMount
             })
             # 付款时候的body信息
-            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            order_parts = OrderPart.query.filter_by_({'OMid': omid}).all()
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
-            session_list.append(order_pay_instance)
-            s.add_all(session_list)
+            db.session.add(order_pay_instance)
         user = User.query.filter(User.USid == order_main.USid).first()
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body,
                                     openid=user.USopenid1 or user.USopenid2)

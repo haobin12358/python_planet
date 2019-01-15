@@ -28,6 +28,7 @@ from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
+from planet.control.CUser import CUser
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
@@ -457,6 +458,8 @@ class COrder(CPay, CCoupon):
             omids = []
             # 采用激活码购买跳过支付参数
             if opaytype == PayType.codepay.value:
+                cuser = CUser()
+                cuser._check_gift_order('重复购买开店大礼包')
                 activation_code = data.get('activation_code')
                 if not activation_code:
                     raise ParamsError('请输入激活码')
@@ -590,6 +593,8 @@ class COrder(CPay, CCoupon):
                     ).first()
                     if item:
                         OMlogisticType = OMlogisticTypeEnum.online.value
+                        cuser = CUser()
+                        cuser._check_gift_order('重复购买开店大礼包')
                     else:
                         OMlogisticType = None
 
