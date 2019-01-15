@@ -15,7 +15,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement
+    SupplizerSettlement, ProductImage
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -106,6 +106,7 @@ class BASEAPPROVAL():
         # 填充商品详情
         if not product:
             return
+
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -114,9 +115,14 @@ class BASEAPPROVAL():
         if skuid:
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
-
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
         elif isinstance(product, FreshManFirstProduct):
             fmfs = FreshManFirstSku.query.filter_by_(FMFPid=product.FMFPid).all()
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.FMFPid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
             skus = []
             for fmf in fmfs:
                 sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
@@ -127,8 +133,13 @@ class BASEAPPROVAL():
                 skus.append(sku)
             # skus = ProductSku.query.filter(ProductSku.SKUid == FreshManFirstSku.SKUid)
         else:
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
+
+        product.fill('images', images)
 
         sku_value_item = []
         for sku in skus:
