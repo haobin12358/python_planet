@@ -1030,14 +1030,14 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('day',))
         day = data.get('day', 7)
         cfs = ConfigSettings()
-        cfs.set_item('autoevaluateparams', 'day', str(day))
+        cfs.set_item('order_auto', 'auto_evaluate_day', str(day))
         return Success('设置成功', {'day': day})
 
     @admin_required
     def get_autoevaluation_time(self):
         """获取自动评价超过x天的订单：x"""
         cfs = ConfigSettings()
-        day = cfs.get_item('autoevaluateparams', 'day')
+        day = cfs.get_item('order_auto', 'auto_evaluate_day')
         return Success('获取成功', {'day': day})
 
     def get_evaluation(self):
@@ -1317,13 +1317,17 @@ class COrder(CPay, CCoupon):
             'USid': usid,
             'OMstatus': OrderMainStatus.wait_recv.value
         }).first_('订单不存在或状态不正确')
+        self._confirm(order_main=order_main)
+        return Success('确认收货成功')
+
+    def _confirm(self, **kwargs):
+        order_main = kwargs.get('order_main')
         with db.auto_commit():
             # 改变订单状态
-            order_main.OMstatus = OrderMainStatus.wait_comment.value
-            db.session.add(order_main)
-            # 佣金状态更改
-            pass
-        return Success('确认收货成功')
+            if order_main:
+                order_main.OMstatus = OrderMainStatus.wait_comment.value
+                db.session.add(order_main)
+                return order_main
 
     @token_required
     def history_detail(self):

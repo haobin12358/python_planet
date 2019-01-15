@@ -99,7 +99,15 @@ class DefaltSettig(object):
         'create_settlenment': {
             'task': 'create_settlenment',
             'schedule': crontab(hour=4, minute=30, day_of_month=11)
-        }
+        },
+        'auto_confirm_order': {  # 自动确认收货
+            'task': 'auto_confirm_order',
+            'schedule': crontab(hour=4, minute=30, day_of_month=11)
+        },
+        'get_logistics': {  # 更新物流
+            'task': 'get_logistics',
+            'schedule': crontab(hour=4, minute=30, day_of_month=11)
+        },
     }
 
 

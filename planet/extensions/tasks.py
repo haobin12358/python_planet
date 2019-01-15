@@ -10,7 +10,7 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus
+    SupplizerSettementStatus, LogisticsSignStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement
@@ -56,7 +56,7 @@ def fetch_share_deal():
 def auto_evaluate():
     """超时自动评价订单"""
     cfs = ConfigSettings()
-    limit_time = cfs.get_item('autoevaluateparams', 'day')
+    limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
     with db.auto_commit():
         s_list = list()
         current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
@@ -198,6 +198,48 @@ def create_settlenment():
             db.session.add(ss)
 
 
+@celery.task(name='get_logistics')
+def get_logistics():
+    """获取快递信息, 每天一次"""
+    from planet.models import OrderLogistics
+    from planet.control.CLogistic import CLogistic
+    clogistic = CLogistic()
+    time_now = datetime.now()
+    order_logisticss = OrderLogistics.query.filter(
+        OrderLogistics.isdelete == False,
+        OrderLogistics.OLsignStatus != LogisticsSignStatus.already_signed.value,
+        OrderLogistics.OMid == OrderMain.OMid,
+        OrderMain.isdelete == False,
+        OrderMain.OMstatus == OrderMainStatus.wait_recv.value,
+        OrderLogistics.updatetime <= time_now - timedelta(days=1)
+    ).all()
+    for order_logistics in order_logisticss:
+        with db.auto_commit():
+            order_logistics = clogistic._get_logistics(order_logistics)
+
+
+@celery.task(name='auto_confirm_order')
+def auto_confirm_order():
+    """已签收7天自动确认收货, 在物流跟踪上已经签收, 但是用户没有手动签收的订单"""
+    from planet.models import OrderLogistics
+    from planet.control.COrder import COrder
+    cfs = ConfigSettings()
+    auto_confirm_day = int(cfs.get_item('order_auto', 'auto_confirm_day'))
+    time_now = datetime.now()
+    corder = COrder()
+    order_mains = OrderMain.query.filter(
+        OrderMain.isdelete == False,
+        OrderMain.OMstatus == OrderMainStatus.wait_recv.value,
+        OrderLogistics.OMid == OrderMain.OMid,
+        OrderLogistics.isdelete == False,
+        OrderLogistics.OLsignStatus == LogisticsSignStatus.already_signed.value,
+        OrderLogistics.updatetime <= time_now - timedelta(days=auto_confirm_day)
+        ).all()
+    current_app.logger.info('auto_confirm_order, ')
+    for order_main in order_mains:
+        with db.auto_commit():
+            order_main = corder._confirm(order_main=order_main)
+
 @celery.task()
 def auto_agree_task(avid):
     current_app.logger.info('avid is {}'.format(avid))
@@ -239,38 +281,10 @@ def auto_cancle_order(omids):
         corder._cancle(order_main)
 
 
-
 if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
         # fetch_share_deal()
-        create_settlenment()
-
-# # 今日结果
-# db_today = CorrectNum.query.filter(
-#     cast(CorrectNum.CNdate, Date) == date.today()
-# ).first()
-# if hasattr(share_stock, 'today_result') and not db_today:  # 今日
-#     current_app.logger.info('写入今日数据')
-#     correct_instance = CorrectNum.create({
-#         'CNid': str(uuid.uuid4()),
-#         'CNnum': share_stock.today_result,
-#         'CNdate': date.today()
-#     })
-#     s_list.append(correct_instance)
-#
-#     # 判断是否有猜对的
-#     guess_nums = GuessNum.query.filter_by({'GNnum': share_stock.today_result, 'GNdate': date.today()}).all()
-#     for guess_num in guess_nums:
-#         exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
-#         if not exists_in_flow:
-#             guess_award_flow_instance = GuessAwardFlow.create({
-#                 'GAFid': str(uuid.uuid4()),
-#                 'GNid': guess_num.GNid,
-#             })
-#             s_list.append(guess_award_flow_instance)
-#
-# db_today = CorrectNum.query.filter(
-#     cast(CorrectNum.CNdate, Date) == date.today()
-# ).first()
+        # create_settlenment()
+        auto_confirm_order()
