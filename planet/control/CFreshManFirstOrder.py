@@ -16,7 +16,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
-    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval
+    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval, ProductCategory
 from .CUser import CUser
 
 
@@ -128,6 +128,7 @@ class CFreshManFirstOrder(COrder, CUser):
             raise ParamsError('客户端或商品来源错误')
         # 只可以买一次
         usid = request.user.id
+        user = get_current_user()
         exists_order = OrderMain.query.filter(
             OrderMain.USid == usid,
             OrderMain.OMstatus > OrderMainStatus.wait_pay.value
@@ -177,6 +178,7 @@ class CFreshManFirstOrder(COrder, CUser):
             product_instance = Products.query.filter_by({
                 'PRid': fresh_first_product.PRid
             }).first_('商品已删除')
+            product_category = ProductCategory.query.filter_by(PCid=product_instance.PCid).first()
             # 活动申请详情
             fresh_first_apply = FreshManFirstApply.query.filter(
                 FreshManFirstApply.isdelete == False,
@@ -239,19 +241,26 @@ class CFreshManFirstOrder(COrder, CUser):
             db.session.add(order_main_instance)
             # 副单
             order_part_dict = {
-                'OMid': omid,
                 'OPid': str(uuid.uuid1()),
+                'OMid': omid,
                 'SKUid': skuid,
+                'PRid': fresh_first_product.PRid,
                 'PRattribute': fresh_first_product.PRattribute,
                 'SKUattriteDetail': product_sku.SKUattriteDetail,
-                'PRtitle': fresh_first_product.PRtitle,
                 'SKUprice': price,
+                'PRtitle': fresh_first_product.PRtitle,
+                'SKUsn': product_sku.SKUsn,
+                'PCname': product_category.PCname,
                 'PRmainpic': fresh_first_product.PRmainpic,
                 'OPnum': 1,
-                'PRid': fresh_first_product.PRid,
                 # # 副单商品来源
                 'PRfrom': product_instance.PRfrom,
-                # 'PRcreateId': product_instance.CreaterId
+                'UPperid': getattr(user, 'USsupper1', ''),
+                'UPperid2': getattr(user, 'USsupper2', ''),
+                'UPperid3': getattr(user, 'USsupper3', ''),
+                'USCommission1': getattr(user, 'USCommission1', ''),
+                'USCommission2': getattr(user, 'USCommission2', ''),
+                'USCommission3': getattr(user, 'USCommission3', '')
             }
             order_part_instance = OrderPart.create(order_part_dict)
             db.session.add(order_part_instance)

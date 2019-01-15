@@ -15,7 +15,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
-    ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock
+    ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay
@@ -188,6 +188,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             }).first_('未中奖或已领奖')
             sku_instance = ProductSku.query.filter_by_({"SKUid": skuid}).first_('sku: {}不存在'.format(skuid))
             product_instance = Products.query.filter_by_({"PRid": sku_instance.PRid}).first_('商品已下架')
+            product_category = ProductCategory.query.filter_by(PCid=product_instance.PCid).first()
             pbid = product_instance.PBid
             product_brand_instance = ProductBrand.query.filter_by({'PBid': pbid}).first_()
             # 领奖状态改变
@@ -240,6 +241,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'PRattribute': product_instance.PRattribute,
                 'SKUattriteDetail': sku_instance.SKUattriteDetail,
                 'PRtitle': product_instance.PRtitle,
+                'SKUsn': sku_instance.SKUsn,
+                'PCname': product_category.PCname,
                 'SKUprice': sku_instance.SKUprice,
                 'PRmainpic': product_instance.PRmainpic,
                 'OPnum': 1,
@@ -247,9 +250,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 'OPsubTotal': price,
                 # 副单商品来源
                 'PRfrom': product_instance.PRfrom,
-                'PRcreateId': product_instance.CreaterId,
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
+                'UPperid3': user.USsupper3,
+                'USCommission1': user.USCommission1,
+                'USCommission2': user.USCommission2,
+                'USCommission3': user.USCommission3
                 # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
