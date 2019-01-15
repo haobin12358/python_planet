@@ -409,31 +409,31 @@ class CApproval(BASEAPPROVAL):
                                               ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
                                                         MagicBoxApply.MBAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
-                                                                   MagicBoxApply.MBAstarttime.desc()).all()
+                                                                   MagicBoxApply.MBAstarttime.desc()).all_with_page()
             elif pt.PTid == 'toguessnum':
                 ap_list = ap_querry.outerjoin(GuessNumAwardApply, GuessNumAwardApply.GNAAid == Approval.AVcontent
                                               ).filter_(GuessNumAwardApply.GNAAstarttime >= filter_starttime,
                                                         GuessNumAwardApply.GNAAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
-                                                                   GuessNumAwardApply.GNAAstarttime.desc()).all()
+                                                                   GuessNumAwardApply.GNAAstarttime.desc()).all_with_page()
             elif pt.PTid == 'totrialcommodity':
                 ap_list = ap_querry.outerjoin(TrialCommodity, TrialCommodity.TCid == Approval.AVcontent
                                               ).filter(TrialCommodity.ApplyStartTime >= filter_starttime,
                                                        TrialCommodity.AgreeEndTime <= filter_endtime
                                                        ).order_by(Approval.AVstatus.desc(),
-                                                                  TrialCommodity.ApplyStartTime.desc()).all()
+                                                                  TrialCommodity.ApplyStartTime.desc()).all_with_page()
             elif pt.PTid == 'tofreshmanfirstproduct':
                 ap_list = ap_querry.outerjoin(FreshManFirstApply, FreshManFirstApply.FMFAid == Approval.AVcontent
                                               ).filter(FreshManFirstApply.FMFAstartTime >= filter_starttime,
                                                        FreshManFirstApply.FMFAendTime <= filter_endtime
                                                        ).order_by(Approval.AVstatus.desc(),
-                                                                  FreshManFirstApply.FMFAstartTime.desc()).all()
+                                                                  FreshManFirstApply.FMFAstartTime.desc()).all_with_page()
 
             else:
                 # ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
                 # import ipdb
                 # ipdb.set_trace()
-                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
