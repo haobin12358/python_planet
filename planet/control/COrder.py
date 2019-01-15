@@ -1965,7 +1965,7 @@ class COrder(CPay, CCoupon):
                 '活动减免': order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0,
                 '付款时间': getattr(order_pay, 'OPaytime', ''),
                 '售后中': order_main.OMinRefund or order_part.OPisinORA,
-                '收货人': order_main.OMrecvPhone,
+                '收货人': order_main.OMrecvName,
                 '收货电话': order_main.OMrecvPhone,
                 '地址': order_main.OMrecvAddress,
                 '来源(活动)': OrderFrom(order_main.OMfrom).zh_value,
