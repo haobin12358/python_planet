@@ -136,3 +136,6 @@ class Base(db.Model):
             else:
                 setattr(self, k, v)
         return self
+
+    def __repr__(self):
+        return str(dict(self))

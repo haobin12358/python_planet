@@ -42,6 +42,10 @@ class CCoupon(object):
                 CouponItem.ITid == itid,
                 CouponItem.isdelete == False
             )
+        if suid:
+            coupons = coupons.filter(
+                Coupon.SUid == suid
+            )
         coupons = coupons.order_by(Coupon.createtime.desc(), Coupon.COid).all_with_page()
         for coupon in coupons:
             # 标签
@@ -64,7 +68,7 @@ class CCoupon(object):
         ).all()
         if not is_admin() and not is_supplizer():
             coupon.COcanCollect = self._can_collect(coupon)
-        # 优惠券时候对象
+        # 优惠券使用对象
         coupon.fill('items', items)
         coupon.fill('title_subtitle', self._title_subtitle(coupon))
         usid = kwargs.get('usid')

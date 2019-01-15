@@ -29,3 +29,12 @@ class Commision(Base):
             return level_commision[-1]
         raise StatusError('项目需要初始化')
 
+    @classmethod
+    def level_commisions(cls):
+        commision = cls.query.filter(cls.isdelete == False).first()
+        if commision:
+            level_commision = json.loads(commision.Levelcommision)
+            return level_commision
+        raise StatusError('项目需要初始化')
+
+

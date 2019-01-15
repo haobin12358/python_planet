@@ -21,7 +21,7 @@ from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, Use
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
-    Products
+    Products, Supplizer
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -50,17 +50,23 @@ class CPay():
             raise e
         except Exception as e:
             raise ParamsError('客户端或支付方式类型错误')
-        with self.strade.auto_commit() as s:
-            session_list = []
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        with db.auto_commit():
             opayno = self.wx_pay.nonce_str
-            order_main = s.query(OrderMain).filter_by_({
+            order_main = OrderMain.query.filter_by_({
                 'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value
             }).first_('不存在的订单')
             # 原支付流水删除
-            s.query(OrderPay).filter_by({'OPayno': order_main.OPayno}).delete_()
+            OrderPay.query.filter_by({'OPayno': order_main.OPayno}).delete_()
             # 更改订单支付编号
             order_main.OPayno = opayno
-            session_list.append(order_main)
+            # 判断订单是否是开店大礼包
+            # 是否是开店大礼包
+            if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
+                cuser = CUser()
+                cuser._check_gift_order('重复购买开店大礼包')
+            db.session.add(order_main)
             # 新建支付流水
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid1()),
@@ -69,10 +75,9 @@ class CPay():
                 'OPayMount': order_main.OMtrueMount
             })
             # 付款时候的body信息
-            order_parts = s.query(OrderPart).filter_by_({'OMid': omid}).all()
+            order_parts = OrderPart.query.filter_by_({'OMid': omid}).all()
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
-            session_list.append(order_pay_instance)
-            s.add_all(session_list)
+            db.session.add(order_pay_instance)
         user = User.query.filter(User.USid == order_main.USid).first()
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body,
                                     openid=user.USopenid1 or user.USopenid2)
@@ -243,16 +248,17 @@ class CPay():
         increase_ratio = json.loads(commision.IncreaseRatio)
         # 基础佣金比
         user_level1commision = Decimal(
-            str(self._current_commission(order_part.USCommission1, default_level1commision))
+            str(self._current_commission(getattr(order_part, 'USCommission1', ''), default_level1commision))
         )
         user_level2commision = Decimal(
-            str(self._current_commission(order_part.USCommission2, default_level2commision))
+            str(self._current_commission(getattr(order_part, 'USCommission2', ''), default_level2commision))
         )
         user_level3commision = Decimal(
-            str(self._current_commission(order_part.USCommission3, default_level3commision))
+            str(self._current_commission(getattr(order_part, 'USCommission3', ''), default_level3commision))
         )
         # 平台 + 用户 抽成: 获取成功比例, 依次查找订单--> sku --> 系统默认
-        planet_and_user_rate = Decimal(str(order_part.SkudevideRate or 0))  # todo 查询sku的让利
+        planet_and_user_rate = Decimal(str(order_part.SkudevideRate or 0))
+
         if not planet_and_user_rate:
             sku = ProductSku.query.filter(ProductSku.SKUid == OrderPart.SKUid).first()
             if sku:
@@ -262,7 +268,6 @@ class CPay():
         planet_and_user_rate = Decimal(planet_and_user_rate) / 100
         # 平台固定抽成
         planet_rate = Decimal(default_planetcommision) / 100
-# <<<<<<< HEAD
         planet_commision = order_part.OPsubTotal * planet_rate   # 平台获得, 是总价的的百分比
         user_commision = order_part.OPsubTotal * planet_and_user_rate - planet_commision  # 用户获得, 是总价 - 平台获得
         # user_rate = planet_and_user_rate - planet_rate  # 用户的的比例
@@ -270,9 +275,6 @@ class CPay():
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
 
-        # user_rate = planet_and_user_rate - planet_rate
-#         # 用户佣金
-#         user_commision = Decimal(str(order_part.OPsubTotal)) * user_rate  # 给用户的佣金
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
@@ -380,6 +382,57 @@ class CPay():
         })
         db.session.add(commision_account)
         current_app.logger.info('平台获取: {}'.format(planet_remain))
+
+    @token_required
+    def get_preview_commision(self):
+        # 活动佣金即时到账
+        usid = request.user.id
+        user = User.query.filter(User.isdelete == False, User.USid == usid).first()
+        commision = Commision.query.filter(Commision.isdelete == False, ).order_by(Commision.createtime.desc()).first()
+        level_commision = list(map(Decimal, json.loads(commision.Levelcommision)))
+        ReduceRatio = list(map(Decimal, json.loads(commision.ReduceRatio)))
+        IncreaseRatio = list(map(Decimal, json.loads(commision.IncreaseRatio)))
+        level1_commision = self._current_commission(user.USCommission1, level_commision[0])
+        default_planetcommision = level_commision[-1]
+        up1, up2 = user, User.query.filter(User.isdelete == False, User.USid == user.USsupper1).first()
+        order_price = Decimal()  # 订单实际价格
+        info = parameter_required(('pbid', 'skus',))
+        pbid = info.get('pbid')
+        skus = info.get('skus')
+        brand = ProductBrand.query.filter(ProductBrand.isdelete == False, ProductBrand.PBid == pbid).first()
+        supplizer = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == brand.SUid).first()
+        up1_bases = Decimal(0)
+        for sku in skus:
+            # 订单副单
+            skuid = sku.get('skuid')
+            opnum = int(sku.get('nums', 1))
+            assert opnum > 0
+            sku_instance = ProductSku.query.filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+            small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+            # 订单价格计算
+            order_price += small_total
+            planet_and_user_rate = self._current_commission(sku_instance.SkudevideRate, getattr(supplizer, 'SUbaseRate', ''), default_planetcommision)
+            planet_and_user_rate = Decimal(planet_and_user_rate) / 100
+            # 平台固定抽成
+            planet_rate = Decimal(default_planetcommision) / 100
+            planet_commision = order_price * planet_rate  # 平台获得, 是总价的的百分比
+            user_commision = order_price * planet_and_user_rate - planet_commision  # 用户获得, 是总价 - 平台获得
+            # 正常应该获得佣金
+            up1_base = up2_base = 0
+            if up1 and up1.USlevel > 1:
+                user_level1commision = self._current_commission(up1.USCommission1,
+                                                                level1_commision) / 100  # 个人佣金比
+                up1_base = user_commision * user_level1commision
+                if up2 and up2.USlevel > 1:
+                    user_level2commision = self._current_commission(up2.USCommission2,
+                                                                    level1_commision) / 100  # 个人佣金比
+                    up2_base = user_commision * user_level2commision
+                    # 偏移
+                    up1_up2 = up1.CommisionLevel - up2.CommisionLevel
+                    up1_base, up2_base = self._caculate_offset(up1_up2, up1_base, up2_base, ReduceRatio,
+                                                                   IncreaseRatio)
+            up1_bases += up1_base
+        return Success(data='%.2f' % up1_bases)
 
     def _caculate_offset(self, low_high, user_low_base, user_hign_base, reduce_ratio, increase_ratio):
         """计算偏移后的佣金"""

@@ -18,7 +18,7 @@ from planet.extensions.validates.activty import MagicBoxOpenForm, ParamsError, M
     MagicBoxRecvAwardForm
 from planet.models import MagicBoxJoin, MagicBoxApply, GuessNumAwardApply, MagicBoxOpen, User, Activity, ProductBrand, \
     AddressArea, UserAddress, AddressCity, AddressProvince, OrderMain, Products, OrderPart, ProductSku, OrderPay, \
-    Approval, ProductImage, ProductSkuValue, Supplizer, Admin, MagicBoxFlow, OutStock
+    Approval, ProductImage, ProductSkuValue, Supplizer, Admin, MagicBoxFlow, OutStock, ProductCategory
 from .CUser import CUser
 from .COrder import COrder
 
@@ -182,6 +182,7 @@ class CMagicBox(CUser, COrder):
             current_app.logger.info(pbid)
             product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
             product = Products.query.filter_by({'PRid': prid}).first()
+            product_category = ProductCategory.query.filter_by(PCid=product.PCid).first()
             sku = ProductSku.query.filter_by({'SKUid': magic_box_apply.SKUid}).first()
             # 地址信息
             # 用户的地址信息
@@ -231,6 +232,8 @@ class CMagicBox(CUser, COrder):
                 'PRattribute': product.PRattribute,
                 'SKUattriteDetail': sku.SKUattriteDetail,
                 'PRtitle': product.PRtitle,
+                'SKUsn': sku.SKUsn,
+                'PCname': product_category.PCname,
                 'SKUprice': old_price,
                 'PRmainpic': product.PRmainpic,
                 'OPnum': 1,
@@ -241,6 +244,9 @@ class CMagicBox(CUser, COrder):
                 'UPperid': user.USsupper1,
                 'UPperid2': user.USsupper2,
                 'UPperid3': user.USsupper3,
+                'USCommission1': user.USCommission1,
+                'USCommission2': user.USCommission2,
+                'USCommission3': user.USCommission3
                 # todo 活动佣金设置
             }
             order_part_instance = OrderPart.create(order_part_dict)
