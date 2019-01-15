@@ -12,7 +12,7 @@ from planet.common.token_handler import token_required, is_admin, admin_required
 from planet.config.enums import UserActivationCodeStatus, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
-from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply
+from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply, ApprovalNotes, Approval
 from planet.extensions.validates.trade import ActRuleSetFrom
 
 
@@ -132,6 +132,15 @@ class CActivationCode(BASEAPPROVAL):
             aca.hide('USid')
             aca.fill('acaapplystatus', ApplyStatus(aca.ACAapplyStatus).name)
             aca.fill('acaapplystatus_zh', ApplyStatus(aca.ACAapplyStatus).zh_value)
+            if aca.ACAapplyStatus == ApplyStatus.reject.value:
+                reason = ApprovalNotes.query.filter(
+                    Approval.AVcontent == aca.ACAid,
+                    Approval.PTid == 'toactivationcode',
+                    ApprovalNotes.AVid == Approval.AVid
+                ).order_by(ApprovalNotes.createtime.desc()).first()
+                if not reason:
+                    continue
+                aca.fill('acareason', reason.ANabo)
 
         return Success('获取申请列表成功', data=aca_list)
 
