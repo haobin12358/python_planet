@@ -589,6 +589,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 'PRmainpic': product_instance.TCmainpic,
                 'OPnum': opnum,
                 'OPsubTotal': small_total,
+                'PRfrom':product_instance.TCfrom,
                 'UPperid': user.USid,
                 # 'UPperid2': user.USid,
             }

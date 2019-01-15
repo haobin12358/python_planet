@@ -1079,6 +1079,7 @@ class COrder(CPay, CCoupon):
             order.fill('zh_oescore', zh_oescore)
             order.fill('image', image)
             order.fill('video', video)
+            order.fill('createtime', order.createtime)
         return Success(data=order_evaluation).get_body(is_tourist=tourist)
 
     @token_required
