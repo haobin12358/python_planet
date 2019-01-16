@@ -399,8 +399,8 @@ class CPay():
         info = parameter_required(('pbid', 'skus',))
         pbid = info.get('pbid')
         skus = info.get('skus')
-        brand = ProductBrand.query.filter(ProductBrand.isdelete == False, ProductBrand.PBid == pbid).first()
-        supplizer = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == brand.SUid).first()
+        brand = ProductBrand.query.filter(ProductBrand.PBid == pbid).first()
+        supplizer = Supplizer.query.filter(Supplizer.SUid == brand.SUid).first()
         up1_bases = Decimal(0)
         for sku in skus:
             # 订单副单
