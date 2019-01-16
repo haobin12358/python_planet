@@ -4,19 +4,22 @@ import uuid
 import json
 from threading import Thread
 from flask import current_app
+from sqlalchemy import or_, and_
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
 from planet.common.base_service import get_session
-from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound
+from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
-from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus
+from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes
+from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes, \
+    OrderMain, OrderRefundApply, OrderRefund, OrderPart
 
 
 class CSupplizer:
@@ -226,6 +229,9 @@ class CSupplizer:
                 Supplizer.isdelete == False,
                 Supplizer.SUid == suid
             ).first_('供应商不存在')
+            if self._check_lasting_order(suid=suid):
+                raise StatusError('供应商部分订单正在进行')
+
             supplizer.isdelete = True
             db.session.add(supplizer)
             # 品牌删除
@@ -245,6 +251,49 @@ class CSupplizer:
                     'PRstatus': ProductStatus.off_shelves.value
                 })
         return Success('删除成功')
+
+    def _check_lasting_order(self, **kwargs):
+        """检查是否有进行中的订单"""
+        suid = kwargs.get('suid')
+        # 已付款但是未完成的正常订单
+        nomal_order = OrderMain.query.filter(OrderMain.isdelete == False,
+                                        OrderMain.PRcreateId == suid,
+                                        OrderMain.OMinRefund == False,
+                                        OrderMain.OMstatus.in_([OrderMainStatus.wait_recv.value,
+                                                                OrderMainStatus.wait_comment.value,
+                                                                OrderMainStatus.wait_send.value]))
+        # 主订单在售后中
+        refund_order = OrderMain.query.filter(OrderMain.isdelete == False,
+                                              OrderMain.PRcreateId == suid,
+                                              OrderMain.OMinRefund == True,
+                                              OrderRefundApply.OMid == OrderMain.OMid,
+                                              OrderRefundApply.isdelete == False,
+                                              or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
+                                                  and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
+                                                       OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                       OrderRefund.ORstatus.in_([OrderRefundOrstatus.wait_send.value,
+                                                                                 OrderRefundOrstatus.wait_recv.value,
+                                                                                 OrderRefundOrstatus.ready_recv.value])))
+                                              )
+        # 附订单在收货中
+        part_refund_order = OrderPart.query.filter(OrderPart.isdelete == False,
+                                                   OrderMain.OMid == OrderPart.OMid,
+                                                   OrderMain.isdelete == False,
+                                                   OrderMain.PRcreateId == suid,
+                                                   OrderPart.OPisinORA == True,
+                                                   OrderRefundApply.OPid == OrderPart.OPid,
+                                                   OrderRefundApply.isdelete == False,
+                                                   or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
+                                                       and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
+                                                            OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                            OrderRefund.ORstatus.in_(
+                                                                [OrderRefundOrstatus.wait_send.value,
+                                                                 OrderRefundOrstatus.wait_recv.value,
+                                                                 OrderRefundOrstatus.ready_recv.value])))
+                                                   )
+        lasting_order = nomal_order.union(refund_order).union(part_refund_order).all()
+        return lasting_order
+
 
     @token_required
     def change_password(self):
