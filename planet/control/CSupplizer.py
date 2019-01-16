@@ -271,13 +271,15 @@ class CSupplizer:
                                               or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
                                                   and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
                                                        OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                       OrderRefund.ORAid == OrderRefundApply.ORAid,
+                                                       OrderRefund.isdelete == False,
                                                        OrderRefund.ORstatus.in_([OrderRefundOrstatus.wait_send.value,
                                                                                  OrderRefundOrstatus.wait_recv.value,
                                                                                  OrderRefundOrstatus.ready_recv.value])))
                                               )
         # 附订单在收货中
-        part_refund_order = OrderPart.query.filter(OrderPart.isdelete == False,
-                                                   OrderMain.OMid == OrderPart.OMid,
+        part_refund_order = OrderMain.query.filter(OrderPart.isdelete == False,
+                                                   OrderPart.OMid == OrderMain.OMid,
                                                    OrderMain.isdelete == False,
                                                    OrderMain.PRcreateId == suid,
                                                    OrderPart.OPisinORA == True,
@@ -286,6 +288,8 @@ class CSupplizer:
                                                    or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
                                                        and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
                                                             OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                            OrderRefund.ORAid == OrderRefundApply.ORAid,
+                                                            OrderRefund.isdelete == False,
                                                             OrderRefund.ORstatus.in_(
                                                                 [OrderRefundOrstatus.wait_send.value,
                                                                  OrderRefundOrstatus.wait_recv.value,
@@ -293,7 +297,6 @@ class CSupplizer:
                                                    )
         lasting_order = nomal_order.union(refund_order).union(part_refund_order).all()
         return lasting_order
-
 
     @token_required
     def change_password(self):
