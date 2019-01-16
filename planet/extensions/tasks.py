@@ -82,8 +82,6 @@ def auto_evaluate():
                             ">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
                         continue
                     user = User.query.filter_by(USid=order_main.USid).first()
-                    if order_part.OPisinORA:
-                        continue
 
                     # user_commision = UserCommission.query.filter(
                     #     UserCommission.isdelete == False,
@@ -92,10 +90,12 @@ def auto_evaluate():
                     #     'UCstatus': UserCommissionStatus.in_account.value
                     # })
                     corder._commsion_into_count(order_part)  # 佣金到账
-                    corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                     # current_app.logger.info('佣金到账数量 {}'.format(user_commision))
+
                     if user:
                         usname, usheader = user.USname, user.USheader
+
+                        corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                     else:
                         usname, usheader = '神秘的客官', ''
                     evaluation_dict = {
