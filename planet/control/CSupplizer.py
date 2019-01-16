@@ -425,7 +425,8 @@ class CSupplizer:
         mn_list = mn_list.order_by(ManagerSystemNotes.createtime.desc()).all()
 
         for mn in mn_list:
-            mn.fill('mnstatus', NotesStatus(mn.MNstatus).zh_value)
+            mn.fill('mnstatus_zh', NotesStatus(mn.MNstatus).zh_value)
+            mn.fill('mnstatus', NotesStatus(mn.MNstatus).name)
 
         return Success('获取通告成功', data=mn_list)
 

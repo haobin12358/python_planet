@@ -9,10 +9,10 @@ from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, admin_required
-from planet.config.enums import UserActivationCodeStatus
+from planet.config.enums import UserActivationCodeStatus, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
-from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply
+from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply, ApprovalNotes, Approval
 from planet.extensions.validates.trade import ActRuleSetFrom
 
 
@@ -122,6 +122,25 @@ class CActivationCode(BASEAPPROVAL):
                 count += 1
         return code_list
 
+    @token_required
+    def get_list(self):
 
+        aca_list = ActivationCodeApply.query.filter(
+            ActivationCodeApply.USid == request.user.id, ActivationCodeApply.isdelete == False).all()
 
+        for aca in aca_list:
+            aca.hide('USid')
+            aca.fill('acaapplystatus', ApplyStatus(aca.ACAapplyStatus).name)
+            aca.fill('acaapplystatus_zh', ApplyStatus(aca.ACAapplyStatus).zh_value)
+            if aca.ACAapplyStatus == ApplyStatus.reject.value:
+                reason = ApprovalNotes.query.filter(
+                    Approval.AVcontent == aca.ACAid,
+                    Approval.PTid == 'toactivationcode',
+                    ApprovalNotes.AVid == Approval.AVid
+                ).order_by(ApprovalNotes.createtime.desc()).first()
+                if not reason:
+                    continue
+                aca.fill('acareason', reason.ANabo)
+
+        return Success('获取申请列表成功', data=aca_list)
 
