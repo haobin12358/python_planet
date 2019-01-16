@@ -38,6 +38,10 @@ class CFreshManFirstOrder(COrder, CUser):
         ).all()
         for fresh_man_product in fresh_man_products:
             fresh_man_product.hide('PRattribute', 'PRid', 'PBid', )
+            brand = ProductBrand.query.filter(ProductBrand.isdelete == False,
+                                              ProductBrand.PBid == fresh_man_product.PBid).first()
+            if not brand:
+                fresh_man_products.remove(fresh_man_product)
         # 上方图
         activity = Activity.query.filter_by_({
             'ACtype': ActivityType.fresh_man.value,
@@ -112,7 +116,8 @@ class CFreshManFirstOrder(COrder, CUser):
         product.fill('month_sale_value', month_sale_value)
         # 品牌
         product.fill('brand', {
-            'pbname': fresh_man_first_product.PBname
+            'pbname': fresh_man_first_product.PBname,
+            'pbid': fresh_man_first_product.PBid,
         })
 
         return Success(data=product)
