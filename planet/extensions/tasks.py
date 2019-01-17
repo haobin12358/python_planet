@@ -13,7 +13,7 @@ from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus
     SupplizerSettementStatus, LogisticsSignStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement
+    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics
 
 celery = Celery()
 
@@ -57,40 +57,54 @@ def auto_evaluate():
     """超时自动评价订单"""
     cfs = ConfigSettings()
     limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
+    time_now = datetime.now()
     with db.auto_commit():
         s_list = list()
         current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
         from planet.control.COrder import COrder
         corder = COrder()
         count = 0
-        order_mains = OrderMain.query.filter(OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
-                                             OrderMain.OMfrom.in_(
-                                                 [OrderFrom.carts.value, OrderFrom.product_info.value]),
-                                             OrderMain.createtime <= datetime.now() - timedelta(days=int(limit_time))
-                                             ).all()  # 所有超过30天待评价的商品订单
+        wait_comment_order_mains = OrderMain.query.filter(OrderMain.isdelete == False,
+                                                          OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
+                                                          OrderMain.OMfrom.in_(
+                                                              [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                          OrderMain.updatetime <= time_now - timedelta(
+                                                              days=int(limit_time))
+                                                          )  # 所有超过天数 待评价 的商品订单
+
+        complete_comment_order_mains = OrderMain.query.join(OrderLogistics, OrderLogistics.OMid == OrderMain.OMid,
+                                                            ).filter(OrderMain.isdelete == False,
+                                                                     OrderMain.OMstatus == OrderMainStatus.complete_comment.value,
+                                                                     OrderLogistics.isdelete == False,
+                                                                     OrderLogistics.OLsignStatus == LogisticsSignStatus.already_signed.value,
+                                                                     OrderLogistics.updatetime <= time_now - timedelta(
+                                                                         days=int(limit_time))
+                                                                     )  # 所有已评价的订单
+        order_mains = wait_comment_order_mains.union(complete_comment_order_mains).all()
+
         if not order_mains:
             current_app.logger.info(">>>>>>  没有超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
+
         else:
             for order_main in order_mains:
                 order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
                 for order_part in order_parts:
                     if order_part.OPisinORA is True:
                         continue
+                    user = User.query.filter_by(USid=order_main.USid).first()
+
                     exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                     if exist_evaluation:
                         current_app.logger.info(
-                            ">>>>> ERROR, 该副单已存在评价, OPid : {}, OMid : {}".format(order_part.OPid, order_part.OMid))
-                        continue
-                    user = User.query.filter_by(USid=order_main.USid).first()
+                            ">>>>>  该副单已存在评价, OPid : {}, OMid : {}, OMstatus : {}".format(order_part.OPid,
+                                                                                          order_part.OMid,
+                                                                                          order_main.OMstatus))
+                        corder._commsion_into_count(order_part)  # 佣金到账
+                        if user:  # 防止因用户不存在,进入下个方法报错停止
+                            corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
+                        continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
 
-                    # user_commision = UserCommission.query.filter(
-                    #     UserCommission.isdelete == False,
-                    #     UserCommission.OPid == order_part.OPid
-                    # ).update({
-                    #     'UCstatus': UserCommissionStatus.in_account.value
-                    # })
                     corder._commsion_into_count(order_part)  # 佣金到账
-                    # current_app.logger.info('佣金到账数量 {}'.format(user_commision))
 
                     if user:
                         usname, usheader = user.USname, user.USheader
@@ -115,7 +129,6 @@ def auto_evaluate():
                     count += 1
                     current_app.logger.info(
                         ">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
-                    # 佣金到账
                     # 商品总体评分变化
                     try:
                         product_info = Products.query.filter_by_(PRid=order_part.PRid).first()
@@ -124,7 +137,7 @@ def auto_evaluate():
                     except Exception as e:
                         current_app.logger.info("更改商品评分失败, 商品可能已被删除；Update Product Score ERROR ：{}".format(e))
 
-                # 更改主单待评价状态为已完成
+                # 更改主单状态为已完成
                 change_status = OrderMain.query.filter_by_(OMid=order_main.OMid).update(
                     {'OMstatus': OrderMainStatus.ready.value})
                 if change_status:
@@ -288,4 +301,5 @@ if __name__ == '__main__':
     with app.app_context():
         # fetch_share_deal()
         # create_settlenment()
-        auto_confirm_order()
+        # auto_confirm_order()
+        auto_evaluate()

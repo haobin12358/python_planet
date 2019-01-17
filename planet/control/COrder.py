@@ -905,7 +905,7 @@ class COrder(CPay, CCoupon):
     def create_order_evaluation(self):
         """创建订单评价"""
         usid = request.user.id
-        user = User.query.filter(User.USid == usid).first_('token错误，无此用户信息')
+        user = User.query.filter(User.USid == usid).first_('用户信息错误')
         usname, usheader = user.USname, user.USheader
         current_app.logger.info('User {0} created order evaluations'.format(user.USname))
         data = parameter_required(('evaluation', 'omid'))
@@ -919,8 +919,9 @@ class COrder(CPay, CCoupon):
         oeid_list = list()
         get_opid_list = list()  # 从前端获取到的所有opid
         with db.auto_commit():
-            orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
-            self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
+            orderpartid_list = [op.OPid for op in order_part_with_main]
+            # orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
+            # self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -986,10 +987,10 @@ class COrder(CPay, CCoupon):
                     evaluation_instance_list.append(video_evaluation)
                 oeid_list.append(oeid)
 
-            # 更改订单主单中待评价状态为已完成
+            # 更改订单主单中待评价状态为已评价
             update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
                                                    OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                                   ).update({'OMstatus': OrderMainStatus.ready.value})
+                                                   ).update({'OMstatus': OrderMainStatus.complete_comment.value})
             if not update_status:
                 current_app.logger.info("Order Evaluation Update Main Status Error, OMid is >>> {}".format(omid))
 
