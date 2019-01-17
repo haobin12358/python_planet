@@ -1193,12 +1193,12 @@ class COrder(CPay, CCoupon):
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
             )
             if not is_admin() and not is_supplizer():
-                data = [  # 获取各状态的数量, '已完成'和'已取消'除外
+                data = [  # 获取各状态的数量, '已完成'和'已取消'和'已评价'除外
                     {'count': self._get_order_count(filter_args, k),
                      'name': getattr(OrderMainStatus, k).zh_value,
                      'status': getattr(OrderMainStatus, k).value}
                     for k in OrderMainStatus.all_member() if k not in [
-                        OrderMainStatus.ready.name, OrderMainStatus.cancle.name
+                        OrderMainStatus.ready.name, OrderMainStatus.cancle.name, OrderMainStatus.complete_comment.name
                     ]
                 ]
             else:
