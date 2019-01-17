@@ -42,7 +42,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -1698,6 +1698,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('subs', sub_agent_list)
         setattr(user, 'invited_num', len(fens_list + sub_agent_list))  # 邀请人数
         setattr(user, 'personal_total', kwargs.get('personal_total'))   # 个人销售额
+        return user
 
     @token_required
     def list_user_commison(self):
@@ -1843,9 +1844,30 @@ class CUser(SUser, BASEAPPROVAL):
         del_integral = cfg.get_item('integralbase', 'integral')
         return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
 
-    def _check_for_update(self, user, **kwargs):
+    def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
-        self._get_salesvolume(user, )
+        user = kwargs.get('user')
+        if not user:
+            user = User.query.filter(User.isdelete == False, User.USid == kwargs.get('usid')).first()
+        current_app.logger.info('check commission level update for   {}'.format(getattr(user, 'USname', '')))
+        if not user or user.CommisionLevel >= 5:  # 5级之后不能在升级
+            return
+        user = self._get_salesvolume(user, )
+        level = user.CommisionLevel
+        commision = Commision.query.filter(
+            Commision.isdelete == False,
+        ).first()
+        need_group_total = commision.GroupSale * (commision.GroupSaleScale ** level)
+        need_personal_total = commision.PesonalSale * (commision.GroupSaleScale ** level)
+        need_invite_num = commision.InviteNum * (commision.InviteNumScale ** level)
+        current_app.logger.info('用户当前佣金等级是{}; 团队销售额{}, 所需{}; 个人销售额{}, 所需{}; 邀请人数{},所需{}'.format(
+            level, user.team_sales, need_group_total, user.personal_total, need_personal_total, user.invited_num, need_invite_num
+        ))
+        if user.invited_num > need_invite_num and user.personal_total > need_personal_total and user.team_sales > need_group_total:
+            user.CommisionLevel = level + 1
+        else:
+            current_app.logger.info('未达到升级条件')
+        return user
 
     @get_session
     @token_required

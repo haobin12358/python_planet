@@ -241,6 +241,30 @@ def auto_confirm_order():
         with db.auto_commit():
             order_main = corder._confirm(order_main=order_main)
 
+
+@celery.task(name='check_for_update')
+def check_for_update(*args, **kwargs):
+    current_app.logger.info('args is {}, kwargs is {}'.format(args, kwargs))
+    from planet.control.CUser import CUser
+    if 'users' in kwargs:
+        users = kwargs.get('users')
+    elif 'usid' in kwargs:
+        users = User.query.filter(User.isdelete == False, User.USid == kwargs.get('usid')).all()
+    elif args:
+        users = args
+    else:
+        users = User.query.filter(
+            User.isdelete == False,
+              User.CommisionLevel <= 5,
+              User.USlevel == 2
+        ).all()
+    cuser = CUser()
+    for user in users:
+        with db.auto_commit():
+            cuser._check_for_update(user=user)
+            db.session.add(user)
+
+
 @celery.task()
 def auto_agree_task(avid):
     current_app.logger.info('avid is {}'.format(avid))
@@ -288,4 +312,5 @@ if __name__ == '__main__':
     with app.app_context():
         # fetch_share_deal()
         # create_settlenment()
-        auto_confirm_order()
+        check_for_update()
+        # auto_confirm_order()
