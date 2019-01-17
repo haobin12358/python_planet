@@ -37,7 +37,7 @@ class CCommision:
             if not commision.InviteNum and not commision.PesonalSale and not commision.GroupSale:
                 raise ParamsError('升级条件不可全为0')
             levelcommision = json.loads(commision.Levelcommision)[:-1]
-            if sum(levelcommision) >= 100:
+            if sum(levelcommision) > 100:
                 raise ParamsError('总佣金比大于100')
             db.session.add(commision)
         return Success('修改成功')
