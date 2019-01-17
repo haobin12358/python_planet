@@ -42,7 +42,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -1642,54 +1642,63 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取收益详情成功', data=data)
 
-    def _get_salesvolume(self, user, month, year, position=0, deeplen=3):
-        user_total = 0
+    def _get_salesvolume(self, user, month=None, year=None, position=0, deeplen=3, **kwargs):
+        user_total = 0  # 个人销售额
         user_fens_total = 0
         user_agent_total = 0
-        user_usv = UserSalesVolume.query.filter(
+        user_usv_query = db.session.query(func.sum(UserSalesVolume.USVamount), func.sum(UserSalesVolume.USVamountagent)).filter(
             UserSalesVolume.USid == user.USid,
-            extract('month', UserSalesVolume.createtime) == month,
-            extract('year', UserSalesVolume.createtime) == year,
-            UserSalesVolume.isdelete == False).first()
-        user_fens_amount = Decimal(str(user_usv.USVamount)) if user_usv else 0
-        user_agent_amount = Decimal(str(user_usv.USVamountagent)) if user_usv else 0
+            UserSalesVolume.isdelete == False,
+        )
+        if month and year:
+            user_usv_query = user_usv_query.filter(
+                extract('month', UserSalesVolume.createtime) == month,
+                extract('year', UserSalesVolume.createtime) == year,
+            )
+        user_usv = user_usv_query.first()
+        user_fens_amount = Decimal(str(user_usv[0] or 0))  # 月度总额
+        user_agent_amount = Decimal(str(user_usv[0] or 0))  # 月度代理商直销总额
+        kwargs.setdefault('personal_total', user_fens_amount)  # 个人销售额
         if position >= deeplen:
             user.fill('team_sales', user_fens_amount)
             return
         position += 1
-
         fens_list = User.query.filter(
             User.isdelete == False, User.USsupper1 == user.USid, User.USlevel != self.AGENT_TYPE).all()
         sub_agent_list = User.query.filter(
             User.isdelete == False, User.USsupper1 == user.USid, User.USlevel == self.AGENT_TYPE).all()
-
         for fens in fens_list:
-            usv = UserSalesVolume.query.filter(
+            usv_query = db.session.query(func.sum(UserSalesVolume.USVamount)).filter(
                 UserSalesVolume.USid == fens.USid,
-                extract('month', UserSalesVolume.createtime) == month,
-                extract('year', UserSalesVolume.createtime) == year,
-                UserSalesVolume.isdelete == False).first()
-            fens_amount = Decimal(str(usv.USVamount)) if usv else 0
+                UserSalesVolume.isdelete == False)
+            if month and year:
+                usv_query = usv_query.filter(
+                    extract('month', UserSalesVolume.createtime) == month,
+                    extract('year', UserSalesVolume.createtime) == year,
+                )
+            usv = usv_query.first()
+            fens_amount = Decimal(str(usv[0] or 0))  # 月度总额
             user_fens_total += fens_amount
             fens.fill('fens_amount', fens_amount)
 
         for sub_agent in sub_agent_list:
-
-            self._get_salesvolume(sub_agent, month, year, position)
-
+            self._get_salesvolume(sub_agent, month, year, position, deeplen, **kwargs)
             user_agent_total += sub_agent.team_sales
-
         # 第一级不计算粉丝销售额
         if position == 1:
+            # 月度销售额 + 月度代理商直销总额 + 下级粉丝总额
             user_total = user_agent_amount + user_fens_total + user_agent_total
-
         else:
             gennerc_log('user_agent_amount {} + user_fens_amount {} + user_fens_total {}+ user_agent_total {}'.format(user_agent_amount , user_fens_amount , user_fens_total , user_agent_total))
+            # 月度销售额 + 月度代理商直销总额 + 下级粉丝总额 + 下级代理商直销总额
             user_total = user_agent_amount + user_fens_amount + user_fens_total + user_agent_total
 
         user.fill('team_sales', user_total)
         user.fill('fens', fens_list)
         user.fill('subs', sub_agent_list)
+        setattr(user, 'invited_num', len(fens_list + sub_agent_list))  # 邀请人数
+        setattr(user, 'personal_total', kwargs.get('personal_total'))   # 个人销售额
+        return user
 
     @token_required
     def list_user_commison(self):
@@ -1835,9 +1844,30 @@ class CUser(SUser, BASEAPPROVAL):
         del_integral = cfg.get_item('integralbase', 'integral')
         return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
 
-    def _check_for_update(self, *args, **kwargs):
+    def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
-        pass
+        user = kwargs.get('user')
+        if not user:
+            user = User.query.filter(User.isdelete == False, User.USid == kwargs.get('usid')).first()
+        current_app.logger.info('check commission level update for   {}'.format(getattr(user, 'USname', '')))
+        if not user or user.CommisionLevel >= 5:  # 5级之后不能在升级
+            return
+        user = self._get_salesvolume(user, )
+        level = user.CommisionLevel
+        commision = Commision.query.filter(
+            Commision.isdelete == False,
+        ).first()
+        need_group_total = commision.GroupSale * (commision.GroupSaleScale ** level)
+        need_personal_total = commision.PesonalSale * (commision.GroupSaleScale ** level)
+        need_invite_num = commision.InviteNum * (commision.InviteNumScale ** level)
+        current_app.logger.info('用户当前佣金等级是{}; 团队销售额{}, 所需{}; 个人销售额{}, 所需{}; 邀请人数{},所需{}'.format(
+            level, user.team_sales, need_group_total, user.personal_total, need_personal_total, user.invited_num, need_invite_num
+        ))
+        if user.invited_num > need_invite_num and user.personal_total > need_personal_total and user.team_sales > need_group_total:
+            user.CommisionLevel = level + 1
+        else:
+            current_app.logger.info('未达到升级条件')
+        return user
 
     @get_session
     @token_required

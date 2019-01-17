@@ -108,6 +108,10 @@ class DefaltSettig(object):
             'task': 'get_logistics',
             'schedule': crontab(hour=2, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
         },
+        'check_for_update': {  # 查询是否代理商是否可以升级
+            'task': 'check_for_update',
+            'schedule': crontab(hour=2, minute=40, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+        }
     }
 
 
