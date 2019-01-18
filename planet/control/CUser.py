@@ -967,7 +967,7 @@ class CUser(SUser, BASEAPPROVAL):
             'fens_mouth_count': fens_mouth_count,
             'hottest_product': hottest_product,
             'newest_product': newest_product,
-            'usbalance': agent.usbalance
+            'usbalance': agent.uscash
         }
         return Success('获取店主中心数据成功', data=data)
 

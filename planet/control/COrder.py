@@ -921,7 +921,7 @@ class COrder(CPay, CCoupon):
         with db.auto_commit():
             orderpartid_list = [op.OPid for op in order_part_with_main]
             # orderpartid_list = [self._commsion_into_count(x) for x in order_part_with_main]
-            # self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
+            self._tosalesvolume(om.OMtrueMount, usid)  # 销售额统计
             for evaluation in data['evaluation']:
                 oeid = str(uuid.uuid1())
                 evaluation = parameter_required(('opid', 'oescore'), datafrom=evaluation)
@@ -1432,7 +1432,7 @@ class COrder(CPay, CCoupon):
             if not usv:
                 usv = UserSalesVolume.create({
                     'USVid': str(uuid.uuid1()),
-                    'USid': user.USsupper1,
+                    'USid': user.USid,
                     'USVamount': 0,
                     'USVamountagent': 0
                 })
@@ -1441,6 +1441,7 @@ class COrder(CPay, CCoupon):
                 usv.USVamountagent = Decimal(str(amount)) + Decimal(str(usv.USVamountagent))
             else:
                 usv.USVamount = Decimal(str(amount)) + Decimal(str(usv.USVamount))
+        db.session.flush()
 
     @staticmethod
     def _get_order_count(arg, k):
