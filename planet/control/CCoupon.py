@@ -139,7 +139,7 @@ class CCoupon(object):
             user_coupon.fill('item', item)
         return Success(data=user_coupons)
 
-    @admin_required
+    @token_required
     def create(self):
         form = CouponCreateForm().valid_data()
         pbids = form.pbids.data

@@ -102,7 +102,7 @@ class BASEAPPROVAL():
         pclist.append(pc.PCname)
         return self.__get_category(pc.ParentPCid, pclist)
 
-    def __fill_product_detail(self, product, skuid=None):
+    def __fill_product_detail(self, product, skuid=None, **kwargs):
         # 填充商品详情
         if not product:
             return
@@ -113,11 +113,15 @@ class BASEAPPROVAL():
             product.PRremarks = json.loads(getattr(product, 'PRremarks', None) or '{}')
         pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
         if skuid:
+            content = kwargs.get('content')
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             images = ProductImage.query.filter(
                 ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
                 ProductImage.PIsort).all()
+            for sku in skus:
+                sku.hide('SKUstock')
+                sku.fill('skustock', content.SKUstock)
         elif isinstance(product, FreshManFirstProduct):
             fmfs = FreshManFirstSku.query.filter_by_(FMFPid=product.FMFPid).all()
             images = ProductImage.query.filter(
@@ -263,7 +267,7 @@ class BASEAPPROVAL():
         if not start_model or not content:
             return None, None
         product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid)
+        self.__fill_product_detail(product, content.SKUid, content=content)
         content.fill('product', product)
         return start_model, content
 
@@ -274,7 +278,7 @@ class BASEAPPROVAL():
         if not start_model or not content:
             return None, None
         product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid)
+        self.__fill_product_detail(product, content.SKUid, content=content)
         content.fill('product', product)
         return start_model, content
 
