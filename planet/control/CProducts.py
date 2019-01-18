@@ -324,8 +324,9 @@ class CProducts(BaseController):
                                                        Supplizer.SUid == request.user.id
                                                        ).first()
                     if skudeviderate:
-                            if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
-                                raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
+                        if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                            # if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                            raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
                     else:
                         skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
@@ -507,12 +508,14 @@ class CProducts(BaseController):
                         new_sku.append(sku_instance)
                     # 设置分销比
                     default_derate = Commision.devide_rate_baseline()
+                    current_app.logger.info('default derate is {}'.format(default_derate))
                     if is_supplizer():
                         supplizer = Supplizer.query.filter(
                             Supplizer.isdelete == False,
                             Supplizer.SUid == request.user.id).first()
                         if skudeviderate:
-                            if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                            if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                            # if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate) or default_derate):
                                 raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
                                 # raise StatusError('第{}行sku让利比错误'.format(index+1))
                         else:
@@ -954,3 +957,11 @@ class CProducts(BaseController):
         exists_sn = exists_sn_query.first()
         if exists_sn:
             raise DumpliError('重复sn编码: {}'.format(sn))
+
+    @staticmethod
+    def _current_commission(*args):
+        for comm in args:
+            if comm is not None:
+                return comm
+        return 0
+
