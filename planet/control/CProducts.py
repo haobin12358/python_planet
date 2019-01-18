@@ -324,7 +324,7 @@ class CProducts(BaseController):
                                                        Supplizer.SUid == request.user.id
                                                        ).first()
                     if skudeviderate:
-                            if Decimal(default_derate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                            if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
                                 raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
                     else:
                         skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
@@ -512,7 +512,7 @@ class CProducts(BaseController):
                             Supplizer.isdelete == False,
                             Supplizer.SUid == request.user.id).first()
                         if skudeviderate:
-                            if Decimal(default_derate) < getattr(supplizer, 'SUbaseRate', default_derate):
+                            if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
                                 raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
                                 # raise StatusError('第{}行sku让利比错误'.format(index+1))
                         else:
