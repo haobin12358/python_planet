@@ -54,7 +54,6 @@ class CApproval(BASEAPPROVAL):
         avid = self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
         return Success('创建审批流成功', data={'avid': avid})
 
-
     @get_session
     @token_required
     def add_permissionitems(self):
