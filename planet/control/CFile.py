@@ -93,7 +93,11 @@ class CFile(object):
                 # os.remove(newFile)
 
                 # 生成压缩图
-                thumbnail_img = CompressPicture.resize_img(ori_img=newFile, ratio=0.5, save_q=45)
+                try:
+                    thumbnail_img = CompressPicture.resize_img(ori_img=newFile, ratio=0.5, save_q=45)
+                except Exception as e:
+                    current_app.logger.info(">>>  Resize Picture Error : {}  <<<".format(e))
+                    raise ParamsError('图片格式错误，请检查后重新上传（请勿强制更改图片后缀名）')
                 data += '_' + thumbnail_img.split('_')[-1]
             current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(data))
             return data, video_thum, video_dur, upload_type
