@@ -468,7 +468,6 @@ class CProducts(BaseController):
                 sku_ids = []  # 此时传入的skuid
                 prstock = 0
                 for index, sku in enumerate(skus):
-
                     skuattritedetail = sku.get('skuattritedetail')
                     if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
                         raise ParamsError('skuattritedetail与prattribute不符')
@@ -947,6 +946,8 @@ class CProducts(BaseController):
     def _check_sn(self, **kwargs):
         current_app.logger.info(kwargs)
         sn = kwargs.get('sn')
+        if not sn:
+            return
         skuid = kwargs.get('skuid')
         exists_sn_query = ProductSku.query.filter(
             # ProductSku.isdelete == False,

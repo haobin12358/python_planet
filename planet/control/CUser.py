@@ -38,7 +38,7 @@ from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db
-from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm
+from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
@@ -1703,11 +1703,14 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def list_user_commison(self):
         """查看代理商获取的佣金列表"""
-        data = parameter_required()
-        mobile = data.get('mobile')
-        name = data.get('name')
-        level = data.get('level')
-        usid = data.get('usid')
+        form = ListUserCommision().valid_data()
+        mobile = form.mobile.data
+        name = form.name.data
+        level = form.level.data
+        usid = form.usid.data
+        upid = form.upid.data
+        commision_level = form.commision_level.data
+
         user_query = User.query.filter(
             User.isdelete == False,
         )
@@ -1726,11 +1729,15 @@ class CUser(SUser, BASEAPPROVAL):
             user_query = user_query.filter(User.USname.contains(name.strip()))
         if usid:
             user_query = user_query.filter(User.USid == usid)
+        if upid:
+            user_query = user_query.filter(User.USsupper1 == upid)
+        if commision_level is not None:
+            user_query = user_query.filter(User.CommisionLevel == commision_level)
         users = user_query.all_with_page()
         for user in users:
             # 佣金
             user.fields = ['USid', 'UStelphone', 'USname', 'USheader', 'USCommission1',
-                           'USCommission2', 'USCommission3', 'USlevel']
+                           'USCommission2', 'USCommission3', 'USlevel', 'CommisionLevel']
             usid = user.USid
 
             wallet = UserWallet.query.filter(

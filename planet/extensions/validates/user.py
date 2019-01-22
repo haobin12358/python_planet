@@ -149,3 +149,12 @@ class UpdateUserCommisionForm(BaseForm):
     def validate_commision3(self, raw):
         if raw.data and (raw.data < 0 or raw.data > 100):
             raise ParamsError('三级佣金设置不合理')
+
+
+class ListUserCommision(BaseForm):
+    mobile = StringField('手机号码')
+    name = StringField('用户名')
+    level = StringField('身份')
+    usid = StringField('用户id')
+    upid = StringField('上级id')
+    commision_level = IntegerField('代理商等级')
