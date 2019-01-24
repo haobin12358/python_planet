@@ -422,8 +422,8 @@ class CProducts(BaseController):
         if prstocks != 0:
             # todo 审核中的编辑会 重复添加审批
             avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product_instance.PRid, product_from)
-        # 5 分钟后自动通过
-        auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
+            # 5 分钟后自动通过
+            auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('添加成功', {'prid': prid})
 
     @token_required
@@ -666,8 +666,8 @@ class CProducts(BaseController):
                 current_app.logger.info('删除了 {} 个 商品标签关联'.format(counts))
             s.add_all(session_list)
 
-        avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
         if product.PRstocks != 0:
+            avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
             # 5 分钟后自动通过
             auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
         return Success('更新成功')
