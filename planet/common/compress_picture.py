@@ -29,7 +29,7 @@ class CompressPicture(object):
         ratio = args.get('ratio')
         shuffix = ori_img.split('.')[-1]
         if ratio:
-            if max(ori_w, ori_h) < 1000:
+            if max(ori_w, ori_h) < 1500:
                 new_width = ori_w
                 new_height = ori_h
                 save_q = 100
