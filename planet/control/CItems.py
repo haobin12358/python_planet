@@ -51,7 +51,8 @@ class CItems:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
             if item.ITtype == ItemType.product.value:
                 pr_scene = ProductScene.query.outerjoin(SceneItem, SceneItem.PSid == ProductScene.PSid
-                                                        ).filter_(SceneItem.ITid == item.ITid,
+                                                        ).filter_(SceneItem.isdelete == False,
+                                                                  SceneItem.ITid == item.ITid,
                                                                   ProductScene.isdelete == False).all()
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
