@@ -12,7 +12,7 @@ class ProductStatus(Enum):
     """商品状态"""
     usual = (0, '已上架')
     auditing = (10, '审核中')
-    reject = 30, '审核失败',
+    reject = 30, '审核失败'
     sell_out = 40, '售罄'
     off_shelves = (60, '已下架')
     all = None
@@ -66,7 +66,8 @@ class OrderMainStatus(Enum):
     wait_pay = 0, '待支付'
     wait_send = 10, '待发货'
     wait_recv = 20, '待收货'
-    wait_comment = 35, '待评价',
+    wait_comment = 25, '待评价'
+    complete_comment = 26, '已评价'
     ready = 30, '已完成'
     cancle = -40, '已取消'
 
@@ -169,7 +170,7 @@ class LogisticsSignStatus(Enum):
     api_error = -1, '无物流'
     wait_collect = 0, '等待揽收'  # 等待揽收
     on_the_way = 1, '在途中'
-    sending = 2, '正在派件' # 正在派件
+    sending = 2, '正在派件'  # 正在派件
     already_signed = 3, '已签收'  # 已签收
     send_fail = 4, '配送失败'  # 配送失败
     error = 200, '其他异常'
@@ -522,6 +523,11 @@ class SupplizerSettementStatus(Enum):
     settlementing = 0, '结算中'
     settlemented = 1, '已结算'
     approvaling = -1, '结算异常处理中'
+
+
+class NotesStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '发布'
 
 
 # class MagicBoxStatus()

@@ -10,6 +10,7 @@ class AActivationCode(Resource):
         apis = {
             'list_act_code': self.cact_code.get_user_activationcode,
             'get_rule': self.cact_code.get_rule,
+            'get_list': self.cact_code.get_list,
         }
         return apis
 

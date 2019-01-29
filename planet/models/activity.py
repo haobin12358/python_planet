@@ -16,7 +16,7 @@ class Activity(Base):
     ACbutton = Column(String(16), default='立即参与', comment='按钮文字')
     ACtype = Column(Integer, default=0, unique=True, index=True, comment='类型 0: 新人 1 猜数字 2 魔术礼盒 3 免费试用')
     ACshow = Column(Boolean, default=True, comment='是否开放')
-    ACdesc = Column(String(255), comment='活动描述')
+    ACdesc = Column(Text, comment='活动描述')
     ACname = Column(String(16), nullable=False, comment='名字')
     ACsort = Column(Integer, comment='顺序标志')
 

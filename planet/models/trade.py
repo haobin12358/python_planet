@@ -333,7 +333,7 @@ class ActivationCodeRule(Base):
     __tablename__ = 'ActivationCodeRule'
     ACRid = Column(String(64), primary_key=True)
     ACRrule = Column(Text, comment='规则')
-    ACRphone = Column(String(11), comment='电话')
+    ACRphone = Column(String(32), comment='电话')
     ACRaddress = Column(String(64), comment='地址')
     ACRname = Column(String(16), nullable=False, comment='收款人')
     ACRbankSn = Column(String(32), nullable=False, comment='卡号')

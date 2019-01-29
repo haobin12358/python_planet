@@ -39,6 +39,7 @@ class SupplizerCreateForm(BaseForm):
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
+    subaserate = DecimalField('最低分销比')
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
@@ -56,7 +57,7 @@ class SupplizerCreateForm(BaseForm):
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(
-            Supplizer.SUloginPhone == raw.data
+            Supplizer.SUloginPhone == raw.data, Supplizer.isdelete == False
         ).first()
         if is_exists:
             raise DumpliError('登陆手机号已存在')
@@ -81,6 +82,7 @@ class SupplizerUpdateForm(BaseForm):
     subankname = StringField('银行名字')
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
+    subaserate = DecimalField('最低分销比')
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
 
@@ -147,3 +149,12 @@ class UpdateUserCommisionForm(BaseForm):
     def validate_commision3(self, raw):
         if raw.data and (raw.data < 0 or raw.data > 100):
             raise ParamsError('三级佣金设置不合理')
+
+
+class ListUserCommision(BaseForm):
+    mobile = StringField('手机号码')
+    name = StringField('用户名')
+    level = StringField('身份')
+    usid = StringField('用户id')
+    upid = StringField('上级id')
+    commision_level = IntegerField('代理商等级')

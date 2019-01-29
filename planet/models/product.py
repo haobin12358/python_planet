@@ -55,7 +55,7 @@ class ProductSku(Base):
     SKUattriteDetail = Column(Text, comment='sku属性信息 ["电信","白","16G"]')
     SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
     SKUstock = Column(BIGINT, comment='库存')
-    SKUsn = Column(String(64), default=SKUid, nullable=False, unique=True, comment='sku编码')
+    SKUsn = Column(String(64), default=SKUid, nullable=False, comment='sku编码')
     SkudevideRate = Column(DECIMAL(scale=2), comment='商品让利比例')
 
 
@@ -175,6 +175,8 @@ class Supplizer(Base):
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
+    SUbaseRate = Column(DECIMAL(scale=2), comment='供应商最低让利比')
+
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
     SUpassword = Column(String(255), comment='供应商密码密文')

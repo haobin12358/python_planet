@@ -54,7 +54,6 @@ class CApproval(BASEAPPROVAL):
         avid = self.create_approval(data.get('ptid'), data.get('startid'), data.get('avcontentid'))
         return Success('创建审批流成功', data={'avid': avid})
 
-
     @get_session
     @token_required
     def add_permissionitems(self):
@@ -409,31 +408,31 @@ class CApproval(BASEAPPROVAL):
                                               ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
                                                         MagicBoxApply.MBAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
-                                                                   MagicBoxApply.MBAstarttime.desc()).all()
+                                                                   MagicBoxApply.MBAstarttime.desc()).all_with_page()
             elif pt.PTid == 'toguessnum':
                 ap_list = ap_querry.outerjoin(GuessNumAwardApply, GuessNumAwardApply.GNAAid == Approval.AVcontent
                                               ).filter_(GuessNumAwardApply.GNAAstarttime >= filter_starttime,
                                                         GuessNumAwardApply.GNAAstarttime <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
-                                                                   GuessNumAwardApply.GNAAstarttime.desc()).all()
+                                                                   GuessNumAwardApply.GNAAstarttime.desc()).all_with_page()
             elif pt.PTid == 'totrialcommodity':
                 ap_list = ap_querry.outerjoin(TrialCommodity, TrialCommodity.TCid == Approval.AVcontent
                                               ).filter(TrialCommodity.ApplyStartTime >= filter_starttime,
                                                        TrialCommodity.AgreeEndTime <= filter_endtime
                                                        ).order_by(Approval.AVstatus.desc(),
-                                                                  TrialCommodity.ApplyStartTime.desc()).all()
+                                                                  TrialCommodity.ApplyStartTime.desc()).all_with_page()
             elif pt.PTid == 'tofreshmanfirstproduct':
                 ap_list = ap_querry.outerjoin(FreshManFirstApply, FreshManFirstApply.FMFAid == Approval.AVcontent
                                               ).filter(FreshManFirstApply.FMFAstartTime >= filter_starttime,
                                                        FreshManFirstApply.FMFAendTime <= filter_endtime
                                                        ).order_by(Approval.AVstatus.desc(),
-                                                                  FreshManFirstApply.FMFAstartTime.desc()).all()
+                                                                  FreshManFirstApply.FMFAstartTime.desc()).all_with_page()
 
             else:
                 # ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
                 # import ipdb
                 # ipdb.set_trace()
-                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all()
+                ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
@@ -894,6 +893,8 @@ class CApproval(BASEAPPROVAL):
             fen_model.USsupper1 = user.USid
             if user.USsupper1:
                 fen_model.USsupper2 = user.USsupper1
+            if user.USsupper2:
+                fen_model.USsupper3 = user.USsupper2
 
     def refuse_agent(self, approval_model, refuse_abo):
         # user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')
@@ -919,8 +920,7 @@ class CApproval(BASEAPPROVAL):
         product.PRstatus = ProductStatus.reject.value
 
     def agree_publish(self, approval_model):
-        # news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
-        news = News.query.filter_by_(NEid=approval_model.AVcontent).first('资讯已被删除')
+        news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')
         news.NEstatus = NewsStatus.usual.value
 
     def refuse_publish(self, approval_model, refuse_abo):
@@ -1008,6 +1008,15 @@ class CApproval(BASEAPPROVAL):
             return
         ffa.FMFAstatus = ApplyStatus.reject.value
         ffa.FMFArejectReson = refuse_abo
+        # 进行库存恢复
+        apply_skus = FreshManFirstSku.query.join(
+            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+            FreshManFirstProduct.FMFAid == ffa.FMFAid).all()
+        from planet.control.COrder import COrder
+        for apply_sku in apply_skus:
+            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+            product = Products.query.filter(Products.PRid == sku.PRid).first()
+            COrder()._update_stock(apply_sku.FMFPstock, product, sku)
 
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')

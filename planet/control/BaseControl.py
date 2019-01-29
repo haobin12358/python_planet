@@ -15,7 +15,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement
+    SupplizerSettlement, ProductImage
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -102,21 +102,31 @@ class BASEAPPROVAL():
         pclist.append(pc.PCname)
         return self.__get_category(pc.ParentPCid, pclist)
 
-    def __fill_product_detail(self, product, skuid=None):
+    def __fill_product_detail(self, product, skuid=None, **kwargs):
         # 填充商品详情
         if not product:
             return
+
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
             product.PRremarks = json.loads(getattr(product, 'PRremarks', None) or '{}')
         pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
         if skuid:
+            content = kwargs.get('content')
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
-
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
+            for sku in skus:
+                sku.hide('SKUstock')
+                sku.fill('skustock', content.SKUstock)
         elif isinstance(product, FreshManFirstProduct):
             fmfs = FreshManFirstSku.query.filter_by_(FMFPid=product.FMFPid).all()
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.FMFPid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
             skus = []
             for fmf in fmfs:
                 sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
@@ -127,8 +137,13 @@ class BASEAPPROVAL():
                 skus.append(sku)
             # skus = ProductSku.query.filter(ProductSku.SKUid == FreshManFirstSku.SKUid)
         else:
+            images = ProductImage.query.filter(
+                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+                ProductImage.PIsort).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
+
+        product.fill('images', images)
 
         sku_value_item = []
         for sku in skus:
@@ -252,7 +267,7 @@ class BASEAPPROVAL():
         if not start_model or not content:
             return None, None
         product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid)
+        self.__fill_product_detail(product, content.SKUid, content=content)
         content.fill('product', product)
         return start_model, content
 
@@ -263,7 +278,7 @@ class BASEAPPROVAL():
         if not start_model or not content:
             return None, None
         product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid)
+        self.__fill_product_detail(product, content.SKUid, content=content)
         content.fill('product', product)
         return start_model, content
 

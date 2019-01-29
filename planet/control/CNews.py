@@ -68,7 +68,8 @@ class CNews(BASEAPPROVAL):
             News.USid == userid
         ])
         for news in news_list:
-            news.fields = ['NEid', 'NEtitle', 'NEpageviews']
+            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEtext']
+            news.NEtext = getattr(news, 'NEtext', '')[:100] if news.NEtext else None
             # 添加发布者信息
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
@@ -120,8 +121,8 @@ class CNews(BASEAPPROVAL):
                     showtype = 'picture'
                     news.fill('mainpic', mainpic)
                 else:
-                    netext = news.NEtext[:120]
-                    news.fill('netext', netext)
+                    # netext = news.NEtext[:120]
+                    # news.fill('netext', netext)
                     showtype = 'text'
             news.fill('showtype', showtype)
             if news.USheader:

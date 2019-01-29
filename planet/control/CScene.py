@@ -58,6 +58,9 @@ class CScene(object):
         return Success('更新成功', {'psid': psid})
 
     def _check_sort(self, pssort):
+        if not pssort:
+            return 1
+        pssort = int(pssort)
         if pssort < 1:
             return 1
         count_ps = ProductScene.query.filter_by_().count()

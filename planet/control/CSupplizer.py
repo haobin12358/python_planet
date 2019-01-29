@@ -4,19 +4,22 @@ import uuid
 import json
 from threading import Thread
 from flask import current_app
+from sqlalchemy import or_, and_
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
 from planet.common.base_service import get_session
-from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound
+from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
-from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom
+from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
-from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount
+from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes, \
+    OrderMain, OrderRefundApply, OrderRefund, OrderPart
 
 
 class CSupplizer:
@@ -55,6 +58,7 @@ class CSupplizer:
             supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
             supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
             supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
+            supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
         return Success(data=supplizers)
 
     @admin_required
@@ -69,6 +73,7 @@ class CSupplizer:
                 'SUloginPhone': form.suloginphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
+                'SUbaseRate': form.subaserate.data,
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
@@ -110,18 +115,22 @@ class CSupplizer:
                 Supplizer.isdelete == False,
                 Supplizer.SUid == form.suid.data
             ).first_('供应商不存在')
-            supplizer.update({
+            supplizer_dict = {
                 'SUlinkPhone': form.sulinkphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
+                # 'SUbaseRate': form.subaserate.data,
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
                 'SUemail': form.suemail.data,
-            }, null='dont ignore')
+            }
+            if is_admin() and form.subaserate.data:
+                supplizer_dict['SUbaseRate'] = form.subaserate.data,
+            supplizer.update(supplizer_dict, null='dont ignore')
             db.session.add(supplizer)
             if pbids and is_admin():
                 for pbid in pbids:
@@ -163,6 +172,7 @@ class CSupplizer:
                 pb.pbstatus_zh = ProductBrandStatus(pb.PBstatus).zh_value
                 pb.add('pbstatus_zh')
         supplizer.fill('pbs', pbs)
+        supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
         return Success(data=supplizer)
 
     def _fill_supplizer(self, supplizer):
@@ -219,6 +229,9 @@ class CSupplizer:
                 Supplizer.isdelete == False,
                 Supplizer.SUid == suid
             ).first_('供应商不存在')
+            if self._check_lasting_order(suid=suid):
+                raise StatusError('供应商部分订单正在进行')
+
             supplizer.isdelete = True
             db.session.add(supplizer)
             # 品牌删除
@@ -238,6 +251,52 @@ class CSupplizer:
                     'PRstatus': ProductStatus.off_shelves.value
                 })
         return Success('删除成功')
+
+    def _check_lasting_order(self, **kwargs):
+        """检查是否有进行中的订单"""
+        suid = kwargs.get('suid')
+        # 已付款但是未完成的正常订单
+        nomal_order = OrderMain.query.filter(OrderMain.isdelete == False,
+                                        OrderMain.PRcreateId == suid,
+                                        OrderMain.OMinRefund == False,
+                                        OrderMain.OMstatus.in_([OrderMainStatus.wait_recv.value,
+                                                                OrderMainStatus.wait_comment.value,
+                                                                OrderMainStatus.wait_send.value]))
+        # 主订单在售后中
+        refund_order = OrderMain.query.filter(OrderMain.isdelete == False,
+                                              OrderMain.PRcreateId == suid,
+                                              OrderMain.OMinRefund == True,
+                                              OrderRefundApply.OMid == OrderMain.OMid,
+                                              OrderRefundApply.isdelete == False,
+                                              or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
+                                                  and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
+                                                       OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                       OrderRefund.ORAid == OrderRefundApply.ORAid,
+                                                       OrderRefund.isdelete == False,
+                                                       OrderRefund.ORstatus.in_([OrderRefundOrstatus.wait_send.value,
+                                                                                 OrderRefundOrstatus.wait_recv.value,
+                                                                                 OrderRefundOrstatus.ready_recv.value])))
+                                              )
+        # 附订单在收货中
+        part_refund_order = OrderMain.query.filter(OrderPart.isdelete == False,
+                                                   OrderPart.OMid == OrderMain.OMid,
+                                                   OrderMain.isdelete == False,
+                                                   OrderMain.PRcreateId == suid,
+                                                   OrderPart.OPisinORA == True,
+                                                   OrderRefundApply.OPid == OrderPart.OPid,
+                                                   OrderRefundApply.isdelete == False,
+                                                   or_(OrderRefundApply.ORAstatus == ApplyStatus.wait_check.value,
+                                                       and_(OrderRefundApply.ORAstatus == ApplyStatus.agree.value,
+                                                            OrderRefundApply.ORAstate == OrderRefundORAstate.goods_money.value,
+                                                            OrderRefund.ORAid == OrderRefundApply.ORAid,
+                                                            OrderRefund.isdelete == False,
+                                                            OrderRefund.ORstatus.in_(
+                                                                [OrderRefundOrstatus.wait_send.value,
+                                                                 OrderRefundOrstatus.wait_recv.value,
+                                                                 OrderRefundOrstatus.ready_recv.value])))
+                                                   )
+        lasting_order = nomal_order.union(refund_order).union(part_refund_order).all()
+        return lasting_order
 
     @token_required
     def change_password(self):
@@ -355,3 +414,57 @@ class CSupplizer:
         # if not sa:
 
         return Success('获取供应商账户信息成功', data=sa)
+
+    @token_required
+    def get_system_notes(self):
+        if is_supplizer():
+            mn_list = ManagerSystemNotes.query.filter(
+                ManagerSystemNotes.MNstatus == NotesStatus.publish.value)
+        elif is_admin():
+            mn_list = ManagerSystemNotes.query.filter(ManagerSystemNotes.isdelete == False)
+        else:
+            raise AuthorityError
+
+        mn_list = mn_list.order_by(ManagerSystemNotes.createtime.desc()).all()
+
+        for mn in mn_list:
+            mn.fill('mnstatus_zh', NotesStatus(mn.MNstatus).zh_value)
+            mn.fill('mnstatus', NotesStatus(mn.MNstatus).name)
+
+        return Success('获取通告成功', data=mn_list)
+
+    @admin_required
+    def add_update_notes(self):
+        # 创建或更新通告
+        from flask import request
+        if not is_admin():
+            raise AuthorityError
+        data = parameter_required(('mncontent','mnstatus'))
+        mnstatus = data.get('mnstatus')
+        mnstatus = getattr(NotesStatus, mnstatus, None)
+        if not mnstatus:
+            mnstatus = 0
+        else:
+            mnstatus = mnstatus.value
+
+        mncontent = data.get('mncontent')
+        mnid = data.get('mnid')
+        with db.auto_commit():
+            if mnid:
+                mn = ManagerSystemNotes.query.filter(
+                    ManagerSystemNotes.MNid == mnid, ManagerSystemNotes.isdelete==False).first()
+                if mn:
+                    mn.MNcontent = mncontent
+                    mn.MNstatus = mnstatus
+                    mn.MNupdateid = request.user.id
+                    return Success('更新通告成功', data=mn.MNid)
+
+            mn = ManagerSystemNotes.create({
+                'MNid': str(uuid.uuid1()),
+                'MNcontent': mncontent,
+                'MNstatus': mnstatus,
+                'MNcreateid': request.user.id
+            })
+
+            db.session.add(mn)
+        return Success('创建通告成功', data=mn.MNid)
