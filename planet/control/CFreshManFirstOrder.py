@@ -24,7 +24,7 @@ class CFreshManFirstOrder(COrder, CUser):
 
     def list(self):
         """获取列表"""
-        time_now = datetime.now()
+        time_now = date.today()
         fresh_man_products = FreshManFirstProduct.query.join(
             FreshManFirstApply, FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid
         ).filter_(
