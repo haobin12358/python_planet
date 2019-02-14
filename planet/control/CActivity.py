@@ -30,13 +30,13 @@ class CActivity(CUser):
                                                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value
                                                    ).first()
             filter_kwargs = dict(ACshow=True)
-        if exists_order:
-            activitys = Activity.query.filter_(Activity.ACtype != ActivityType.fresh_man.value,
-                                               Activity.ACshow == True,
-                                               Activity.isdelete == False
-                                               ).order_by(Activity.ACsort).all()
-        else:
-            activitys = Activity.query.filter_by_(filter_kwargs).order_by(Activity.ACsort).all()
+        # if exists_order:
+        #     activitys = Activity.query.filter_(Activity.ACtype != ActivityType.fresh_man.value,
+        #                                        Activity.ACshow == True,
+        #                                        Activity.isdelete == False
+        #                                        ).order_by(Activity.ACsort).all()
+        # else:
+        activitys = Activity.query.filter_by_(filter_kwargs).order_by(Activity.ACsort).all()
         result = []
         today = date.today()
         for act in activitys:
