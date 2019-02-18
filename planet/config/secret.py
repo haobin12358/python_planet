@@ -86,6 +86,7 @@ class DefaltSettig(object):
     CELERY_RESULT_BACKEND = 'redis://localhost:6379'
     CACHE_REDIS_URL = 'redis://localhost:6379/1'
     CELERY_TIMEZONE = 'Asia/Shanghai'
+    CELERY_ENABLE_UTC = True
     CELERYBEAT_SCHEDULE = {
         'fetch_share_deal': {  # 获取走势
             'task': 'fetch_share_deal',
@@ -94,7 +95,7 @@ class DefaltSettig(object):
         },
         'auto_evaluate': {  # 评价
             'task': 'auto_evaluate',
-            'schedule': crontab(hour=4, minute=20, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=4, minute=20, day_of_week='0-6')
         },
         'create_settlenment': {  #
             'task': 'create_settlenment',
@@ -102,15 +103,15 @@ class DefaltSettig(object):
         },
         'auto_confirm_order': {  # 自动确认收货
             'task': 'auto_confirm_order',
-            'schedule': crontab(hour=3, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=3, minute=30, day_of_week='0-6')
         },
         'get_logistics': {  # 更新物流
             'task': 'get_logistics',
-            'schedule': crontab(hour=2, minute=30, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=2, minute=30, day_of_week='0-6')
         },
         'check_for_update': {  # 查询是否代理商是否可以升级
             'task': 'check_for_update',
-            'schedule': crontab(hour=2, minute=40, day_of_week=[0, 1, 2, 3, 4, 5, 6])
+            'schedule': crontab(hour=2, minute=40, day_of_week='0-6')
         }
     }
 
