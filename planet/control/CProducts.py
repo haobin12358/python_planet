@@ -81,7 +81,8 @@ class CProducts(BaseController):
                     current_user_rate=level1commision
             ))
         product.fill('skus', skus)
-        product.fill('profict', str(self.get_two_float(Decimal(product.PRprice) * Decimal(level1commision) / 100)))
+        # product.fill('profict', str(self.get_two_float(Decimal(product.PRprice) * Decimal(level1commision) / 100)))
+        product.fill('profict', min(preview_get))
         is_open_gift = ProductItems.query.filter(
             ProductItems.isdelete == False,
             ProductItems.PRid == prid,

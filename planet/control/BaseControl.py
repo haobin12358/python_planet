@@ -412,12 +412,12 @@ class BaseController:
         :param planet_and_user_rate: 供应商让利比
         :return:
         """
-        price = Decimal(str(kwargs.get('price')))
-        planet_rate = Decimal(str(kwargs.get('planet_rate')))
-        planet_and_user_rate = Decimal(str(kwargs.get('planet_and_user_rate')))
-        current_user_rate = Decimal(str(kwargs.get('current_user_rate'))) / 100
-        planet_rate = Decimal(planet_rate) / 100
-        user_rate = planet_and_user_rate - planet_rate
+        price = Decimal(str(kwargs.get('price')))  # 299
+        planet_rate = Decimal(str(kwargs.get('planet_rate')))  # 5
+        planet_and_user_rate = Decimal(str(kwargs.get('planet_and_user_rate'))) / 100  # 0.2
+        current_user_rate = Decimal(str(kwargs.get('current_user_rate'))) / 100  # 0.5
+        planet_rate = Decimal(planet_rate) / 100  # 0.05
+        user_rate = planet_and_user_rate - planet_rate  # 0.15
         user_commision = price * user_rate  # 给用户的佣金
         current_user_comm = current_user_rate * user_commision
         return self.get_two_float(current_user_comm)
