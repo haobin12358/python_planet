@@ -883,18 +883,18 @@ class CApproval(BASEAPPROVAL):
                 'UWexpect': 0
             }))
         # todo 增加用户成为代理商之前邀请的未成为其他代理商或其他代理商粉丝的用户为自己的粉丝
-        fens_list = UserInvitation.query.filter_by_(USInviter=user.USid).all()
-        for fens in fens_list:
-            fens.isdelete = True
-            fen_model = User.query.filter_by_(USid=fens.USInvited).first()
-            if not fen_model or fen_model.USlevel != UserIdentityStatus.ordinary.value or fen_model.USsupper1:
-
-                continue
-            fen_model.USsupper1 = user.USid
-            if user.USsupper1:
-                fen_model.USsupper2 = user.USsupper1
-            if user.USsupper2:
-                fen_model.USsupper3 = user.USsupper2
+        # fens_list = UserInvitation.query.filter_by_(USInviter=user.USid).all()
+        # for fens in fens_list:
+        #     fens.isdelete = True
+        #     fen_model = User.query.filter_by_(USid=fens.USInvited).first()
+        #     if not fen_model or fen_model.USlevel != UserIdentityStatus.ordinary.value or fen_model.USsupper1:
+        #
+        #         continue
+        #     fen_model.USsupper1 = user.USid
+        #     if user.USsupper1:
+        #         fen_model.USsupper2 = user.USsupper1
+        #     if user.USsupper2:
+        #         fen_model.USsupper3 = user.USsupper2
 
     def refuse_agent(self, approval_model, refuse_abo):
         # user = User.query.filter_by_(USid=approval_model.AVstartid).first_('成为代理商审批流数据异常')

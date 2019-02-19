@@ -16,7 +16,8 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
-    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval, ProductCategory
+    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval, ProductCategory, \
+    ProductItems, Items
 from .CUser import CUser
 
 
@@ -136,8 +137,18 @@ class CFreshManFirstOrder(COrder, CUser):
         user = get_current_user()
         exists_order = OrderMain.query.filter(
             OrderMain.USid == usid,
+            OrderMain.isdelete == False, OrderPart.isdelete == False,
+            ProductItems.isdelete == False, Items.isdelete == False,
+            # OrderMain.USid == usid,
+            # OrderMain.OMstatus == OrderMainStatus.ready.value,
+            OrderPart.PRid == ProductItems.PRid,
+            ProductItems.ITid == Items.ITid,
+            Items.ITname != '开店大礼包',
+            OrderPart.OMid == OrderMain.OMid,
             OrderMain.OMstatus > OrderMainStatus.wait_pay.value
         ).first()
+        # cuser = CUser()
+        # cuser._check_gift_order()
         if exists_order:
             raise StatusError('您不是新人')
         try:

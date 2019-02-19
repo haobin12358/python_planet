@@ -340,3 +340,5 @@ class ActivationCodeRule(Base):
     ACRbankAddress = Column(String(125), nullable=False, comment='支行地址')
     ACRAgreeMent = Column(Text, comment='协议')
     ACRisShow = Column(Boolean, default=True, comment='是否显示')
+    ACRnum = Column(Integer, default=10, comment='激活码生成数量')
+    ACRcash = Column(DECIMAL, default=0, comment='激活码购买金额')

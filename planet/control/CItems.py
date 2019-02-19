@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 
-from planet.common.error_response import StatusError
+from planet.common.error_response import StatusError, DumpliError
 from planet.config.enums import ItemType, ItemAuthrity, ItemPostion
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
@@ -51,7 +51,8 @@ class CItems:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
             if item.ITtype == ItemType.product.value:
                 pr_scene = ProductScene.query.outerjoin(SceneItem, SceneItem.PSid == ProductScene.PSid
-                                                        ).filter_(SceneItem.ITid == item.ITid,
+                                                        ).filter_(SceneItem.isdelete == False,
+                                                                  SceneItem.ITid == item.ITid,
                                                                   ProductScene.isdelete == False).all()
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
@@ -67,6 +68,8 @@ class CItems:
         itrecommend = form.itrecommend.data
         itid = str(uuid.uuid1())
         with self.sproduct.auto_commit() as s:
+            if s.query(Items).filter_by(ITname=itname, ITtype=ittype, isdelete=False).first():
+                raise DumpliError("您输入的标签名已存在")
             s_list = []
             # 添加标签
             item_dict = {
@@ -105,6 +108,9 @@ class CItems:
             raise StatusError('系统默认标签不能被删除')
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
+        if not isdelete and Items.query.filter(Items.ITid != itid, Items.ITname == form.itname.data,
+                                               Items.ITtype == form.ittype.data, Items.isdelete == False).first():
+            raise DumpliError("您输入的标签名已存在")
         with db.auto_commit():
             itsort = self._check_itsort(form.itsort.data, form.ittype.data)
             item_dict = {'ITname': form.itname.data,
