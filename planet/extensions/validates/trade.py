@@ -168,6 +168,8 @@ class ActRuleSetFrom(BaseForm):
     acrname = StringField(validators=[DataRequired('姓名不可为空')])
     acrbanksn = StringField(validators=[DataRequired('卡号不可为空')])
     acrbankaddress = StringField()
+    acrnum = IntegerField()
+    acrcash = DecimalField()
 
 
 

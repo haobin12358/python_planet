@@ -92,7 +92,9 @@ class CActivationCode(BASEAPPROVAL):
                 'ACRaddress': form.acraddress.data,
                 'ACRname': form.acrname.data,
                 'ACRbankSn': form.acrbanksn.data,
-                'ACRbankAddress': form.acrbankaddress.data
+                'ACRbankAddress': form.acrbankaddress.data,
+                'ACRnum': form.acrnum.data,
+                'ACRcash': form.acrcash.data
             })
             db.session.add(rule_instance)
         return Success('添加成功', rule_instance.ACRid)
@@ -105,6 +107,10 @@ class CActivationCode(BASEAPPROVAL):
     def _generate_activaty_code(self, num=10):
         """生成激活码"""
         code_list = []
+        rule = ActivationCodeRule.query.filter_by_(ACRisShow=True).first()
+        if rule:
+            num = rule.ACRnum or 10
+
         lowercase = string.ascii_lowercase
         count = 0
         while len(code_list) < num:
