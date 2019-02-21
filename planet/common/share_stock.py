@@ -41,9 +41,11 @@ class ShareStock:
         if time_now > today16hourtime:
             # 今日
             self.today_result = format(float(self.value_list[3]), '.2f')
+            return self.today_result
         # 昨日
         self.yesterday_result = format(float(self.value_list[1]), '.2f')
-        return self.yesterday_result
+        # return self.yesterday_result
+        return None
 
 
 if __name__ == '__main__':

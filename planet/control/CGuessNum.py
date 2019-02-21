@@ -26,6 +26,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
     @token_required
     def creat(self):
+        # todo 修改具体内容
         """参与活动"""
         date_now = datetime.now()
         if date_now.hour > 15:

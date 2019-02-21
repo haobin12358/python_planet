@@ -91,7 +91,7 @@ class DefaltSettig(object):
         'fetch_share_deal': {  # 获取走势
             'task': 'fetch_share_deal',
             # 'schedule': crontab(hour=0, minute=1)
-            'schedule': timedelta(hours=6)
+            'schedule': crontab(hour=16, minute=20, day_of_week='1-5')
         },
         'auto_evaluate': {  # 评价
             'task': 'auto_evaluate',
