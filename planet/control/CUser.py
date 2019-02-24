@@ -1449,7 +1449,7 @@ class CUser(SUser, BASEAPPROVAL):
             order_by(UserIntegral.createtime.desc()).first()
         if signintime:
             signin_today = bool(today == signintime.createtime.date())
-            if yesterday == signintime.createtime.date():
+            if not signin_today and signintime.createtime.date() != yesterday:
                 user.UScontinuous = 0
         else:
             signin_today = False
