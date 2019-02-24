@@ -83,9 +83,9 @@ class GuessNum(Base):
     GNNAid = Column(String(64), comment='对应的申请单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
-    SKUid = Column(String(64), nullable=False, comment='选购的商品')
-    PRid = Column(String(64), nullable=False, comment='当日奖品')
-    Price = Column(Float, nullable=False, comment='当日价格')
+    SKUid = Column(String(64), comment='选购的商品')
+    PRid = Column(String(64), comment='当日奖品')
+    Price = Column(Float, comment='当日价格')
 
 
 class CorrectNum(Base):

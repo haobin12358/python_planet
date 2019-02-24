@@ -38,11 +38,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnnum = form.gnnum.data
         usid = request.user.id
 
-        # if date_now.hour > 15:  # 15点以后参与次日的
-        #     gndate = date.today() + timedelta(days=1)
-        # else:
-        #     gndate = date.today()
-
         with db.auto_commit():
             today = date.today()
 
@@ -55,12 +50,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             guess_instance = GuessNum.create({
                 'GNid': str(uuid.uuid1()),
                 'GNnum': gnnum,
-                'USid': usid,
-                'PRid': today_raward.PRid,
-                'SKUid': today_raward.SKUid,
-                'Price': today_raward.SKUprice,
-                'GNNAid': today_raward.GNAAid
-                # 'GNdate': gndate
+                'USid': usid
             })
             db.session.add(guess_instance)
         return Success('参与成功')
@@ -99,9 +89,9 @@ class CGuessNum(COrder, BASEAPPROVAL):
                     result = 'uncorrect'
             join_history.fill('result', result).hide('USid', 'PRid')
 
-            product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
-            product.fields = ['PRid', 'PRmainpic', 'PRtitle']
-            join_history.fill('product', product)
+            # product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
+            # product.fields = ['PRid', 'PRmainpic', 'PRtitle']
+            # join_history.fill('product', product)
         return Success(data=join_history)
 
     @token_required
@@ -165,48 +155,52 @@ class CGuessNum(COrder, BASEAPPROVAL):
         else:
             gnaastatus = getattr(ApplyStatus, gnaastatus).value
         starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
-        out_stocks_query = OutStock.query.join(GuessNumAwardApply, GuessNumAwardApply.OSid == OutStock.OSid
-                                               ).group_by(OutStock.OSid).order_by(GuessNumAwardApply.GNAAstarttime.desc(),
-                                                                                  GuessNumAwardApply.createtime.desc())
-        if suid:
-            out_stocks_query = out_stocks_query.filter(GuessNumAwardApply.SUid == suid)
-        out_stocks = out_stocks_query.all()
-        award_list = list()
-        for out_stock in out_stocks:
-            awards = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
-                                                     GuessNumAwardApply.OSid == out_stock.OSid
-                                                     ).filter_(GuessNumAwardApply.GNAAstatus == gnaastatus,
-                                                               GuessNumAwardApply.GNAAstarttime >= starttime,
-                                                               GuessNumAwardApply.GNAAstarttime <= endtime
-                                                               ).all()
-            for award in awards:
-                award.fill('skustock', out_stock.OSnum)
-            award_list.extend(awards)
 
-        for award in award_list:
-            sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
-            award.fill('skupic', sku['SKUpic'])
-            product = Products.query.filter_by(PRid=award.PRid).first()
-            award.fill('prtitle', product.PRtitle)
-            award.fill('prmainpic', product['PRmainpic'])
-            brand = ProductBrand.query.filter_by(PBid=product.PBid).first()
-            award.fill('pbname', brand.PBname)
-            award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
-            if award.GNAAfrom == ApplyFrom.supplizer.value:
-                sup = Supplizer.query.filter_by(SUid=award.SUid).first()
+        # award_list = list()
+
+        # # for award in award_list:
+        #     sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
+        #     award.fill('skupic', sku['SKUpic'])
+        #     product = Products.query.filter_by(PRid=award.PRid).first()
+        #     award.fill('prtitle', product.PRtitle)
+        #     award.fill('prmainpic', product['PRmainpic'])
+        #     brand = ProductBrand.query.filter_by(PBid=product.PBid).first()
+        #     award.fill('pbname', brand.PBname)
+        #     award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
+        #     if award.GNAAfrom == ApplyFrom.supplizer.value:
+        #         sup = Supplizer.query.filter_by(SUid=award.SUid).first()
+        #         name = getattr(sup, 'SUname', '')
+        #     elif award.GNAAfrom == ApplyFrom.platform.value:
+        #         admin = Admin.query.filter_by(ADid=award.SUid).first()
+        #         name = getattr(admin, 'ADname', '')
+        #     else:
+        #         name = ''
+        #     award.fill('authname', name)
+        #     award.fill('createtime', award.createtime)
+        gnaa_list = GuessNumAwardApply.query.filter(
+            GuessNumAwardApply.isdelete == False).filter_(
+            GuessNumAwardApply.GNAAstatus == gnaastatus,
+            GuessNumAwardApply.GNAAstarttime >= starttime,
+            GuessNumAwardApply.GNAAstarttime <= endtime,
+            GuessNumAwardApply.SUid == suid
+        ).order_by(GuessNumAwardApply.GNAAstarttime.desc()).all()
+        for gnaa in gnaa_list:
+            self._fill_apply(gnaa)
+            if gnaa.GNAAfrom == ApplyFrom.supplizer.value:
+                sup = Supplizer.query.filter_by(SUid=gnaa.SUid).first()
                 name = getattr(sup, 'SUname', '')
-            elif award.GNAAfrom == ApplyFrom.platform.value:
-                admin = Admin.query.filter_by(ADid=award.SUid).first()
+            elif gnaa.GNAAfrom == ApplyFrom.platform.value:
+                admin = Admin.query.filter_by(ADid=gnaa.SUid).first()
                 name = getattr(admin, 'ADname', '')
             else:
                 name = ''
-            award.fill('authname', name)
-            award.fill('createtime', award.createtime)
+            gnaa.fill('authname', name)
+            gnaa.fill('createtime', gnaa.createtime)
 
         # 筛选后重新分页
         page = int(data.get('page_num', 1)) or 1
         count = int(data.get('page_size', 15)) or 15
-        total_count = len(award_list)
+        total_count = len(gnaa_list)
         if page < 1:
             page = 1
         total_page = int(total_count / int(count)) or 1
@@ -214,9 +208,9 @@ class CGuessNum(COrder, BASEAPPROVAL):
         if start > total_count:
             start = 0
         if total_count / (page * count) < 0:
-            ad_return_list = award_list[start:]
+            ad_return_list = gnaa_list[start:]
         else:
-            ad_return_list = award_list[start: (page * count)]
+            ad_return_list = gnaa_list[start: (page * count)]
         request.page_all = total_page
         request.mount = total_count
         return Success(data=ad_return_list)
@@ -323,28 +317,14 @@ class CGuessNum(COrder, BASEAPPROVAL):
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可修改自己提交的申请')
         gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
-        # 获取原商品属性
-        product_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == apply_info.GNAAid,
-                                                        GuessNumAwardProduct.isdelete == False).first()
-        # 获取原sku属性
-        gnas_old = GuessNumAwardSku.query.filter(
-            apply_info.GNAAid == GuessNumAwardProduct.GNAAid,
-            GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
-            GuessNumAwardSku.isdelete == False,
-            GuessNumAwardProduct.isdelete == False,
-        ).all()
         # 解除和原商品属性的绑定
-        # GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, PRid=product_old.PRid).delete_()
-        product_old.isdelete = True
-        # 获取修改后的时间。如果没有修改时间则用原时间
+        GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, isdelete=False).delete_()
+        # product_old.isdelete = True
+
+        # 如果没有修改时间，则用之前时间
         gnaastarttime = data.get('gnaastarttime') or apply_info.GNAAstarttime
         # 如果修改了时间，检测是否有冲突
         exist_apply_list = list()
-        # 遍历原sku 将库存退出去
-        for sku in gnas_old:
-            sku_instance = ProductSku.query.filter_by(
-                isdelete=False, PRid=product_old.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
-            self._update_stock(int(sku.SKUstock), product_old.PRid, sku_instance)
 
         # 重新添加商品属性
         skus = data.get('skus')
@@ -373,7 +353,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 GuessNumAwardApply.GNAAstarttime == gnaastarttime,
                 GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
                 GuessNumAwardProduct.PRid == data.get('prid'),
-                GuessNumAwardSku.SKUid == sku.SKUid,
+                GuessNumAwardSku.SKUid == sku.get('skuid'),
                 GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
                 GuessNumAwardProduct.isdelete == False,
                 GuessNumAwardSku.isdelete == False,
@@ -424,32 +404,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             args = parameter_required(('gnaaid',))
             gnaaid = args.get('gnaaid')
             award = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('该申请已被删除')
-            product = Products.query.filter_by_(PRid=award.PRid).first_('商品已下架')
-            product.PRattribute = json.loads(product.PRattribute)
-            product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
-            # 顶部图
-            images = ProductImage.query.filter_by_(PRid=product.PRid).order_by(ProductImage.PIsort).all()
-            product.fill('images', images)
-            # 品牌
-            brand = ProductBrand.query.filter_by_(PBid=product.PBid).first() or {}
-            product.fill('brand', brand)
-            sku = ProductSku.query.filter_by_(SKUid=award.SKUid).first_('没有该skuid信息')
-            sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
-            if sku.SKUstock:
-                sku.hide('SKUstock')
-            product.fill('sku', sku)
-            # # sku value
-            # 是否有skuvalue, 如果没有则自行组装
-            sku_value_item_reverse = []
-            for index, name in enumerate(product.PRattribute):
-                value = sku.SKUattriteDetail[index]
-                temp = {
-                    'name': name,
-                    'value': value
-                }
-                sku_value_item_reverse.append(temp)
-            product.fill('skuvalue', sku_value_item_reverse)
-            award.fill('product', product)
+            self._fill_apply(award)
             return Success('获取成功', award)
 
     def shelf_award(self):
@@ -460,24 +415,31 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnaaid = data.get('gnaaid')
         with db.auto_commit():
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
-            other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
-                                                               GuessNumAwardApply.GNAAid != gnaaid,
-                                                               GuessNumAwardApply.GNAAstatus.notin_(
-                                                                   [ApplyStatus.cancle.value,
-                                                                    ApplyStatus.reject.value]),
-                                                               GuessNumAwardApply.OSid == apply_info.OSid,
-                                                               ).first()
-            current_app.logger.info("其他的同库存申请 --> {}".format(other_apply_info))
+
             if apply_info.GNAAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
             if apply_info.SUid != request.user.id:
                 raise AuthorityError('仅可撤销自己提交的申请')
             apply_info.GNAAstatus = ApplyStatus.cancle.value
-            # 是否修改库存
-            if not other_apply_info:
-                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
-                                                  ).first()
-                super(CGuessNum, self)._update_stock(out_stock.OSnum, skuid=apply_info.SKUid)
+
+            # 获取原商品属性
+            gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == apply_info.GNAAid,
+                                                            GuessNumAwardProduct.isdelete == False).first()
+            product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+            # 获取原sku属性
+            gnas_old = GuessNumAwardSku.query.filter(
+                apply_info.GNAAid == GuessNumAwardProduct.GNAAid,
+                GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                GuessNumAwardSku.isdelete == False,
+                GuessNumAwardProduct.isdelete == False,
+            ).all()
+
+            # 遍历原sku 将库存退出去
+            for sku in gnas_old:
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                self._update_stock(int(sku.SKUstock), product, sku_instance)
+
             # 同时将正在进行的审批流改为取消
             approval_info = Approval.query.filter_by_(AVcontent=gnaaid, AVstartid=request.user.id,
                                                       AVstatus=ApplyStatus.wait_check.value).first()
@@ -542,3 +504,26 @@ class CGuessNum(COrder, BASEAPPROVAL):
             date_list.append(date_str)
             begin_date += timedelta(days=1)
         return date_list
+
+    def _fill_apply(self, award):
+        product = GuessNumAwardProduct.query.filter_by(GNAAid=award.GNAAid, isdelete=False).first()
+        # product = Products.query.filter_by_(PRid=gnap.PRid).first_('商品已下架')
+        product.PRattribute = json.loads(product.PRattribute)
+        # product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+        # 顶部图
+        images = ProductImage.query.filter_by_(PRid=product.PRid).order_by(ProductImage.PIsort).all()
+        product.fill('images', images)
+        # 品牌
+        brand = ProductBrand.query.filter_by_(PBid=product.PBid).first() or {}
+        product.fill('brand', brand)
+        gnas_list = GuessNumAwardSku.query.filter_by(GNAPid=product.GNAPid, isdelete=False).all()
+        for gnas in gnas_list:
+            sku = ProductSku.query.filter_by_(SKUid=gnas.SKUid).first_('没有该skuid信息')
+            gnas.fill('SKUattriteDetail', json.loads(sku.SKUattriteDetail))
+            gnas.fill('SKUpic', sku.SKUpic)
+            gnas.fill('SKUsn', sku.SKUsn)
+            gnas.fill('SkudevideRate', sku.SkudevideRate)
+
+        product.fill('sku', gnas_list)
+
+        award.fill('product', product)

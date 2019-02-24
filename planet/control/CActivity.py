@@ -10,7 +10,7 @@ from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, Tria
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
-    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply, OutStock
+    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply, OutStock, GuessNumAwardProduct
 from .CUser import CUser
 
 
@@ -44,21 +44,15 @@ class CActivity(CUser):
             act.fill('actype_zh', ActivityType(act.ACtype).zh_value)
             # 活动是否有供应商参与
             if ActivityType(act.ACtype).name == 'guess_num':
-                guess_num_count = GuessNumAwardApply.query.join(OutStock, OutStock.OSid == GuessNumAwardApply.OSid
-                                                                ).filter(OutStock.isdelete == False,
-                                                                         GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
-                                                                         GuessNumAwardApply.AgreeStartime <= today,
-                                                                         GuessNumAwardApply.AgreeEndtime >= today,
-                                                                         GuessNumAwardApply.isdelete == False
-                                                                         ).count()
+
+                guess_num_count = GuessNumAwardProduct.query.filter(
+                    GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
+                    GuessNumAwardApply.isdelete == False,
+                    GuessNumAwardProduct.isdelete == False,
+                    GuessNumAwardApply.GNAAstarttime <= today,
+                    GuessNumAwardApply.GNAAendtime >= today
+                ).count()
                 act.fill('prcount', guess_num_count)
-                stock = OutStock.query.join(GuessNumAwardApply, GuessNumAwardApply.OSid == OutStock.OSid).filter(
-                    OutStock.isdelete == False,
-                    GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
-                    GuessNumAwardApply.AgreeStartime <= today,
-                    GuessNumAwardApply.AgreeEndtime >= today,
-                    GuessNumAwardApply.isdelete == False).first()
-                act.fill('stock', getattr(stock, 'OSnum', ''))
             elif ActivityType(act.ACtype).name == 'magic_box':
                 magic_box_count = MagicBoxApply.query.join(OutStock, OutStock.OSid == MagicBoxApply.OSid).filter(
                     OutStock.isdelete == False,
@@ -98,14 +92,12 @@ class CActivity(CUser):
                 result = activitys
             else:
                 if ActivityType(act.ACtype).name == 'guess_num':
-                    lasting = GuessNumAwardApply.query.join(OutStock, OutStock.OSid == GuessNumAwardApply.OSid).filter(
-                        OutStock.isdelete == False,
-                        OutStock.OSnum > 0,
+                    lasting = GuessNumAwardApply.query.filter(
                         GuessNumAwardApply.isdelete == False,
                         GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
                         GuessNumAwardApply.AgreeStartime <= today,
                         GuessNumAwardApply.AgreeEndtime >= today,
-                        ).first()
+                        ).all()
                     if lasting:
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':

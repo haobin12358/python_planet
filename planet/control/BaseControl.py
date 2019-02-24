@@ -282,7 +282,7 @@ class BASEAPPROVAL():
         if not start_model or not content:
             return None, None
         product = GuessNumAwardProduct.query.filter_by_(GNAAid=contentid).first()
-        self.__fill_product_detail(product, content.SKUid, content=content)
+        self.__fill_product_detail(product, content=content)
         content.fill('product', product)
         return start_model, content
 
