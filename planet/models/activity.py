@@ -143,12 +143,14 @@ class GuessNumAwardSku(Base):
     GNAPid = Column(String(64), comment='申请商品id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
     SKUprice = Column(Float, nullable=False, comment='sku价格')
+    SKUstock = Column(Integer, comment='库存')
     SKUdiscountone = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣1')
     SKUdiscounttwo = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣2')
     SKUdiscountthree = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣3')
     SKUdiscountfour = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣4')
     SKUdiscountfive = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣5')
     SKUdiscountsix = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣6')
+
 
 class MagicBoxApply(Base):
     __tablename__ = 'MagicBoxApply'
