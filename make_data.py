@@ -22,25 +22,25 @@ def make_items():
         })
         s_list.append(index_hot_items)
 
-        news_bind_product = Items.create({
-            'ITid': 'news_bind_product',
-            'ITname': '资讯关联商品',
-            'ITdesc': '用于在资讯中进行关联的',
-            'ITtype': ItemType.product.value,
-            'ITauthority': ItemAuthrity.other.value,
-            'ITposition': ItemPostion.news_bind.value
-        })
-        s_list.append(news_bind_product)
-
-        news_bind_coupon = Items.create({
-            'ITid': 'news_bind_coupon',
-            'ITname': '资讯关联优惠券',
-            'ITdesc': '用于在资讯中进行关联的',
-            'ITtype': ItemType.coupon.value,
-            'ITauthority': ItemAuthrity.other.value,
-            'ITposition': ItemPostion.news_bind.value
-        })
-        s_list.append(news_bind_coupon)
+        # news_bind_product = Items.create({
+        #     'ITid': 'news_bind_product',
+        #     'ITname': '资讯关联商品',
+        #     'ITdesc': '用于在资讯中进行关联的',
+        #     'ITtype': ItemType.product.value,
+        #     'ITauthority': ItemAuthrity.other.value,
+        #     'ITposition': ItemPostion.news_bind.value
+        # })
+        # s_list.append(news_bind_product)
+        #
+        # news_bind_coupon = Items.create({
+        #     'ITid': 'news_bind_coupon',
+        #     'ITname': '资讯关联优惠券',
+        #     'ITdesc': '用于在资讯中进行关联的',
+        #     'ITtype': ItemType.coupon.value,
+        #     'ITauthority': ItemAuthrity.other.value,
+        #     'ITposition': ItemPostion.news_bind.value
+        # })
+        # s_list.append(news_bind_coupon)
 
         index_brands_items = Items.create({
             'ITid': 'index_brand',
@@ -65,15 +65,26 @@ def make_items():
             'ITposition': ItemPostion.index.value
         })
         s_list.append(index_recommend_product_for_you_items)
+
         upgrade_product = Items.create({
             'ITid': 'upgrade_product',
             'ITname': '开店大礼包',
             'ITdesc': '开店大礼包',
             'ITposition': ItemPostion.other.value,
-            'ITauthority': ItemPostion.other.value,
+            'ITauthority': ItemAuthrity.other.value,
         })
-
         s_list.append(upgrade_product)
+
+        planet_featured = Items.create({
+            'ITid': 'planet_featured',
+            'ITname': '大行星精选',
+            'ITdesc': '场景推荐页下固定的大行星精选',
+            'ITsort': -1,
+            'ITposition': ItemPostion.index.value,
+            'ITauthority': ItemAuthrity.no_limit.value,
+        })
+        s_list.append(planet_featured)
+
         db.session.add_all(s_list)
 
 
