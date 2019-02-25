@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
+from decimal import Decimal
 from datetime import datetime, date, timedelta
 
 from flask import request, current_app
@@ -16,7 +17,7 @@ from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetF
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
-    GuessNumAwardSku
+    GuessNumAwardSku, User
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom
 from planet.extensions.register_ext import alipay, wx_pay
@@ -135,12 +136,158 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
     @token_required
     def recv_award(self):
-        # todo 修改接口为创建订单，增加时间和猜中多少个数字的判断。根据多少个数字获取减免金额。
-        data = parameter_required(('prid', 'gnaaendtime', 'gnaastarttime', 'prprice', 'skus'))
-        # apply_from = ApplyFrom.supplizer.value if is_supplizer() else
+        # 猜数字下单接口
+        data = parameter_required(('prid', 'skuid', 'omclient', 'gnaaid', 'uaid', 'opaytype'))
+        # 生成订单
+        with db.auto_commit():
+            gn = GuessNum.query.filter_by(USid=request.user.id).order_by(GuessNum.createtime.desc()).first()
+            now = datetime.now()
+            gnaa = GuessNumAwardApply.query.filter_by(GNAAid=data.get('gnaaid'), isdelete=False).first_('参数异常')
+            gnap = GuessNumAwardProduct.query.filter_by(
+                GNAAid=data.get('gnaaid'), PRid=data.get('prid'), isdelete=False).first_('参数异常')
+            gnas = GuessNumAwardSku.query.filter(
+                GuessNumAwardSku.GNAPid == gnap.GNAPid,
+                GuessNumAwardSku.SKUid == data.get('skuid'),
+                GuessNumAwardSku.isdelete == False,
+                GuessNumAwardSku.SKUstock > 0).first_('商品库存不足')
+            # 时间判断来获取折扣
+            if now.hour < 16:
+                discount = 0
+            elif now.hour == 16 and now.minute < 20:
+                discount = 0
+            elif not gn:
+                discount = 0
+            elif gn.createtime.day < now.day:
+                discount = 0
+            elif gn.SKUid:
+                discount = 0
+            else:
+                correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
+                correctnum = correctnum_instance.CNnum
+                guessnum = gn.GNnum
+                correct_count = self._compare_str(correctnum, guessnum)
+
+                discount = self.get_discount(gnas, correct_count)
+            # 打完折扣之后的价格
+            price = Decimal(str(gnas.SKUprice)) - Decimal(str(discount))
+            if price <= 0:
+                price = 0.01
+            # 用户信息
+            user = User.query.filter_by(USid=request.user.id).first_('用户信息丢失')
+            # 商品品牌信息
+            pbid = gnap.PBid
+            product_brand_instance = ProductBrand.query.filter_by(PBid=pbid, isdelete= False).first()
+            # 商品分类
+            product_category = ProductCategory.query.filter_by(PCid=gnap.PCid, isdelete=False).first()
+            # sku详情
+            sku_instance = ProductSku.query.filter_by(SKUid=data.get('skuid'), isdelete=False).first()
+            # 商品详情
+            product_instance = Products.query.filter_by(PRid=gnap.PRid, isdelete=False).first()
+            # 地址
+            user_address_instance = UserAddress.filter_by(UAid=data.get('uaid'), USid=user.USid).first_('地址信息有误')
+            omrecvphone = user_address_instance.UAphone
+            areaid = user_address_instance.AAid
+            # 地址拼接
+            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
+            # 支付单号
+            opayno = self.wx_pay.nonce_str
+            # 支付方式
+            opaytype = data.get('opaytype')
+            # 下单设备
+            try:
+                omclient = int(data.get('omclient', Client.wechat.value))
+                Client(omclient)
+            except Exception as e:
+                raise ParamsError('客户端或商品来源错误')
+
+            suid = gnaa.SUid if not gnaa.GNAAfrom else None
+
+            # 创建主单
+            order_main_instance = OrderMain.create({
+                'OMid': str(uuid.uuid1()),
+                'OMno': self._generic_omno(),
+                'OPayno': opayno,
+                'USid': user.USid,
+                'OMfrom': OrderFrom.guess_num_award.value,
+                'PBname': product_brand_instance.PBname,
+                'PBid': pbid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0
+                'OMmount': price,
+                'OMmessage': data.get('ommessage'),
+                'OMtrueMount': price,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+                'PRcreateId': suid
+            })
+            db.session.add(order_main_instance)
+            # 创建副单
+            order_part_instance = OrderPart.create({
+                'OMid': order_main_instance.OMid,
+                'OPid': str(uuid.uuid1()),
+                'SKUid': data.get('skuid'),
+                'PRattribute': gnap.PRattribute,
+                'SKUattriteDetail': gnas.SKUattriteDetail,
+                'PRtitle': gnap.PRtitle,
+                'SKUsn': sku_instance.SKUsn,
+                'PCname': product_category.PCname,
+                'SKUprice': price,
+                'PRmainpic': product_instance.PRmainpic,
+                'OPnum': 1,
+                'PRid': product_instance.PRid,
+                'OPsubTotal': price,
+                # 副单商品来源
+                'PRfrom': product_instance.PRfrom,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                'UPperid3': user.USsupper3,
+                'USCommission1': user.USCommission1,
+                'USCommission2': user.USCommission2,
+                'USCommission3': user.USCommission3
+                # todo 活动佣金设置
+            })
+            db.session.add(order_part_instance)
+            # 支付数据表
+            order_pay_instance = OrderPay.create({
+                'OPayid': str(uuid.uuid1()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': price,
+            })
+            db.session.add(order_pay_instance)
+            gn.PRid = gnap.PRid
+            gn.SKUid = gnas.SKUid
+            gn.Price = price
+        # 生成支付信息
+        body = product_instance.PRtitle
+        # user = get_current_user()
+        openid = user.USopenid1 or user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建订单成功', data=response)
+
+    @token_required
+    def today_gnap(self):
+        today = date.today()
+        gnaa_list = GuessNumAwardApply.query.filter_by(
+            GNAAstarttime=today, GNAAstatus=ApplyStatus.agree.value, isdelete=False).all()
+        for gnaa in gnaa_list:
+            self._fill_gnaa(gnaa)
+        return Success('获取今天猜数字活动成功', data=gnaa_list)
 
     def list(self):
-        # todo 修改字段
         """查看自己的申请列表"""
         if is_supplizer():
             suid = request.user.id
@@ -156,27 +303,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
             gnaastatus = getattr(ApplyStatus, gnaastatus).value
         starttime, endtime = data.get('starttime', '2019-01-01'), data.get('endtime', '2100-01-01')
 
-        # award_list = list()
-
-        # # for award in award_list:
-        #     sku = ProductSku.query.filter_by(SKUid=award.SKUid).first()
-        #     award.fill('skupic', sku['SKUpic'])
-        #     product = Products.query.filter_by(PRid=award.PRid).first()
-        #     award.fill('prtitle', product.PRtitle)
-        #     award.fill('prmainpic', product['PRmainpic'])
-        #     brand = ProductBrand.query.filter_by(PBid=product.PBid).first()
-        #     award.fill('pbname', brand.PBname)
-        #     award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
-        #     if award.GNAAfrom == ApplyFrom.supplizer.value:
-        #         sup = Supplizer.query.filter_by(SUid=award.SUid).first()
-        #         name = getattr(sup, 'SUname', '')
-        #     elif award.GNAAfrom == ApplyFrom.platform.value:
-        #         admin = Admin.query.filter_by(ADid=award.SUid).first()
-        #         name = getattr(admin, 'ADname', '')
-        #     else:
-        #         name = ''
-        #     award.fill('authname', name)
-        #     award.fill('createtime', award.createtime)
         gnaa_list = GuessNumAwardApply.query.filter(
             GuessNumAwardApply.isdelete == False).filter_(
             GuessNumAwardApply.GNAAstatus == gnaastatus,
@@ -527,3 +653,89 @@ class CGuessNum(COrder, BASEAPPROVAL):
         product.fill('sku', gnas_list)
 
         award.fill('product', product)
+
+    def _compare_str(self, str_a, str_b):
+        sum = 0
+        for index, str_char in enumerate(str_a):
+            if index >= len(str_b): return sum
+
+            if str_char == str_b[index]: sum += 1
+
+        return sum
+
+    def get_discount(self, gnas, num):
+        if num == 0:
+            return 0
+        if num == 1:
+            return gnas.SKUdiscountone
+        if num == 2:
+            return gnas.SKUdiscounttwo
+        if num == 3:
+            return gnas.SKUdiscountthree
+        if num == 4:
+            return gnas.SKUdiscountfour
+        if num == 5:
+            return gnas.SKUdiscountfive
+        if num == 6:
+            return gnas.SKUdiscountsix
+        return 0
+
+    def _fill_gnaa(self, gnaa):
+        gnap = GuessNumAwardProduct.query.filter_by(GNAAid=gnaa.GNAAid, isdelete=False).first()
+        if not gnap:
+            current_app.logger.info('该申请无商品 gnaaid = {0}'.format(gnaa.GNAAid))
+            return
+        product = Products.query.filter_by(PRid=gnap.PRid, isdelete=False).first()
+        if not product:
+            current_app.logger.info('该商品已删除 prid = {0}'.format(gnap.PRid))
+            return
+
+        if isinstance(product.PRattribute, str):
+            product.PRattribute = json.loads(product.PRattribute)
+        if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
+            product.PRremarks = json.loads(getattr(product, 'PRremarks', None) or '{}')
+
+        pb = ProductBrand.query.filter_by_(PBid=product.PBid).first()
+
+        images = ProductImage.query.filter(
+            ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+            ProductImage.PIsort).all()
+        product.fill('images', images)
+        product.fill('brand', pb)
+        gnas_list = GuessNumAwardSku.query.filter_by(GNAPid=gnap.GNAPid, isdelete=False).all()
+        skus = list()
+        sku_value_item = list()
+        for gnas in gnas_list:
+            sku = ProductSku.query.filter_by(SKUid=gnas.SKUid, isdelete=False).first()
+            if not sku:
+                current_app.logger.info('该sku已删除 skuid = {0}'.format(gnas.SKUid))
+                continue
+            sku.hide('SKUprice')
+            sku.hide('SKUstock')
+            sku.fill('skuprice', gnas.SKUprice)
+            sku.fill('skustock', gnas.SKUstock)
+            sku.fill('SKUdiscountone', gnas.SKUdiscountone)
+            sku.fill('SKUdiscounttwo', gnas.SKUdiscounttwo)
+            sku.fill('SKUdiscountthree', gnas.SKUdiscountthree)
+            sku.fill('SKUdiscountfour', gnas.SKUdiscountfour)
+            sku.fill('SKUdiscountfive', gnas.SKUdiscountfive)
+            sku.fill('SKUdiscountsix', gnas.SKUdiscountsix)
+            if isinstance(sku.SKUattriteDetail, str):
+                sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            sku_value_item.append(sku.SKUattriteDetail)
+            skus.append(sku)
+        if not skus:
+            current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
+            return
+        product.fill('skus', skus)
+        sku_value_item_reverse = []
+        for index, name in enumerate(product.PRattribute):
+            value = list(set([attribute[index] for attribute in sku_value_item]))
+            value = sorted(value)
+            temp = {
+                'name': name,
+                'value': value
+            }
+            sku_value_item_reverse.append(temp)
+        product.fill('SkuValue', sku_value_item_reverse)
+        gnaa.fill('product', product)

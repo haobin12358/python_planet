@@ -162,7 +162,7 @@ class CPay():
             if self._check_upgrade_gift((prid, )):
                 current_app.logger.info('开店礼包不需要佣金')
                 user.USlevel = UserIdentityStatus.toapply.value
-                continue
+                # continue
             if is_trial_commodity:
                 trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
                 user_commision_dict = {

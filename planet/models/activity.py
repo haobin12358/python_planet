@@ -142,7 +142,7 @@ class GuessNumAwardSku(Base):
     GNASid = Column(String(64), primary_key=True)
     GNAPid = Column(String(64), comment='申请商品id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
-    SKUprice = Column(Float, nullable=False, comment='sku价格')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku价格')
     SKUstock = Column(Integer, comment='库存')
     SKUdiscountone = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣1')
     SKUdiscounttwo = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣2')
