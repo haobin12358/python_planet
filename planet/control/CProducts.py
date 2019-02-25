@@ -167,9 +167,9 @@ class CProducts(BaseController):
             prstatus = getattr(ProductStatus, prstatus).value
         product_order = order_enum.get(order)
         if desc_asc == 'desc':
-            order_by = product_order.desc()
+            by_order = product_order.desc()
         elif desc_asc == 'asc':
-            order_by = product_order
+            by_order = product_order
 
         filter_args = [
             Products.PBid == pbid,
@@ -194,13 +194,14 @@ class CProducts(BaseController):
                         or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
                 else:
                     filter_args.append(Items.ITauthority == int(itauthority))
-        # products = self.sproduct.get_product_list(filter_args, [order_by, ])
-        query = Products.query.filter(Products.isdelete == False). \
-            outerjoin(
-            ProductItems, ProductItems.PRid == Products.PRid
-        ).outerjoin(
-            ProductBrand, ProductBrand.PBid == Products.PBid
-        ).outerjoin(Items, Items.ITid == ProductItems.ITid)
+        # products = self.sproduct.get_product_list(filter_args, [by_order, ])
+        query = Products.query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid
+                                         ).outerjoin(ProductBrand, ProductBrand.PBid == Products.PBid
+                                                     ).outerjoin(Items, Items.ITid == ProductItems.ITid
+                                                                 ).filter(Products.isdelete == False,
+                                                                          ProductBrand.isdelete == False,
+                                                                          ProductItems.isdelete == False,
+                                                                          Items.isdelete == False)
         # 后台的一些筛选条件
         # 供应源筛选
         if is_supplizer():
@@ -215,11 +216,9 @@ class CProducts(BaseController):
                 SupplizerProduct.SUid == suid
             )
         elif suid:
-            query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid).filter(
-                SupplizerProduct.SUid.is_(None)
-            )
-        products = query.filter_(*filter_args). \
-            order_by(order_by).all_with_page()
+            query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid
+                                    ).filter(SupplizerProduct.SUid.is_(None))
+        products = query.filter_(*filter_args).order_by(by_order).all_with_page()
         # 填充
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
@@ -311,7 +310,7 @@ class CProducts(BaseController):
             sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
             for index, sku in enumerate(skus):
                 sn = sku.get('skusn')
-                self._check_sn(sn=sn)
+                # self._check_sn(sn=sn)
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
@@ -480,7 +479,7 @@ class CProducts(BaseController):
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
                         sn = sku.get('skusn')
-                        self._check_sn(sn=sn, skuid=skuid)
+                        # self._check_sn(sn=sn, skuid=skuid)
                         sku_ids.append(skuid)
                         sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
                         sku_instance.update({
@@ -504,7 +503,7 @@ class CProducts(BaseController):
                             'SkudevideRate': skudeviderate
                         })
                         sn = sku.get('skusn')
-                        self._check_sn(sn=sn)
+                        # self._check_sn(sn=sn)
                         new_sku.append(sku_instance)
                     # 设置分销比
                     default_derate = Commision.devide_rate_baseline()
