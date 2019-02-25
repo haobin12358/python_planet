@@ -97,6 +97,7 @@ class ApplyFrom(Enum):
 
 
 class ApplyStatus(Enum):
+    shelves = -30, '已下架'
     cancle = -20, '已撤销'
     reject = -10, '已拒绝'
     wait_check = 0, '审核中'

@@ -935,16 +935,16 @@ class CApproval(BASEAPPROVAL):
     def agree_guessnum(self, approval_model):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
         gnaa.GNAAstatus = ApplyStatus.agree.value
-        gnaa_other = GuessNumAwardApply.query.filter(
-            GuessNumAwardApply.GNAAid != gnaa.GNAAid,
-            GuessNumAwardApply.GNAAstarttime == gnaa.GNAAstarttime,
-            GuessNumAwardApply.GNAAendtime == gnaa.GNAAendtime,
-            GuessNumAwardApply.isdelete == False
-        ).all()
-        for other in gnaa_other:
-            # other.GNAAstatus = ApplyStatus.reject.value
-            # other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
-            self.refuse_guessnum(other, '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime))
+        # gnaa_other = GuessNumAwardApply.query.filter(
+        #     GuessNumAwardApply.GNAAid != gnaa.GNAAid,
+        #     GuessNumAwardApply.GNAAstarttime == gnaa.GNAAstarttime,
+        #     GuessNumAwardApply.GNAAendtime == gnaa.GNAAendtime,
+        #     GuessNumAwardApply.isdelete == False
+        # ).all()
+        # for other in gnaa_other:
+        #     # other.GNAAstatus = ApplyStatus.reject.value
+        #     # other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
+        #     self.refuse_guessnum(other, '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime))
 
     def refuse_guessnum(self, approval_model, refuse_abo):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first()

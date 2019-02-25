@@ -592,7 +592,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
             if sup:
                 assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
-            if apply_info.GNAAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value]:
+            if apply_info.GNAAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value, ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
         return Success('删除成功', {'gnaaid': gnaaid})
@@ -618,7 +618,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 assert apply_info.SUid == usid, '供应商只能下架自己的申请'
             if apply_info.GNAAstatus != ApplyStatus.agree.value:
                 raise StatusError('只能下架已通过的申请')
-            apply_info.GNAAstatus = ApplyStatus.reject.value
+            apply_info.GNAAstatus = ApplyStatus.shelves.value
         return Success('下架成功', {'mbaid': gnaaid})
 
     @staticmethod

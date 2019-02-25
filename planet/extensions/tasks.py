@@ -32,7 +32,7 @@ def fetch_share_deal():
             cast(CorrectNum.CNdate, Date) == today
         ).first()
         # if not db_today:  # 昨日
-        if not db_today:  # 今日
+        if not db_today and yesterday_result:  # 今日
             # current_app.logger.info('写入昨日数据')
             current_app.logger.info('写入今日数据')
             correct_instance = CorrectNum.create({
