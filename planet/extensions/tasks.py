@@ -25,21 +25,25 @@ def fetch_share_deal():
         s_list = []
         share_stock = ShareStock()
         yesterday_result = share_stock.new_result()
-        yesterday = date.today() - timedelta(days=1)
+        # yesterday = date.today() - timedelta(days=1)
+        today = date.today()
         # 昨日结果
-        db_yesterday = CorrectNum.query.filter(
-            cast(CorrectNum.CNdate, Date) == yesterday
+        db_today = CorrectNum.query.filter(
+            cast(CorrectNum.CNdate, Date) == today
         ).first()
-        if not db_yesterday:  # 昨日
-            current_app.logger.info('写入昨日数据')
+        # if not db_today:  # 昨日
+        if not db_today and yesterday_result:  # 今日
+            # current_app.logger.info('写入昨日数据')
+            current_app.logger.info('写入今日数据')
             correct_instance = CorrectNum.create({
                 'CNid': str(uuid.uuid4()),
                 'CNnum': yesterday_result,
-                'CNdate': yesterday
+                'CNdate': today
             })
             s_list.append(correct_instance)
             # 判断是否有猜对的
-            guess_nums = GuessNum.query.filter_by({'GNnum': yesterday_result, 'GNdate': db_yesterday}).all()
+            # 更新逻辑之后不需要判断是否猜对
+            guess_nums = GuessNum.query.filter_by({'GNnum': yesterday_result, 'GNdate': db_today}).all()
             for guess_num in guess_nums:
                 exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
                 if not exists_in_flow:

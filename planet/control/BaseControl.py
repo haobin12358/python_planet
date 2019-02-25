@@ -15,7 +15,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement, ProductImage
+    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -116,17 +116,13 @@ class BASEAPPROVAL():
             content = kwargs.get('content')
             skus = ProductSku.query.filter_by_(SKUid=skuid).all()
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
-            images = ProductImage.query.filter(
-                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
-                ProductImage.PIsort).all()
+
             for sku in skus:
                 sku.hide('SKUstock')
                 sku.fill('skustock', content.SKUstock)
         elif isinstance(product, FreshManFirstProduct):
             fmfs = FreshManFirstSku.query.filter_by_(FMFPid=product.FMFPid).all()
-            images = ProductImage.query.filter(
-                ProductImage.PRid == product.FMFPid, ProductImage.isdelete == False).order_by(
-                ProductImage.PIsort).all()
+
             skus = []
             for fmf in fmfs:
                 sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
@@ -136,13 +132,32 @@ class BASEAPPROVAL():
                 sku.fill('skustock', fmf.FMFPstock)
                 skus.append(sku)
             # skus = ProductSku.query.filter(ProductSku.SKUid == FreshManFirstSku.SKUid)
+        elif isinstance(product, GuessNumAwardProduct):
+            gnas = GuessNumAwardSku.query.filter_by(GNAPid=product.GNAPid, isdelete=False).all()
+
+            skus = []
+            for fmf in gnas:
+                sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
+                sku.hide('SKUprice')
+                sku.hide('SKUstock')
+                sku.fill('skuprice', fmf.SKUprice)
+                sku.fill('skustock', fmf.SKUstock)
+                sku.fill('SKUdiscountone', fmf.SKUdiscountone)
+                sku.fill('SKUdiscounttwo', fmf.SKUdiscounttwo)
+                sku.fill('SKUdiscountthree', fmf.SKUdiscountthree)
+                sku.fill('SKUdiscountfour', fmf.SKUdiscountfour)
+                sku.fill('SKUdiscountfive', fmf.SKUdiscountfive)
+                sku.fill('SKUdiscountsix', fmf.SKUdiscountsix)
+
+                skus.append(sku)
         else:
-            images = ProductImage.query.filter(
-                ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
-                ProductImage.PIsort).all()
+
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
 
+        images = ProductImage.query.filter(
+            ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+            ProductImage.PIsort).all()
         product.fill('images', images)
 
         sku_value_item = []
@@ -266,8 +281,8 @@ class BASEAPPROVAL():
         content = GuessNumAwardApply.query.filter_by_(GNAAid=contentid).first()
         if not start_model or not content:
             return None, None
-        product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid, content=content)
+        product = GuessNumAwardProduct.query.filter_by_(GNAAid=contentid).first()
+        self.__fill_product_detail(product, content=content)
         content.fill('product', product)
         return start_model, content
 
@@ -357,8 +372,9 @@ class BASEAPPROVAL():
             return None, None
         # if apply:
         content.add('createtime')
-        content = FreshManFirstProduct.query.filter_by_(FMFAid=contentid).first()
-        self.__fill_product_detail(content)
+        product = FreshManFirstProduct.query.filter_by_(FMFAid=contentid).first()
+        self.__fill_product_detail(product)
+        content.fill('product', product)
         return start_model, content
 
     def __fill_approval(self, pt, start, content, **kwargs):

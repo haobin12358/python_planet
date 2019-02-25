@@ -83,9 +83,9 @@ class GuessNum(Base):
     GNNAid = Column(String(64), comment='对应的申请单id')
     USid = Column(String(64), nullable=False, comment='用户id')
     GNdate = Column(Date, default=date.today, comment='参与的日期')
-    SKUid = Column(String(64), nullable=False, comment='当日奖品')
-    PRid = Column(String(64), nullable=False, comment='当日奖品')
-    Price = Column(Float, nullable=False, comment='当日价格')
+    SKUid = Column(String(64), comment='选购的商品')
+    PRid = Column(String(64), comment='当日奖品')
+    Price = Column(Float, comment='当日价格')
 
 
 class CorrectNum(Base):
@@ -109,14 +109,10 @@ class GuessNumAwardApply(Base):
     """申请参与猜数字"""
     __tablename__ = 'GuessNumAward'
     GNAAid = Column(String(64), primary_key=True)
+    # GNAPid = Column(String(64), comment='申请商品id')
     SUid = Column(String(64), comment='发布者id')
-    SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
-    PRid = Column(String(64), nullable=False, comment='商品id')
     GNAAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
     GNAAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
-    SKUprice = Column(Float, default=0.01, comment='参与价格')
-    # SKUstock = Column(Integer, comment='库存')
-    OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式
     GNAAfrom = Column(Integer, comment='申请来源, 0:供应商, 1: 平台管理员')
     GNAAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
     ADid = Column(String(64), comment='处理人')
@@ -124,16 +120,36 @@ class GuessNumAwardApply(Base):
     AgreeStartime = Column(Date, default=GNAAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=GNAAendtime, comment='最终确认结束时间')
 
-    @property
-    def SKUstock(self):
-        from flask import current_app
-        current_app.logger.info('注意: 调用了skustock<<<')
-        out_stock = OutStock.query.filter(
-            OutStock.OSid == self.OSid,
-            OutStock.isdelete == False,
-        ).first()
-        if out_stock:
-            return out_stock.OSnum
+
+class GuessNumAwardProduct(Base):
+    """猜数字商品表"""
+    __tablename__ = 'GuessNumAwardProduct'
+    GNAPid = Column(String(64), primary_key=True)
+    GNAAid = Column(String(64), comment='申请单id')
+    PRid = Column(String(64), nullable=False, comment='申请猜数字的商品id')
+    PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
+    PRtitle = Column(String(255), nullable=False, comment='商品标题')
+    PBid = Column(String(64), nullable=False, comment='品牌id')
+    PBname = Column(String(64), nullable=False, comment='品牌名字')
+    PRattribute = Column(String(255), comment='商品属性 ["网络","颜色","存储"]')
+    PRdescription = Column(Text, comment='描述')
+    PRfeight = Column(Float, default=0, comment='快递费用')
+    PRprice = Column(Float, nullable=False, comment='显示价格')
+
+
+class GuessNumAwardSku(Base):
+    __tablename__ = 'GuessNumAwardSku'
+    GNASid = Column(String(64), primary_key=True)
+    GNAPid = Column(String(64), comment='申请商品id')
+    SKUid = Column(String(64), nullable=False, comment='skuid')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku价格')
+    SKUstock = Column(Integer, comment='库存')
+    SKUdiscountone = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣1')
+    SKUdiscounttwo = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣2')
+    SKUdiscountthree = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣3')
+    SKUdiscountfour = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣4')
+    SKUdiscountfive = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣5')
+    SKUdiscountsix = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku折扣6')
 
 
 class MagicBoxApply(Base):

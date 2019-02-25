@@ -25,6 +25,7 @@ class AGuessNum(Resource):
             'list': self.cguessnum.list,
             'history_join': self.cguessnum.history_join,
             'award_detail': self.cguessnum.award_detail,
+            'today_gnap': self.cguessnum.today_gnap,
 
         }
         return apis

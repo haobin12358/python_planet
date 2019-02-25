@@ -19,7 +19,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.token_handler import token_required, is_admin, is_hign_level_admin, is_supplizer
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
-    ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement
+    ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
+    GuessNumAwardSku
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -934,15 +935,16 @@ class CApproval(BASEAPPROVAL):
     def agree_guessnum(self, approval_model):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
         gnaa.GNAAstatus = ApplyStatus.agree.value
-        gnaa_other = GuessNumAwardApply.query.filter(
-            GuessNumAwardApply.GNAAid != gnaa.GNAAid,
-            GuessNumAwardApply.GNAAstarttime == gnaa.GNAAstarttime,
-            GuessNumAwardApply.GNAAendtime == gnaa.GNAAendtime,
-            GuessNumAwardApply.isdelete == False
-        ).all()
-        for other in gnaa_other:
-            other.GNAAstatus = ApplyStatus.reject.value
-            other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
+        # gnaa_other = GuessNumAwardApply.query.filter(
+        #     GuessNumAwardApply.GNAAid != gnaa.GNAAid,
+        #     GuessNumAwardApply.GNAAstarttime == gnaa.GNAAstarttime,
+        #     GuessNumAwardApply.GNAAendtime == gnaa.GNAAendtime,
+        #     GuessNumAwardApply.isdelete == False
+        # ).all()
+        # for other in gnaa_other:
+        #     # other.GNAAstatus = ApplyStatus.reject.value
+        #     # other.GNAArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime)
+        #     self.refuse_guessnum(other, '您的商品未被抽中为{0}这一天的奖品'.format(gnaa.GNAAstarttime))
 
     def refuse_guessnum(self, approval_model, refuse_abo):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first()
@@ -950,19 +952,25 @@ class CApproval(BASEAPPROVAL):
             return
         gnaa.GNAAstatus = ApplyStatus.reject.value
         gnaa.GNAArejectReason = refuse_abo
-        # 是否进行库存变化
-        other_apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.isdelete == False,
-                                                           GuessNumAwardApply.GNAAid != gnaa.GNAAid,
-                                                           GuessNumAwardApply.GNAAstatus.notin_(
-                                                               [ApplyStatus.cancle.value,
-                                                                ApplyStatus.reject.value]),
-                                                           GuessNumAwardApply.OSid == gnaa.OSid,
-                                                           ).first()
-        if not other_apply_info:
-            out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == gnaa.OSid
-                                              ).first()
-            from planet.control.COrder import COrder
-            COrder()._update_stock(out_stock.OSnum, skuid=gnaa.SKUid)
+
+        # 获取原商品属性
+        gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == gnaa.GNAAid,
+                                                     GuessNumAwardProduct.isdelete == False).first()
+        product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+        # 获取原sku属性
+        gnas_old = GuessNumAwardSku.query.filter(
+            gnaa.GNAAid == GuessNumAwardProduct.GNAAid,
+            GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+            GuessNumAwardSku.isdelete == False,
+            GuessNumAwardProduct.isdelete == False,
+        ).all()
+        from planet.control.COrder import COrder
+
+        # 遍历原sku 将库存退出去
+        for sku in gnas_old:
+            sku_instance = ProductSku.query.filter_by(
+                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+            COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
 
     def agree_magicbox(self, approval_model):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
