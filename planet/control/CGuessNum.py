@@ -632,6 +632,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         return date_list
 
     def _fill_apply(self, award):
+        award.fill('gnaastatus_zh', ApplyStatus(award.GNAAstatus).zh_value)
         product = GuessNumAwardProduct.query.filter_by(GNAAid=award.GNAAid, isdelete=False).first()
         # product = Products.query.filter_by_(PRid=gnap.PRid).first_('商品已下架')
         product.PRattribute = json.loads(product.PRattribute)

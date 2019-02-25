@@ -1080,7 +1080,9 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_list = UserIntegral.query.filter_(UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter).all_with_page()
+        ui_list = UserIntegral.query.filter_(
+            UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter
+        ).order_by(UserInvitation.createtime.desc()).all_with_page()
         for ui in ui_list:
             ui.fields = ['UIintegral', 'createtime']
             ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
