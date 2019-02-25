@@ -311,7 +311,7 @@ class CProducts(BaseController):
             sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
             for index, sku in enumerate(skus):
                 sn = sku.get('skusn')
-                self._check_sn(sn=sn)
+                # self._check_sn(sn=sn)
                 skuattritedetail = sku.get('skuattritedetail')
                 if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                     raise ParamsError('skuattritedetail与prattribute不符')
@@ -480,7 +480,7 @@ class CProducts(BaseController):
                     if 'skuid' in sku:
                         skuid = sku.get('skuid')
                         sn = sku.get('skusn')
-                        self._check_sn(sn=sn, skuid=skuid)
+                        # self._check_sn(sn=sn, skuid=skuid)
                         sku_ids.append(skuid)
                         sku_instance = s.query(ProductSku).filter_by({'SKUid': skuid}).first_('sku不存在')
                         sku_instance.update({
@@ -504,7 +504,7 @@ class CProducts(BaseController):
                             'SkudevideRate': skudeviderate
                         })
                         sn = sku.get('skusn')
-                        self._check_sn(sn=sn)
+                        # self._check_sn(sn=sn)
                         new_sku.append(sku_instance)
                     # 设置分销比
                     default_derate = Commision.devide_rate_baseline()
