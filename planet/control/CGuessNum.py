@@ -278,7 +278,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
         }
         return Success('创建订单成功', data=response)
 
-    @token_required
+    # @token_required
     def today_gnap(self):
         today = date.today()
         gnaa_list = GuessNumAwardApply.query.filter_by(
