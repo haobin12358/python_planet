@@ -43,15 +43,15 @@ def fetch_share_deal():
             s_list.append(correct_instance)
             # 判断是否有猜对的
             # 更新逻辑之后不需要判断是否猜对
-            guess_nums = GuessNum.query.filter_by({'GNnum': yesterday_result, 'GNdate': db_today}).all()
-            for guess_num in guess_nums:
-                exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
-                if not exists_in_flow:
-                    guess_award_flow_instance = GuessAwardFlow.create({
-                        'GAFid': str(uuid.uuid4()),
-                        'GNid': guess_num.GNid,
-                    })
-                    s_list.append(guess_award_flow_instance)
+        #     guess_nums = GuessNum.query.filter_by({'GNnum': yesterday_result, 'GNdate': db_today}).all()
+        #     for guess_num in guess_nums:
+        #         exists_in_flow = GuessAwardFlow.query.filter_by_({'GNid': guess_num.GNid}).first()
+        #         if not exists_in_flow:
+        #             guess_award_flow_instance = GuessAwardFlow.create({
+        #                 'GAFid': str(uuid.uuid4()),
+        #                 'GNid': guess_num.GNid,
+        #             })
+        #             s_list.append(guess_award_flow_instance)
         if s_list:
             db.session.add_all(s_list)
 
