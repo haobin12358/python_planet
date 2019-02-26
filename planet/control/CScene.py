@@ -25,13 +25,23 @@ class CScene(object):
         """创建场景"""
         form = SceneCreateForm().valid_data()
         with self.sproducts.auto_commit() as s:
-            product_scene_instance = ProductScene.create({
-                'PSid': str(uuid.uuid4()),
+            scene_dict = {
+                'PSid': str(uuid.uuid1()),
                 'PSpic': form.pspic.data,
                 'PSname': form.psname.data,
                 'PSsort': form.pssort.data,
-            })
+            }
+            product_scene_instance = ProductScene.create(scene_dict)
             s.add(product_scene_instance)
+
+            # 每个场景下默认增加一个“大行星精选”标签
+            default_scene_item = SceneItem.create({
+                'SIid': str(uuid.uuid1()),
+                'PSid': scene_dict.get('PSid'),
+                'ITid': 'planet_featured'
+            })
+            s.add(default_scene_item)
+
         return Success('创建成功', data={
             'psid': product_scene_instance.PSid
         })

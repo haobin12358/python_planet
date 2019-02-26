@@ -45,7 +45,7 @@ class CItems:
             items_query = items_query.filter(
                 Items.ITname.contains(kw)
             )
-        items_query = items_query.order_by(Items.ITposition.desc(), Items.ITsort, Items.createtime, Items.ITid)
+        items_query = items_query.order_by(Items.ITposition.desc(), Items.ITsort.asc(), Items.createtime.desc())
         items = items_query.all()
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
@@ -103,8 +103,8 @@ class CItems:
         psid = form.psid.data
         itid = form.itid.data
         isdelete = form.isdelete.data
-        if itid in ['index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand', 'index_brand_product',
-                    'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
+        if itid in ['planet_featured', 'index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand',
+                    'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
             raise StatusError('系统默认标签不能被删除')
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
