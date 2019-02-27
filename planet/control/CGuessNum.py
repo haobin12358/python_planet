@@ -287,6 +287,42 @@ class CGuessNum(COrder, BASEAPPROVAL):
             self._fill_gnaa(gnaa)
         return Success('获取今天猜数字活动成功', data=gnaa_list)
 
+    @token_required
+    def get_discount_by_skuid(self):
+        data = parameter_required(('skuid', 'gnaaid'))
+        user = get_current_user()
+        # today = date.today()
+        now = datetime.now()
+        gn = GuessNum.query.filter_by(USid=request.user.id).order_by(GuessNum.createtime.desc()).first()
+        gnas = GuessNumAwardSku.query.filter(
+            GuessNumAwardSku.SKUid == data.get('skuid'),
+            GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+            GuessNumAwardProduct.GNAAid == data.get('gannid'),
+            GuessNumAwardSku.isdelete == False,
+            GuessNumAwardProduct.isdelete == False,
+        ).first()
+        # 时间判断来获取折扣
+        if now.hour < 16:
+            discount = 0
+        elif now.hour == 16 and now.minute < 20:
+            discount = 0
+        elif not gn:
+            discount = 0
+        elif gn.createtime.day < now.day:
+            discount = 0
+        elif gn.SKUid:
+            discount = 0
+        else:
+            correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
+            correctnum = correctnum_instance.CNnum
+            guessnum = gn.GNnum
+            correct_count = self._compare_str(correctnum, guessnum)
+
+            discount = self.get_discount(gnas, correct_count)
+
+        return Success(data={'discount': discount})
+
+
     def list(self):
         """查看自己的申请列表"""
         if is_supplizer():
