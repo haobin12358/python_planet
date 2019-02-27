@@ -224,15 +224,28 @@ class CActivity(CUser):
 
         # todo 是否需要判断前后台
         elif ac_type == 'guess_num':
-            apply = Products.query.join(
-                ProductSku, Products.PRid == ProductSku.PRid
-            ).join(
-                GuessNumAwardApply, GuessNumAwardApply.SKUid == ProductSku.SKUid
-            ).filter_(
-                GuessNumAwardApply.AgreeStartime <= today,
-                GuessNumAwardApply.AgreeEndtime >= today,
-                MagicBoxApply.isdelete == False,
-            ).first_('活动未在进行')
+            # apply = Products.query.join(
+            #     ProductSku, Products.PRid == ProductSku.PRid
+            # ).join(
+            #     GuessNumAwardApply, GuessNumAwardApply.SKUid == ProductSku.SKUid
+            # ).filter_(
+            #     GuessNumAwardApply.AgreeStartime <= today,
+            #     GuessNumAwardApply.AgreeEndtime >= today,
+            #     MagicBoxApply.isdelete == False,
+            # ).first_('活动未在进行')
+            # apply = GuessNumAwardApply.query.filter_by(
+            #     GuessNumAwardApply.GNAAstarttime <= today,
+            #     GuessNumAwardApply.GNAAendtime >= today).order_by(
+            #     GuessNumAwardApply.createtime.desc()).first_('活动未进行')
+            #
+            # gnap = GuessNumAwardProduct.query.filter_by(GNAAid=apply.GNAAid, isdelete=False).first_('活动未进行')
+            apply = GuessNumAwardProduct.query.filter(
+                    GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
+                    GuessNumAwardApply.isdelete == False,
+                    GuessNumAwardProduct.isdelete == False,
+                    GuessNumAwardApply.GNAAstarttime <= today,
+                    GuessNumAwardApply.GNAAendtime >= today
+                ).order_by(GuessNumAwardApply.createtime.desc()).first_('活动未进行')
             act_instance.ACdesc = act_instance.ACdesc.split('|')
             act_instance.fill('prpic', apply.PRmainpic)
         return Success(data=act_instance)

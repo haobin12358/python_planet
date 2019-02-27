@@ -26,6 +26,7 @@ class AGuessNum(Resource):
             'history_join': self.cguessnum.history_join,
             'award_detail': self.cguessnum.award_detail,
             'today_gnap': self.cguessnum.today_gnap,
+            'get_discount': self.cguessnum.get_discount_by_skuid,
 
         }
         return apis
