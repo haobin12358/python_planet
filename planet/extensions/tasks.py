@@ -330,8 +330,8 @@ if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        fetch_share_deal()
+        # fetch_share_deal()
         # create_settlenment()
-        # auto_evaluate()
+        auto_evaluate()
         # check_for_update()
         # auto_confirm_order()
