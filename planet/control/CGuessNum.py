@@ -17,9 +17,9 @@ from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetF
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
-    GuessNumAwardSku, User
+    GuessNumAwardSku, User, Activity
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
-    ApprovalType, ApplyStatus, ApplyFrom
+    ApprovalType, ApplyStatus, ApplyFrom, ActivityType
 from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
 
@@ -291,7 +291,19 @@ class CGuessNum(COrder, BASEAPPROVAL):
             GNAAstarttime=today, GNAAstatus=ApplyStatus.agree.value, isdelete=False).all()
         for gnaa in gnaa_list:
             self._fill_gnaa(gnaa)
-        return Success('获取今天猜数字活动成功', data=gnaa_list)
+
+        # 上方图
+        activity = Activity.query.filter_by_({
+            'ACtype': ActivityType.guess_num.value,
+            'ACshow': True
+        }).first_('活动已结束')
+        data = {
+            'fresh_man': gnaa_list,
+            'actopPic': activity['ACtopPic'],
+            'acdesc': activity.ACdesc,
+            'acname': activity.ACname,
+        }
+        return Success('获取今天猜数字活动成功', data=data)
 
     @token_required
     def get_discount_by_skuid(self):
@@ -701,13 +713,31 @@ class CGuessNum(COrder, BASEAPPROVAL):
         award.fill('product', product)
 
     def _compare_str(self, str_a, str_b):
-        sum = 0
-        for index, str_char in enumerate(str_a):
-            if index >= len(str_b): return sum
+        sum_ = 0
+        str_a_list = str_a.split('.')
+        str_b_list = str_b.split('.')
 
-            if str_char == str_b[index]: sum += 1
+        str_a_pre = str_a_list[0]
+        str_b_pre = str_b_list[0][-len(str_a_pre):]
+        while len(str_b_pre) < len(str_a_pre):
+            str_b_pre = 'a' + str_b_pre
 
-        return sum
+        for index, str_char in enumerate(str_a_pre):
+            if index >= len(str_b_pre): break
+
+            if str_char == str_b_pre[index]: sum_ += 1
+        if len(str_b_list) > 1:
+            str_a_behind = str_a_list[1]
+            str_b_behind = str_b_list[1][:len(str_a_behind)]
+            while len(str_b_behind) < len(str_a_behind):
+                str_b_behind = str_b_behind + 'a'
+
+            for index, str_char in enumerate(str_a_behind):
+                if index >= len(str_b_behind): break
+
+                if str_char == str_b_behind[index]: sum_ += 1
+
+        return sum_
 
     def get_discount(self, gnas, num):
         if num == 0:
