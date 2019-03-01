@@ -6,7 +6,7 @@ import requests
 
 class ShareStock:
     url = 'http://hq.sinajs.cn/list={}'
-    code = 'sh000002'
+    code = 'sh000001'
     json = False
 
     def __init__(self, code=None, url=None):
