@@ -47,6 +47,7 @@ class CActivity(CUser):
 
                 guess_num_count = GuessNumAwardProduct.query.filter(
                     GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
+                    GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
                     GuessNumAwardApply.isdelete == False,
                     GuessNumAwardProduct.isdelete == False,
                     GuessNumAwardApply.GNAAstarttime <= today,

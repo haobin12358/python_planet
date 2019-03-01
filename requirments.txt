@@ -1,3 +1,4 @@
+-i http://mirrors.aliyun.com/pypi/simple/  --trusted-host mirrors.aliyun.com
 alembic==1.0.2
 amqp==2.3.2
 asn1crypto==0.24.0
