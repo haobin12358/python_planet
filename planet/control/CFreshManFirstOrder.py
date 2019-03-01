@@ -303,6 +303,9 @@ class CFreshManFirstOrder(COrder, CUser):
             if exists_order:
                 exists_order.isdelete = True
                 db.session.add(exists_order)
+        from planet.extensions.tasks import auto_cancle_order
+
+        auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product_instance.PRtitle
         current_user = get_current_user()

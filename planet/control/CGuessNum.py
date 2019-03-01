@@ -138,6 +138,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
     def recv_award(self):
         # 猜数字下单接口
         data = parameter_required(('prid', 'skuid', 'omclient', 'gnaaid', 'uaid', 'opaytype'))
+        omid = str(uuid.uuid1())
         # 生成订单
         with db.auto_commit():
             gn = GuessNum.query.filter_by(USid=request.user.id).order_by(GuessNum.createtime.desc()).first()
@@ -210,7 +211,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
             # 创建主单
             order_main_instance = OrderMain.create({
-                'OMid': str(uuid.uuid1()),
+                'OMid': omid,
                 'OMno': self._generic_omno(),
                 'OPayno': opayno,
                 'USid': user.USid,
@@ -266,6 +267,11 @@ class CGuessNum(COrder, BASEAPPROVAL):
             gn.PRid = gnap.PRid
             gn.SKUid = gnas.SKUid
             gn.Price = price
+            gn.GNNAid = gnaa.GNAAid
+
+        from planet.extensions.tasks import auto_cancle_order
+
+        auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product_instance.PRtitle
         # user = get_current_user()
@@ -297,10 +303,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnas = GuessNumAwardSku.query.filter(
             GuessNumAwardSku.SKUid == data.get('skuid'),
             GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
-            GuessNumAwardProduct.GNAAid == data.get('gannid'),
+            GuessNumAwardProduct.GNAAid == data.get('gnaaid'),
             GuessNumAwardSku.isdelete == False,
             GuessNumAwardProduct.isdelete == False,
-        ).first()
+        )
+        print(str(gnas))
+        gnas = gnas.first()
         # 时间判断来获取折扣
         if now.hour < 16:
             discount = 0

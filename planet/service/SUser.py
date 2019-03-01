@@ -8,14 +8,15 @@ class SUser(SBase):
 
     def get_ucmonth_by_usid(self, usid, today):
         return UserCommission.query.filter(
-            UserCommission.USid == usid, UserCommission.UCstatus == 1,
+            UserCommission.USid == usid, UserCommission.UCstatus.in_([0, 1]),
             extract('month', UserCommission.createtime) == today.month,
             extract('year', UserCommission.createtime) == today.year,
+            UserCommission.isdelete == False
         ).all()
 
     def get_ucall_by_usid(self, usid):
         return UserCommission.query.filter(
-            UserCommission.USid == usid, UserCommission.UCstatus == 1
+            UserCommission.USid == usid, UserCommission.UCstatus == 1, UserCommission.isdelete == False
         ).all()
 
     def get_identifyingcode_by_ustelphone(self, utel):
