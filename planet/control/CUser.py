@@ -1086,7 +1086,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         ui_list = UserIntegral.query.filter_(
             UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter
-        ).order_by(UserInvitation.createtime.desc()).all_with_page()
+        ).order_by(UserIntegral.createtime.desc()).all_with_page()
         for ui in ui_list:
             ui.fields = ['UIintegral', 'createtime']
             ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
