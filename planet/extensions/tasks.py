@@ -60,9 +60,9 @@ def fetch_share_deal():
 def auto_evaluate():
     """超时自动评价订单"""
     try:
-        # cfs = ConfigSettings()
-        # limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
-        limit_time = 7
+        cfs = ConfigSettings()
+        limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
+        # limit_time = 7
         time_now = datetime.now()
         with db.auto_commit():
             s_list = list()
