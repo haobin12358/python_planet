@@ -34,7 +34,7 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -104,7 +104,12 @@ class COrder(CPay, CCoupon):
         else:
             order_mains = order_main_query.order_by(*order_by).all_with_page()
         rows = []
+
+        now = datetime.now()
         for order_main in order_mains:
+            if order_main.OMstatus == OrderMainStatus.wait_pay.value:
+                duration = order_main.createtime + timedelta(minutes=30) - now
+                order_main.fill('duration', str(duration))
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             if form.export_xls.data and order_parts:
                 headers, part_rows = self._part_to_row(order_main=order_main, order_parts=order_parts)
@@ -776,6 +781,10 @@ class COrder(CPay, CCoupon):
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
         order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value
         order_main.add('OMstatus_en', 'createtime', 'OMstatus_zh').hide('OPayno', 'USid', )
+        now = datetime.now()
+        if order_main.OMstatus == OrderMainStatus.wait_pay.value:
+            duration = order_main.createtime + timedelta(minutes=30) - now
+            order_main.fill('duration', str(duration))
         # 付款时间
         if order_main.OMstatus > OrderMainStatus.wait_pay.value:
             order_pay = OrderPay.query.filter_by_({'OPayno': order_main.OPayno}).first()
@@ -835,28 +844,24 @@ class COrder(CPay, CCoupon):
                 if omfrom <= OrderFrom.product_info.value:
                     self._update_stock(opnum, product, sku_instance)
                 elif omfrom == OrderFrom.guess_num_award.value:
-                    pass
-                    # guessawardflow = GuessAwardFlow.query.filter(
-                    #     GuessAwardFlow.isdelete == False,
-                    #     GuessAwardFlow.OMid == omid
-                    # ).first()
-                    # guess_num = GuessNum.query.filter(
-                    #     GuessNum.GNid == guessawardflow.GNid
-                    # ).first()
-                    # apply = GuessNumAwardApply.query.filter(
-                    #     GuessNumAwardApply.isdelete == False,
-                    #     GuessNumAwardApply.GNAAid == guess_num.GNNAid
-                    # ).update({
-                    #     'SKUstock': GuessNumAwardApply.SKUstock + opnum
-                    # })
-                    #
-                    # stock = OutStock.query.join(
-                    #     GuessNumAwardApply, GuessNumAwardApply.
-                    # ).filter(
-                    #     OutStock.isdelete == False,
-                    # )
-                    # guessawardflow.GFAstatus = ActivityRecvStatus.wait_recv.value
-                    # db.session.add(guessawardflow)
+                    gn = GuessNum.query.filter(
+                        GuessNum.USid == order_main.USid,
+                        cast(GuessNum.createtime, Date) == order_main.createtime.date(),
+                        GuessNum.SKUid == skuid
+                    ).first_('猜数字数据异常')
+                    gnaa = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.GNAAid == gn.GNAAid,
+                        GuessNumAwardApply.isdelete == False
+                    ).first_('猜数字数据异常')
+                    gnas = GuessNumAwardSku.query.filte(
+                        GuessNumAwardProduct.GNAAid == gnaa.GNAAid,
+                        GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                        GuessNumAwardSku.SKUid == skuid,
+                        GuessNumAwardProduct.isdelete == False,
+                        GuessNumAwardSku.isdelete == False
+                    ).first_('猜数字数据异常')
+                    gnas.SKUstock = gnas.SKUstock + opnum
+
                 elif omfrom == OrderFrom.fresh_man.value:
                     # todo
                     pass

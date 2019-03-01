@@ -60,8 +60,9 @@ def fetch_share_deal():
 def auto_evaluate():
     """超时自动评价订单"""
     try:
-        cfs = ConfigSettings()
-        limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
+        # cfs = ConfigSettings()
+        # limit_time = cfs.get_item('order_auto', 'auto_evaluate_day')
+        limit_time = 7
         time_now = datetime.now()
         with db.auto_commit():
             s_list = list()
@@ -330,8 +331,8 @@ if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        # fetch_share_deal()
+        fetch_share_deal()
         # create_settlenment()
-        auto_evaluate()
+        # auto_evaluate()
         # check_for_update()
         # auto_confirm_order()

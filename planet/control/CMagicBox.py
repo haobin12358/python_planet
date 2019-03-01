@@ -269,6 +269,10 @@ class CMagicBox(CUser, COrder):
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             db.session.add(order_pay_instance)
+
+        from planet.extensions.tasks import auto_cancle_order
+
+        auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product.PRtitle
         openid = user.USopenid1 or user.USopenid2

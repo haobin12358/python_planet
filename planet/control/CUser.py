@@ -932,7 +932,10 @@ class CUser(SUser, BASEAPPROVAL):
 
         today = datetime.datetime.now()
         usercommission_model_month_list = self.get_ucmonth_by_usid(request.user.id, today)
-        mounth_count = sum(usercommission_model_month.UCcommission for usercommission_model_month in usercommission_model_month_list)
+        mounth_count = sum(
+            usercommission_model_month.UCcommission for usercommission_model_month
+            in usercommission_model_month_list
+            if usercommission_model_month.UCstatus == UserCommissionStatus.in_account.value)
         # for usercommission_model_month in usercommission_model_month_list:
         #     mounth_count += float(usercommission_model_month.UCcommission)
         usercommission_model_list = self.get_ucall_by_usid(request.user.id)
@@ -992,6 +995,7 @@ class CUser(SUser, BASEAPPROVAL):
         for uc_model in uc_model_list:
             uc_model.fields = ['createtime', 'UCcommission', 'PRtitle', 'SKUpic']
             uc_model.fill('uccommission', float(uc_model.UCcommission))
+            uc_model.fill('ucstatus', UserCommissionStatus(uc_model.UCstatus).zh_value)
             uc_mount += float(uc_model.UCcommission)
             op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
 
