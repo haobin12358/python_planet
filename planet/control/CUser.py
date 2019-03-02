@@ -1401,7 +1401,7 @@ class CUser(SUser, BASEAPPROVAL):
         #
         # if not user_openid:
         #     raise ParamsError('token error')
-        data = parameter_required(('ustelphone', 'identifyingcode', 'openid', 'appfrom'))
+        data = parameter_required(('ustelphone', 'identifyingcode', 'openid', 'app_from'))
         ustelphone = data.get('ustelphone')
         self.__check_identifyingcode(ustelphone, data.get("identifyingcode"))
         fromdict = self.analysis_app_from(data.get('app_from'))

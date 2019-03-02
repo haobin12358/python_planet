@@ -159,6 +159,9 @@ class CPay():
         for order_part in order_parts:
             # 是否是新人大礼包
             prid = order_part.PRid
+            if order_main.OMfrom == OrderFrom.fresh_man.value:
+                current_app.logger.info('新人首单不参与分佣')
+                continue
             if self._check_upgrade_gift((prid, )):
                 current_app.logger.info('开店礼包不需要佣金')
                 user.USlevel = UserIdentityStatus.toapply.value
@@ -193,6 +196,8 @@ class CPay():
                                     order_part, is_act=bool(order_main.OMfrom>OrderFrom.product_info.value))
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
+            current_app.logger.info('新人首单不参与分佣')
+            # continue
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
