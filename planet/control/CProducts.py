@@ -398,6 +398,8 @@ class CProducts(BaseController):
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
             if items:
+                if product_from == ProductFrom.supplizer.value and len(items) > 3:
+                    raise ParamsError('最多只能关联3个标签')
                 for item in items:
                     itid = item.get('itid')
                     item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_(
@@ -624,6 +626,8 @@ class CProducts(BaseController):
             # 场景下的小标签 [{'itid': itid1}, ...]
             items = data.get('items')
             if items:
+                if product_from == ProductFrom.supplizer.value and len(items) > 3:
+                    raise ParamsError('最多只能关联3个标签')
                 itids = []
                 for item in items:
                     itid = item.get('itid')
