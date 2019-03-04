@@ -111,12 +111,14 @@ def auto_evaluate():
                                 corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                             continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
 
-                        # todo 判断是否物流信息完整
+                        ol = OrderLogistics.query.filter_by(OMid=order_part.OMid).first()
+                        if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
+                            continue
+
                         corder._commsion_into_count(order_part)  # 佣金到账
 
-                        # todo 判断是否试用商品
+                        if user and order_main.OMfrom != OrderFrom.trial_commodity.value:
 
-                        if user:
                             usname, usheader = user.USname, user.USheader
 
                             corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
