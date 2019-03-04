@@ -1792,7 +1792,7 @@ class COrder(CPay, CCoupon):
                         'UWbalance': user_commision.UCcommission,
                         'UWtotal': user_commision.UCcommission,
                         'UWcash': user_commision.UCcommission,
-                        'UWexpect': user_commision.UCcommission,
+                        # 'UWexpect': user_commision.UCcommission,
                         'CommisionFor': user_commision.CommisionFor
                     })
                 db.session.add(user_wallet_instance)
