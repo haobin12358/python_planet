@@ -112,6 +112,10 @@ class DefaltSettig(object):
         'check_for_update': {  # 查询是否代理商是否可以升级
             'task': 'check_for_update',
             'schedule': crontab(hour=2, minute=40, day_of_week='0-6')
+        },
+        'deposit_to_account': {
+            'task': 'deposit_to_account',
+            'schedule': crontab(hour=3, minute=10, day_of_week='0-6')
         }
     }
 

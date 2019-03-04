@@ -464,7 +464,7 @@ class BankName(Enum):
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
-    deposit = 3, '押金'
+    deposit = 2, '押金'
 
 
 class UserCommissionStatus(Enum):

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 from datetime import date, timedelta, datetime
+from decimal import Decimal
 
 from flask import current_app
 from flask_celery import Celery
@@ -10,10 +11,10 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics
+    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet
 
 celery = Celery()
 
@@ -158,7 +159,56 @@ def auto_evaluate():
                 db.session.add_all(s_list)
             current_app.logger.info(">>>>>> 自动评价任务结束，共更改{}条数据  <<<<<<".format(count))
     except Exception as err:
-        current_app.logger.info(">>>>>> 自动评价任务出错 : {}  <<<<<<".format(err))
+        current_app.logger.error(">>>>>> 自动评价任务出错 : {}  <<<<<<".format(err))
+
+
+@celery.task(name='deposit_to_account')
+def deposit_to_account():
+    """试用商品押金到账"""
+    try:
+        with db.auto_commit():
+            current_app.logger.info("-->  开始检测押金是否到期  <--")
+            deposits = UserCommission.query.filter(UserCommission.isdelete == False,
+                                                   UserCommission.UCstatus == UserCommissionStatus.preview.value,
+                                                   UserCommission.UCtype == UserCommissionType.deposit.value,
+                                                   UserCommission.UCendTime <= datetime.now()
+                                                   ).all()
+            current_app.logger.info("-->  共有{}个订单的押金已到期  <--".format(len(deposits)))
+            for deposit in deposits:
+                current_app.logger.info("-->  'UCid‘ : {}  <--".format(deposit.UCid))
+                user_name = getattr(User.query.filter(User.USid == deposit.USid).first(), 'USname', '') or None
+                # 更改佣金状态
+                deposit.UCstatus = UserCommissionStatus.in_account.value
+                db.session.add(deposit)
+                # 用户钱包
+                user_wallet = UserWallet.query.filter( UserWallet.isdelete == False,
+                                                       UserWallet.USid == deposit.USid,
+                                                       UserWallet.CommisionFor == deposit.CommisionFor
+                                                       ).first()
+                if user_wallet:
+                    current_app.logger.info("-->  用户 ‘{}’ 已有钱包账户  <--".format(user_name))
+                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(deposit.UCcommission or 0))
+                    user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(deposit.UCcommission))
+                    user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(deposit.UCcommission))
+                    current_app.logger.info("此次到账佣金{}；该用户现在账户余额：{}； 账户总额{}； 可提现余额{}".format(
+                        deposit.UCcommission, user_wallet.UWbalance, user_wallet.UWtotal, user_wallet.UWcash))
+                    db.session.add(user_wallet)
+                else:
+                    current_app.logger.info("-->  用户 ‘{}’ 没有钱包账户，正在新建  <--".format(user_name))
+                    user_wallet_instance = UserWallet.create({
+                        'UWid': str(uuid.uuid1()),
+                        'USid': deposit.USid,
+                        'UWbalance': deposit.UCcommission,
+                        'UWtotal': deposit.UCcommission,
+                        'UWcash': deposit.UCcommission,
+                        'CommisionFor': deposit.CommisionFor
+                    })
+                    current_app.logger.info("此次到账佣金{}；".format(deposit.UCcommission))
+                    db.session.add(user_wallet_instance)
+                current_app.logger.info(" {}".format('=' * 30))
+            current_app.logger.info(" >>>>>  押金到账任务结束  <<<<<")
+    except Exception as e:
+        current_app.logger.error("押金到账任务出错 : {}；".format(e))
 
 
 @celery.task(name='fix_evaluate_status_error')
@@ -335,7 +385,8 @@ if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        fetch_share_deal()
+        deposit_to_account()
+        # fetch_share_deal()
         # create_settlenment()
         # auto_evaluate()
         # check_for_update()

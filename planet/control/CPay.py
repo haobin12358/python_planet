@@ -174,11 +174,12 @@ class CPay():
                     'OPid': order_part.OPid,
                     'UCcommission': order_main.OMtrueMount,
                     'USid': user.USid,
+                    'CommisionFor': ApplyFrom.user.value,
                     'UCtype': UserCommissionType.deposit.value,  # 类型是押金
                     'PRtitle': order_part.PRtitle,
                     'SKUpic': order_part.SKUpic,
                     'UCendTime': order_main.createtime + timedelta(days=trialcommodity.TCdeadline),
-                    'UCstatus': UCstatus,
+                    'UCstatus': UserCommissionStatus.preview.value,
                     'FromUsid': order_main.USid
                 }
                 db.session.add(UserCommission.create(user_commision_dict))
