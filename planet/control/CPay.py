@@ -195,15 +195,28 @@ class CPay():
             up3_user = User.query.filter(User.isdelete == False, User.USid == up3).first()
             self._caculate_commsion(user, up1_user, up2_user, up3_user, commision,
                                     order_part, is_act=bool(order_main.OMfrom>OrderFrom.product_info.value))
+
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
-            current_app.logger.info('新人首单不参与分佣')
-            # continue
+            first = 20
+            second = 30
+            third = 50
+
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
+
             if fresh_man_join_flow and fresh_man_join_flow.UPid:
+                fresh_man_join_count = FreshManJoinFlow.query.filter(
+                    FreshManJoinFlow.isdelete == False,
+                    FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
+                    FreshManJoinFlow.OMid == OrderMain.OMid,
+                    OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
+                    OrderMain.OMinRefund == False,
+                    OrderMain.isdelete == False
+                ).count()
+                current_app.logger.info("当前邀请人 邀请了总共 {} ".format(fresh_man_join_count))
                 # 邀请人的新人首单
                 up_order_main = OrderMain.query.filter(
                     OrderMain.isdelete == True,
@@ -213,15 +226,25 @@ class CPay():
                 ).first()
                 if up_order_main:
                     reward = min(order_main.OMtrueMount, up_order_main.OMtrueMount)
-                    user_commision_dict = {
-                        'UCid': str(uuid.uuid1()),
-                        'OMid': omid,
-                        'UCcommission': reward,
-                        'USid': fresh_man_join_flow.UPid,
-                        'UCtype': UserCommissionType.fresh_man.value,
-                        'UCendTime': UCendTime
-                    }
-                    db.session.add(UserCommission.create(user_commision_dict))
+                    if fresh_man_join_count < 1:
+                        reward = reward * (first / 100)
+                    elif fresh_man_join_count == 1:
+                        reward = reward * (second / 100)
+                    elif fresh_man_join_count == 2:
+                        reward = reward * (third / 100)
+                    else:
+                        reward = 0
+
+                    if reward:
+                        user_commision_dict = {
+                            'UCid': str(uuid.uuid1()),
+                            'OMid': omid,
+                            'UCcommission': reward,
+                            'USid': fresh_man_join_flow.UPid,
+                            'UCtype': UserCommissionType.fresh_man.value,
+                            'UCendTime': UCendTime
+                        }
+                        db.session.add(UserCommission.create(user_commision_dict))
         # 线上发货
         if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
             order_main.OMstatus = OrderMainStatus.ready.value
@@ -447,6 +470,9 @@ class CPay():
         low_ratio = Decimal()
         hign_ratio = Decimal('1')
         hign_comm_base_temp = user_hign_base
+        # 不限等级。限制偏移上限
+        if low_high > 4:
+            low_high = 4
         for index in range(low_high):
             hign_comm_base_temp *= hign_ratio  # 本级的基础佣金比
             hign_ratio *= (1 - Decimal(reduce_ratio[index]) / 100)

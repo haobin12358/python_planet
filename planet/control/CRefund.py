@@ -14,10 +14,10 @@ from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
-    DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus
+    DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType
 from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
-from planet.models import UserCommission
+from planet.models import UserCommission, FreshManJoinFlow
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay, OrderRefundNotes
 from planet.service.STrade import STrade
@@ -564,6 +564,39 @@ class CRefund(object):
         order_main = kwargs.get('order_main')
         order_part = kwargs.get('order_part')
         if order_main:
+            if order_main.OMfrom == OrderFrom.fresh_man.value:
+                user_commision = UserCommission.query.filter(
+                    UserCommission.OMid == order_main.OMid,
+                    UserCommission.isdelete == False
+                ).first()
+                current_app.logger.info('检测到有新人首单退货。订单id是 {}, 用户id是 {}'.format(
+                    order_main.OMid, user_commision.USid))
+                fresh_man_join_count = FreshManJoinFlow.query.filter(
+                    FreshManJoinFlow.isdelete == False,
+                    FreshManJoinFlow.UPid == user_commision.USid,
+                    FreshManJoinFlow.OMid == OrderMain.OMid,
+                    OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
+                    OrderMain.OMinRefund == False,
+                    OrderMain.isdelete == False
+                ).count()
+
+                current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
+                if fresh_man_join_count > 3:
+                    current_app.logger.info('分享次数超过3次。不减少佣金')
+                    return
+
+                user_commision_max = UserCommission.query.filter(
+                    UserCommission.USid == user_commision.USid,
+                    UserCommission.isdelete == False,
+                    UserCommission.UCtype == UserCommissionType.fresh_man.value
+                ).order_by(UserCommission.UCcommission.desc()).first()
+                if not user_commision_max:
+                    current_app.logger.info('该订单没有上级返佣')
+                    return
+                current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
+                user_commision_max.UCstatus = UserCommissionStatus.error.value
+                return
+
             order_parts = OrderPart.query.filter(
                 OrderPart.isdelete == False,
                 OrderPart.OMid == order_main.OMid

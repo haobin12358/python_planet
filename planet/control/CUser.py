@@ -1872,16 +1872,19 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             user = User.query.filter(User.isdelete == False, User.USid == kwargs.get('usid')).first()
         current_app.logger.info('check commission level update for   {}'.format(getattr(user, 'USname', '')))
-        if not user or user.CommisionLevel >= 5:  # 5级之后不能在升级
+        # if not user or user.CommisionLevel >= 5:  # 5级之后不能在升级
+        #     return
+        if not user:  # 5级之后不能在升级限制取消
             return
+
         user = self._get_salesvolume(user, )
         level = user.CommisionLevel
         commision = Commision.query.filter(
             Commision.isdelete == False,
         ).first()
-        need_group_total = commision.GroupSale * (commision.GroupSaleScale ** level)
-        need_personal_total = commision.PesonalSale * (commision.GroupSaleScale ** level)
-        need_invite_num = commision.InviteNum * (commision.InviteNumScale ** level)
+        need_group_total = commision.GroupSale * ((commision.GroupSaleScale / 100) ** level)
+        need_personal_total = commision.PesonalSale * ((commision.GroupSaleScale / 100) ** level)
+        need_invite_num = commision.InviteNum * ((commision.InviteNumScale / 100) ** level)
         current_app.logger.info('用户当前佣金等级是{}; 团队销售额{}, 所需{}; 个人销售额{}, 所需{}; 邀请人数{},所需{}'.format(
             level, user.team_sales, need_group_total, user.personal_total, need_personal_total, user.invited_num, need_invite_num
         ))
