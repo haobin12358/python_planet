@@ -46,13 +46,21 @@ class CLogistic:
             order_main_instance = s.query(OrderMain).filter_by_({
                 'OMid': omid,
             }).first_('订单不存在')
-            if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
-                raise StatusError('订单状态不正确')
+            # if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
+            #     raise StatusError('订单状态不正确')
             if order_main_instance.OMinRefund is True:
                 raise StatusError('商品在售后状态')
             s.query(LogisticsCompnay).filter_by_({
                 'LCcode': olcompany
             }).first_('快递公司不存在')
+            # 之前物流记录判断
+            order_logistics_instance_old = OrderLogistics.query.filter(
+                OrderLogistics.OMid == omid,
+                OrderLogistics.isdelete == False,
+            ).first()
+            if order_logistics_instance_old:
+                order_logistics_instance_old.isdelete = True
+
             # 添加物流记录
             order_logistics_instance = OrderLogistics.create({
                 'OLid': str(uuid.uuid4()),
@@ -66,6 +74,45 @@ class CLogistic:
             s_list.append(order_main_instance)
             s.add_all(s_list)
         return Success('发货成功')
+    #
+    # def update(self):
+    #     data = parameter_required(('omid', 'olcompany', 'olexpressno'))
+    #     omid = data.get('omid')
+    #     olcompany = data.get('olcompany')
+    #     olexpressno = data.get('olexpressno')
+    #     with self.strade.auto_commit() as s:
+    #         s_list = []
+    #         order_main_instance = s.query(OrderMain).filter_by_({
+    #             'OMid': omid,
+    #         }).first_('订单不存在')
+    #         if order_main_instance.OMstatus != OrderMainStatus.wait_recv.value:
+    #             raise StatusError('订单状态不正确')
+    #         if order_main_instance.OMinRefund is True:
+    #             raise StatusError('商品在售后状态')
+    #         s.query(LogisticsCompnay).filter_by_({
+    #             'LCcode': olcompany
+    #         }).first_('快递公司不存在')
+    #         # 之前物流记录判断
+    #         order_logistics_instance_old = OrderLogistics.query.filter(
+    #             OrderLogistics.OMid == omid,
+    #             OrderLogistics.isdelete == False,
+    #         ).first()
+    #         if order_logistics_instance_old:
+    #             order_logistics_instance_old.isdelete = True
+    #
+    #         # 添加物流记录
+    #         order_logistics_instance = OrderLogistics.create({
+    #             'OLid': str(uuid.uuid4()),
+    #             'OMid': omid,
+    #             'OLcompany': olcompany,
+    #             'OLexpressNo': olexpressno,
+    #         })
+    #         s_list.append(order_logistics_instance)
+    #         # 更改主单状态
+    #         order_main_instance.OMstatus = OrderMainStatus.wait_recv.value
+    #         s_list.append(order_main_instance)
+    #         s.add_all(s_list)
+    #     return Success('发货成功')
 
     def get(self):
         """获取主单物流"""
@@ -105,6 +152,10 @@ class CLogistic:
                     'OLdata': json.dumps(response),  # 结果原字符串
                     'OLlastresult': '{}'
                 }
+                OrderMain.query.filter(
+                    OrderMain.OMid == order_logistics.OMid,
+                    OrderMain.isdelete == False
+                ).update({'OMstatus': OrderMainStatus.wait_send.value})
             order_logistics.update(OrderLogisticsDict)
             db.session.add(order_logistics)
             # s_list.append(order_logistics)
