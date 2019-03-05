@@ -111,7 +111,7 @@ def auto_evaluate():
                                 corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                             continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
 
-                        ol = OrderLogistics.query.filter_by(OMid=order_part.OMid).first()
+                        ol = OrderLogistics.query.filter_by(OMid=order_part.OMid, isdelete=False).first()
                         if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
                             continue
 
