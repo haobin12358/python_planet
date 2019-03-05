@@ -4,7 +4,7 @@
 # MEDIA_HOST = 'https://planet.daaiti.cn'
 HTTP_HOST = 'https://www.bigxingxing.com'
 API_HOST = 'https://www.bigxingxing.com'
-MEDIA_HOST = 'https://wwwbigxingxing.com'
+MEDIA_HOST = 'https://www.bigxingxing.com'
 
 
 # 域名
