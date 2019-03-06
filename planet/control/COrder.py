@@ -18,7 +18,7 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required, common_user
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -67,10 +67,14 @@ class COrder(CPay, CCoupon):
             order_main_query = order_main_query.filter(
                 OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
         else:
-            order_main_query = order_main_query.filter(
+            om_filter = {
                 OrderMain.OMfrom.in_(omfrom),
-                OrderMain.OMinRefund == False
-            )
+                # OrderMain.OMinRefund == False
+            }
+            if common_user():
+                # 如果是前台用户。需要过滤掉售后订单
+                om_filter.add(OrderMain.OMinRefund == False)
+            order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
