@@ -168,7 +168,7 @@ class LogisticsSearchStatus(Enum):
 class LogisticsSignStatus(Enum):
     """物流签收状态"""
     #  1.在途中 2.正在派件 3.已签收 4.派送失败
-    api_error = -1, '无物流'
+    api_error = -1, '物流异常'
     wait_collect = 0, '等待揽收'  # 等待揽收
     on_the_way = 1, '在途中'
     sending = 2, '正在派件'  # 正在派件
