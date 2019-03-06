@@ -235,7 +235,7 @@ class CQuestanswer():
             if qu_filter:
                 raise ParamsError('问题分类名不能与已有分类名相同')
 
-            qu_model.QUquest = data.get('qoname')
+            qu_model.QUquest = data.get('quest')
 
             qan_instance = QuestAnswerNote.create({
                 'QANid': str(uuid.uuid1()),
