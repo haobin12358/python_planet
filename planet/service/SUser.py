@@ -12,7 +12,7 @@ class SUser(SBase):
             extract('month', UserCommission.createtime) == today.month,
             extract('year', UserCommission.createtime) == today.year,
             UserCommission.isdelete == False
-        ).all()
+        ).order_by(UserCommission.createtime.desc()).all()
 
     def get_ucall_by_usid(self, usid):
         return UserCommission.query.filter(
