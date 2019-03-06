@@ -73,8 +73,8 @@ def auto_evaluate():
             count = 0
             wait_comment_order_mains = OrderMain.query.filter(OrderMain.isdelete == False,
                                                               OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
-                                                              OrderMain.OMfrom.in_(
-                                                                  [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                              # OrderMain.OMfrom.in_(
+                                                              #     [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                               OrderMain.updatetime <= time_now - timedelta(
                                                                   days=int(limit_time))
                                                               )  # 所有超过天数 待评价 的商品订单
@@ -111,14 +111,20 @@ def auto_evaluate():
                                 corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                             continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
 
+                        ol = OrderLogistics.query.filter_by(OMid=order_part.OMid, isdelete=False).first()
+                        if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
+                            continue
+
                         corder._commsion_into_count(order_part)  # 佣金到账
 
-                        if user:
+                        if user and order_main.OMfrom != OrderFrom.trial_commodity.value:
+
                             usname, usheader = user.USname, user.USheader
 
                             corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                         else:
                             usname, usheader = '神秘的客官', ''
+
                         evaluation_dict = {
                             'OEid': str(uuid.uuid1()),
                             'USid': order_main.USid,
