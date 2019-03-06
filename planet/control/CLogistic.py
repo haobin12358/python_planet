@@ -121,11 +121,22 @@ class CLogistic:
         with db.auto_commit():
             order_logistics = OrderLogistics.query.filter_by_({'OMid': omid}).first_('未获得物流信息')
             time_now = datetime.now()
-            if (not order_logistics.OLdata or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
+            if order_logistics.OLdata:
+                oldata = json.loads(order_logistics.OLdata)
+                oldata_status = oldata.get('status')
+                if str(oldata_status) == "205":
+                    oldata_status = False
+                else:
+                    oldata_status = True
+            else:
+                oldata_status = False
+
+            if (not oldata_status or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
                     and order_logistics.OLsignStatus != 3:  # 没有data信息或超过6小时 并且状态不是已签收
                 order_logistics = self._get_logistics(order_logistics)
             logistics_company = LogisticsCompnay.query.filter_by_({'LCcode': order_logistics.OLcompany}).first()
             order_logistics.fill('OLsignStatus_en', LogisticsSignStatus(order_logistics.OLsignStatus).name)
+            order_logistics.fill('OLsignStatus_zh', LogisticsSignStatus(order_logistics.OLsignStatus).zh_value)
             order_logistics.fill('logistics_company', logistics_company)
         order_logistics.OLdata = json.loads(order_logistics.OLdata)
         order_logistics.OLlastresult = json.loads(order_logistics.OLlastresult)
@@ -152,16 +163,30 @@ class CLogistic:
                     'OLdata': json.dumps(response),  # 结果原字符串
                     'OLlastresult': '{}'
                 }
-                OrderMain.query.filter(
+                order_main = OrderMain.query.filter(
                     OrderMain.OMid == order_logistics.OMid,
                     OrderMain.isdelete == False
-                ).update({'OMstatus': OrderMainStatus.wait_send.value})
-            order_logistics.update(OrderLogisticsDict)
-            db.session.add(order_logistics)
+                ).first()
+                order_main.update({'OMstatus': OrderMainStatus.wait_send.value})
+                db.session.add(order_main)
+
             # s_list.append(order_logistics)
         else:
             # 无信息 todo
+            OrderLogisticsDict = {
+                'OLsignStatus': -1,
+                'OLdata': "[]",  # 结果原字符串
+                'OLlastresult': '{}'
+            }
+            order_main = OrderMain.query.filter(
+                OrderMain.OMid == order_logistics.OMid,
+                OrderMain.isdelete == False
+            ).first()
+            order_main.update({'OMstatus': OrderMainStatus.wait_send.value})
+            db.session.add(order_main)
             gennerc_log('物流信息出错')
+        order_logistics.update(OrderLogisticsDict)
+        db.session.add(order_logistics)
         return order_logistics
 
     def subcribe_callback(self):
