@@ -456,11 +456,10 @@ def event_expired_revert():
                                                               MagicBoxApply.MBAstatus.in_(
                                                                   [ApplyStatus.wait_check.value, ApplyStatus.agree.value]),
                                                               MagicBoxApply.OSid == magic_box_apply.OSid,
-                                                              MagicBoxApply.AgreeStartime <= today,
                                                               MagicBoxApply.AgreeEndtime >= today,
                                                               ).first()  # 是否存在同用库存还没到期的
                 if other_apply_info:
-                    current_app.logger.info(' MBAid "{}" 存在同批次库存还在上架，跳过'.format(magic_box_apply.MBAid))
+                    current_app.logger.info(' MBAid "{}" 存在同批次库存还在上架或审核状态，跳过'.format(magic_box_apply.MBAid))
                     continue
                 current_app.logger.info(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
                 magic_box_apply.MBAstatus = ApplyStatus.shelves.value  # 改为已下架
