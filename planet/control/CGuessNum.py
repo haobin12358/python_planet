@@ -31,6 +31,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
         # todo 修改具体内容
         """参与活动"""
         date_now = datetime.now()
+        if date_now.hour == 14 and date_now.minute > 50:
+                raise StatusError('15点以后不开放')
         if date_now.hour > 15:
             raise StatusError('15点以后不开放')
         if date_now.weekday() in [0, 6]:
