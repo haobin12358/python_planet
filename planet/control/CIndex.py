@@ -6,7 +6,7 @@ from flask import request, current_app
 from planet.common.error_response import SystemError
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
-from planet.config.enums import ProductStatus
+from planet.config.enums import ProductStatus, ProductBrandStatus
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner
@@ -24,7 +24,8 @@ class CIndex:
             'brands': ProductBrand.query.join(
                 BrandWithItems, BrandWithItems.PBid == ProductBrand.PBid
             ).filter(BrandWithItems.ITid == 'index_brand',
-                      ProductBrand.isdelete == False,
+                     ProductBrand.isdelete == False,
+                     ProductBrand.PBstatus == ProductBrandStatus.upper.value,
                      BrandWithItems.isdelete == False).all(),
             'product': self.list_product('index_brand_product'),
             'hot': self.list_product('index_hot'),
