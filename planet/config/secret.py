@@ -116,6 +116,10 @@ class DefaltSettig(object):
         'deposit_to_account': {
             'task': 'deposit_to_account',
             'schedule': crontab(hour=3, minute=10, day_of_week='0-6')
+        },
+        'event_expired_revert': {
+            'task': 'event_expired_revert',
+            'schedule': crontab(hour=3, minute=20, day_of_week='0-6')
         }
     }
 

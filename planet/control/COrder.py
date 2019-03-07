@@ -908,6 +908,7 @@ class COrder(CPay, CCoupon):
             order = OrderMain.query.filter_by_(OMid=omid).first_('订单不存在')
             assert order.OMstatus == OrderMainStatus.cancle.value, '只有已取消的订单可以删除'
             order.isdelete = True
+            OrderPart.query.filter(OrderPart.OMid == order.OMid).delete_()
         return Success('删除成功', {'omid': omid})
 
     @token_required
