@@ -123,11 +123,14 @@ class CLogistic:
             time_now = datetime.now()
             if order_logistics.OLdata:
                 oldata = json.loads(order_logistics.OLdata)
-                oldata_status = oldata.get('status')
-                if str(oldata_status) == "205":
+                if not oldata:
                     oldata_status = False
                 else:
-                    oldata_status = True
+                    oldata_status = oldata.get('status')
+                    if str(oldata_status) == "205":
+                        oldata_status = False
+                    else:
+                        oldata_status = True
             else:
                 oldata_status = False
 
