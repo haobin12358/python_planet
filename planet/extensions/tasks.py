@@ -404,10 +404,10 @@ def event_expired_revert():
                       Products.PRid == FreshManFirstProduct.PRid,
                       Products.isdelete == False,
                       ).all()  # 已经到期的新人首单活动
-            current_app.logger.error('>>> 到期的新人首单有 {} 个 <<< '.format(len(fresh_man_products)))
+            current_app.logger.info('>>> 到期的新人首单有 {} 个 <<< '.format(len(fresh_man_products)))
             for fresh_man_pr in fresh_man_products:
                 # 到期后状态改为已下架
-                current_app.logger.error(' 过期新人首单进行下架 >> FMFAid : {} '.format(fresh_man_pr.FMFAid))
+                current_app.logger.info(' 过期新人首单进行下架 >> FMFAid : {} '.format(fresh_man_pr.FMFAid))
                 FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fresh_man_pr.FMFAid,
                                                 FreshManFirstApply.AgreeStartime < today,
                                                 FreshManFirstApply.AgreeEndtime < today,
@@ -415,7 +415,7 @@ def event_expired_revert():
                 fresh_man_skus = FreshManFirstSku.query.filter_by_(FMFPid=fresh_man_pr.FMFPid).all()
                 for fresh_man_sku in fresh_man_skus:
                     # 加库存
-                    current_app.logger.error(' 恢复库存的新人首单SKUid >> {} '.format(fresh_man_sku.SKUid))
+                    current_app.logger.info(' 恢复库存的新人首单SKUid >> {} '.format(fresh_man_sku.SKUid))
                     COrder()._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
 
             # 猜数字
@@ -429,10 +429,10 @@ def event_expired_revert():
                      Products.PRid == GuessNumAwardProduct.PRid,
                      Products.isdelete == False,
                      ).all()  # # 已经到期的猜数字活动
-            current_app.logger.error('>>> 到期的猜数字有 {} 个 <<< '.format(len(guess_num_products)))
+            current_app.logger.info('>>> 到期的猜数字有 {} 个 <<< '.format(len(guess_num_products)))
             for guess_num_pr in guess_num_products:
                 # 到期后状态改为已下架
-                current_app.logger.error(' 过期新人首单进行下架 >> GNAAid : {} '.format(guess_num_pr.GNAAid))
+                current_app.logger.info(' 过期猜数字进行下架 >> GNAAid : {} '.format(guess_num_pr.GNAAid))
                 GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == guess_num_pr.GNAAid,
                                                 GuessNumAwardApply.AgreeStartime < today,
                                                 GuessNumAwardApply.AgreeEndtime < today,
@@ -440,7 +440,7 @@ def event_expired_revert():
                 gna_skus = GuessNumAwardSku.query.filter_by_(GNAPid=guess_num_pr.GNAPid).all()
                 for gna_sku in gna_skus:
                     # 加库存
-                    current_app.logger.error(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
+                    current_app.logger.info(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
                     COrder()._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
 
             # 魔术礼盒
@@ -449,7 +449,7 @@ def event_expired_revert():
                                                           MagicBoxApply.AgreeStartime < today,
                                                           MagicBoxApply.AgreeEndtime < today,
                                                           ).all()
-            current_app.logger.error('>>> 到期的魔术礼盒有 {} 个 <<< '.format(len(magic_box_applys)))
+            current_app.logger.info('>>> 到期的魔术礼盒有 {} 个 <<< '.format(len(magic_box_applys)))
             for magic_box_apply in magic_box_applys:
                 other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
                                                               MagicBoxApply.MBAid != magic_box_apply.MBAid,
@@ -460,14 +460,17 @@ def event_expired_revert():
                                                               MagicBoxApply.AgreeEndtime >= today,
                                                               ).first()  # 是否存在同用库存还没到期的
                 if other_apply_info:
+                    current_app.logger.info(' MBAid "{}" 存在同批次库存还在上架，跳过'.format(magic_box_apply.MBAid))
                     continue
-                current_app.logger.error(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
-                magic_box_apply.MBAstatus = ApplyStatus.agree.value  # 改为已下架
-
-                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
-                current_app.logger.error(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
-                COrder()._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
-                out_stock.OSnum = 0
+                current_app.logger.info(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
+                magic_box_apply.MBAstatus = ApplyStatus.shelves.value  # 改为已下架
+                try:
+                    out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
+                    current_app.logger.info(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
+                    COrder()._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
+                    out_stock.OSnum = 0
+                except Exception as err:
+                    current_app.logger.error('MBAid "{}" , 魔盒库存单出错 >> {}'.format(magic_box_apply.MBAid, err))
 
             # 试用商品
             trialcommoditys = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
@@ -475,9 +478,9 @@ def event_expired_revert():
                                                           TrialCommodity.AgreeEndTime < today,
                                                           TrialCommodity.isdelete == False
                                                           ).all()
-            current_app.logger.error('>>> 到期的试用商品有 {} 个 <<< '.format(len(trialcommoditys)))
+            current_app.logger.info('>>> 到期的试用商品有 {} 个 <<< '.format(len(trialcommoditys)))
             for trialcommodity in trialcommoditys:
-                current_app.logger.error(' 过期试用商品进行下架 >> TCid : {} '.format(trialcommodity.TCid))
+                current_app.logger.info(' 过期试用商品进行下架 >> TCid : {} '.format(trialcommodity.TCid))
                 trialcommodity.update({'TCstatus': TrialCommodityStatus.reject.value})
 
             #  试用商品不占用普通商品库存
