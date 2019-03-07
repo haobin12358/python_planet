@@ -11,10 +11,12 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
-    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet
+    Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
+    FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
+    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity
 
 celery = Celery()
 
@@ -383,11 +385,113 @@ def auto_cancle_order(omids):
         corder._cancle(order_main)
 
 
+@celery.task(name='event_expired_revert')
+def event_expired_revert():
+    """过期活动商品返还库存"""
+    current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
+    from planet.control.COrder import COrder
+    today = datetime.today()
+    try:
+        with db.auto_commit():
+            # 新人首单
+            fresh_man_products = FreshManFirstProduct.query.join(
+                FreshManFirstApply, FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid
+            ).filter_(FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                      FreshManFirstApply.AgreeStartime < today,
+                      FreshManFirstApply.AgreeEndtime < today,
+                      FreshManFirstApply.isdelete == False,
+                      FreshManFirstProduct.isdelete == False,
+                      Products.PRid == FreshManFirstProduct.PRid,
+                      Products.isdelete == False,
+                      ).all()  # 已经到期的新人首单活动
+            current_app.logger.error('>>> 到期的新人首单有 {} 个 <<< '.format(len(fresh_man_products)))
+            for fresh_man_pr in fresh_man_products:
+                # 到期后状态改为已下架
+                current_app.logger.error(' 过期新人首单进行下架 >> FMFAid : {} '.format(fresh_man_pr.FMFAid))
+                FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fresh_man_pr.FMFAid,
+                                                FreshManFirstApply.AgreeStartime < today,
+                                                FreshManFirstApply.AgreeEndtime < today,
+                                                ).update({'FMFAstatus': ApplyStatus.shelves.value})
+                fresh_man_skus = FreshManFirstSku.query.filter_by_(FMFPid=fresh_man_pr.FMFPid).all()
+                for fresh_man_sku in fresh_man_skus:
+                    # 加库存
+                    current_app.logger.error(' 恢复库存的新人首单SKUid >> {} '.format(fresh_man_sku.SKUid))
+                    COrder()._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
+
+            # 猜数字
+            guess_num_products = GuessNumAwardProduct.query.join(
+                GuessNumAwardApply, GuessNumAwardApply.GNAAid == GuessNumAwardProduct.GNAAid
+            ).filter(GuessNumAwardApply.isdelete == False,
+                     GuessNumAwardProduct.isdelete == False,
+                     GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                     GuessNumAwardApply.AgreeStartime < today,
+                     GuessNumAwardApply.AgreeEndtime < today,
+                     Products.PRid == GuessNumAwardProduct.PRid,
+                     Products.isdelete == False,
+                     ).all()  # # 已经到期的猜数字活动
+            current_app.logger.error('>>> 到期的猜数字有 {} 个 <<< '.format(len(guess_num_products)))
+            for guess_num_pr in guess_num_products:
+                # 到期后状态改为已下架
+                current_app.logger.error(' 过期新人首单进行下架 >> GNAAid : {} '.format(guess_num_pr.GNAAid))
+                GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == guess_num_pr.GNAAid,
+                                                GuessNumAwardApply.AgreeStartime < today,
+                                                GuessNumAwardApply.AgreeEndtime < today,
+                                                ).update({'GNAAstatus': ApplyStatus.shelves.value})
+                gna_skus = GuessNumAwardSku.query.filter_by_(GNAPid=guess_num_pr.GNAPid).all()
+                for gna_sku in gna_skus:
+                    # 加库存
+                    current_app.logger.error(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
+                    COrder()._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
+
+            # 魔术礼盒
+            magic_box_applys = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                          MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                                                          MagicBoxApply.AgreeStartime < today,
+                                                          MagicBoxApply.AgreeEndtime < today,
+                                                          ).all()
+            current_app.logger.error('>>> 到期的魔术礼盒有 {} 个 <<< '.format(len(magic_box_applys)))
+            for magic_box_apply in magic_box_applys:
+                other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                              MagicBoxApply.MBAid != magic_box_apply.MBAid,
+                                                              MagicBoxApply.MBAstatus.in_(
+                                                                  [ApplyStatus.wait_check.value, ApplyStatus.agree.value]),
+                                                              MagicBoxApply.OSid == magic_box_apply.OSid,
+                                                              MagicBoxApply.AgreeStartime <= today,
+                                                              MagicBoxApply.AgreeEndtime >= today,
+                                                              ).first()  # 是否存在同用库存还没到期的
+                if other_apply_info:
+                    continue
+                current_app.logger.error(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
+                magic_box_apply.MBAstatus = ApplyStatus.agree.value  # 改为已下架
+
+                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
+                current_app.logger.error(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
+                COrder()._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
+                out_stock.OSnum = 0
+
+            # 试用商品
+            trialcommoditys = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
+                                                          TrialCommodity.AgreeStartTime < today,
+                                                          TrialCommodity.AgreeEndTime < today,
+                                                          TrialCommodity.isdelete == False
+                                                          ).all()
+            current_app.logger.error('>>> 到期的试用商品有 {} 个 <<< '.format(len(trialcommoditys)))
+            for trialcommodity in trialcommoditys:
+                current_app.logger.error(' 过期试用商品进行下架 >> TCid : {} '.format(trialcommodity.TCid))
+                trialcommodity.update({'TCstatus': TrialCommodityStatus.reject.value})
+
+            #  试用商品不占用普通商品库存
+
+    except Exception as e:
+        current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
+
+
 if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        deposit_to_account()
+        event_expired_revert()
+        # deposit_to_account()
         # fetch_share_deal()
         # create_settlenment()
         # auto_evaluate()
