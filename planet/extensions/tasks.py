@@ -486,6 +486,7 @@ def event_expired_revert():
 
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
+    current_app.logger.error('--> 活动商品到期返回库存检测任务结束 <-- ')
 
 
 if __name__ == '__main__':
