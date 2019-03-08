@@ -119,6 +119,7 @@ venv.bak/
 # img
 img/*
 .idea/*
+.vscode/*
 *.xml
 test/
 # pay pem

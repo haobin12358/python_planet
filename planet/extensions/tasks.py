@@ -390,7 +390,8 @@ def event_expired_revert():
     """过期活动商品返还库存"""
     current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
     from planet.control.COrder import COrder
-    today = datetime.today()
+    today = date.today()
+
     try:
         with db.auto_commit():
             # 新人首单
