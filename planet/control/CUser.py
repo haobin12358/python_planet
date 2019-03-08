@@ -1363,12 +1363,14 @@ class CUser(SUser, BASEAPPROVAL):
                     user_dict.setdefault('USsupper1', upperd.USid)
                     user_dict.setdefault('USsupper2', upperd.USsupper1)
                     user_dict.setdefault('USsupper3', upperd.USsupper2)
-                else:
-                    uin = UserInvitation.create({
-                        'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
-                    db.session.add(uin)
+
             user = User.create(user_dict)
             db.session.add(user)
+
+        if upperd:
+            uin = UserInvitation.create({
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+            db.session.add(uin)
 
         userloggintime = UserLoginTime.create({
             "ULTid": str(uuid.uuid1()),
