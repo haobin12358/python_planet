@@ -2,7 +2,7 @@
 import uuid
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
@@ -42,6 +42,7 @@ class CItems:
             prscene_count = Products.query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid
                                                      ).filter(Products.isdelete == False,
                                                               Products.PRfeatured == True,
+                                                              Products.PRstatus == ProductStatus.usual.value,
                                                               ProductItems.isdelete == False,
                                                               ProductItems.ITid.in_(list(set(scene_items)))
                                                               ).count()
