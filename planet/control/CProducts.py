@@ -18,7 +18,7 @@ from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -159,6 +159,7 @@ class CProducts(BaseController):
         pcid = pcid.split('|') if pcid else []
         pcids = self._sub_category_id(pcid)
         pcids = list(set(pcids))
+        psid = data.get('psid')  # 场景id
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus')
         if not is_admin() and not is_supplizer():
@@ -169,14 +170,13 @@ class CProducts(BaseController):
         if desc_asc == 'desc':
             by_order = product_order.desc()
         elif desc_asc == 'asc':
-            by_order = product_order
+            by_order = product_order.asc()
 
         filter_args = [
             Products.PBid == pbid,
             or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
                 and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
-            ProductItems.ITid == itid,
             Products.PRstatus == prstatus,
         ]
         # 标签位置和权限筛选
@@ -202,6 +202,16 @@ class CProducts(BaseController):
                                                                           ProductBrand.isdelete == False,
                                                                           ProductItems.isdelete == False,
                                                                           Items.isdelete == False)
+        if itid == 'planet_featured' and psid:
+            scene_items = [sit.ITid for sit in
+                           SceneItem.query.filter(SceneItem.PSid == psid, SceneItem.isdelete == False,
+                                                  ProductScene.isdelete == False).all()]
+            scene_items = list(set(scene_items))
+
+            filter_args.extend([ProductItems.ITid.in_(scene_items), Products.PRfeatured == True])
+        else:
+            filter_args.append(ProductItems.ITid == itid)
+
         # 后台的一些筛选条件
         # 供应源筛选
         if is_supplizer():
@@ -281,6 +291,7 @@ class CProducts(BaseController):
         pcid = data.get('pcid')  # 3级分类id
         images = data.get('images')
         skus = data.get('skus')
+        prfeatured = data.get('prfeatured', False)
         prdescription = data.get('prdescription')  # 简要描述
         product_brand = self.sproduct.get_product_brand_one({'PBid': pbid}, '品牌已被删除')
         if product_brand.PBstatus == ProductBrandStatus.off_shelves.value:
@@ -359,7 +370,8 @@ class CProducts(BaseController):
                 'PRremarks': prmarks,
                 'PRfrom': product_from,
                 'CreaterId': request.user.id,
-                'PRdescription': prdescription  # 描述
+                'PRdescription': prdescription,  # 描述
+                'PRfeatured': prfeatured,  # 是否为精选
             }
             # 库存为0 的话直接售罄
             if prstocks == 0:
@@ -402,6 +414,8 @@ class CProducts(BaseController):
                     raise ParamsError('最多只能关联3个标签')
                 for item in items:
                     itid = item.get('itid')
+                    if itid == 'planet_featured':
+                        continue  # ‘大行星精选’标签不允许手动关联
                     item = s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.product.value}).first_(
                         '指定标签{}不存在'.format(itid))
                     item_product_dict = {
@@ -444,6 +458,7 @@ class CProducts(BaseController):
         images = data.get('images')
         skus = data.get('skus')
         prdescription = data.get('prdescription')
+        prfeatured = data.get('prfeatured')
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
@@ -553,6 +568,7 @@ class CProducts(BaseController):
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
                 'PRstatus': ProductStatus.auditing.value,
+                'PRfeatured': prfeatured,
             }
             # if product.PRstatus == ProductStatus.sell_out.value:
             #     product.PRstatus = ProductStatus.usual.value
@@ -631,6 +647,8 @@ class CProducts(BaseController):
                 itids = []
                 for item in items:
                     itid = item.get('itid')
+                    if itid == 'planet_featured':
+                        continue  # ‘大行星精选’标签不允许手动关联
                     itids.append(itid)
                     s.query(Items).filter_by_({'ITid': itid}).first_('指定标签不存在{}'.format(itid))
 

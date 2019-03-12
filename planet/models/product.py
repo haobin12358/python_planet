@@ -27,6 +27,7 @@ class Products(Base):
     PRfrom = Column(Integer, default=0, comment='商品来源 0 平台发布 10 供应商发布')
     PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
+    PRfeatured = Column(Boolean, default=False, comment='是否为场景下的精选商品')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     # PRcode = Column(String(64), comment='商品的外部编号')
 

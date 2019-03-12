@@ -2,13 +2,13 @@
 import uuid
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, admin_required
-from planet.models import ProductScene, Items, SceneItem
+from planet.models import ProductScene, Items, SceneItem, Products, ProductItems
 
 
 class CItems:
@@ -35,6 +35,20 @@ class CItems:
                                                 ).filter_(SceneItem.isdelete == False,
                                                           SceneItem.PSid == psid,
                                                           )
+
+            scene_items = [sit.ITid for sit in
+                           SceneItem.query.filter(SceneItem.PSid == psid, SceneItem.isdelete == False,
+                                                  ProductScene.isdelete == False).all()]
+            prscene_count = Products.query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid
+                                                     ).filter(Products.isdelete == False,
+                                                              Products.PRfeatured == True,
+                                                              Products.PRstatus == ProductStatus.usual.value,
+                                                              ProductItems.isdelete == False,
+                                                              ProductItems.ITid.in_(list(set(scene_items)))
+                                                              ).count()
+            if not prscene_count:
+                items_query = items_query.filter(Items.ITid != 'planet_featured')  # 如果该场景下没有精选商品，不显示“大行星精选”标签
+
         if is_supplizer():
             items_query = items_query.filter(Items.ITauthority == ItemAuthrity.no_limit.value,
                                              Items.ITposition.in_([ItemPostion.scene.value,
