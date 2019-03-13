@@ -11,7 +11,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
 from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom, ApplyStatus, \
-    ProductBrandStatus
+    ProductBrandStatus, UserIdentityStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
@@ -136,13 +136,6 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         image_list = TrialCommodityImage.query.filter_by_(TCid=tcid, isdelete=False).all()
         [image.hide('TCid') for image in image_list]
         commodity.fill('image', image_list)
-        # 押金天数处理
-        # deadline = commodity.TCdeadline
-        # remainder_day = deadline % 31
-        # day_deadline = '{}天'.format(remainder_day) if remainder_day > 0 else ''
-        # remainder_mouth = deadline // 31
-        # mouth_deadline = '{}个月'.format(remainder_mouth) if remainder_mouth > 0 else ''
-        # commodity.fill('zh_deadline', mouth_deadline + day_deadline)
         commodity.fill('zh_deadline', '{}天'.format(commodity.TCdeadline))
         # 填充sku
         skus = TrialCommoditySku.query.filter_by_(TCid=tcid).all()
@@ -536,6 +529,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         usid = request.user.id
         user = self._verify_user(usid)
         current_app.logger.info('User {} is buying a trialcommodity'.format(user.USname))
+        if user.USlevel != UserIdentityStatus.agent.value:
+            raise AuthorityError('试用商品仅店主可购，请升级为店主后再次购买')
         uaid = data.get('uaid')
         tcid = data.get('tcid')
         opaytype = data.get('opaytype')  # 支付方式
@@ -589,7 +584,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 'PRmainpic': product_instance.TCmainpic,
                 'OPnum': opnum,
                 'OPsubTotal': small_total,
-                'PRfrom':product_instance.TCfrom,
+                'PRfrom': product_instance.TCfrom,
                 'UPperid': user.USid,
                 # 'UPperid2': user.USid,
             }
