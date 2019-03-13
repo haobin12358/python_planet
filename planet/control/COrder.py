@@ -1875,6 +1875,9 @@ class COrder(CPay, CCoupon):
             current_app.logger.info("本次更新后sku库存为：{}".format(sku.SKUstock))
         if product.PRstocks < 0:
             raise StatusError('商品库存不足')
+        if sku.SKUstock < 0:
+            current_app.logger.info("sku 库存不足：{}".format(sku.SKUid))
+            raise StatusError('商品 sku 库存不足')
         if product.PRstocks and product.PRstatus == ProductStatus.sell_out.value:
             product.PRstatus = ProductStatus.usual.value
         if product.PRstocks == 0:
