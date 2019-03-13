@@ -16,7 +16,7 @@ from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
-    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity
+    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene
 
 celery = Celery()
 
@@ -385,6 +385,28 @@ def auto_cancle_order(omids):
         corder._cancle(order_main)
 
 
+@celery.task()
+def cancel_scene_association(psid):
+    current_app.logger.info('--> 限时场景到期任务 PSid: {} <-- '.format(psid))
+    try:
+        scene = ProductScene.query.filter(ProductScene.PSid == psid, ProductScene.PStimelimited == True,
+                                          ProductScene.isdelete == False).first_('场景不存在或非限时')
+        sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
+                                                                 SceneItem.isdelete == False).all()]
+        for itid in sitids:
+            if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != psid, SceneItem.isdelete == False).first():
+                continue
+            else:
+                current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
+                ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
+
+        SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
+
+    except Exception as e:
+        current_app.logger.error('限时场景到期任务出错 >>> {}'.format(e))
+    current_app.logger.info('--> 限时场景到期任务结束 <-- ')
+
+
 @celery.task(name='event_expired_revert')
 def event_expired_revert():
     """过期活动商品返还库存"""
@@ -487,7 +509,7 @@ def event_expired_revert():
 
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
-    current_app.logger.error('--> 活动商品到期返回库存检测任务结束 <-- ')
+    current_app.logger.info('--> 活动商品到期返回库存检测任务结束 <-- ')
 
 
 if __name__ == '__main__':
