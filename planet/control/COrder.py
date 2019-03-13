@@ -34,7 +34,7 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -896,6 +896,13 @@ class COrder(CPay, CCoupon):
                         db.session.add(out_stock)
                     db.session.flush()
                     # todo 库存操作
+                elif omfrom == OrderFrom.trial_commodity.value:
+                    current_app.logger.info('正在取消一个试用商品订单')
+                    TrialCommodity.query.filter(TrialCommodity.TCid == prid
+                                                ).update({'TCsalesValue': TrialCommodity.TCsalesValue - opnum,
+                                                          'TCstocks': TrialCommodity.TCstocks + opnum})
+                    TrialCommoditySku.query.filter(TrialCommoditySku.SKUid == skuid
+                                                   ).update({'SKUstock': TrialCommoditySku.SKUstock + opnum})
 
     @token_required
     def delete(self):
