@@ -407,6 +407,35 @@ def cancel_scene_association(psid):
     current_app.logger.info('--> 限时场景到期任务结束 <-- ')
 
 
+@celery.task(name='expired_scene_association')
+def expired_scene_association():
+    """对于修改过结束时间的限时场景，到期后定时清理关联"""
+    current_app.logger.info('--> 限时场景取消关联定时任务 <-- ')
+    try:
+        scenes = ProductScene.query.filter(ProductScene.PSendtime < datetime.now(),
+                                           ProductScene.createtime != ProductScene.updatetime,
+                                           ProductScene.PStimelimited == True,
+                                           ProductScene.isdelete == False).all()
+        current_app.logger.info('--> 共有{}个被修改过的限时场景过期 <-- '.format(len(scenes)))
+        for scene in scenes:
+            sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
+                                                                     SceneItem.isdelete == False).all()]
+            current_app.logger.info('--> 限时场景id : {} <-- '.format(scene.PSid))
+            for itid in sitids:
+                if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != scene.PSid,
+                                          SceneItem.isdelete == False).first():
+                    continue
+                else:
+                    current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
+                    ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
+
+            SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
+
+    except Exception as e:
+        current_app.logger.error('限时场景到期任务出错 >>> {}'.format(e))
+    current_app.logger.info('--> 限时场景取消关联定时任务结束 <-- ')
+
+
 @celery.task(name='event_expired_revert')
 def event_expired_revert():
     """过期活动商品返还库存"""
