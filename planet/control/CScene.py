@@ -71,7 +71,7 @@ class CScene(object):
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
-            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime, )
+            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime - timedelta(hours=8), )
 
         return Success('创建成功', data={
             'psid': product_scene_instance.PSid
