@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
-import time
+from datetime import datetime, timedelta
 import uuid
+
+from flask import current_app
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, common_user, is_tourist
@@ -46,6 +47,7 @@ class CScene(object):
     def create(self):
         """创建场景"""
         form = SceneCreateForm().valid_data()
+        psendtime = form.psendtime.data
         with self.sproducts.auto_commit() as s:
             scene_dict = {
                 'PSid': str(uuid.uuid1()),
@@ -54,7 +56,7 @@ class CScene(object):
                 'PSsort': form.pssort.data,
                 'PStimelimited': form.pstimelimited.data,
                 'PSstarttime': form.psstarttime.data,
-                'PSendtime': form.psendtime.data
+                'PSendtime': psendtime
             }
             product_scene_instance = ProductScene.create(scene_dict)
             s.add(product_scene_instance)
@@ -68,7 +70,8 @@ class CScene(object):
             s.add(default_scene_item)
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
-            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=form.psendtime.data, expires=40 * 60, )
+            current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
+            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime, )
 
         return Success('创建成功', data={
             'psid': product_scene_instance.PSid
@@ -78,24 +81,27 @@ class CScene(object):
     def update(self):
         form = SceneUpdateForm().valid_data()
         psid, pspic, psname, pssort = form.psid.data, form.pspic.data, form.psname.data, form.pssort.data
+        pstimelimited, psstarttime, psendtime = form.pstimelimited.data, form.psstarttime.data, form.psendtime.data
         isdelete = form.isdelete.data
         with db.auto_commit():
             pssort = self._check_sort(pssort)
             product_scene = ProductScene.query.filter(ProductScene.isdelete == False,
                                                       ProductScene.PSid == psid
                                                       ).first_('不存在的场景')
-            product_scene.update({
-                "PSpic": pspic,
-                "PSname": psname,
-                "PSsort": pssort,
-                "PStimelimited": form.pstimelimited.data,
-                "PSstarttime": form.psstarttime.data,
-                "PSendtime": form.psendtime.data,
-                "isdelete": isdelete
-            })
-            db.session.add(product_scene)
-            if isdelete is True:
+            if isdelete:
                 SceneItem.query.filter_by(PSid=psid).delete_()
+                product_scene.isdelete = True
+            else:
+                product_scene.update({
+                    "PSpic": pspic,
+                    "PSname": psname,
+                    "PSsort": pssort,
+                    "PStimelimited": pstimelimited,
+                    "PSstarttime": psstarttime,
+                    "PSendtime": psendtime,
+                }, null='not')
+                db.session.add(product_scene)
+
         return Success('更新成功', {'psid': psid})
 
     def _check_sort(self, pssort):

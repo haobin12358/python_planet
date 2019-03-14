@@ -88,27 +88,17 @@ class SceneCreateForm(BaseForm):
     psendtime = DateTimeField('限时结束时间')
 
     def validate_pstimelimited(self, value):
-        try:
-            if value.data and not (self.psstarttime.data or self.psendtime.data):
-                raise Exception
-        except Exception as e:
-            raise ValidationError(message='限时场景必须设置开始与结束时间')
-
-    def validate_psstarttime(self, value):
-        try:
-            if value.data and value.data < datetime.now():
-                raise Exception
-        except Exception as e:
-            raise ValidationError(message='限时场景开始时间不能小于当前时间')
-
-    def validate_psendtime(self, value):
-        try:
-            if value.data and value.data < datetime.now():
-                raise Exception
-            elif value.data < self.psstarttime.data:
-                raise Exception
-        except Exception as e:
-            raise ValidationError(message='限时场景结束时间不能小于当前时间')
+        if value.data:
+            if not (self.psstarttime.data or self.psendtime.data):
+                raise ValidationError(message='限时场景必须设置开始与结束时间')
+            else:
+                if self.psendtime.data < datetime.now():
+                    raise ValidationError(message='限时场景结束时间不能小于当前时间')
+                elif self.psendtime.data < self.psstarttime.data:
+                    raise ValidationError(message='限时场景结束时间不能小于开始时间')
+        else:
+            self.psstarttime.data = None
+            self.psendtime.data = None
 
 
 class SceneUpdateForm(SceneCreateForm):
@@ -117,7 +107,5 @@ class SceneUpdateForm(SceneCreateForm):
     psname = StringField('场景名')
     pssort = IntegerField('排序')
     isdelete = BooleanField(default=False)
-
-
 
 
