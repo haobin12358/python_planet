@@ -19,7 +19,7 @@ from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessA
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
     GuessNumAwardSku, User, Activity
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
-    ApprovalType, ApplyStatus, ApplyFrom, ActivityType
+    ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus
 from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
 
@@ -115,6 +115,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             GuessNum.USid == usid
         ).order_by(GuessNum.GNdate.desc()).group_by(GuessNum.GNdate).all()
         correct_count = 0  # 猜对次数
+        today = date.today()
         for join_history in join_historys:
             correct_num = CorrectNum.query.filter(
                 CorrectNum.CNdate == join_history.GNdate
@@ -130,10 +131,23 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 else:
                     result = 'uncorrect'
             join_history.fill('result', result).hide('USid', 'PRid')
+            if join_history.GNdate < today:
+                history_status = HistoryStatus.invalid.value
+                history_status_zh = HistoryStatus.invalid.zh_value
+            else:
+                gn = GuessNum.query.filter_by(USid=request.user.id).order_by(GuessNum.createtime.desc()).first()
+                if gn and gn.GNdate == today and (gn.PRid or gn.SKUid or gn.Price):
+                    history_status = HistoryStatus.bought.value
+                    history_status_zh = HistoryStatus.bought.zh_value
+                else:
+                    history_status = HistoryStatus.normal.value
+                    history_status_zh = HistoryStatus.normal.zh_value
 
             product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
             product.fields = ['PRid', 'PRmainpic', 'PRtitle']
             join_history.fill('product', product)
+            join_history.fill('historystatus', history_status)
+            join_history.fill('historystatus_zh', history_status_zh)
         return Success(data=join_historys).get_body(correct_count=correct_count)
 
     @token_required
@@ -343,7 +357,6 @@ class CGuessNum(COrder, BASEAPPROVAL):
             discount = self.get_discount(gnas, correct_count)
 
         return Success(data={'discount': discount})
-
 
     def list(self):
         """查看自己的申请列表"""
