@@ -120,6 +120,10 @@ class DefaltSettig(object):
         'event_expired_revert': {
             'task': 'event_expired_revert',
             'schedule': crontab(hour=3, minute=20, day_of_week='0-6')
+        },
+        'expired_scene_association':{
+            'task': 'expired_scene_association',
+            'schedule': crontab(hour=2, minute=20, day_of_week='0-6')
         }
     }
 

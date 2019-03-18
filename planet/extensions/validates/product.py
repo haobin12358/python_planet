@@ -2,6 +2,7 @@
 from planet.config.enums import ProductStatus, ItemType
 from planet.models import ProductBrand, Supplizer
 from .base_form import *
+from datetime import datetime
 
 
 class BrandsListForm(BaseForm):
@@ -82,15 +83,29 @@ class SceneCreateForm(BaseForm):
     pspic = StringField('图片', validators=[DataRequired('图片不可为空'), Length(0, 255)])
     psname = StringField('名字', validators=[DataRequired('名字不可为空'), Length(0, 16)])
     pssort = IntegerField('排序')
+    pstimelimited = BooleanField('是否限时', default=False)
+    psstarttime = DateTimeField('限时开始时间')
+    psendtime = DateTimeField('限时结束时间')
+
+    def validate_pstimelimited(self, value):
+        if value.data:
+            if not (self.psstarttime.data or self.psendtime.data):
+                raise ValidationError(message='限时场景必须设置开始与结束时间')
+            else:
+                if self.psendtime.data < datetime.now():
+                    raise ValidationError(message='限时场景结束时间不能小于当前时间')
+                elif self.psendtime.data < self.psstarttime.data:
+                    raise ValidationError(message='限时场景结束时间不能小于开始时间')
+        else:
+            self.psstarttime.data = None
+            self.psendtime.data = None
 
 
-class SceneUpdateForm(BaseForm):
+class SceneUpdateForm(SceneCreateForm):
     psid = StringField(validators=[DataRequired('需要指定场景')])
     pspic = StringField('图片')
     psname = StringField('场景名')
     pssort = IntegerField('排序')
     isdelete = BooleanField(default=False)
-
-
 
 
