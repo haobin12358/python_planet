@@ -389,18 +389,19 @@ def auto_cancle_order(omids):
 def cancel_scene_association(psid):
     current_app.logger.info('--> 限时场景到期任务 PSid: {} <-- '.format(psid))
     try:
-        scene = ProductScene.query.filter(ProductScene.PSid == psid, ProductScene.PStimelimited == True,
-                                          ProductScene.isdelete == False).first_('场景不存在或非限时')
-        sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
-                                                                 SceneItem.isdelete == False).all()]
-        for itid in sitids:
-            if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != psid, SceneItem.isdelete == False).first():
-                continue
-            else:
-                current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
-                ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
+        with db.auto_commit():
+            scene = ProductScene.query.filter(ProductScene.PSid == psid, ProductScene.PStimelimited == True,
+                                              ProductScene.isdelete == False).first_('场景不存在或非限时')
+            sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
+                                                                     SceneItem.isdelete == False).all()]
+            for itid in sitids:
+                if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != psid, SceneItem.isdelete == False).first():
+                    continue
+                else:
+                    current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
+                    ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
 
-        SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
+            SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
 
     except Exception as e:
         current_app.logger.error('限时场景到期任务出错 >>> {}'.format(e))
@@ -412,24 +413,25 @@ def expired_scene_association():
     """对于修改过结束时间的限时场景，到期后定时清理关联"""
     current_app.logger.info('--> 限时场景取消关联定时任务 <-- ')
     try:
-        scenes = ProductScene.query.filter(ProductScene.PSendtime < datetime.now(),
-                                           ProductScene.createtime != ProductScene.updatetime,
-                                           ProductScene.PStimelimited == True,
-                                           ProductScene.isdelete == False).all()
-        current_app.logger.info('--> 共有{}个被修改过的限时场景过期 <-- '.format(len(scenes)))
-        for scene in scenes:
-            sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
-                                                                     SceneItem.isdelete == False).all()]
-            current_app.logger.info('--> 限时场景id : {} <-- '.format(scene.PSid))
-            for itid in sitids:
-                if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != scene.PSid,
-                                          SceneItem.isdelete == False).first():
-                    continue
-                else:
-                    current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
-                    ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
+        with db.auto_commit():
+            scenes = ProductScene.query.filter(ProductScene.PSendtime < datetime.now(),
+                                               ProductScene.createtime != ProductScene.updatetime,
+                                               ProductScene.PStimelimited == True,
+                                               ProductScene.isdelete == False).all()
+            current_app.logger.info('--> 共有{}个被修改过的限时场景过期 <-- '.format(len(scenes)))
+            for scene in scenes:
+                sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
+                                                                         SceneItem.isdelete == False).all()]
+                current_app.logger.info('--> 限时场景id : {} <-- '.format(scene.PSid))
+                for itid in sitids:
+                    if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != scene.PSid,
+                                              SceneItem.isdelete == False).first():
+                        continue
+                    else:
+                        current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
+                        ProductItems.query.filter(ProductItems.ITid == itid, ProductItems.isdelete == False).delete_()
 
-            SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
+                SceneItem.query.filter(SceneItem.PSid == scene.PSid).delete_()  # 删除该场景下的标签关联
 
     except Exception as e:
         current_app.logger.error('限时场景到期任务出错 >>> {}'.format(e))
