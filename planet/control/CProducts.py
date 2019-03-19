@@ -125,10 +125,14 @@ class CProducts(BaseController):
         # product_sku_value.PSKUvalue = json.loads(getattr(product_sku_value, 'PSKUvalue', '[]'))
         # product.fill('ProductSkuValue', product_sku_value)
         # 场景
-        items = self.sproduct.get_item_list([
-            ProductItems.PRid == prid,
-            ProductItems.isdelete == False
-        ])
+        item_filter_args = [ProductItems.PRid == prid, ProductItems.isdelete == False]
+        if is_supplizer():
+            # 供应商不显示内置的几个标签
+            item_filter_args.append(ProductItems.ITid.notin_(['planet_featured', 'index_hot',
+                                                              'index_brand', 'index_brand_product',
+                                                              'index_recommend_product_for_you',
+                                                              'upgrade_product']))
+        items = self.sproduct.get_item_list(item_filter_args)
         # 月销量
         month_sale_instance = self.sproduct.get_monthsale_value_one({'PRid': prid})
         month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
@@ -162,6 +166,7 @@ class CProducts(BaseController):
         psid = data.get('psid')  # 场景id
         itid = data.get('itid')  # 场景下的标签id
         prstatus = data.get('prstatus')
+        skusn = data.get('skusn')
         if not is_admin() and not is_supplizer():
             prstatus = prstatus or 'usual'  # 商品状态
         if prstatus:
@@ -202,7 +207,7 @@ class CProducts(BaseController):
                                                                           ProductBrand.isdelete == False,
                                                                           ProductItems.isdelete == False,
                                                                           Items.isdelete == False)
-        if itid == 'planet_featured' and psid:
+        if itid == 'planet_featured' and psid:  # 筛选该场景下的所有精选商品
             scene_items = [sit.ITid for sit in
                            SceneItem.query.filter(SceneItem.PSid == psid, SceneItem.isdelete == False,
                                                   ProductScene.isdelete == False).all()]
@@ -228,6 +233,10 @@ class CProducts(BaseController):
         elif suid:
             query = query.outerjoin(SupplizerProduct, SupplizerProduct.PRid == Products.PRid
                                     ).filter(SupplizerProduct.SUid.is_(None))
+        if skusn:
+            query = query.outerjoin(ProductSku, ProductSku.PRid == Products.PRid
+                                    ).filter(ProductSku.isdelete == False, ProductSku.SKUsn == skusn)
+
         products = query.filter_(*filter_args).order_by(by_order).all_with_page()
         # 填充
         for product in products:
@@ -331,6 +340,7 @@ class CProducts(BaseController):
                 skudeviderate = sku.get('skudeviderate')
                 default_derate = Commision.devide_rate_baseline()
                 if is_supplizer():
+                    prfeatured = False
                     supplizer = Supplizer.query.filter(Supplizer.isdelete == False,
                                                        Supplizer.SUid == request.user.id
                                                        ).first()
@@ -568,8 +578,9 @@ class CProducts(BaseController):
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
                 'PRstatus': ProductStatus.auditing.value,
-                'PRfeatured': prfeatured,
             }
+            if is_admin():
+                product_dict['PRfeatured'] = prfeatured
             # if product.PRstatus == ProductStatus.sell_out.value:
             #     product.PRstatus = ProductStatus.usual.value
             product.update(product_dict)
@@ -677,7 +688,18 @@ class CProducts(BaseController):
                         [setattr(item_product_instance, k, v) for k, v in item_product_dict.items() if v is not None]
                         session_list.append(item_product_instance)
                 # 删除不需要的
-                current_app.logger.info(itids)
+                current_app.logger.info('获取到的itid为：{}'.format(itids))
+                if is_supplizer():
+                    # 供应商不更改原有几个内置标签的关联
+                    for sys_label in ['planet_featured', 'index_hot', 'index_brand', 'index_brand_product',
+                                      'index_recommend_product_for_you', 'upgrade_product']:
+                        exists = ProductItems.query.filter(ProductItems.ITid == sys_label,
+                                                           ProductItems.PRid == prid,
+                                                           ProductItems.isdelete == False).first()
+                        if exists and (exists.ITid not in itids):
+                            itids.append(exists.ITid)
+                current_app.logger.info('身份区别后的itid为{}'.format(itids))
+
                 counts = ProductItems.query.filter(
                     ProductItems.isdelete == False,
                     ProductItems.ITid.notin_(itids),
