@@ -81,7 +81,7 @@ def make_items():
             'ITdesc': '场景推荐页下固定的大行星精选',
             'ITsort': -1,
             'ITposition': ItemPostion.index.value,
-            'ITauthority': ItemAuthrity.no_limit.value,
+            'ITauthority': ItemAuthrity.admin_only.value,
         })
         s_list.append(planet_featured)
 
