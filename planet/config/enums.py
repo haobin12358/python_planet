@@ -531,6 +531,12 @@ class NotesStatus(Enum):
     publish = 1, '发布'
 
 
+class HistoryStatus(Enum):
+    normal = 0, '未购买'
+    bought = 10, '已购买'
+    invalid = -10, '已失效'
+
+
 # class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
