@@ -299,9 +299,12 @@ class CNews(BASEAPPROVAL):
         coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
         product = data.get('product')  # ['prid1', 'prid2']
         mainpic = data.get('nemainpic')
+        netext = data.get('netext')
         coupon = json.dumps(coupon) if coupon not in self.empty else None
         product = json.dumps(product) if product not in self.empty else None
         isrecommend = data.get('neisrecommend', 0)
+        if len(netext) > 10100:
+            raise ParamsError('字数超出限制')
         isrecommend = True if str(isrecommend) == '1' else False
         if user:
             isrecommend = False
@@ -313,7 +316,7 @@ class CNews(BASEAPPROVAL):
                 'NEid': neid,
                 'USid': usid,
                 'NEtitle': data.get('netitle'),
-                'NEtext': data.get('netext'),
+                'NEtext': netext,
                 'NEstatus': NewsStatus.auditing.value,
                 'NEsource': data.get('source'),
                 'NEmainpic': mainpic,
@@ -380,7 +383,9 @@ class CNews(BASEAPPROVAL):
         video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         coupon = data.get('coupon') or []  # ['coid1', 'coid2', 'coid3']
         product = data.get('product') or []  # ['prid1', 'prid2']
-
+        netext = data.get('netext')
+        if len(netext) > 10100:
+            raise ParamsError('字数超出限制')
         isrecommend = data.get('neisrecommend')
         isrecommend = True if str(isrecommend) == '1' else False
         operation = list()
@@ -397,7 +402,7 @@ class CNews(BASEAPPROVAL):
             session_list = []
             news_info = {
                 'NEtitle': data.get('netitle'),
-                'NEtext': data.get('netext'),
+                'NEtext': netext,
                 'NEstatus': NewsStatus.auditing.value,
                 # 'NEsource': 'web',
                 'COid': coupon,
