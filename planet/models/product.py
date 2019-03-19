@@ -113,6 +113,9 @@ class ProductScene(Base):
     PSpic = Column(String(255), nullable=False, comment='图片', url=True)
     PSname = Column(String(16), nullable=False, comment='名字')
     PSsort = Column(Integer, comment='顺序标志')
+    PStimelimited = Column(Boolean, default=False, comment='是否为限时场景{true: 限时; false: 非限时}')
+    PSstarttime = Column(DateTime, comment='限时场景开始时间')
+    PSendtime = Column(DateTime, comment='限时场景结束时间')
 
 
 class SceneItem(Base):

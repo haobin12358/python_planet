@@ -42,7 +42,8 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
+    Approval
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -1773,6 +1774,19 @@ class CUser(SUser, BASEAPPROVAL):
                 User.USsupper1 == usid,
             ).count()
             user.fill('fans_num', fans_num)
+            user_agent_approval = Approval.query.filter(
+                Approval.AVstartid == usid,
+                Approval.isdelete == False,
+                Approval.AVstatus == ApplyStatus.agree.value,
+                Approval.PTid == self.APPROVAL_TYPE
+            ).order_by(Approval.updatetime.desc()).first()
+            if not user_agent_approval:
+                agent_time = datetime.datetime.now()
+            else:
+                agent_time = user_agent_approval.updatetime
+
+            user.fill('agenttime', agent_time)
+
         return Success(data=users)
 
     @admin_required
