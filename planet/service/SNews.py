@@ -21,7 +21,7 @@ class SNews(SBase):
     @close_session
     def get_news_content(self, nfilter):
         """获取资讯详情"""
-        return self.session.query(News).filter_by_(**nfilter).first_('没有找到该资讯')
+        return self.session.query(News).filter_by_(**nfilter).first_('该资讯不存在或已删除')
 
     @close_session
     def get_news_comment(self, ncfilter):
@@ -51,13 +51,13 @@ class SNews(SBase):
         return self.session.query(NewsTag).filter_by_(NEid=neid).all()
 
     @close_session
-    def get_item_list(self, args, order=()):
+    def get_item_list(self, args):
         """获取资讯对应的标签"""
         return self.session.query(Items).outerjoin(NewsTag, Items.ITid == NewsTag.ITid).filter_(
             Items.isdelete == False,
             NewsTag.isdelete == False,
             * args
-        ).order_by(*order).all()
+        ).order_by(Items.ITsort.asc(), Items.createtime.desc()).all()
 
     @close_session
     def update_pageviews(self, neid, num=1):

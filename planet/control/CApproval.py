@@ -32,7 +32,8 @@ from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
 
 
-from .BaseControl import BASEAPPROVAL
+from planet.control.BaseControl import BASEAPPROVAL
+# from .BaseControl import BASEAPPROVAL
 
 
 class CApproval(BASEAPPROVAL):
@@ -437,15 +438,54 @@ class CApproval(BASEAPPROVAL):
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
-            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
+            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid, isdelete=False).all_with_page()
         res = []
         for ap in ap_list:
             if not ap.AVstartdetail:
                 continue
             ap.hide('AVcontentdetail', 'AVstartdetail')
             content = ap.AVcontentdetail or 'null'
+            content = json.loads(content)
             start = ap.AVstartdetail or 'null'
-            ap.fill('content', json.loads(content))
+            if ap.PTid == 'topublish':
+                new_content = content.get('netext')
+                if new_content:
+                    new_content = json.loads(new_content) if isinstance(new_content, str) else new_content
+
+                # 获取内容
+                video_index, image_index, text_index = list(), list(), list()
+                for index, item in enumerate(new_content):
+                    if item.get('type') == 'video':
+                        video_index.append(index)
+                    elif item.get('type') == 'image':
+                        image_index.append(index)
+                    elif item.get('type') == 'text':
+                        text_index.append(index)
+                video_count, image_count, text_count = len(video_index), len(image_index), len(text_index)
+
+                if content.get('nemainpic'):
+                    showtype = 'picture'
+                    content['mainpic'] = content.get('nemainpic')
+                elif video_count:
+                    showtype = 'video'
+                    video_url = new_content[video_index[0]].get('content')['video']
+                    video_url = self.__verify_get_url([video_url, ])[0]
+                    content['video'] = video_url
+                    thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
+                    thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
+                    content['videothumbnail'] = thumbnail_url
+                    content['videoduration'] = new_content[video_index[0]].get('content')['duration']
+                elif image_count:
+                    showtype = 'picture'
+                    pic_url = new_content[image_index[0]].get('content')[0]
+                    pic_url = self.__verify_get_url([pic_url, ])[0]
+                    content['mainpic'] = pic_url
+                else:
+                    showtype = 'text'
+                    content['netext'] = new_content[text_index[0]].get('content')[:100] + ' ...'
+                content['showtype'] = showtype
+
+            ap.fill('content', content)
             ap.fill('start', json.loads(start))
             ap.add('createtime')
             res.append(ap)
@@ -1089,3 +1129,48 @@ class CApproval(BASEAPPROVAL):
 
         ss.SSstatus = SupplizerSettementStatus.settlementing.value
         ss.SSArejectReason = refuse_abo
+
+    def convert_approve_detail(self):
+        """转换原圈子审批数据，无用"""
+        approvals = Approval.query.filter(Approval.PTid == 'topublish', Approval.isdelete == False,
+                                          Approval.AVcontentdetail.isnot(None)).all()
+        with db.auto_commit():
+            for apl in approvals:
+                if apl.AVcontentdetail:
+                    content = json.loads(apl.AVcontentdetail)
+                    text = content['netext']
+                    if str(text).startswith('['):
+                        continue
+                    content['netext'] = json.dumps([{"type": 'text', "content": text}])
+                    content = json.dumps(content)
+                    apl.update({'AVcontentdetail': content})
+                    db.session.add(apl)
+        return Success
+
+    def __verify_set_url(self, url_list):
+        from planet.config.http_config import MEDIA_HOST
+        res = list()
+        for url in url_list:
+            if isinstance(url, str) and url.startswith(MEDIA_HOST):
+                res.append(url[len(MEDIA_HOST):])
+            else:
+                res.append(url)
+        return res
+
+    def __verify_get_url(self, url_list):
+        from planet.config.http_config import MEDIA_HOST
+        res = list()
+        for url in url_list:
+            if isinstance(url, str) and not url.startswith('http'):
+                rs = MEDIA_HOST + url
+                res.append(rs)
+            else:
+                res.append(url)
+        return res
+
+#
+# if __name__ == '__main__':
+#     from planet import create_app
+#     app = create_app()
+#     with app.app_context():
+#         CApproval().convert_approve_detail()
