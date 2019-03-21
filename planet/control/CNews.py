@@ -10,7 +10,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
     is_admin, is_supplizer
-from planet.config.enums import ItemType, NewsStatus, ApprovalType, ApplyFrom, ApplyStatus
+from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
@@ -34,17 +34,17 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} is geting all news'.format(admin.ADname))
+            current_app.logger.info('Admin {0} is browsing the list of news'.format(admin.ADname))
             tourist = 'admin'
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} is geting all news'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} is browsing the list of news'.format(sup.SUname))
             tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is geting all news'.format(user.USname))
+            current_app.logger.info('User {0} is browsing the list of news'.format(user.USname))
             tourist = 0
 
         args = parameter_required(('page_num', 'page_size'))
@@ -62,14 +62,13 @@ class CNews(BASEAPPROVAL):
         elif is_supplizer():
             userid = usid
         news_list = self.snews.get_news_list([
-            or_(and_(*[News.NEtitle.contains(x) for x in kw]), and_(*[News.NEtext.contains(x) for x in kw])),
+            or_(and_(*[News.NEtitle.contains(x) for x in kw]), ),  # todo 暂更改为只匹配标题
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
             News.USid == userid
         ])
         for news in news_list:
-            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEtext']
-            news.NEtext = getattr(news, 'NEtext', '')[:100] if news.NEtext else None
+            news.fields = ['NEid', 'NEtitle', 'NEpageviews']
             # 添加发布者信息
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
@@ -92,39 +91,56 @@ class CNews(BASEAPPROVAL):
             news.fill('is_own', is_own)
             # 显示审核状态
             if userid or is_admin():
-                news_status = news.NEstatus
-                news.fill('zh_nestatus', NewsStatus(news_status).zh_value)
-                news.fill('nestatus', NewsStatus(news_status).name)
-                if news_status == NewsStatus.refuse.value:
+                news.fill('zh_nestatus', NewsStatus(news.NEstatus).zh_value)
+                news.fill('nestatus', NewsStatus(news.NEstatus).name)
+                if news.NEstatus == NewsStatus.refuse.value:
                     reason = news.NErefusereason or '因内容不符合规定，审核未通过，建议修改后重新发布'
                     news.fill('refuse_info', reason)
+            # 点赞数 评论数
             commentnumber = self.snews.get_news_comment_count(news.NEid)
             news.fill('commentnumber', commentnumber)
             favoritnumber = self.snews.get_news_favorite_count(news.NEid)
             news.fill('favoritnumber', favoritnumber)
-            video = self.snews.get_news_video(news.NEid)
-            if video and not news.NEmainpic:
-                video_source = video['NVvideo']
-                showtype = 'video'
-                video_thumbnail = video['NVthumbnail']
-                dur_time = video['NVduration']
-                news.fill('video', video_source)
-                news.fill('videothumbnail', video_thumbnail)
-                news.fill('videoduration', dur_time)
-            elif news.NEmainpic:
+
+            # 获取内容
+            new_content = news.NEtext
+            try:
+                new_content = json.loads(new_content)
+            except Exception as e:
+                current_app.logger.error('内容转换json失败 NEid: {} ; ERROR >>> {} '.format(news.NEid, e))
+                continue
+            video_index, image_index, text_index = list(), list(), list()
+            for index, item in enumerate(new_content):
+                if item.get('type') == 'video':
+                    video_index.append(index)
+                elif item.get('type') == 'image':
+                    image_index.append(index)
+                elif item.get('type') == 'text':
+                    text_index.append(index)
+
+            if news.NEmainpic:
                 showtype = 'picture'
                 news.fill('mainpic', news['NEmainpic'])
+            elif len(video_index):
+                showtype = 'video'
+                video_url = new_content[video_index[0]].get('content')['video']
+                video_url = self.__verify_get_url([video_url, ])[0]
+                news.fill('video', video_url)
+                thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
+                thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
+                news.fill('videothumbnail', thumbnail_url)
+                news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
+            elif len(image_index):
+                showtype = 'picture'
+                pic_url = new_content[image_index[0]].get('content')[0]
+                pic_url = self.__verify_get_url([pic_url, ])[0]
+                news.fill('mainpic', pic_url)
             else:
-                image_list = self.snews.get_news_images(news.NEid)
-                if image_list:
-                    mainpic = image_list[0]['NIimage']
-                    showtype = 'picture'
-                    news.fill('mainpic', mainpic)
-                else:
-                    # netext = news.NEtext[:120]
-                    # news.fill('netext', netext)
-                    showtype = 'text'
+                showtype = 'text'
+                news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
             news.fill('showtype', showtype)
+
+            # 作者信息
             if news.USheader:
                 usheader = news['USheader']
             else:
@@ -151,32 +167,33 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} is geting news content'.format(admin.ADname))
+            current_app.logger.info('Admin {0} is browsing the news content'.format(admin.ADname))
             tourist = 'admin'
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} is geting news content'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} is browsing the news content'.format(sup.SUname))
             tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is geting news content'.format(user.USname))
+            current_app.logger.info('User {0} is browsing the news content'.format(user.USname))
             tourist = 0
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
-        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEtext', 'NEmainpic', 'NEisrecommend']
+        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEmainpic', 'NEisrecommend']
 
         if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
             if news.NEstatus == NewsStatus.usual.value:
                 self.snews.update_pageviews(news.NEid)  # 增加浏览量
             else:
-                if news.USid != usid:  # 前台查看‘我发布的’ 需要获取非正常状态情况
+                if news.USid != usid:  # 前台查看‘我发布的’ ，也需要获取非上架状态的
                     raise StatusError('该资讯正在审核中，请耐心等待')
                 else:
                     pass
 
+        # 点赞数量显示
         if usid:
             is_own = 1 if news.USid == usid else 0
             is_favorite = self.snews.news_is_favorite(neid, usid)
@@ -190,7 +207,8 @@ class CNews(BASEAPPROVAL):
         news.fill('is_own', is_own)
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
-        # news_author = self.snews.get_user_by_id(news.USid)
+
+        # 作者信息
         if news.USheader and news.USname:
             news_author = {'usname': news.USname, 'usheader': news['USheader']}
         else:
@@ -207,18 +225,25 @@ class CNews(BASEAPPROVAL):
         news.fill('favoritnumber', favoritnumber)
         tramplenumber = self.snews.get_news_trample_count(neid)
         news.fill('tramplenumber', tramplenumber)
-        image_list = self.snews.get_news_images(neid)
-        if image_list:
-            [image.hide('NEid') for image in image_list]
-        news.fill('image', image_list)
-        video = self.snews.get_news_video(neid)
-        if video:
-            video.hide('NEid')
-            news.fill('video', video)
+
+        # 内容填充
+        news_content = json.loads(news.NEtext)
+        for item in news_content:
+            if item.get('type') == 'video' and item['content']:
+                item['content']['video'] = self.__verify_get_url([item.get('content')['video'], ])[0]
+                item['content']['thumbnail'] = self.__verify_get_url([item.get('content')['thumbnail'], ])[0]
+            elif item.get('type') == 'image' and item['content']:
+                item['content'] = self.__verify_get_url(item['content'])
+            else:
+                continue
+        news.fill('netext', news_content)
+
+        # 关联标签
         tags = self.snews.get_item_list((NewsTag.NEid == neid,))
         if tags:
             [tag.hide('PSid') for tag in tags]
-        news.fill('items', tags)
+            news.fill('items', tags)
+
         # 关联的优惠券
         coids = news.COid
         if coids:
@@ -234,6 +259,7 @@ class CNews(BASEAPPROVAL):
                 coupon.fill('ready_collected', bool(coupon_user))
                 coupon_info.append(coupon)
             news.fill('coupon', coupon_info)
+
         # 关联的商品
         prids = news.PRid
         if prids:
@@ -256,17 +282,11 @@ class CNews(BASEAPPROVAL):
         banner_list = []
         recommend_news = self.snews.get_news_list_by_filter({'NEisrecommend': True, 'NEstatus': NewsStatus.usual.value})
         for news in recommend_news:
-            if news.NEmainpic:
-                banner = news['NEmainpic']
-            else:
-                img_list = self.snews.get_news_images(news.NEid)
-                if img_list:
-                    banner = img_list[0]['NIimage']
-                else:
-                    continue
+            if not news.NEmainpic:
+                continue
             data = {
                 'neid': news.NEid,
-                'mainpic': banner
+                'mainpic': news['NEmainpic']
             }
             banner_list.append(data)
         return Success(data=banner_list)
@@ -278,34 +298,54 @@ class CNews(BASEAPPROVAL):
         admin = get_current_admin()
         if user:
             usid, usname, usheader = user.USid, user.USname, user.USheader
-            current_app.logger.info('User {0} create a news'.format(usname))
+            current_app.logger.info('User {0} created a news'.format(usname))
             nefrom = ApplyFrom.user.value
         elif admin:
             usid, usname, usheader = admin.ADid, admin.ADname, admin.ADheader
-            current_app.logger.info('Admin {0} create a news'.format(usname))
+            current_app.logger.info('Admin {0} created a news'.format(usname))
             nefrom = ApplyFrom.platform.value
         elif is_supplizer():
             supplizer = Supplizer.query.filter_by_(SUid=request.user.id).first()
             usid, usname, usheader = supplizer.SUid, supplizer.SUname, supplizer.SUheader
-            current_app.logger.info('Supplizer {0} create a news'.format(usname))
+            current_app.logger.info('Supplizer {0} created a news'.format(usname))
             nefrom = ApplyFrom.supplizer.value
         else:
             raise TokenError('用户不存在')
         data = parameter_required(('netitle', 'netext', 'items', 'source'))
         neid = str(uuid.uuid1())
-        images = data.get('images')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2']
-        video = data.get('video')  # {nvurl:'url', nvthum:'url'}
+        mainpic = data.get('nemainpic')
         coupon = data.get('coupon')  # ['coid1', 'coid2', 'coid3']
         product = data.get('product')  # ['prid1', 'prid2']
-        mainpic = data.get('nemainpic')
-        netext = data.get('netext')
-        coupon = json.dumps(coupon) if coupon not in self.empty else None
-        product = json.dumps(product) if product not in self.empty else None
+        netext = data.get('netext') or []
+        coupon = json.dumps(coupon) if coupon not in self.empty and isinstance(coupon, list) else None
+        product = json.dumps(product) if product not in self.empty and isinstance(product, list) else None
         isrecommend = data.get('neisrecommend', 0)
-        if len(netext) > 10100:
-            raise ParamsError('字数超出限制')
         isrecommend = True if str(isrecommend) == '1' else False
+
+        text_list = list()
+        if isinstance(netext, list):
+            for text in netext:
+                if text.get('type') == 'video' and text['content']:
+                    text['content']['video'] = self.__verify_set_url([text.get('content')['video'], ])[0]
+                    text['content']['thumbnail'] = self.__verify_set_url([text.get('content')['thumbnail'], ])[0]
+                    text_list.append(text)
+                elif text.get('type') == 'image' and text['content']:
+                    if len(text['content']) > 9:
+                        raise ParamsError('连续上传图片不允许超过9张，可在视频或文字内容后继续添加图片')
+                    text['content'] = self.__verify_set_url(text['content'])
+                    text_list.append(text)
+                elif text.get('type') == 'text' and text['content']:
+                    text_list.append(text)
+                else:
+                    continue
+
+            if text_list in self.empty:
+                raise ParamsError('请添加内容后发布')
+            netext = json.dumps(text_list)
+        else:
+            raise ParamsError('netext格式错误')
+
         if user:
             isrecommend = False
         if isrecommend and not mainpic:
@@ -328,33 +368,6 @@ class CNews(BASEAPPROVAL):
                 'NEfrom': nefrom
             })
             session_list.append(news_info)
-            if images not in self.empty:
-                if len(images) > 4:
-                    raise ParamsError('最多只能上传四张图片')
-                for image in images:
-                    news_image_info = NewsImage.create({
-                        'NIid': str(uuid.uuid1()),
-                        'NEid': neid,
-                        'NIimage': image.get('niimg'),
-                        'NIsort': image.get('nisort')
-                    })
-                    session_list.append(news_image_info)
-            if video not in self.empty:
-                parameter_required(('nvurl', 'nvthum', 'nvdur'), datafrom=video)
-                duration_time = video.get('nvdur') or "10"
-                second = int(duration_time[-2:])
-                if second < 3:
-                    raise ParamsError('上传视频时间不能少于3秒')
-                elif second > 59:
-                    raise ParamsError('上传视频时间不能大于1分钟')
-                news_video_info = NewsVideo.create({
-                    'NVid': str(uuid.uuid1()),
-                    'NEid': neid,
-                    'NVvideo': video.get('nvurl'),
-                    'NVthumbnail': video.get('nvthum'),
-                    'NVduration': video.get('nvdur')
-                })
-                session_list.append(news_video_info)
             if items not in self.empty:
                 for item in items:
                     s.query(Items).filter_by_({'ITid': item, 'ITtype': ItemType.news.value}).first_('指定标签不存在')
@@ -366,8 +379,8 @@ class CNews(BASEAPPROVAL):
                     session_list.append(news_item_info)
             s.add_all(session_list)
 
-            # 添加到审批流
-        super().create_approval('topublish', usid, neid, nefrom)
+        # 添加到审批流
+        super(CNews, self).create_approval('topublish', usid, neid, nefrom)
         return Success('添加成功', {'neid': neid})
 
     @admin_required
@@ -375,105 +388,89 @@ class CNews(BASEAPPROVAL):
         """修改资讯"""
         adid = request.user.id
         admin = Admin.query.filter_by_(ADid=adid).first_('没有该管理账号信息')
-        current_app.logger.info("Admin {} update news".format(admin.ADname))
+        current_app.logger.info("Admin {} has updated a news".format(admin.ADname))
         data = parameter_required(('neid',))
         neid = data.get('neid')
-        images = data.get('image')  # [{niimg:'url', nisort:1},]
         items = data.get('items')  # ['item1', 'item2']
-        video = data.get('video')  # {nvurl:'url', nvthum:'url'}
         coupon = data.get('coupon') or []  # ['coid1', 'coid2', 'coid3']
         product = data.get('product') or []  # ['prid1', 'prid2']
-        netext = data.get('netext')
-        if len(netext) > 10100:
-            raise ParamsError('字数超出限制')
+        netext = data.get('netext') or []
         isrecommend = data.get('neisrecommend')
         isrecommend = True if str(isrecommend) == '1' else False
-        operation = list()
+        news_instance = News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能修改已下架状态的资讯')
 
-        if not isinstance(coupon, list):
-            raise ParamsError('coupon格式错误 , 应为["coid1", "coid2"]')
-        elif not isinstance(product, list):
-            raise ParamsError('product格式错误 , 应为["prid1", "prid2"]')
-        coupon = json.dumps(coupon) if coupon not in self.empty else None
-        product = json.dumps(product) if product not in self.empty else None
+        if isrecommend and not data.get('nemainpic'):
+            raise ParamsError("被推荐的资讯必须上传封面图")
 
-        with self.snews.auto_commit() as s:
-            s.query(News).filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能修改已下架状态的资讯')
+        coupon = json.dumps(coupon) if coupon not in self.empty and isinstance(coupon, list) else None
+        product = json.dumps(product) if product not in self.empty and isinstance(product, list) else None
+
+        text_list = list()
+        if isinstance(netext, list):
+            for text in netext:
+                if text.get('type') == 'video' and text['content']:
+                    text['content']['video'] = self.__verify_set_url([text.get('content')['video'], ])[0]
+                    text['content']['thumbnail'] = self.__verify_set_url([text.get('content')['thumbnail'], ])[0]
+                    text_list.append(text)
+                elif text.get('type') == 'image' and text['content']:
+                    if len(text['content']) > 9:
+                        raise ParamsError('连续上传图片不允许超过9张，可在视频或文字内容后继续添加图片')
+                    text['content'] = self.__verify_set_url(text['content'])
+                    text_list.append(text)
+                elif text.get('type') == 'text' and text['content']:
+                    text_list.append(text)
+                else:
+                    continue
+
+            if text_list in self.empty:
+                raise ParamsError('请添加内容后发布')
+            netext = json.dumps(text_list)
+        else:
+            raise ParamsError('netext格式错误')
+
+        with db.auto_commit():
             session_list = []
             news_info = {
                 'NEtitle': data.get('netitle'),
                 'NEtext': netext,
                 'NEstatus': NewsStatus.auditing.value,
-                # 'NEsource': 'web',
                 'COid': coupon,
                 'PRid': product,
                 'NEmainpic': data.get('nemainpic'),
                 'NEisrecommend': isrecommend,
             }
-            news_info = {k: v for k, v in news_info.items() if v is not None}
-            s.query(News).filter_by_(NEid=neid).update(news_info)
-            operation.append('修改基础内容')
-            if images not in self.empty:
-                if len(images) > 4:
-                    raise ParamsError('最多只能上传四张图片')
-                exist_niid = [img.NIid for img in s.query(NewsImage).filter_by_(NEid=neid).all()]
-                for image in images:
-                    if 'niid' in image:
-                        exist_niid.remove(image.get('niid'))
-                    else:
-                        news_image_info = NewsImage.create({
-                            'NIid': str(uuid.uuid1()),
-                            'NEid': neid,
-                            'NIimage': image.get('niimage'),
-                            'NIsort': image.get('nisort')
-                        })
-                        operation.append(' / 增加图片')
-                        session_list.append(news_image_info)
-                [s.query(NewsImage).filter_by(NIid=old_niid).delete_() for old_niid in exist_niid]  # 删除原有的但修改后不需要的图片
+            news_instance.update(news_info, null='no')
+            session_list.append(news_instance)
 
-            if video not in self.empty:
-                parameter_required(('nvvideo', 'nvthumbnail', 'nvduration'), datafrom=video)
-                duration_time = video.get('nvdur') or "10"
-                second = int(duration_time[-2:])
-                if second < 3:
-                    raise ParamsError('上传视频时间不能少于3秒')
-                elif second > 59:
-                    raise ParamsError('上传视频时间不能大于1分钟')
-                if 'nvid' in video:
-                    pass
-                else:
-                    s.query(NewsVideo).filter_by(NEid=neid).delete_()  # 删除原有的视频
-                    news_video_info = NewsVideo.create({
-                        'NVid': str(uuid.uuid1()),
-                        'NEid': neid,
-                        'NVvideo': video.get('nvvideo'),
-                        'NVthumbnail': video.get('nvthumbnail'),
-                        'NVduration': video.get('nvduration')
-                    })
-                    operation.append(' / 增加视频')
-                    session_list.append(news_video_info)
             if items not in self.empty:
-                s.query(NewsTag).filter_by(NEid=neid).delete_()  # 删除原有的标题
+                item_list = list()
                 for item in items:
-                    s.query(Items).filter_by_({'ITid': item, 'ITtype': ItemType.news.value}).first_('指定标签不存在')
-                    news_item_info = NewsTag.create({
-                        'NTid': str(uuid.uuid1()),
-                        'NEid': neid,
-                        'ITid': item
-                    })
-                    session_list.append(news_item_info)
+                    item_list.append(item)
+                    Items.query.filter_by_({'ITid': item, 'ITtype': ItemType.news.value}).first_('指定标签不存在')
+                    exist = NewsTag.query.filter_by_(NEid=neid, ITid=item).first()
+                    if not exist:
+                        news_item_info = NewsTag.create({
+                            'NTid': str(uuid.uuid1()),
+                            'NEid': neid,
+                            'ITid': item
+                        })
+                        session_list.append(news_item_info)
+                current_app.logger.info('获取到的资讯标签为：{}'.format(item_list))
+                count = NewsTag.query.filter(NewsTag.ITid.notin_(item_list), NewsTag.NEid == neid,
+                                             NewsTag.isdelete == False).delete_(synchronize_session=False)
+                current_app.logger.info('删除了{}个资讯标签关联'.format(count))
 
             # 记录修改日志
             changelog = NewsChangelog.create({
                 'NCLid': str(uuid.uuid1()),
                 'NEid': neid,
                 'ADid': adid,
-                'NCLoperation': operation,
+                # 'NCLoperation': operation,
             })
             session_list.append(changelog)
-            s.add_all(session_list)
+            db.session.add_all(session_list)
             # 添加到审批流
-            super().create_approval('topublish', adid, neid, ApplyFrom.platform.value)
+        super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
 
     def del_news(self):
@@ -483,15 +480,15 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} delete news'.format(admin.ADname))
+            current_app.logger.info('Admin {0} deleted a news'.format(admin.ADname))
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} delete news'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} deleted a news'.format(sup.SUname))
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is delete news'.format(user.USname))
+            current_app.logger.info('User {0} deleted a news'.format(user.USname))
         data = parameter_required(('neid',))
         neids = data.get('neid')
         with db.auto_commit():
@@ -504,17 +501,19 @@ class CNews(BASEAPPROVAL):
                     if news.USid != usid:
                         raise StatusError('只能删除自己发布的资讯')
                 News.query.filter_by(NEid=neid, isdelete=False).delete_()
-                NewsImage.query.filter_by(NEid=neid).delete_()  # 删除图片
-                NewsVideo.query.filter_by(NEid=neid).delete_()  # 删除视频
                 NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
                 NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
                 NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
                 NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
                 # 如果在审核中，同时取消在进行的审批流
-                if news.NEstatus == NewsStatus.auditing:
-                    approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
-                                                              AVstatus=ApplyStatus.wait_check.value).first()
-                    approval_info.AVstatus = ApplyStatus.cancle.value
+                try:
+                    if news.NEstatus == NewsStatus.auditing.value:
+                        approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
+                                                                  AVstatus=ApplyStatus.wait_check.value).first()
+                        approval_info.update({'AVstatus': ApplyStatus.cancle.value})
+                        db.session.add(approval_info)
+                except Exception as e:
+                    current_app.logger.error('删除圈子相关审批流时出错: {}'.format(e))
         return Success('删除成功', {'neid': neids})
 
     @token_required
@@ -586,7 +585,7 @@ class CNews(BASEAPPROVAL):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                current_app.logger.info('User {0} is get news comment'.format(user.USname))
+                current_app.logger.info('User {0} is checking the news commentary'.format(user.USname))
                 tourist = 0
         else:
             usid = None
@@ -656,7 +655,7 @@ class CNews(BASEAPPROVAL):
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
         usname, usheader = user.USname, user.USheader
-        current_app.logger.info('User {0} is create comment'.format(user.USname))
+        current_app.logger.info('User {0}  created a news commentary'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
         new_info = self.snews.get_news_content({'NEid': neid, 'isdelete': False})
@@ -710,7 +709,7 @@ class CNews(BASEAPPROVAL):
         """评论点赞"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        current_app.logger.info('get user is {0}, comment favorite'.format(user.USname))
+        current_app.logger.info('User {0}, comment favorite'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
@@ -744,7 +743,7 @@ class CNews(BASEAPPROVAL):
         """删除评论"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        current_app.logger.info('get user is {0}, del news comment'.format(user.USname))
+        current_app.logger.info('User {0} deleted a news commentary'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
@@ -774,7 +773,7 @@ class CNews(BASEAPPROVAL):
             usinfo = User.query.filter_by(USid=usid).first()
             usinfo.fields = ['USname', 'USheader']
         except Exception as e:
-            current_app.logger.info("This User has been Deleted, USid is {0}, {1}".format(usid, e))
+            current_app.logger.info("This error is not real, User has been Deleted, USid is {0}, {1}".format(usid, e))
             usinfo = {"USname": "神秘的客官", "USheader": ""}
         return usinfo
 
@@ -791,3 +790,55 @@ class CNews(BASEAPPROVAL):
                 news = News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.usual.value).first_('只能下架已上架状态的资讯')
                 news.NEstatus = NewsStatus.refuse.value
         return Success('下架成功', {'neid': neids})
+
+    def convert_test(self):
+        """仅测试用，转换原圈子格式数据的"""
+        with db.auto_commit():
+            all_news = News.query.filter_by_().all()
+            for news in all_news:
+                json_list = list()
+                old_text = news.NEtext
+                images = NewsImage.query.filter_by_(NEid=news.NEid).order_by(NewsImage.NIsort.asc()).all()
+                if images:
+                    img_list = list()
+                    for img in images:
+                        img_list.append(img.NIimage)
+                    img_dict = {'type': 'image', 'content': img_list}
+                    json_list.append(img_dict)
+                video = NewsVideo.query.filter_by_(NEid=news.NEid).first()
+                if video:
+                    json_list.append({'type': 'video', 'content': {'video': video.NVvideo, 'thumbnail': video.NVthumbnail,
+                                                                   'duration': video.NVduration}})
+                json_list.append({'type': 'text', 'content': old_text})
+
+                json_list = json.dumps(json_list)
+                news.update({'NEtext': json_list})
+                db.session.add(news)
+
+    def __verify_set_url(self, url_list):
+        from planet.config.http_config import MEDIA_HOST
+        res = list()
+        for url in url_list:
+            if isinstance(url, str) and url.startswith(MEDIA_HOST):
+                res.append(url[len(MEDIA_HOST):])
+            else:
+                res.append(url)
+        return res
+
+    def __verify_get_url(self, url_list):
+        from planet.config.http_config import MEDIA_HOST
+        res = list()
+        for url in url_list:
+            if isinstance(url, str) and not url.startswith('http'):
+                rs = MEDIA_HOST + url
+                res.append(rs)
+            else:
+                res.append(url)
+        return res
+
+
+# if __name__ == '__main__':
+#     from planet import create_app
+#     app = create_app()
+#     with app.app_context():
+#         CNews().convert_test()

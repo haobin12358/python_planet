@@ -47,6 +47,12 @@ alembic revision --autogenerate -m 'add'
 ```bash
 alembic upgrade head
 ```
+
+- 回滚
+```bash
+alembic downgrade 上个版本号 # 可在本次迁移文件头部中找到'Revises' 
+```
+
 ## 启动和关闭
 -启动
 ```bash

@@ -235,7 +235,7 @@ class CProducts(BaseController):
                                     ).filter(SupplizerProduct.SUid.is_(None))
         if skusn:
             query = query.outerjoin(ProductSku, ProductSku.PRid == Products.PRid
-                                    ).filter(ProductSku.isdelete == False, ProductSku.SKUsn == skusn)
+                                    ).filter(ProductSku.isdelete == False, ProductSku.SKUsn.ilike('%{}%'.format(skusn)))
 
         products = query.filter_(*filter_args).order_by(by_order).all_with_page()
         # 填充
