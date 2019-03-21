@@ -11,6 +11,7 @@ class CompanyMessage(Base):
     CMid = Column(String(64), primary_key=True)
     CMtitle = Column(String(255), nullable=False, comment="公告标题")
     CMmessage = Column(LONGTEXT, nullable=False, comment="公告详情")
+    CMindex = Column(Integer, nullable=False, default=0, comment="公告是否展示首页")
 
 class UserWords(Base):
     """
