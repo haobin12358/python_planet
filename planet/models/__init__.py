@@ -8,3 +8,4 @@ from .activity import *
 from .trade import *
 from .questanswer import *
 from .commision import *
+from .club import *
