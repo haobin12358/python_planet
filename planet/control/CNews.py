@@ -34,17 +34,17 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} geting all news'.format(admin.ADname))
+            current_app.logger.info('Admin {0} is browsing the list of news'.format(admin.ADname))
             tourist = 'admin'
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} geting all news'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} is browsing the list of news'.format(sup.SUname))
             tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} geting all news'.format(user.USname))
+            current_app.logger.info('User {0} is browsing the list of news'.format(user.USname))
             tourist = 0
 
         args = parameter_required(('page_num', 'page_size'))
@@ -117,12 +117,11 @@ class CNews(BASEAPPROVAL):
                     image_index.append(index)
                 elif item.get('type') == 'text':
                     text_index.append(index)
-            video_count, image_count, text_count = len(video_index), len(image_index), len(text_index)
 
             if news.NEmainpic:
                 showtype = 'picture'
                 news.fill('mainpic', news['NEmainpic'])
-            elif video_count:
+            elif len(video_index):
                 showtype = 'video'
                 video_url = new_content[video_index[0]].get('content')['video']
                 video_url = self.__verify_get_url([video_url, ])[0]
@@ -131,7 +130,7 @@ class CNews(BASEAPPROVAL):
                 thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
                 news.fill('videothumbnail', thumbnail_url)
                 news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
-            elif image_count:
+            elif len(image_index):
                 showtype = 'picture'
                 pic_url = new_content[image_index[0]].get('content')[0]
                 pic_url = self.__verify_get_url([pic_url, ])[0]
@@ -168,17 +167,17 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} geting news content'.format(admin.ADname))
+            current_app.logger.info('Admin {0} is browsing the news content'.format(admin.ADname))
             tourist = 'admin'
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} geting news content'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} is browsing the news content'.format(sup.SUname))
             tourist = 'supplizer'
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} geting news content'.format(user.USname))
+            current_app.logger.info('User {0} is browsing the news content'.format(user.USname))
             tourist = 0
         args = parameter_required(('neid',))
         neid = args.get('neid')
@@ -305,16 +304,16 @@ class CNews(BASEAPPROVAL):
         admin = get_current_admin()
         if user:
             usid, usname, usheader = user.USid, user.USname, user.USheader
-            current_app.logger.info('User {0} create a news'.format(usname))
+            current_app.logger.info('User {0} created a news'.format(usname))
             nefrom = ApplyFrom.user.value
         elif admin:
             usid, usname, usheader = admin.ADid, admin.ADname, admin.ADheader
-            current_app.logger.info('Admin {0} create a news'.format(usname))
+            current_app.logger.info('Admin {0} created a news'.format(usname))
             nefrom = ApplyFrom.platform.value
         elif is_supplizer():
             supplizer = Supplizer.query.filter_by_(SUid=request.user.id).first()
             usid, usname, usheader = supplizer.SUid, supplizer.SUname, supplizer.SUheader
-            current_app.logger.info('Supplizer {0} create a news'.format(usname))
+            current_app.logger.info('Supplizer {0} created a news'.format(usname))
             nefrom = ApplyFrom.supplizer.value
         else:
             raise TokenError('用户不存在')
@@ -388,7 +387,7 @@ class CNews(BASEAPPROVAL):
         """修改资讯"""
         adid = request.user.id
         admin = Admin.query.filter_by_(ADid=adid).first_('没有该管理账号信息')
-        current_app.logger.info("Admin {} update news".format(admin.ADname))
+        current_app.logger.info("Admin {} has updated a news".format(admin.ADname))
         data = parameter_required(('neid',))
         neid = data.get('neid')
         items = data.get('items')  # ['item1', 'item2']
@@ -470,15 +469,15 @@ class CNews(BASEAPPROVAL):
         elif is_admin():
             usid = request.user.id
             admin = self._check_admin(usid)
-            current_app.logger.info('Admin {0} delete news'.format(admin.ADname))
+            current_app.logger.info('Admin {0} deleted a news'.format(admin.ADname))
         elif is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)
-            current_app.logger.info('Supplizer {0} delete news'.format(sup.SUname))
+            current_app.logger.info('Supplizer {0} deleted a news'.format(sup.SUname))
         else:
             usid = request.user.id
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is delete news'.format(user.USname))
+            current_app.logger.info('User {0} deleted a news'.format(user.USname))
         data = parameter_required(('neid',))
         neids = data.get('neid')
         with db.auto_commit():
@@ -572,7 +571,7 @@ class CNews(BASEAPPROVAL):
             usid = request.user.id
             if usid:
                 user = self.snews.get_user_by_id(usid)
-                current_app.logger.info('User {0} is get news comment'.format(user.USname))
+                current_app.logger.info('User {0} is checking the news commentary'.format(user.USname))
                 tourist = 0
         else:
             usid = None
@@ -642,7 +641,7 @@ class CNews(BASEAPPROVAL):
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
         usname, usheader = user.USname, user.USheader
-        current_app.logger.info('User {0} is create comment'.format(user.USname))
+        current_app.logger.info('User {0}  created a news commentary'.format(user.USname))
         data = parameter_required(('neid', 'nctext'))
         neid = data.get('neid')
         new_info = self.snews.get_news_content({'NEid': neid, 'isdelete': False})
@@ -696,7 +695,7 @@ class CNews(BASEAPPROVAL):
         """评论点赞"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        current_app.logger.info('get user is {0}, comment favorite'.format(user.USname))
+        current_app.logger.info('User {0}, comment favorite'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,
@@ -730,7 +729,7 @@ class CNews(BASEAPPROVAL):
         """删除评论"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
-        current_app.logger.info('get user is {0}, del news comment'.format(user.USname))
+        current_app.logger.info('User {0} deleted a news commentary'.format(user.USname))
         data = parameter_required(('ncid',))
         ncid = data.get('ncid')
         comment = NewsComment.query.filter(NewsComment.NCid == ncid,

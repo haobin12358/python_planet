@@ -438,7 +438,7 @@ class CApproval(BASEAPPROVAL):
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
-            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid, isdelete=False).all_with_page()
+            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         res = []
         for ap in ap_list:
             if not ap.AVstartdetail:
@@ -461,12 +461,11 @@ class CApproval(BASEAPPROVAL):
                         image_index.append(index)
                     elif item.get('type') == 'text':
                         text_index.append(index)
-                video_count, image_count, text_count = len(video_index), len(image_index), len(text_index)
 
                 if content.get('nemainpic'):
                     showtype = 'picture'
                     content['mainpic'] = content.get('nemainpic')
-                elif video_count:
+                elif len(video_index):
                     showtype = 'video'
                     video_url = new_content[video_index[0]].get('content')['video']
                     video_url = self.__verify_get_url([video_url, ])[0]
@@ -475,7 +474,7 @@ class CApproval(BASEAPPROVAL):
                     thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
                     content['videothumbnail'] = thumbnail_url
                     content['videoduration'] = new_content[video_index[0]].get('content')['duration']
-                elif image_count:
+                elif len(image_index):
                     showtype = 'picture'
                     pic_url = new_content[image_index[0]].get('content')[0]
                     pic_url = self.__verify_get_url([pic_url, ])[0]
