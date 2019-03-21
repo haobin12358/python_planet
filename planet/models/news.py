@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy import String, Text, Integer, Boolean
+from sqlalchemy.dialects.mysql import LONGTEXT
+
 from planet.common.base_model import Base, Column
 
 
@@ -11,7 +13,7 @@ class News(Base):
     USname = Column(String(128), comment='用户名')
     USheader = Column(Text, default='用户头像', url=True)
     NEtitle = Column(String(128), nullable=False, comment='标题')
-    NEtext = Column(Text, comment='文本内容')
+    NEtext = Column(LONGTEXT, comment='内容 json')
     NEstatus = Column(Integer, default=2, comment='资讯上下架{0: 下架, 1: 上架 2: 审核中}')
     NEpageviews = Column(Integer, default=0, comment='浏览量')
     NEsource = Column(String(64), comment='来源终端')
