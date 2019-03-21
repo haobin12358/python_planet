@@ -229,10 +229,10 @@ class CNews(BASEAPPROVAL):
         # 内容填充
         news_content = json.loads(news.NEtext)
         for item in news_content:
-            if item.get('type') == 'video':
+            if item.get('type') == 'video' and item['content']:
                 item['content']['video'] = self.__verify_get_url([item.get('content')['video'], ])[0]
                 item['content']['thumbnail'] = self.__verify_get_url([item.get('content')['thumbnail'], ])[0]
-            elif item.get('type') == 'image':
+            elif item.get('type') == 'image' and item['content']:
                 item['content'] = self.__verify_get_url(item['content'])
             else:
                 continue
@@ -282,17 +282,11 @@ class CNews(BASEAPPROVAL):
         banner_list = []
         recommend_news = self.snews.get_news_list_by_filter({'NEisrecommend': True, 'NEstatus': NewsStatus.usual.value})
         for news in recommend_news:
-            if news.NEmainpic:
-                banner = news['NEmainpic']
-            else:
-                img_list = self.snews.get_news_images(news.NEid)
-                if img_list:
-                    banner = img_list[0]['NIimage']
-                else:
-                    continue
+            if not news.NEmainpic:
+                continue
             data = {
                 'neid': news.NEid,
-                'mainpic': banner
+                'mainpic': news['NEmainpic']
             }
             banner_list.append(data)
         return Success(data=banner_list)
@@ -329,19 +323,26 @@ class CNews(BASEAPPROVAL):
         isrecommend = data.get('neisrecommend', 0)
         isrecommend = True if str(isrecommend) == '1' else False
 
+        text_list = list()
         if isinstance(netext, list):
             for text in netext:
-                if text.get('type') == 'video':
+                if text.get('type') == 'video' and text['content']:
                     text['content']['video'] = self.__verify_set_url([text.get('content')['video'], ])[0]
                     text['content']['thumbnail'] = self.__verify_set_url([text.get('content')['thumbnail'], ])[0]
-                elif text.get('type') == 'image':
+                    text_list.append(text)
+                elif text.get('type') == 'image' and text['content']:
                     if len(text['content']) > 9:
                         raise ParamsError('连续上传图片不允许超过9张，可在视频或文字内容后继续添加图片')
                     text['content'] = self.__verify_set_url(text['content'])
+                    text_list.append(text)
+                elif text.get('type') == 'text' and text['content']:
+                    text_list.append(text)
                 else:
                     continue
 
-            netext = json.dumps(netext)
+            if text_list in self.empty:
+                raise ParamsError('请添加内容后发布')
+            netext = json.dumps(text_list)
         else:
             raise ParamsError('netext格式错误')
 
@@ -378,7 +379,7 @@ class CNews(BASEAPPROVAL):
                     session_list.append(news_item_info)
             s.add_all(session_list)
 
-            # 添加到审批流
+        # 添加到审批流
         super(CNews, self).create_approval('topublish', usid, neid, nefrom)
         return Success('添加成功', {'neid': neid})
 
@@ -398,22 +399,32 @@ class CNews(BASEAPPROVAL):
         isrecommend = True if str(isrecommend) == '1' else False
         news_instance = News.query.filter_by_(NEid=neid, NEstatus=NewsStatus.refuse.value).first_('只能修改已下架状态的资讯')
 
+        if isrecommend and not data.get('nemainpic'):
+            raise ParamsError("被推荐的资讯必须上传封面图")
+
         coupon = json.dumps(coupon) if coupon not in self.empty and isinstance(coupon, list) else None
         product = json.dumps(product) if product not in self.empty and isinstance(product, list) else None
 
+        text_list = list()
         if isinstance(netext, list):
             for text in netext:
-                if text.get('type') == 'video':
+                if text.get('type') == 'video' and text['content']:
                     text['content']['video'] = self.__verify_set_url([text.get('content')['video'], ])[0]
                     text['content']['thumbnail'] = self.__verify_set_url([text.get('content')['thumbnail'], ])[0]
-                elif text.get('type') == 'image':
+                    text_list.append(text)
+                elif text.get('type') == 'image' and text['content']:
                     if len(text['content']) > 9:
                         raise ParamsError('连续上传图片不允许超过9张，可在视频或文字内容后继续添加图片')
                     text['content'] = self.__verify_set_url(text['content'])
+                    text_list.append(text)
+                elif text.get('type') == 'text' and text['content']:
+                    text_list.append(text)
                 else:
                     continue
 
-            netext = json.dumps(netext)
+            if text_list in self.empty:
+                raise ParamsError('请添加内容后发布')
+            netext = json.dumps(text_list)
         else:
             raise ParamsError('netext格式错误')
 
@@ -428,7 +439,7 @@ class CNews(BASEAPPROVAL):
                 'NEmainpic': data.get('nemainpic'),
                 'NEisrecommend': isrecommend,
             }
-            news_instance.update(news_info)
+            news_instance.update(news_info, null='no')
             session_list.append(news_instance)
 
             if items not in self.empty:
@@ -459,7 +470,7 @@ class CNews(BASEAPPROVAL):
             session_list.append(changelog)
             db.session.add_all(session_list)
             # 添加到审批流
-            super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
+        super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
 
     def del_news(self):
@@ -495,11 +506,14 @@ class CNews(BASEAPPROVAL):
                 NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
                 NewsTrample.query.filter_by(NEid=neid).delete_()  # 删除点踩
                 # 如果在审核中，同时取消在进行的审批流
-                if news.NEstatus == NewsStatus.auditing.value:
-                    approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
-                                                              AVstatus=ApplyStatus.wait_check.value).first()
-                    approval_info.update({'AVstatus': ApplyStatus.cancle.value})
-                    db.session.add(approval_info)
+                try:
+                    if news.NEstatus == NewsStatus.auditing.value:
+                        approval_info = Approval.query.filter_by_(AVcontent=neid, AVstartid=news.USid,
+                                                                  AVstatus=ApplyStatus.wait_check.value).first()
+                        approval_info.update({'AVstatus': ApplyStatus.cancle.value})
+                        db.session.add(approval_info)
+                except Exception as e:
+                    current_app.logger.error('删除圈子相关审批流时出错: {}'.format(e))
         return Success('删除成功', {'neid': neids})
 
     @token_required
