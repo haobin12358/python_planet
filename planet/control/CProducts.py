@@ -308,8 +308,6 @@ class CProducts(BaseController):
         product_category = self.sproduct.get_category_one({'PCid': pcid, 'PCtype': 3}, '指定目录不存在')
         if is_supplizer() and product_brand.SUid != request.user.id:
             raise AuthorityError('仅可添加至指定品牌')
-        if is_supplizer() and prfeatured:
-            raise AuthorityError('当前账号没有设置场景精选商品的权限')
         prstocks = 0
         with self.sproduct.auto_commit() as s:
             session_list = []
@@ -471,8 +469,6 @@ class CProducts(BaseController):
         skus = data.get('skus')
         prdescription = data.get('prdescription')
         prfeatured = data.get('prfeatured')
-        if is_supplizer() and prfeatured:
-            raise AuthorityError('当前账号没有设置场景精选商品的权限')
         with self.sproduct.auto_commit() as s:
             session_list = []
             # 商品
