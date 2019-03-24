@@ -88,7 +88,7 @@ class CIndex:
                   ProductBrand.PBid == Products.PBid,
                   ProductBrand.isdelete == False,
                   Products.PRstatus == ProductStatus.usual.value
-                  ).all()
+                  ).order_by(ProductItems.createtime.desc(), Products.createtime.desc()).all()
         for product in products:
             brand = ProductBrand.query.filter_by_({'PBid': product.PBid}).first()
             if not brand:
