@@ -134,8 +134,9 @@ class CLogistic:
             else:
                 oldata_status = False
 
-            if (not oldata_status or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)\
-                    and order_logistics.OLsignStatus != 3:  # 没有data信息或超过6小时 并且状态不是已签收
+            # 没有data信息或超过6小时 并且状态不是已签收
+            if ((not oldata_status or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)
+                    and order_logistics.OLsignStatus != LogisticsSignStatus.already_signed.value):
                 order_logistics = self._get_logistics(order_logistics)
             logistics_company = LogisticsCompnay.query.filter_by_({'LCcode': order_logistics.OLcompany}).first()
             order_logistics.fill('OLsignStatus_en', LogisticsSignStatus(order_logistics.OLsignStatus).name)
@@ -156,10 +157,16 @@ class CLogistic:
                 result = response.get('result')
                 OrderLogisticsDict = {
                     'OLsignStatus': int(result.get('deliverystatus')),
-                    'OLdata': json.dumps(result),  # 结果原字符串
+                    'OLdata': json.dumps(result),  # 快递结果原字符串
                     'OLlastresult': json.dumps(result.get('list')[0])  # 最新物流
                 }
                 #
+            elif code == '205':  # 205 暂时没有信息，可能在揽件过程中
+                OrderLogisticsDict = {
+                    'OLsignStatus': 0,  # 签收状态 0：快递收件(揽件) 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据'
+                    'OLdata': json.dumps(response),  # 整体结果原字符串
+                    'OLlastresult': '{}'
+                }
             else:
                 OrderLogisticsDict = {
                     'OLsignStatus': -1,
