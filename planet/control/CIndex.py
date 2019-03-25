@@ -27,9 +27,10 @@ class CIndex:
                      ProductBrand.isdelete == False,
                      ProductBrand.PBstatus == ProductBrandStatus.upper.value,
                      BrandWithItems.isdelete == False).all(),
-            'product': self.list_product('index_brand_product'),
-            'hot': self.list_product('index_hot'),
-            'recommend_for_you': self.list_product('index_recommend_product_for_you'),
+            # 'product': self.list_product('index_brand_product'),
+            'product': [],  # 改版后有点多余，暂时返回空
+            'hot': self.list_product('index_hot', 'all'),
+            'recommend_for_you': self.list_product('index_recommend_product_for_you', 'all_with_page'),
         }
         return Success(data=data)
 
@@ -79,7 +80,7 @@ class CIndex:
                 raise SystemError('服务器繁忙 10000')
         return Success('修改成功', {'ibid': ibid})
 
-    def list_product(self, itid):
+    def list_product(self, itid, pg='all'):
         products = Products.query.join(
             ProductItems, Products.PRid == ProductItems.PRid
         ).filter_(ProductItems.ITid == itid,
@@ -88,7 +89,13 @@ class CIndex:
                   ProductBrand.PBid == Products.PBid,
                   ProductBrand.isdelete == False,
                   Products.PRstatus == ProductStatus.usual.value
-                  ).order_by(ProductItems.createtime.desc(), Products.createtime.desc()).all()
+                  ).order_by(ProductItems.createtime.desc(), Products.createtime.desc())
+        if pg == 'all':
+            products = products.all()
+        elif pg == 'all_with_page':
+            products = products.all_with_page()
+        else:
+            products = products.all()
         for product in products:
             brand = ProductBrand.query.filter_by_({'PBid': product.PBid}).first()
             if not brand:
