@@ -179,8 +179,7 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
 
-        user.fill('usexpect', '%.2f' %float(uc_total))
-
+        user.fill('usexpect', float('%.2f' % uc_total))
 
     def _base_decode(self, raw):
         import base64
@@ -1999,4 +1998,3 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('suname', su.SUname)
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
-

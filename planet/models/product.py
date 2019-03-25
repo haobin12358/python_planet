@@ -29,7 +29,7 @@ class Products(Base):
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PRfeatured = Column(Boolean, default=False, comment='是否为场景下的精选商品')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
-    # PRcode = Column(String(64), comment='商品的外部编号')
+    PRcode = Column(String(64), comment='商品的外部编号')
 
     @orm.reconstructor
     def __init__(self):
@@ -238,6 +238,13 @@ class SettlenmentApply(Base):
     SSAabo = Column(Text, comment='结算异常原因')
     SSArejectReason = Column(Text, comment='拒绝理由')
     SSAstatus = Column(Integer, default=0, comment='申请状态')
+
+
+class ProductUrl(Base):
+    __tablename__ = 'ProductUrl'
+    PUid = Column(String(64), primary_key=True)
+    PUurl = Column(Text, nullable=False, comment='外部url')
+    PUdir = Column(Text, nullable=False, comment='服务器路由')
 
 
 # class SupplizerBrand(Base):
