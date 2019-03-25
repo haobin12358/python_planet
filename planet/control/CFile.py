@@ -94,7 +94,7 @@ class CFile(object):
 
                 # 生成压缩图
                 try:
-                    thumbnail_img = CompressPicture.resize_img(ori_img=newFile, ratio=0.8, save_q=80)
+                    thumbnail_img = CompressPicture().resize_img(ori_img=newFile, ratio=0.8, save_q=80)
                 except Exception as e:
                     current_app.logger.info(">>>  Resize Picture Error : {}  <<<".format(e))
                     raise ParamsError('图片格式错误，请检查后重新上传（请勿强制更改图片后缀名）')

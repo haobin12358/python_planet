@@ -32,11 +32,13 @@ class CompressPicture(object):
             if max(ori_w, ori_h) < 1500:
                 new_width = ori_w
                 new_height = ori_h
-                save_q = 100
+                can_compress = False
             else:
                 new_width = int(ori_w * ratio)
                 new_height = int(ori_h * ratio)
-        else:
+                can_compress = True
+        else:  # 下面是强制规定长宽时才会用到，作用是检测图片原来正确的长和宽，一般用不到
+            can_compress = None  # 仅初始化一下，无作用
             ratio = 1
             if (ori_w and ori_w > arg['dst_w']) or (ori_h and ori_h > arg['dst_h']):
                 if arg['dst_w'] and ori_w > arg['dst_w']:
@@ -60,9 +62,12 @@ class CompressPicture(object):
             else:
                 new_width = ori_w
                 new_height = ori_h
-
         dst_img = ori_img + '_' + str(new_width) + 'x' + str(new_height) + '.' + shuffix  # 拼接图片尺寸在最后
-        im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
+
+        if can_compress:
+            im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
+        else:
+            im.save(dst_img, quality=save_q)
 
         # 根据EXIF旋转压缩后的图片为正确可读方向
         old_img = image.open(dst_img)
