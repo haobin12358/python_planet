@@ -975,7 +975,10 @@ class COrder(CPay, CCoupon):
                 # 商品总体评分变化
                 try:
                     product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
-                    average_score = round((float(product_info.PRaverageScore) + float(oescore) * 2) / 2)
+                    scores = [oe.OEscore for oe in
+                              OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
+                                                           OrderEvaluation.isdelete == False).all()]
+                    average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
                     Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
                 except Exception as e:
                     gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
@@ -1038,7 +1041,10 @@ class COrder(CPay, CCoupon):
                     try:
                         # 商品总体评分变化
                         other_product_info = Products.query.filter_by_(PRid=other_order_part_info.PRid).first()
-                        other_average_score = round((float(other_product_info.PRaverageScore) + float(oescore) * 2) / 2)
+                        other_scores = [oe.OEscore for oe in
+                                        OrderEvaluation.query.filter(OrderEvaluation.PRid == other_product_info.PRid,
+                                                                     OrderEvaluation.isdelete == False).all()]
+                        other_average_score = round(((float(sum(other_scores)) + float(5.0)) / (len(other_scores) + 1)) * 2)
                         Products.query.filter_by_(PRid=other_product_info.PRid).update(
                             {'PRaverageScore': other_average_score})
                     except Exception as e:
