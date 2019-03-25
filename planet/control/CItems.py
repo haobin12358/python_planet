@@ -50,11 +50,21 @@ class CItems:
                 items_query = items_query.filter(Items.ITid != 'planet_featured')  # 如果该场景下没有精选商品，不显示“大行星精选”标签
 
         if is_supplizer():
+
+            time_limit_itids = [it.ITid for it in
+                                Items.query.join(SceneItem, SceneItem.ITid == Items.ITid
+                                                 ).join(ProductScene, ProductScene.PSid == SceneItem.PSid
+                                                        ).filter(SceneItem.isdelete == False,
+                                                                 ProductScene.isdelete == False,
+                                                                 Items.isdelete == False,
+                                                                 ProductScene.PStimelimited == True).all()]
             items_query = items_query.filter(Items.ITauthority == ItemAuthrity.no_limit.value,
                                              Items.ITposition.in_([ItemPostion.scene.value,
                                                                    ItemPostion.news_bind.value]
-                                                                  )
+                                                                  ),
+                                             Items.ITid.notin_(time_limit_itids)
                                              )
+
         if kw:
             items_query = items_query.filter(
                 Items.ITname.contains(kw)
