@@ -149,7 +149,7 @@ class CProducts(BaseController):
         try:
             order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
             order_enum = {
-                'time': Products.updatetime,
+                'time': Products.createtime,
                 'sale_value': Products.PRsalesValue,
                 'price': Products.PRprice,
             }

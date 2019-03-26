@@ -88,7 +88,8 @@ class CIndex:
                   ProductItems.isdelete == False,
                   ProductBrand.PBid == Products.PBid,
                   ProductBrand.isdelete == False,
-                  Products.PRstatus == ProductStatus.usual.value
+                  Products.PRstatus == ProductStatus.usual.value,
+                  Products.isdelete == False
                   ).order_by(ProductItems.createtime.desc(), Products.createtime.desc())
         if pg == 'all':
             products = products.all()
