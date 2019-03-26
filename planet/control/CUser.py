@@ -1413,6 +1413,7 @@ class CUser(SUser, BASEAPPROVAL):
         user_openid = User.query.filter_by_(user_filter).first()
         # 检查手机号是否已经注册
         user = self.get_user_by_ustelphone(ustelphone)
+
         if not user:
             # 如果没有绑定，给当前用户绑定手机号
             usid = user_openid.USid
@@ -1421,6 +1422,10 @@ class CUser(SUser, BASEAPPROVAL):
             return_user = user_openid
         else:
             # 如果已经绑定，删除当前用户，将信息导入到手机绑定账户
+            now = datetime.datetime.now()
+            if (now - user.createtime).minute < 3:
+                raise SystemError('服务器繁忙。请稍等')
+
             usid = user.USid
             uslevel = user.USlevel
             user_openid.isdelete = True
