@@ -9,6 +9,14 @@ class AClub(Resource):
 
     def post(self, club):
         apis = {
-            'create': self.cclub.create_userwords
+            'create': self.cclub.create_userwords,
+            "create_message": self.cclub.create_companymessage
+        }
+        return apis
+
+    def get(self, club):
+        apis = {
+            "list": self.cclub.companymessage_list,
+            "message": self.cclub.companymessage_message
         }
         return apis
