@@ -34,6 +34,9 @@ class CExcel():
                     '底部长图22', '底部长图23', '底部长图24', '底部长图25', '底部长图26', '底部长图27', '底部长图28',
                     '底部长图29', '底部长图30', 'SKU属性名', 'SKU属性值', 'SKU图', 'SKU库存', '让利比', 'SKU价格')
 
+    def __init__(self):
+        self._url_list = list()
+
     @token_required
     def upload_products_file(self):
         """
@@ -46,6 +49,9 @@ class CExcel():
         # 接收数据保存到服务器
         file_path = self._save_excel(file, folder)
         self._insertproduct(file_path)
+        if self._url_list:
+            get_url_local.apply_async(args=[self._url_list], countdown=1, expires=1 * 60, )
+            self._url_list = list()
         return Success('上传成功')
 
     def _save_excel(self, file, folder):
@@ -321,11 +327,11 @@ class CExcel():
         if not product_url:
             return
         # lock = threading.Lock()
-        current_app.logger.info('start new thread to save {}'.format(product_url))
+        self._url_list.append(product_url)
+        # current_app.logger.info('start new thread to save {}'.format(product_url))
 
-        get_url_local.apply_async(args=[product_url], countdown=1 , expires=1 * 60, )
 
-        current_app.logger.info('end save {}'.format(product_url))
+        # current_app.logger.info('end save {}'.format(product_url))
 
     def _get_pbid(self, pbname):
         pb = ProductBrand.query.filter(
