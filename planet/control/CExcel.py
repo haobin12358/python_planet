@@ -1,6 +1,6 @@
 import json
 import os
-import threading
+# import threading
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -9,15 +9,18 @@ import requests
 import xlrd
 
 from flask import request, current_app
-from gevent import thread
+# from gevent import thread
+
 
 from planet.common.error_response import ParamsError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, is_supplizer, token_required
 from planet.config.enums import ProductFrom
+from planet.extensions.tasks import get_url_local
 from planet.extensions.register_ext import db
-from planet.models import ProductBrand, ProductCategory, ProductUrl, Products, ProductImage, ProductSku, Items, \
+
+from planet.models import ProductBrand, ProductCategory, Products, ProductImage, ProductSku, Items, \
     ProductItems
 
 
@@ -31,18 +34,6 @@ class CExcel():
                     '底部长图22', '底部长图23', '底部长图24', '底部长图25', '底部长图26', '底部长图27', '底部长图28',
                     '底部长图29', '底部长图30', 'SKU属性名', 'SKU属性值', 'SKU图', 'SKU库存', '让利比', 'SKU价格')
 
-    # 图片下载格式配置文件
-    contenttype_config = {
-        r'image/jpeg': r'.jpg',
-        r'image/pnetvue': r'.net',
-        r'image/tiff': r'.tif',
-        r'image/fax': r'.fax',
-        r'image/gif': r'.gif',
-        r'image/png': r'.png',
-        r'image/vnd.rn-realpix': r'.rp',
-        r'image/vnd.wap.wbmp': r'.wbmp',
-    }
-
     @token_required
     def upload_products_file(self):
         """
@@ -54,6 +45,7 @@ class CExcel():
         folder = 'xls'
         # 接收数据保存到服务器
         file_path = self._save_excel(file, folder)
+        self._insertproduct(file_path)
         return Success('上传成功')
 
     def _save_excel(self, file, folder):
@@ -67,8 +59,8 @@ class CExcel():
         shuffix = os.path.splitext(filename)[-1]
         current_app.logger.info(">>>  Upload File Shuffix is {0}  <<<".format(shuffix))
         shuffix = shuffix.lower()
-        if self.allowed_file(shuffix):
-            img_name = self.new_name(shuffix)
+        if self._allowed_file(shuffix):
+            img_name = self._new_name(shuffix)
             time_now = datetime.now()
             year = str(time_now.year)
             month = str(time_now.month)
@@ -78,23 +70,23 @@ class CExcel():
                 os.makedirs(newPath)
             newFile = os.path.join(newPath, img_name)
             file.save(newFile)  # 保存文件
-            data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
-                                                                          month=month, day=day,
-                                                                          img_name=img_name)
-            current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(data))
-            return data
+            # data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
+            #                                                               month=month, day=day,
+            #                                                               img_name=img_name)
+            current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(newFile))
+            return newFile
         else:
             raise SystemError(u'上传有误, 不支持的文件类型 {}'.format(shuffix))
 
-    def allowed_file(self, shuffix):
+    def _allowed_file(self, shuffix):
         """
         文件格式校验
         :param shuffix:
         :return:
         """
-        return shuffix in ['xls', 'xlsm', 'xlsx']
+        return shuffix in ['.xls', '.xlsm', '.xlsx']
 
-    def new_name(self, shuffix):
+    def _new_name(self, shuffix):
         """
         重命名接收文件。防止有异常字符干扰服务器正常运行
         :param shuffix:
@@ -109,7 +101,7 @@ class CExcel():
         res = datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f') + random.choice(myStr) + usid + shuffix
         return res
 
-    def insertproduct(self, filepath):
+    def _insertproduct(self, filepath):
         """
         读取Excel 并将数据存入数据库
         :param filepath:
@@ -134,19 +126,33 @@ class CExcel():
             for row_num in range(1, content_sheet.nrows):
                 row_content = content_sheet.row(row_num)
                 prcode = row_content[heads.get('商品编码')].value
+                if not prcode:
+                    continue
                 if prcode not in prcode_dict:
                     # 商品首次读取，进行插入或更新操作。
-                    instance_list, skuid = self._update_product(heads, row_content, row_num)
+                    instance_list = self._update_product(heads, row_content, row_num, prcode_dict)
                     # all_instance_list.extend(instance_list)
-                    prcode_dict.setdefault(prcode, [skuid,])
+
                     db.session.add_all(instance_list)
                 else:
                     # 非首次商品读取，商品只累加库存。sku进行插入或更新
-                    sku_instance, skuid = self._update_productsku(heads, row_content, row_num)
+                    sku_instance, skuid = self._update_productsku(heads, row_content, row_num, prcode_dict)
                     db.session.add(sku_instance)
-                    prcode_dict.get(prcode).append(skuid)
+                    prcode_dict.get(prcode).get('skuid').append(skuid)
 
-    def _update_product(self, heads, row, row_num):
+                db.session.flush()
+
+            for prcode in prcode_dict:
+                # product = Products.query.filter(Products.PRcode == prcode, Products.isdelete == False).first()
+                product = prcode_dict.get(prcode).get('product')
+
+                ProductSku.query.filter(
+                    ProductSku.isdelete == False,
+                    ProductSku.PRid == product.PRid,
+                    ProductSku.SKUid.notin_(prcode_dict.get(prcode))).delete_(synchronize_session=False)
+                db.session.add(product)
+
+    def _update_product(self, heads, row, row_num, prcode_dict):
         """
         首行商品数据 统一更新或添加
         :param heads:
@@ -158,11 +164,13 @@ class CExcel():
         instance_list = []
         if is_admin():
             product_from = ProductFrom.platform.value
+
         elif is_supplizer():
             product_from = ProductFrom.supplizer.value
         else:
             raise AuthorityError()
 
+        prcode = str(row[heads.get('商品编码')].value)
         pbname = str(row[heads.get('品牌')].value)
         pcname = str(row[heads.get('三级类目')].value)
         # 类目和品牌获取
@@ -185,6 +193,7 @@ class CExcel():
             if not heads.get(tmptitle) or not row[heads.get(tmptitle)].value:
                 continue
             product_url = row[heads.get(tmptitle)].value
+            self.save_url(product_url)
             prdesc.append(product_url)
 
         product_instance = Products.query.filter(Products.PRcode == str(row[heads.get('商品编码')].value)).first()
@@ -197,8 +206,8 @@ class CExcel():
         product_dict = {
                 'PRtitle': row[heads.get('商品名称')].value,
                 # 'PRprice': row[heads.get('商品名称')].value,
-                'PRlinePrice': float('%.2f' % str(row[heads.get('划线价格')].value)),
-                'PRfreight': float('%.2f' % str(row[heads.get('商品运费')].value)),
+                'PRlinePrice': float('%.2f' % float(str(row[heads.get('划线价格')].value))),
+                'PRfreight': float('%.2f' % float(str(row[heads.get('商品运费')].value))),
                 'PRmainpic': productmain,
                 'PCid': pcid,
                 'PBid': pbid,
@@ -207,7 +216,7 @@ class CExcel():
                 'PRremarks': "{}",
                 'PRfrom': product_from,
                 'PRdescription': row[heads.get('商品描述')].value,  # 描述
-                'PRcode': str(row[heads.get('商品编码')].value),
+                'PRcode': prcode,
                 'PRstocks': int(row[heads.get('SKU库存')].value),
                 # 'PRfeatured': row[heads.get('商品名称')].value,  # 是否为精选
             }
@@ -215,21 +224,26 @@ class CExcel():
         if not product_instance:
             product_dict.setdefault('PRid', prid)
             product_dict.setdefault('CreaterId', request.user.id,)
+            # product_dict.setdefault('CreaterId', 'id')
+            product_dict.setdefault('PRprice', row[heads.get('SKU价格')].value)
             # product_dict.setdefault('PRstocks', int(row[heads.get('SKU库存')].value))
             product_instance = Products.create(product_dict)
         else:
             prid = product_instance.PRid
             product_instance.update(product_dict)
 
-        instance_list.append(product_instance)
+        # instance_list.append(product_instance)
+        # prcode_dict.get(prcode).setdefault('product', product_instance)
+        # prcode_dict.get(prcode).setdefault('skuid', [])
 
         product_img_list = []
         # 商品轮播图
         for i in range(1, 10):
             tmptitle = '顶部轮播图{}'.format(i)
-            if not heads.get(tmptitle) or not row[heads.get(tmptitle)]:
+            if not heads.get(tmptitle) or not row[heads.get(tmptitle)].value:
                 continue
-            product_img_url = row[heads.get(tmptitle)]
+            product_img_url = row[heads.get(tmptitle)].value
+            self.save_url(product_img_url)
             pi_instance = ProductImage.query.filter(
                 ProductImage.PRid == prid,
                 ProductImage.isdelete == False,
@@ -250,7 +264,7 @@ class CExcel():
         ProductImage.query.filter(
             ProductImage.PIid.notin_(product_img_list),
             ProductImage.isdelete == False,
-            ProductImage.PRid == prid).delete_()
+            ProductImage.PRid == prid).delete_(synchronize_session=False)
 
         sku_instance, skuid = self._deal_sku(prid, row, heads, row_num)
 
@@ -281,12 +295,14 @@ class CExcel():
                 piid_list.append(item_product.PIid)
         # 同一商品无效标签删除
         ProductItems.query.filter(
-            ProductItems.PRid == prid, ProductItems.isdelete == False, ProductItems.PIid.notin_(piid_list)).delete_()
+            ProductItems.PRid == prid,
+            ProductItems.isdelete == False,
+            ProductItems.PIid.notin_(piid_list)).delete_(synchronize_session=False)
 
+        prcode_dict.setdefault(prcode, {'product': product_instance, 'skuid': [skuid, ]})
+        return instance_list
 
-        return instance_list, skuid
-
-    def _update_productsku(self, heads, row, row_num):
+    def _update_productsku(self, heads, row, row_num, prcode_dict):
         """
         非首行商品数据，进行sku数据更新或添加。并更新商品库存数据
         :param heads:
@@ -294,7 +310,9 @@ class CExcel():
         :param row_num:
         :return:
         """
-        product_instance = Products.query.filter(Products.PRcode == str(row[heads.get('商品编码')].value)).first()
+        # product_instance = Products.query.filter(
+        #     Products.PRcode == str(row[heads.get('商品编码')].value), Products.isdelete == False).first()
+        product_instance = prcode_dict.get(str(row[heads.get('商品编码')].value)).get('product')
         product_instance.PRstocks += int(row[heads.get('SKU库存')].value)
         return self._deal_sku(product_instance.PRid, row, heads, row_num)
 
@@ -302,21 +320,12 @@ class CExcel():
         """异步获取url对应资源并保存到当前服务器backup文件夹"""
         if not product_url:
             return
+        # lock = threading.Lock()
         current_app.logger.info('start new thread to save {}'.format(product_url))
-        thread.start_new_thread(self._get_url_local, (product_url,))
-        current_app.logger.info('end save {}'.format(product_url))
 
-    def _get_path(self, fold):
-        """获取服务器上文件路径"""
-        time_now = datetime.now()
-        year = str(time_now.year)
-        month = str(time_now.month)
-        day = str(time_now.day)
-        filepath = os.path.join(current_app.config['BASEDIR'], 'img', fold, year, month, day)
-        file_db_path = os.path.join('/img', fold, year, month, day)
-        if not os.path.isdir(filepath):
-            os.makedirs(filepath)
-        return filepath, file_db_path
+        get_url_local.apply_async(args=[product_url], countdown=1 , expires=1 * 60, )
+
+        current_app.logger.info('end save {}'.format(product_url))
 
     def _get_pbid(self, pbname):
         pb = ProductBrand.query.filter(
@@ -359,7 +368,7 @@ class CExcel():
             'SKUprice': Decimal(str(row[heads.get('SKU价格')].value)),
             'SKUstock': int(row[heads.get('SKU库存')].value),
             'SKUattriteDetail': skuattritedetail,
-            'SKUsn': int(str(row[heads.get('货号')].value)),
+            'SKUsn': str(row[heads.get('货号')].value),
             'SkudevideRate': Decimal(str(row[heads.get('让利比')].value))
         }
         sku_instance = ProductSku.query.filter(
@@ -373,48 +382,14 @@ class CExcel():
             sku_instance = ProductSku.create(sku_dict)
         return sku_instance, skuid
 
-    def _get_url_local(self, url):
-        """
-        将url转置为图片保存到自己服务器上
-        :param url:
-        :return:
-        """
-        content = requests.get(url)
-        url_type = self.contenttype_config.get(content.headers._store.get('content-type')[-1])
-        if not url_type or url_type not in self.contenttype_config:
-            current_app.logger.info('当前url {} 获取失败 或url 不是图片格式'.format(url))
-            return
-        filename = str(uuid.uuid1()) + str(self.contenttype_config.get(str(url_type)))
-
-        filepath, filedbpath = self._get_path('backup')
-        filedbname = os.path.join(filedbpath, filename)
-        filename = os.path.join(filepath, filename)
-
-        with open(filename, 'wb') as head:
-            head.write(content.content)
-
-        with db.auto_commit():
-            # 建立远端图片与服务器图片关系
-            prurl_instance = ProductUrl.query.filter(
-                ProductUrl.PUurl == url, ProductUrl.isdelete == False).first()
-            if prurl_instance:
-                current_app.logger.info(
-                    '开始更新远端url {}  原path 是 {}'.format(url, prurl_instance.PUdir))
-                os.remove(os.path.join(current_app.config['BASEDIR'], prurl_instance.PUdir))
-                prurl_instance.PUdir = filedbname
-                current_app.logger.info('更新后的path 是 {}'.format(filedbname))
-            else:
-                prurl_instance = ProductUrl.create({
-                    'PUid': str(uuid.uuid1()),
-                    'PUurl': url,
-                    'PUdir': filedbname
-                })
-
-            db.session.add(prurl_instance)
-
 
 if __name__ == '__main__':
-    # cexcel = CExcel()
-    # filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
-    # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
+    # app = create_app()
+    # with app.app_context():
+    #     cexcel = CExcel()
+    #     filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
+    #     # filepath = 'C:\Users\刘帅斌\Desktop\product_insert.xlsx'
+    #     # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
+    #     cexcel._insertproduct(filepath)
+    #     pass
     pass

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import os
 import uuid
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 
+import requests
 from flask import current_app
 from flask_celery import Celery
 from sqlalchemy import cast, Date, extract, func
@@ -16,7 +18,7 @@ from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
-    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene
+    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl
 
 celery = Celery()
 
@@ -544,6 +546,81 @@ def event_expired_revert():
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
     current_app.logger.info('--> 活动商品到期返回库存检测任务结束 <-- ')
+
+
+# 图片下载格式配置文件
+contenttype_config = {
+    r'image/jpeg': r'.jpg',
+    r'image/pnetvue': r'.net',
+    r'image/tiff': r'.tif',
+    r'image/fax': r'.fax',
+    r'image/gif': r'.gif',
+    r'image/png': r'.png',
+    r'image/vnd.rn-realpix': r'.rp',
+    r'image/vnd.wap.wbmp': r'.wbmp',
+}
+
+
+@celery.task()
+def get_url_local(url):
+    """
+    将url转置为图片保存到自己服务器上
+    :param url:
+    :return:
+    """
+
+    def _get_path(fold):
+        """获取服务器上文件路径"""
+        time_now = datetime.now()
+        year = str(time_now.year)
+        month = str(time_now.month)
+        day = str(time_now.day)
+        filepath = os.path.join(current_app.config['BASEDIR'], 'img', fold, year, month, day)
+        file_db_path = os.path.join('/img', fold, year, month, day)
+        if not os.path.isdir(filepath):
+            os.makedirs(filepath)
+        return filepath, file_db_path
+
+    current_app.logger.info('start get url {}'.format(url))
+    content = requests.get(url)
+    current_app.logger.info('end get url ')
+    url_type = contenttype_config.get(content.headers._store.get('content-type')[-1])
+    current_app.logger.info('get url type = {}'.format(url_type))
+    if not url_type or url_type not in contenttype_config:
+        current_app.logger.info('当前url {} 获取失败 或url 不是图片格式'.format(url))
+        return
+    filename = str(uuid.uuid1()) + str(contenttype_config.get(str(url_type)))
+
+    filepath, filedbpath = _get_path('backup')
+    filedbname = os.path.join(filedbpath, filename)
+    filename = os.path.join(filepath, filename)
+
+    with open(filename, 'wb') as head:
+        head.write(content.content)
+
+    current_app.logger.info('save url end ')
+
+    with db.auto_commit():
+        # 建立远端图片与服务器图片关系
+        current_app.logger.info('start insert into database')
+        prurl_instance = ProductUrl.query.filter(
+            ProductUrl.PUurl == url, ProductUrl.isdelete == False).first()
+        if prurl_instance:
+            current_app.logger.info(
+                '开始更新远端url {}  原path 是 {}'.format(url, prurl_instance.PUdir))
+            os.remove(os.path.join(current_app.config['BASEDIR'], prurl_instance.PUdir))
+            prurl_instance.PUdir = filedbname
+            current_app.logger.info('更新后的path 是 {}'.format(filedbname))
+        else:
+            prurl_instance = ProductUrl.create({
+                'PUid': str(uuid.uuid1()),
+                'PUurl': url,
+                'PUdir': filedbname
+            })
+
+        db.session.add(prurl_instance)
+        current_app.logger.info('end dbsession')
+
 
 
 if __name__ == '__main__':
