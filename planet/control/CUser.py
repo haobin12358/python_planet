@@ -1413,6 +1413,91 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('登录成功', data=data)
 
     @get_session
+    def wx_login_silent(self):
+        """微信静默登录"""
+        args = request.json
+        app_from = args.get("app_from")
+        code = args.get("code")
+
+        fromdict = self.analysis_app_from(app_from)
+        APP_ID = fromdict.get('appid')
+        APP_SECRET_KEY = fromdict.get('appsecret')
+
+        wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
+
+        try:
+            data = wxlogin.access_token(code)
+        except WeixinLoginError as e:
+            gennerc_log(e)
+            raise WXLoginError
+
+        gennerc_log('获取到的data是{}'.format(data))
+
+        openid = data.openid
+        access_token = data.access_token
+        gennerc_log('get openid = {0} and access_token = {1}'.format(openid, access_token))
+        usfilter = {fromdict.get('usfilter'): openid}
+
+        user = User.query.filter_by_(usfilter).first()
+
+        if user:
+            gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
+
+        if args.get('secret_usid'):
+            try:
+                superid = self._base_decode(args.get('secret_usid'))
+                upperd = self.get_user_by_id(superid)
+                gennerc_log('wx_login get supper user : {0}'.format(upperd.__dict__))
+                if user and upperd.USid == user.USid:
+                    upperd = None
+            except:
+                upperd = None
+        else:
+            upperd = None
+        if user:
+            usid = user.USid
+        else:
+            usid = str(uuid.uuid1())
+            user_dict = {
+                'USid': usid,
+                'USname': '客官'+str(datetime.datetime.now())[-4:],
+                'USintegral': 0,
+                'USfrom': fromdict.get('apptype'),
+                'USlevel': 1,
+            }
+            user_dict.setdefault(fromdict.get('usfilter'), openid)
+
+            if upperd:
+                # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
+                if upperd.USlevel == self.AGENT_TYPE:
+                    user_dict.setdefault('USsupper1', upperd.USid)
+                    user_dict.setdefault('USsupper2', upperd.USsupper1)
+                    user_dict.setdefault('USsupper3', upperd.USsupper2)
+
+            user = User.create(user_dict)
+            db.session.add(user)
+
+        if upperd:
+            uin = UserInvitation.create({
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+            db.session.add(uin)
+
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+
+        db.session.add(userloggintime)
+        user.fields = self.USER_FIELDS[:]
+        user.fill('openid', openid)
+        user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        gennerc_log('get user = {0}'.format(user.__dict__))
+        data = {'user': user}
+        gennerc_log(data)
+        return Success('登录成功', data=data)
+
+    @get_session
     # @token_required
     def bing_telphone(self):
         """微信绑定后手机号绑定"""
