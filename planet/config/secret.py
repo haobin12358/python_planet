@@ -8,6 +8,7 @@ from planet.config.http_config import API_HOST
 
 env = os.environ
 BASEDIR = os.path.abspath(os.path.join(__file__, '../../../'))
+
 # db
 database = env.get('DXX_DB_NAME', "dxx")
 host = env.get('DXX_DB_HOST', "127.0.0.1")
@@ -23,6 +24,7 @@ DB_PARAMS = "{0}://{1}:{2}@{3}/{4}?charset={5}".format(
     host,
     database,
     charset)
+
 # 微信
 appid = env.get('DXXAPPID', 'wxe8e8f6b9351d3587')
 appsecret = env.get('DXXAPPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
@@ -33,11 +35,13 @@ mch_key = env.get('MCH_KEY')
 wxpay_notify_url = API_HOST + '/api/v1/order/wechat_notify'
 apiclient_cert = os.path.join(BASEDIR, 'pem', 'apiclient_cert.pem')
 apiclient_key = os.path.join(BASEDIR, 'pem', 'apiclient_key.pem')
+
 # 支付宝
 alipay_appid = "2018111962237528"
 app_private_path = os.path.join(BASEDIR, 'pem', 'app_private_key.pem')
 alipay_public_key_path = os.path.join(BASEDIR, 'pem', 'alipay_pub.pem')  # pub是大猩猩的
 alipay_notify = API_HOST + '/api/v1/order/alipay_notify'
+
 # 阿里云短信
 # ACCESS_KEY_ID/ACCESS_KEY_SECRET 根据实际申请的账号信息进行替换
 ACCESS_KEY_ID = env.get('ACCESS_KEY_ID')
@@ -46,6 +50,7 @@ ACCESS_KEY_SECRET = env.get('ACCESS_KEY_SECRET')
 SignName = env.get("SignName", "etech研发团队")
 # 短信模板
 TemplateCode = env.get("TemplateCode")
+
 # 身份实名认证
 ID_CHECK_APPCODE = env.get("ID_CHECK_APPCODE")
 
@@ -59,6 +64,7 @@ SERVICE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e
 
 SUBSCRIBE_APPID = env.get('DXXSERVICE_APPID', 'wxe8e8f6b9351d3587')
 SUBSCRIBE_APPSECRET = env.get('DXXSERVICE_APPSECRET', 'b89e22f046d33b39c7a4afa485e661dc')
+
 server_dir = os.path.join(BASEDIR, 'wxservice')
 subscribe_dir = os.path.join(BASEDIR, 'wxsubscribe_dir')
 if not os.path.isdir(server_dir):
