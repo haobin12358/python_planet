@@ -149,7 +149,7 @@ class CProducts(BaseController):
         try:
             order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
             order_enum = {
-                'time': Products.updatetime,
+                'time': Products.createtime,
                 'sale_value': Products.PRsalesValue,
                 'price': Products.PRprice,
             }
@@ -473,8 +473,8 @@ class CProducts(BaseController):
             session_list = []
             # 商品
             prattribute = data.get('prattribute')
-            if prattribute:
-                prattribute = json.dumps(prattribute)
+            # if prattribute:
+            #     prattribute = json.dumps(prattribute)
             product = s.query(Products).filter_by_({'PRid': prid}).first_('商品不存在')
             prmarks = data.get('prmarks')  # 备注
             if prmarks:
@@ -496,7 +496,7 @@ class CProducts(BaseController):
                 prstock = 0
                 for index, sku in enumerate(skus):
                     skuattritedetail = sku.get('skuattritedetail')
-                    if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(skuattritedetail):
+                    if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(prattribute):
                         raise ParamsError('skuattritedetail与prattribute不符')
                     skuprice = int(sku.get('skuprice', 0))
                     skustock = int(sku.get('skustock', 0))
@@ -574,7 +574,7 @@ class CProducts(BaseController):
                 'PCid': pcid,
                 'PBid': pbid,
                 'PRdesc': prdesc,
-                'PRattribute': prattribute,
+                'PRattribute': json.dumps(prattribute),
                 'PRremarks': prmarks,
                 'PRdescription': prdescription,
                 'PRstatus': ProductStatus.auditing.value,
@@ -590,7 +590,7 @@ class CProducts(BaseController):
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
-                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(json.loads(product.PRattribute)):
+                if not isinstance(pskuvalue, list) or len(pskuvalue) != len(prattribute):
                     raise ParamsError('pskuvalue与prattribute不符')
                 # todo  skudetail校验
                 # sku_value表

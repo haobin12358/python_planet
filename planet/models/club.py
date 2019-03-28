@@ -12,6 +12,7 @@ class CompanyMessage(Base):
     CMtitle = Column(String(255), nullable=False, comment="公告标题")
     CMmessage = Column(LONGTEXT, nullable=False, comment="公告详情")
     CMindex = Column(Integer, nullable=False, default=0, comment="公告是否展示首页")
+    CMreadnum = Column(Integer, default=0, comment="公告阅读量")
 
 class UserWords(Base):
     """

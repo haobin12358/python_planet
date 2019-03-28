@@ -1751,11 +1751,15 @@ class CUser(SUser, BASEAPPROVAL):
         if level is None:  # 默认获取代理商
             user_query = user_query.filter(
                 User.USlevel >= 2
-            )
+            ).outerjoin(Approval, Approval.AVstartid == User.USid
+                        ).filter(Approval.isdelete == False,
+                                 Approval.AVstatus >= ApplyStatus.wait_check.value,
+                                 Approval.PTid == self.APPROVAL_TYPE).order_by(Approval.updatetime.desc()
+                                                                               )
         elif level != 'all':  # 如果传all则获取全部
             user_query = user_query.filter(
                 User.USlevel == int(level)
-            )
+            ).order_by(User.createtime.desc())
 
         if mobile:
             user_query = user_query.filter(User.UStelphone.contains(mobile.strip()))
