@@ -115,6 +115,7 @@ venv.bak/
 
 #setting
 /planet/config/setting.py
+/planet/config/secret.py
 
 # img
 img/*
