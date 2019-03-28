@@ -12,9 +12,13 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.common.video_extraction_thumbnail import video2frames
 from planet.config.http_config import API_HOST
+from planet.extensions.qiniu.storage import QiniuStorage
 
 
 class CFile(object):
+    def __init__(self):
+        self.qiniu = QiniuStorage(current_app)
+
     @token_required
     def upload_img(self):
         self.check_file_size()
@@ -66,7 +70,7 @@ class CFile(object):
             data = '/img/{folder}/{year}/{month}/{day}/{img_name}'.format(folder=folder, year=year,
                                                                           month=month, day=day,
                                                                           img_name=img_name)
-            if shuffix in ['.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']:
+            if shuffix in ['.mp4', '.avi', '.wmv', '.mov', '.3gp', '.flv', '.mpg']:
                 upload_type = 'video'
                 # 生成视频缩略图
                 thum_origin_name = img_name.split('.')[0]
@@ -79,6 +83,21 @@ class CFile(object):
                 minute_str = '0' + str(minute) if minute < 10 else str(minute)
                 second_str = '0' + str(second) if second < 10 else str(second)
                 video_dur = minute_str + ':' + second_str
+
+                if API_HOST == 'https://www.bigxingxing.com':
+                    try:
+                        self.qiniu.save(data=newFile, filename=data[1:])
+                    except Exception as e:
+                        current_app.logger.error(">>>  视频上传到七牛云出错 : {}  <<<".format(e))
+                        raise ParamsError('上传视频失败，请稍后再试')
+
+                video_thumbnail_path = os.path.join(newPath, thum_name.get('thumbnail_name_list')[0])
+
+                if API_HOST == 'https://www.bigxingxing.com':
+                    try:
+                        self.qiniu.save(data=video_thumbnail_path, filename=video_thum[1:])
+                    except Exception as e:
+                        current_app.logger.error(">>>  视频预览图上传到七牛云出错 : {}  <<<".format(e))
             else:
                 upload_type = 'image'
                 video_thum = ''
@@ -99,6 +118,15 @@ class CFile(object):
                     current_app.logger.info(">>>  Resize Picture Error : {}  <<<".format(e))
                     raise ParamsError('图片格式错误，请检查后重新上传（请勿强制更改图片后缀名）')
                 data += '_' + thumbnail_img.split('_')[-1]
+                # 上传到七牛云，并删除本地压缩图
+
+                if API_HOST == 'https://www.bigxingxing.com':
+                    try:
+                        self.qiniu.save(data=thumbnail_img, filename=data[1:])
+                        os.remove(str(newFile + '_' + thumbnail_img.split('_')[-1]))
+                    except Exception as e:
+                        current_app.logger.error(">>>  图片上传到七牛云出错 : {}  <<<".format(e))
+                        raise ParamsError('上传图片失败，请稍后再试')
             current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(data))
             return data, video_thum, video_dur, upload_type
         else:
@@ -128,7 +156,7 @@ class CFile(object):
 
     @staticmethod
     def allowed_file(shuffix):
-        return shuffix in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv', '.mov', '3gp', 'flv', 'mpg']
+        return shuffix in ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.avi', '.wmv', '.mov', '.3gp', '.flv', '.mpg']
 
     @staticmethod
     def allowed_folder(folder):
@@ -152,4 +180,17 @@ class CFile(object):
             return '_' + 'x'.join(map(str, img.size))
         except Exception as e:
             return ''
+
+    def pull_url_to_storage(self):
+        """一次性的测试方法，忽略就好"""
+        data = request.json
+        url_list = data.get('url_list')
+        rets = []
+        for url in url_list:
+            # ret, info = self.qiniu.url_to_storage('https://www.bigxingxing.com' + url, url[1:])
+            ret, info = self.qiniu.save('/opt/planet' + url, url[1:])
+            rets.append(ret)
+        # current_app.logger.info(rets)
+        current_app.logger.info(len(rets))
+        return Success('成功')
 
