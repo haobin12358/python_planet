@@ -305,13 +305,14 @@ class CUser(SUser, BASEAPPROVAL):
                 'apptype': WXLoginFrom.service.value
             }
         else:
-            return {
-                'appid': appid,
-                'appsecret': appsecret,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.app.value
-            }
+            # return {
+            #     'appid': appid,
+            #     'appsecret': appsecret,
+            #     'url': PLANET_SERVICE,
+            #     'usfilter': 'USopenid1',
+            #     'apptype': WXLoginFrom.app.value
+            # }
+            raise AuthorityError('域名非法')
 
     def __check_apply_cash(self, commision_for):
         """校验提现资质"""
@@ -1735,10 +1736,12 @@ class CUser(SUser, BASEAPPROVAL):
 
         user_query = User.query.filter(
             User.isdelete == False,
+            User.USopenid1.is_(None)
         )
         if level is None:  # 默认获取代理商
             user_query = user_query.filter(
-                User.USlevel >= 2
+                User.USlevel >= 2,
+
             ).outerjoin(Approval, Approval.AVstartid == User.USid
                         ).filter(Approval.isdelete == False,
                                  Approval.AVstatus >= ApplyStatus.wait_check.value,

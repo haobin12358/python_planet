@@ -6,11 +6,11 @@ class AExcel(Resource):
     def __init__(self):
         self.cexcel = CExcel()
 
-    # def get(self, excel):
-    #     apis = {
-    #         'template': 'ok'
-    #     }
-    #     return apis
+    def get(self, excel):
+        apis = {
+            'download': self.cexcel.download
+        }
+        return apis
 
     def post(self, excel):
         apis = {

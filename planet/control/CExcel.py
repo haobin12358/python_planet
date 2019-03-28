@@ -8,7 +8,7 @@ from decimal import Decimal
 import requests
 import xlrd
 
-from flask import request, current_app
+from flask import request, current_app, send_from_directory
 # from gevent import thread
 
 
@@ -17,7 +17,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, is_supplizer, token_required
 from planet.config.enums import ProductFrom
-from planet.extensions.tasks import get_url_local
+from planet.control.BaseControl import BASEAPPROVAL
+from planet.extensions.tasks import get_url_local, auto_agree_task
 from planet.extensions.register_ext import db
 
 from planet.models import ProductBrand, ProductCategory, Products, ProductImage, ProductSku, Items, \
@@ -45,6 +46,7 @@ class CExcel():
         """
         file = request.files.get('file')
         data = parameter_required()
+        current_app.logger.info('start add template {}'.format(datetime.now()))
         folder = 'xls'
         # 接收数据保存到服务器
         file_path = self._save_excel(file, folder)
@@ -52,6 +54,7 @@ class CExcel():
         if self._url_list:
             get_url_local.apply_async(args=[self._url_list], countdown=1, expires=1 * 60, )
             self._url_list = list()
+        current_app.logger.info('end add template {}'.format(datetime.now()))
         return Success('上传成功')
 
     def _save_excel(self, file, folder):
@@ -124,9 +127,10 @@ class CExcel():
                 heads.setdefault(title.value, index)
 
         # print(heads)
+        prcode_dict = {}
         # 记录商品编号，重复编号不予操作
         with db.auto_commit():
-            prcode_dict = {}
+
             # all_instance_list = []
             # 开始按行读取文件信息
             for row_num in range(1, content_sheet.nrows):
@@ -155,8 +159,17 @@ class CExcel():
                 ProductSku.query.filter(
                     ProductSku.isdelete == False,
                     ProductSku.PRid == product.PRid,
-                    ProductSku.SKUid.notin_(prcode_dict.get(prcode))).delete_(synchronize_session=False)
+                    ProductSku.SKUid.notin_(prcode_dict.get(prcode).get('skuid'))).delete_(synchronize_session=False)
                 db.session.add(product)
+
+        for prcode in prcode_dict:
+            product = prcode_dict.get(prcode).get('product')
+
+            if product.PRstocks != 0:
+                # todo 审核中的编辑会 重复添加审批
+                avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product.PRid, product.PRfrom)
+                # 5 分钟后自动通过
+                auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
 
     def _update_product(self, heads, row, row_num, prcode_dict):
         """
@@ -387,6 +400,17 @@ class CExcel():
             sku_dict.setdefault('SKUid', skuid)
             sku_instance = ProductSku.create(sku_dict)
         return sku_instance, skuid
+
+    @token_required
+    def download(self):
+        if not is_supplizer() and not is_admin():
+            raise AuthorityError()
+        current_app.logger.info('start download template')
+
+        template_path = os.path.join(current_app.config['BASEDIR'], 'img', 'xls')
+        current_app.logger.info('template path {}'.format(template_path))
+        current_app.logger.info('is file {}'.format(os.path.isfile(os.path.join(template_path, 'template.xlsx'))))
+        return send_from_directory(template_path, 'template.xlsx', as_attachment=True)
 
 
 if __name__ == '__main__':
