@@ -60,6 +60,7 @@ class CUser(SUser, BASEAPPROVAL):
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
 
     def __init__(self):
+        super(CUser, self).__init__()
         self.qiniu = QiniuStorage(current_app)
 
     @staticmethod
