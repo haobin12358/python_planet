@@ -306,30 +306,30 @@ class CUser(SUser, BASEAPPROVAL):
 
     def analysis_app_from(self, appfrom):
         # todo app 可能存在问题。
-        if appfrom in PLANET_SUBSCRIBE:
-            return {
-                'appid': SUBSCRIBE_APPID,
-                'appsecret': SUBSCRIBE_APPSECRET,
-                'url': PLANET_SUBSCRIBE,
-                'usfilter': 'USopenid2',
-                'apptype': WXLoginFrom.subscribe.value
-            }
-        elif appfrom in PLANET_SERVICE:
-            return {
-                'appid': SERVICE_APPID,
-                'appsecret': SERVICE_APPSECRET,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.service.value
-            }
-        else:
-            return {
-                'appid': appid,
-                'appsecret': appsecret,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.app.value
-            }
+        # if appfrom in PLANET_SUBSCRIBE:
+        return {
+            'appid': SUBSCRIBE_APPID,
+            'appsecret': SUBSCRIBE_APPSECRET,
+            'url': PLANET_SUBSCRIBE,
+            'usfilter': 'USopenid2',
+            'apptype': WXLoginFrom.subscribe.value
+        }
+        # elif appfrom in PLANET_SERVICE:
+        #     return {
+        #         'appid': SERVICE_APPID,
+        #         'appsecret': SERVICE_APPSECRET,
+        #         'url': PLANET_SERVICE,
+        #         'usfilter': 'USopenid1',
+        #         'apptype': WXLoginFrom.service.value
+        #     }
+        # else:
+        #     return {
+        #         'appid': appid,
+        #         'appsecret': appsecret,
+        #         'url': PLANET_SERVICE,
+        #         'usfilter': 'USopenid1',
+        #         'apptype': WXLoginFrom.app.value
+        #     }
 
     def __check_apply_cash(self, commision_for):
         """校验提现资质"""
@@ -1341,12 +1341,14 @@ class CUser(SUser, BASEAPPROVAL):
         if args.get('secret_usid'):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
+                gennerc_log('secret_usid --> superid {}'.format(superid))
                 upperd = self.get_user_by_id(superid)
                 gennerc_log('wx_login get supper user : {0}'.format(upperd.__dict__))
                 if user and upperd.USid == user.USid:
                     upperd = None
 
-            except:
+            except Exception as ee:
+                gennerc_log('解析secret_usid时失败： {}'.format(ee))
                 upperd = None
         else:
             upperd = None
@@ -1443,19 +1445,42 @@ class CUser(SUser, BASEAPPROVAL):
         if user:
             gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
 
-        if args.get('secret_usid'):
+        try:
+            user_info = wxlogin.userinfo(access_token, openid)
+            gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
+            head = self._get_local_head(user_info.get("headimgurl"), openid)
+        except Exception as e:
+            gennerc_log('code获取用户信息失败 : {}'.format(e))
+            user_info = None
+            head = None
+
+        if args.get("secret_usid"):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
+                gennerc_log('secret_usid --> superid {}'.format(superid))
                 upperd = self.get_user_by_id(superid)
                 gennerc_log('wx_login get supper user : {0}'.format(upperd.__dict__))
                 if user and upperd.USid == user.USid:
                     upperd = None
-            except:
+            except Exception as e:
+                gennerc_log('解析secret_usid时失败： {}'.format(e))
                 upperd = None
         else:
             upperd = None
+
         if user:
-            usid = user.USid
+            if user_info:  # code可以拿到user_info
+                usid = user.USid
+                sex = int(user_info.get('sex')) - 1
+                if sex < 0:
+                    sex = 0
+                user.USheader = head
+                user.USname = user_info.get('nickname')
+                user.USgender = sex
+                user.USqrcode = self._create_qrcode(head, usid, fromdict.get('url'))
+
+            else:  # code只能拿到openid
+                usid = user.USid
         else:
             usid = str(uuid.uuid1())
             user_dict = {
@@ -1491,10 +1516,19 @@ class CUser(SUser, BASEAPPROVAL):
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
+        self.__user_fill_uw_total(user)
         gennerc_log('get user = {0}'.format(user.__dict__))
+
+        if user.UStelphone and user_info:
+            token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
+        else:
+            token = None
         data = {'user': user}
-        gennerc_log(data)
+        data.setdefault('token', token)
+        gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
 
     @get_session
@@ -1514,6 +1548,8 @@ class CUser(SUser, BASEAPPROVAL):
             fromdict.get('usfilter'): data.get('openid')
         }
         user_openid = User.query.filter_by_(user_filter).first()
+        if not user_openid:
+            raise TokenError
         # 检查手机号是否已经注册
         user = self.get_user_by_ustelphone(ustelphone)
         if not user:
@@ -1526,15 +1562,17 @@ class CUser(SUser, BASEAPPROVAL):
             # 如果已经绑定，删除当前用户，将信息导入到手机绑定账户
             usid = user.USid
             uslevel = user.USlevel
-            user_openid.isdelete = True
-            user.USname = user_openid.USname
-            user.USgender = user_openid.USgender
-            user.USheader = user_openid.USheader
-            # user.USsupper1 = user_openid.USsupper1
-            # user.USsupper2 = user_openid.USsupper2
-            user.USopenid1 = user_openid.USopenid1
-            # user.USopenid2 = user_openid.USopenid2
-            user.USopenid2 = user_openid.USopenid2
+
+            if not (user.USopenid2 and user.USopenid2 == user_openid.USopenid2):
+                user_openid.isdelete = True
+                user.USname = user_openid.USname
+                user.USgender = user_openid.USgender
+                user.USheader = user_openid.USheader
+                # user.USsupper1 = user_openid.USsupper1
+                # user.USsupper2 = user_openid.USsupper2
+                user.USopenid1 = user_openid.USopenid1
+                # user.USopenid2 = user_openid.USopenid2
+                user.USopenid2 = user_openid.USopenid2
             return_user = user
 
         return_user.fields = self.USER_FIELDS[:]

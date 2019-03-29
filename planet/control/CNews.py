@@ -68,7 +68,7 @@ class CNews(BASEAPPROVAL):
             News.USid == userid
         ])
         for news in news_list:
-            news.fields = ['NEid', 'NEtitle', 'NEpageviews']
+            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
             # 添加发布者信息
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
