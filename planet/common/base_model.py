@@ -6,7 +6,7 @@ from sqlalchemy import orm, Column as _Column, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base, AbstractConcreteBase
 from sqlalchemy import create_engine
 
-from planet.config.http_config import MEDIA_HOST
+from planet.config.http_config import MEDIA_HOST, HTTP_HOST
 from planet.extensions.register_ext import db
 from .error_response import NotFound
 from ..config.secret import DB_PARAMS
@@ -49,7 +49,9 @@ class Base(db.Model):
         is_url_list = getattr(cls_attr, 'url_list', None)
         res = getattr(self, item)
         if is_url:
-            if isinstance(res, str) and not res.startswith('http'):
+            if isinstance(res, str) and res.startswith('/img/qrcode'):
+                res = HTTP_HOST + res
+            elif isinstance(res, str) and not res.startswith('http'):
                 res = MEDIA_HOST + res
         elif is_url_list:
             if res:

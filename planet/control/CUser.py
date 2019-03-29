@@ -22,7 +22,7 @@ from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserI
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
-from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET
+from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
     WXLoginError, StatusError, InsufficientConditionsError
@@ -48,6 +48,7 @@ from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
+from planet.extensions.qiniu.storage import QiniuStorage
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -57,6 +58,10 @@ class CUser(SUser, BASEAPPROVAL):
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
             'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
+
+    def __init__(self):
+        super(CUser, self).__init__()
+        self.qiniu = QiniuStorage(current_app)
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -180,7 +185,7 @@ class CUser(SUser, BASEAPPROVAL):
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
 
         user.fill('usexpect', float('%.2f' % uc_total))
-
+        
     def _base_decode(self, raw):
         import base64
         return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
@@ -200,6 +205,12 @@ class CUser(SUser, BASEAPPROVAL):
         with open(filename, 'wb') as head:
             head.write(data.content)
 
+        # 头像上传到七牛云
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                self.qiniu.save(data=filename, filename=filedbname[1:])
+            except Exception as e:
+                current_app.logger.error('头像转存七牛云出错 : {}'.format(e))
         return filedbname
 
     def _get_path(self, fold):
@@ -227,6 +238,13 @@ class CUser(SUser, BASEAPPROVAL):
         head = current_app.config['BASEDIR'] + head
         gennerc_log('get head {0}'.format(head))
         qrcodeWithlogo(url, head, filename)
+
+        # 二维码上传到七牛云
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                self.qiniu.save(data=filename, filename=filedbname[1:])
+            except Exception as e:
+                current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
         return filedbname
 
     def _verify_cardnum(self, num):
