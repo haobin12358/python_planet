@@ -20,6 +20,7 @@ class AUser(Resource):
             'add_admin_by_superadmin': self.user.add_admin_by_superadmin,  # 添加管理员
             'update_admin': self.user.update_admin,  # 更新管理员信心
             'wx_login': self.user.wx_login,  # 微信登录
+            'wx_login_silent': self.user.wx_login_silent,  # 静默登录
             'bing_telphone': self.user.bing_telphone,  # 微信登录绑定手机号
             'update_admin_password': self.user.update_admin_password,  # 修改管理员密码
             'supplizer_login': self.user.supplizer_login,  # 供应商登录

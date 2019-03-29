@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime
 
-from flask import request
+from flask import request, current_app
 
 from planet.common.error_response import StatusError
 from planet.common.logistics import Logistics
@@ -150,6 +150,7 @@ class CLogistic:
         # http查询
         l = Logistics()
         response = l.get_logistic(order_logistics.OLexpressNo, order_logistics.OLcompany)
+        current_app.logger.info("物流记录OLid--> {} ；快递response --> {}".format(order_logistics.OLid, response))
         if response:
             # 插入数据库
             code = response.get('status')
