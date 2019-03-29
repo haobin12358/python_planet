@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
+from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin
 
@@ -231,5 +232,12 @@ if __name__ == '__main__':
         # print(admin_str)
         # make_acvitity()
         # make_items()
-        make_permissiontype()
+        # make_permissiontype()
         # make_admin()
+        cexcel = CExcel()
+        filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
+        # filepath = 'C:\Users\刘帅斌\Desktop\product_insert.xlsx'
+        # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
+        cexcel._insertproduct(filepath)
+        pass
+

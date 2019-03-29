@@ -184,8 +184,8 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
 
-        user.fill('usexpect', '%.2f' %float(uc_total))
-
+        user.fill('usexpect', float('%.2f' % uc_total))
+        
     def _base_decode(self, raw):
         import base64
         return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
@@ -323,13 +323,14 @@ class CUser(SUser, BASEAPPROVAL):
                 'apptype': WXLoginFrom.service.value
             }
         else:
-            return {
-                'appid': appid,
-                'appsecret': appsecret,
-                'url': PLANET_SERVICE,
-                'usfilter': 'USopenid1',
-                'apptype': WXLoginFrom.app.value
-            }
+            # return {
+            #     'appid': appid,
+            #     'appsecret': appsecret,
+            #     'url': PLANET_SERVICE,
+            #     'usfilter': 'USopenid1',
+            #     'apptype': WXLoginFrom.app.value
+            # }
+            raise AuthorityError('域名非法')
 
     def __check_apply_cash(self, commision_for):
         """校验提现资质"""
@@ -1431,6 +1432,7 @@ class CUser(SUser, BASEAPPROVAL):
         user_openid = User.query.filter_by_(user_filter).first()
         # 检查手机号是否已经注册
         user = self.get_user_by_ustelphone(ustelphone)
+
         if not user:
             # 如果没有绑定，给当前用户绑定手机号
             usid = user_openid.USid
@@ -1439,6 +1441,10 @@ class CUser(SUser, BASEAPPROVAL):
             return_user = user_openid
         else:
             # 如果已经绑定，删除当前用户，将信息导入到手机绑定账户
+            now = datetime.datetime.now()
+            if (now - user.createtime).minute < 3:
+                raise SystemError('服务器繁忙。请稍等')
+
             usid = user.USid
             uslevel = user.USlevel
             user_openid.isdelete = True
@@ -1748,10 +1754,12 @@ class CUser(SUser, BASEAPPROVAL):
 
         user_query = User.query.filter(
             User.isdelete == False,
+            User.USopenid1.is_(None)
         )
         if level is None:  # 默认获取代理商
             user_query = user_query.filter(
-                User.USlevel >= 2
+                User.USlevel >= 2,
+
             ).outerjoin(Approval, Approval.AVstartid == User.USid
                         ).filter(Approval.isdelete == False,
                                  Approval.AVstatus >= ApplyStatus.wait_check.value,
@@ -2020,4 +2028,3 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('suname', su.SUname)
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
-
