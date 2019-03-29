@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from sqlalchemy import Integer, String, Text
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
 
@@ -15,7 +16,7 @@ class Approval(Base):
     AVstatus = Column(Integer, default=0, comment='审批状态 -20 已取消 -10 拒绝 0 未审核 10审核通过')
     AVcontent = Column(String(64), comment='待审批的对象')
     PTid = Column(String(64), comment='审批流类型id')
-    AVcontentdetail = Column(Text, comment='审批对象 当时数据')
+    AVcontentdetail = Column(LONGTEXT, comment='审批对象 当时数据')
     AVstartdetail = Column(Text, comment='审批流发起人当时详情')
 
 # 权限
