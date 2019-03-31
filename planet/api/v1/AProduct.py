@@ -13,6 +13,7 @@ class AProduct(Resource):
             'list': self.cproduct.get_produt_list,
             'guess_search': self.cproduct.guess_search,
             'search_history': self.cproduct.search_history,  # 搜索记录
+            'get_promotion': self.cproduct.get_promotion,  # 搜索记录
         }
         return apis
 

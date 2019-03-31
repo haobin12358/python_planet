@@ -6,7 +6,7 @@ from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products
 
 
 # 添加一些默认的数据
@@ -223,6 +223,18 @@ def make_admin():
         }))
 
 
+def add_product_promotion():
+    with db.auto_commit():
+        product_list = Products.query.filter(Products.isdelete == False).all()
+        for product in product_list:
+            if not product.PRpromotion:
+                from planet.common.assemble_picture import AssemblePicture
+                assemble = AssemblePicture(
+                    product.PRid, product.PRtitle, product.PRprice, product.PRlinePrice, product.PRmainpic)
+
+                product.PRpromotion = assemble.assemble()
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -234,10 +246,11 @@ if __name__ == '__main__':
         # make_items()
         # make_permissiontype()
         # make_admin()
-        cexcel = CExcel()
-        filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
+        # cexcel = CExcel()
+        # filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
         # filepath = 'C:\Users\刘帅斌\Desktop\product_insert.xlsx'
         # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
-        cexcel._insertproduct(filepath)
+        # cexcel._insertproduct(filepath)
+        add_product_promotion()
         pass
 
