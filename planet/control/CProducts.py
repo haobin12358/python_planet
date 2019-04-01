@@ -7,6 +7,7 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_, not_
 
+from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -926,6 +927,27 @@ class CProducts(BaseController):
         )
         [sw.hide('USid', 'USHid') for sw in search_words]
         return Success(data=search_words)
+
+    @token_required
+    def get_promotion(self):
+        data = parameter_required(('url', 'prid'))
+        product = Products.query.filter(
+            Products.isdelete == False,
+            Products.PRid == data.get('prid'),
+            Products.PRstatus == ProductStatus.usual.value).first_('商品已下架')
+        assesmble = AssemblePicture(
+            prid=product.PRid, prprice=product.PRprice,
+            prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
+        promotion_path, local_path = assesmble.add_qrcode(data.get('url'), product.PRpromotion)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        try:
+            qiniu.save(local_path, filename=promotion_path[1:])
+        except Exception as e:
+            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+            # raise ParamsError('服务器繁忙，请稍后重试')
+
+        return Success(data=promotion_path)
 
     def _can_add_product(self):
         if is_admin():

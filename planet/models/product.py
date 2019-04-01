@@ -30,6 +30,7 @@ class Products(Base):
     PRfeatured = Column(Boolean, default=False, comment='是否为场景下的精选商品')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     PRcode = Column(String(64), comment='商品的外部编号')
+    PRpromotion = Column(Text, comment='商品推广基图')
 
     @orm.reconstructor
     def __init__(self):
