@@ -53,6 +53,7 @@ class CNews(BASEAPPROVAL):
         nestatus = args.get('nestatus') or 'usual'
         nestatus = getattr(NewsStatus, nestatus).value
         userid = None
+        isrecommend = None
         if str(itid) == 'mynews':
             if not usid:
                 raise TokenError('未登录')
@@ -61,11 +62,15 @@ class CNews(BASEAPPROVAL):
             nestatus = None
         elif is_supplizer():
             userid = usid
+        elif str(itid) == 'isrecommend':
+            isrecommend = True
+            itid = None
         news_list = self.snews.get_news_list([
             or_(and_(*[News.NEtitle.contains(x) for x in kw]), ),  # todo 暂更改为只匹配标题
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
-            News.USid == userid
+            News.USid == userid,
+            News.NEisrecommend == isrecommend,
         ])
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
