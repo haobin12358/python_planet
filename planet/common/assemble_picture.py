@@ -10,6 +10,7 @@ from PIL import Image as img
 from PIL import ImageFont as imf
 from PIL import ImageDraw as imd
 
+from planet.config.http_config import MEDIA_HOST
 from planet.extensions.tasks import contenttype_config
 
 
@@ -61,6 +62,25 @@ class AssemblePicture():
             os.makedirs(filepath)
         return filepath, file_db_path
 
+    def _get_fetch(self, qiniu=False):
+        if qiniu:
+            content = requests.get(MEDIA_HOST + self.prmain)
+        else:
+            content = requests.get(self.prmain)
+        url_type = contenttype_config.get(content.headers._store.get('content-type')[-1])
+        current_app.logger.info('get url type = {}'.format(url_type))
+        if not url_type:
+            current_app.logger.info('当前url {} 获取失败 或url 不是图片格式'.format(self.prmain))
+            return
+        filename = str(uuid.uuid1()) + url_type
+
+        filepath, filedbpath = self._get_path('backup')
+        filedbname = os.path.join(filedbpath, filename)
+        filename = os.path.join(filepath, filename)
+        with open(filename, 'wb') as head:
+            head.write(content.content)
+        self.prmain = filedbname
+
     def assemble(self):
         # current_app.logger.info('current config basedir : {}'.format(current_app.config['BASEDIR']))
         current_app.logger.info('prmain = {}'.format(os.path.join(current_app.config['BASEDIR'], self.prmain[1:])))
@@ -68,20 +88,10 @@ class AssemblePicture():
             if not (str(self.prmain).startswith('http') or str(self.prmain).startswith('https')):
                 return
             else:
-                content = requests.get(self.prmain)
-                url_type = contenttype_config.get(content.headers._store.get('content-type')[-1])
-                current_app.logger.info('get url type = {}'.format(url_type))
-                if not url_type:
-                    current_app.logger.info('当前url {} 获取失败 或url 不是图片格式'.format(self.prmain))
-                    return
-                filename = str(uuid.uuid1()) + url_type
-
-                filepath, filedbpath = self._get_path('backup')
-                filedbname = os.path.join(filedbpath, filename)
-                filename = os.path.join(filepath, filename)
-                with open(filename, 'wb') as head:
-                    head.write(content.content)
-                self.prmain = filedbname
+                self._get_fetch()
+        else:
+            if not os.path.isfile(self.prmain):
+                self._get_fetch(qiniu=True)
 
         prmain = img.open(os.path.join(current_app.config['BASEDIR'], self.prmain[1:]))
         if not str(self.prmain).endswith('png'):
