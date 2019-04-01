@@ -1362,6 +1362,7 @@ class CUser(SUser, BASEAPPROVAL):
             user.USheader = head
             user.USname = user_info.get('nickname')
             user.USgender = sex
+            user.USqrcode = self._create_qrcode(head, usid, fromdict.get('url'))
         else:
             usid = str(uuid.uuid1())
             user_dict = {
