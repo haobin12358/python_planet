@@ -537,6 +537,11 @@ class HistoryStatus(Enum):
     invalid = -10, '已失效'
 
 
+class SupplizerDepositLogType(Enum):
+    account_entry = 10, '入账'
+    account_out = 20, '出账'
+
+
 # class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)

@@ -181,6 +181,7 @@ class Supplizer(Base):
     SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
     SUbaseRate = Column(DECIMAL(scale=2), comment='供应商最低让利比')
+    SUdeposit = Column(DECIMAL(scale=2), comment='供应商押金')
 
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
@@ -246,6 +247,15 @@ class ProductUrl(Base):
     PUid = Column(String(64), primary_key=True)
     PUurl = Column(Text, nullable=False, comment='外部url')
     PUdir = Column(Text, nullable=False, comment='服务器路由')
+
+
+class SupplizerDepositLog(Base):
+    __tablename__ = 'SupplizerDepositLog'
+    SDLid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商id')
+    SDLnum = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='押金更改金额')
+    SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
+    SDLacid = Column(String(64), comment='操作人id')
 
 
 # class SupplizerBrand(Base):

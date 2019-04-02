@@ -5,16 +5,17 @@ from datetime import datetime
 from flask import request, current_app
 from sqlalchemy import or_
 
-from planet.common.error_response import StatusError, AuthorityError
+from planet.common.error_response import StatusError, AuthorityError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType
+from planet.config.enums import ItemType, SupplizerDepositLogType
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm, \
     CouponUpdateForm
-from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products
+from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products, Supplizer, \
+    SupplizerDepositLog
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
 
@@ -149,6 +150,9 @@ class CCoupon(object):
             adid = request.user.id
         elif is_supplizer():
             suid = request.user.id
+            """如果是供应商暂时取消发布折扣优惠券权限"""
+            if form.codiscount.data == 10:
+                raise ParamsError('暂不提供供应商发放折扣优惠券，请联系平台后台发放')
         else:
             raise AuthorityError()
         with self.strade.auto_commit() as s:
@@ -199,6 +203,22 @@ class CCoupon(object):
                     'COid': coupon_instance.COid,
                 })
                 s_list.append(coupon_for)
+
+            if is_supplizer():
+                su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == request.user.id).first()
+                co_total = coupon_instance.COlimitNum * coupon_instance.COdiscount
+                if su.SUdeposit < co_total:
+                    raise ParamsError('供应商押金不足。当前账户剩余押金 {} 发放优惠券需要 {}'.format(su.SUdeposit, co_total))
+                sdl = SupplizerDepositLog.create({
+                    'SDLid': str(uuid.uuid1()),
+                    'SUid': su.SUid,
+                    'SDLnum': co_total,
+                    'SDLtype': SupplizerDepositLogType.account_out.value,
+                    'SDLacid': su.SUid
+                })
+                s_list.append(sdl)
+
+            # todo 优惠券历史创建
             s.add_all(s_list)
         return Success('添加成功', data=coid)
 
