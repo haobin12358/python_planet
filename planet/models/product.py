@@ -254,7 +254,9 @@ class SupplizerDepositLog(Base):
     SDLid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商id')
     SDLnum = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='押金更改金额')
-    SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
+    SDafter = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改后金额')
+    SDbefore = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改前金额')
+    # SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
     SDLacid = Column(String(64), comment='操作人id')
 
 
