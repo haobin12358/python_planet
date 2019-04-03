@@ -6,8 +6,9 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 
+from planet.common.assemble_picture import AssemblePicture
 from planet.common.base_service import get_session
 from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
@@ -950,6 +951,13 @@ class CApproval(BASEAPPROVAL):
             PRstatus=ProductStatus.auditing.value
         ).first_('商品已处理')
         product.PRstatus = ProductStatus.usual.value
+        assesmble = AssemblePicture(
+            prid=product.PRid, prprice=product.PRprice,
+            prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
+        current_app.logger.info('get product assemble base {}'.format(assesmble))
+
+        product.PRpromotion = assesmble.assemble()
+        current_app.logger.info('changed product ={}'.format(product))
 
     def refuse_shelves(self, approval_model, refuse_abo):
         # product = Products.query.filter_by_(PRid=approval_model.AVcontent).first_('商品已被删除')

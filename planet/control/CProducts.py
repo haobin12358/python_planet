@@ -147,6 +147,8 @@ class CProducts(BaseController):
 
     def get_produt_list(self):
         data = parameter_required()
+
+        current_app.logger.info('start get product list {}'.format(datetime.now()))
         try:
             order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
             order_enum = {
@@ -185,6 +187,7 @@ class CProducts(BaseController):
             Products.PCid.in_(pcids),
             Products.PRstatus == prstatus,
         ]
+        current_app.logger.info('start get product list query info {}'.format(datetime.now()))
         # 标签位置和权限筛选
         if not is_admin() and not is_supplizer():
             if not itid:
@@ -208,6 +211,7 @@ class CProducts(BaseController):
                                                                           ProductBrand.isdelete == False,
                                                                           ProductItems.isdelete == False,
                                                                           Items.isdelete == False)
+        current_app.logger.info('start add filter')
         if itid == 'planet_featured' and psid:  # 筛选该场景下的所有精选商品
             scene_items = [sit.ITid for sit in
                            SceneItem.query.filter(SceneItem.PSid == psid, SceneItem.isdelete == False,
@@ -240,6 +244,7 @@ class CProducts(BaseController):
 
         products = query.filter_(*filter_args).order_by(by_order).all_with_page()
         # 填充
+        current_app.logger.info('end query and start fill product {}'.format(datetime.now()))
         for product in products:
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
             product.fill('prstatus_zh', ProductStatus(product.PRstatus).zh_value)
@@ -272,6 +277,8 @@ class CProducts(BaseController):
                     sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
                 product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
+
+        current_app.logger.info('start add search history {}'.format(datetime.now()))
         # 搜索记录表
         if kw != [''] and not is_tourist():
             with db.auto_commit():
@@ -283,6 +290,8 @@ class CProducts(BaseController):
                 })
                 current_app.logger.info(dict(instance))
                 db.session.add(instance)
+
+        current_app.logger.info('end get product {}'.format(datetime.now()))
         return Success(data=products)
 
     @token_required
@@ -827,6 +836,14 @@ class CProducts(BaseController):
                 msg = '上架成功'
                 product.PRstatus = ProductStatus.auditing.value
                 brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('品牌已删除')
+                assesmble = AssemblePicture(
+                    prid=product.PRid, prprice=product.PRprice,
+                    prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
+                current_app.logger.info('get product assemble base {}'.format(assesmble))
+
+                product.PRpromotion = assesmble.assemble()
+                current_app.logger.info('changed product ={}'.format(product))
+
             else:
                 product.PRstatus = status
                 msg = '下架成功'
