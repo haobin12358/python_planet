@@ -201,11 +201,20 @@ class CPay():
             first = 20
             second = 30
             third = 50
-
+        # 新人首单里没有参与记录
             fresh_man_join_flow = FreshManJoinFlow.query.filter(
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
+        # 新人是否有订单记录
+            is_fresh_man = None
+            if fresh_man_join_flow:
+                is_not_fresh_man = OrderMain.query.filter(
+                    OrderMain.isdelete == False,
+                    OrderMain.OMid == fresh_man_join_flow.OMid
+                ).first()
+                if not is_not_fresh_man:
+                    is_fresh_man = 1
         # 判断邀请人是否有购买记录
             fresh_man_join_flow_upid = None
             if fresh_man_join_flow and fresh_man_join_flow.UPid :
@@ -216,7 +225,7 @@ class CPay():
                     OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
                 ).first()
 
-            if fresh_man_join_flow and fresh_man_join_flow.UPid and fresh_man_join_flow_upid:
+            if fresh_man_join_flow and fresh_man_join_flow.UPid and fresh_man_join_flow_upid and is_fresh_man:
                 fresh_man_join_count = FreshManJoinFlow.query.filter(
                     FreshManJoinFlow.isdelete == False,
                     FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
