@@ -149,7 +149,14 @@ class CSupplizer:
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
+                'SUbusinessLicense': form.subusinesslicense.data,
+                'SUregisteredFund': form.suregisteredfund.data,
+                'SUmainCategory': form.sumaincategory.data,
+                'SUregisteredTime': form.suregisteredtime.data,
+                'SUlegalPerson': form.sulegalperson.data,
                 'SUemail': form.suemail.data,
+                'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
+                'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
             }
             if is_admin():
                 if form.subaserate.data:

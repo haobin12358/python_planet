@@ -82,7 +82,7 @@ class SupplizerUpdateForm(BaseForm):
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     sudeposit = DecimalField('押金')
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
-    sustatus = IntegerField('供应商状态',)
+    sustatus = StringField('供应商状态',)
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     suheader = StringField('头像')
@@ -90,12 +90,19 @@ class SupplizerUpdateForm(BaseForm):
     subaserate = DecimalField('最低分销比')
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
+    subusinesslicense = StringField('营业执照')
+    suregisteredfund = StringField('注册资金',)
+    sumaincategory = StringField('主营类目', )
+    suregisteredtime = DateField('注册时间',)
+    sulegalperson = StringField('法人',)
+    sulegalpersonidcardfront = StringField('法人身份证正面', )
+    sulegalpersonidcardback = StringField('法人身份证反面', )
 
     def validate_sustatus(self, raw):
         from planet.config.enums import UserStatus
         try:
-            UserStatus._missing_(raw.data)
-        except ValueError:
+            self.sustatus.data = getattr(UserStatus, raw.data).value
+        except:
             raise ParamsError('状态参数不正确')
 
     def validate_suid(self, raw):
