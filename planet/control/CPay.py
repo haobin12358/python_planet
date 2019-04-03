@@ -18,6 +18,7 @@ from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
+from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
@@ -483,7 +484,8 @@ class CPay():
         opaytype = int(opaytype)
         omclient = int(omclient)
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
-        mount_price = 0.01
+        if API_HOST == 'https://test.bigxingxing.com':
+            mount_price = 0.01
         current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:
