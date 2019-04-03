@@ -44,6 +44,14 @@ class ProductMonthSaleValue(Base):
     PMSVid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='商品id')
     PMSVnum = Column(BIGINT, default=0)
+    PMSVfakenum = Column(BIGINT, default=0)
+
+    @orm.reconstructor
+    def __init__(self):
+        super(ProductMonthSaleValue, self).__init__()
+        self.hide('PMSVfakenum')
+        if isinstance(self.PMSVnum, int) and isinstance(self.PMSVfakenum, int):
+            self.PMSVnum = max(self.PMSVnum, self.PMSVfakenum)
 
 
 class ProductSku(Base):

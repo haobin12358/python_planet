@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import random
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -19,7 +20,8 @@ from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
+    ProductMonthSaleValue
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -134,11 +136,35 @@ class CProducts(BaseController):
                                                               'index_recommend_product_for_you',
                                                               'upgrade_product']))
         items = self.sproduct.get_item_list(item_filter_args)
+        product.fill('items', items)
+
         # 月销量
         month_sale_instance = self.sproduct.get_monthsale_value_one({'PRid': prid})
-        month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
+        with db.auto_commit():
+            if not month_sale_instance:
+                salevolume_dict = {'PMSVid': str(uuid.uuid1()),
+                                   'PRid': prid,
+                                   'PMSVfakenum': random.randint(300, 10000)
+                                   }
+                month_sale_value = salevolume_dict['PMSVfakenum']
+                current_app.logger.info('没有销量记录，现在创建 >>> {}'.format(month_sale_value))
+
+            elif month_sale_instance.createtime.month != datetime.now().month:
+                salevolume_dict = {'PMSVid': str(uuid.uuid1()),
+                                   'PRid': prid,
+                                   'PMSVfakenum': getattr(month_sale_instance, 'PMSVnum') + random.randint(100, 300)
+                                   }
+                month_sale_value = salevolume_dict['PMSVfakenum']
+                current_app.logger.info('没有本月销量记录，现在创建 >>> {}'.format(month_sale_value))
+
+            else:
+                salevolume_dict = None
+                month_sale_value = getattr(month_sale_instance, 'PMSVnum')
+                current_app.logger.info('存在本月销量 {}'.format(month_sale_value))
+
+            if salevolume_dict:
+                db.session.add(ProductMonthSaleValue.create(salevolume_dict))
         product.fill('month_sale_value', month_sale_value)
-        product.fill('items', items)
 
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':

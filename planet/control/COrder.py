@@ -583,13 +583,15 @@ class COrder(CPay, CCoupon):
                         extract('month', ProductMonthSaleValue.createtime) == today.month,
                         extract('year', ProductMonthSaleValue.createtime) == today.year
                     ).update({
-                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                        'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
                     }, synchronize_session=False)
                     if not month_sale_updated:
                         month_sale_instance = ProductMonthSaleValue.create({
                             'PMSVid': str(uuid.uuid1()),
                             'PRid': prid,
-                            'PMSVnum': opnum
+                            'PMSVnum': opnum,
+                            'PMSVfakenum': opnum
                         })
                         # model_bean.append(month_sale_instance)
                         s.add(month_sale_instance)
@@ -1696,13 +1698,15 @@ class COrder(CPay, CCoupon):
                     extract('month', ProductMonthSaleValue.createtime) == today.month,
                     extract('year', ProductMonthSaleValue.createtime) == today.year
                 ).update({
-                    'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                    'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                    'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
                 }, synchronize_session=False)
                 if not month_sale_updated:
                     month_sale_instance = ProductMonthSaleValue.create({
                         'PMSVid': str(uuid.uuid1()),
                         'PRid': prid,
-                        'PMSVnum': opnum
+                        'PMSVnum': opnum,
+                        'PMSVfakenum': opnum
                     })
 
                     s.add(month_sale_instance)
