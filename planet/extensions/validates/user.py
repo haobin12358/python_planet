@@ -26,23 +26,25 @@ class SupplizerGetForm(BaseForm):
             if not raw.data:
                 raise ParamsError('供应商suid不可为空')
         supplizer= Supplizer.query.filter(Supplizer.SUid == raw.data,
-                                           Supplizer.isdelete == False).first_('供应商不存在')
+                                          Supplizer.isdelete == False).first_('供应商不存在')
         self.supplizer = supplizer
 
 
 class SupplizerCreateForm(BaseForm):
     suloginphone = StringField('登录手机号', validators=[
         DataRequired('手机号不可以为空'),
-        Regexp('^1\d{10}$', message='手机号格式错误'),
+        Regexp(r'^1\d{10}$', message='手机号格式错误'),
     ])
     sulinkphone = StringField('联系电话')
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
     subaserate = DecimalField('最低分销比')
+    sudeposit = DecimalField('押金')
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
-    supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
+    # supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
+    supassword = StringField('密码')
     suheader = StringField('头像')
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
     pbids = FieldList(StringField('品牌'))
@@ -65,19 +67,22 @@ class SupplizerCreateForm(BaseForm):
     def validate_sulinkphone(self, raw):
         if raw.data:
             if not re.match('^1\d{10}$', raw.data):
-                raise ParamsError('联系人手机号格'
-                                  '式错误')
+                raise ParamsError('联系人手机号格''式错误')
+
     def validate_suemail(self, raw):
         if raw.data:
-            if not re.match(r'^[A-Za-z\d]+([-_.][A-Za-z\d]+)*@([A-Za-z\d]+[-.])+[A-Za-z\d]{2,4}$', raw.data):
+            if not re.match(r'^[A-Za-z\d]+([\-\_\.]+[A-Za-z\d]+)*@([A-Za-z\d]+[-.])+[A-Za-z\d]{2,4}$', raw.data):
                 raise ParamsError('联系邮箱格式错误')
+
 
 class SupplizerUpdateForm(BaseForm):
     suid = StringField()
     sulinkphone = StringField('联系电话')
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
+    sudeposit = DecimalField('押金')
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
+    sustatus = IntegerField('供应商状态',)
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     suheader = StringField('头像')
@@ -85,6 +90,13 @@ class SupplizerUpdateForm(BaseForm):
     subaserate = DecimalField('最低分销比')
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
+
+    def validate_sustatus(self, raw):
+        from planet.config.enums import UserStatus
+        try:
+            UserStatus._missing_(raw.data)
+        except ValueError:
+            raise ParamsError('状态参数不正确')
 
     def validate_suid(self, raw):
         if is_supplizer():
