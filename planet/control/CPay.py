@@ -377,7 +377,10 @@ class CPay():
         if order_coupon:
             if order_coupon.SUid:
                 # commision_for_supplizer -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                current_app.logger.info('get commision_for_supplizer {} '.format(commision_for_supplizer))
+
                 commision_sub = (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                current_app.logger.info('get commision_sub {}'.format(commision_sub))
                 if commision_for_supplizer >= commision_sub:
                     desposit = commision_sub
                     commision_for_supplizer -= commision_sub
@@ -389,17 +392,22 @@ class CPay():
         # 供应商获取佣金
         if suid:
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
+            current_app.logger.info('get supplizer {}'.format(su))
             if su:
                 # su.SUdeposit += desposit
-                current_app.logger.info('start add supplizer deposit before {} change {} after'.format(
-                    su.SUdeposit, desposit, su.SUdeposit + desposit
+                current_app.logger.info('get change {}'.format(desposit))
+                desposit = Decimal(str(desposit))
+                sudeposit = Decimal(str(su.SUdeposit or 0))
+                after_deposit = sudeposit + desposit
+                current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
+                    sudeposit, desposit, after_deposit
                 ))
                 sdl = SupplizerDepositLog.create({
                     'SDLid': str(uuid.uuid1()),
                     'SUid': su.SUid,
                     'SDLnum': desposit,
-                    'SDafter': su.SUdeposit + desposit,
-                    'SDbefore': su.SUdeposit,
+                    'SDafter': after_deposit,
+                    'SDbefore': sudeposit,
                     'SDLacid': 'system'
                 })
                 db.session.add(sdl)

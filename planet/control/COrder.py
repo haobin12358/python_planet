@@ -679,6 +679,7 @@ class COrder(CPay, CCoupon):
                             'OMid': omid,
                             'COid': coid,
                             'OCreduce': reduce_price,
+                            'SUid': coupon.SUid
                         }
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
