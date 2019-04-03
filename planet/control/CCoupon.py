@@ -217,7 +217,7 @@ class CCoupon(object):
                     'SUid': su.SUid,
                     'SDLnum': co_total,
                     # 'SDLtype': SupplizerDepositLogType.account_out.value,
-                    'SDafer': after_deposit,
+                    'SDafter': after_deposit,
                     'SDbefore': su.SUdeposit,
                     'SDLacid': su.SUid
                 })

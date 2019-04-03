@@ -376,7 +376,10 @@ class CPay():
         if order_coupon:
             if order_coupon.SUid:
                 # commision_for_supplizer -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                current_app.logger.info('get commision_for_supplizer {} '.format(commision_for_supplizer))
+
                 commision_sub = (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                current_app.logger.info('get commision_sub {}'.format(commision_sub))
                 if commision_for_supplizer >= commision_sub:
                     desposit = commision_sub
                     commision_for_supplizer -= commision_sub
@@ -390,6 +393,8 @@ class CPay():
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
             if su:
                 # su.SUdeposit += desposit
+                current_app.logger.info('get change {}'.format(desposit))
+                desposit = Decimal(str(desposit))
                 current_app.logger.info('start add supplizer deposit before {} change {} after'.format(
                     su.SUdeposit, desposit, su.SUdeposit + desposit
                 ))
