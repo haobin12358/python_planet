@@ -154,6 +154,8 @@ class CCoupon(object):
             """如果是供应商暂时取消发布折扣优惠券权限"""
             if form.codiscount.data != 10:
                 raise ParamsError('暂不提供供应商发放折扣优惠券，请联系平台后台发放')
+            if not form.colimitnum:
+                raise ParamsError('需要指定发放数量')
         else:
             raise AuthorityError()
         with self.strade.auto_commit() as s:
