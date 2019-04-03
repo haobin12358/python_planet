@@ -34,7 +34,7 @@ class CFile(object):
         file_data = self._upload_file(file, folder)
         return Success('上传成功', data=file_data[0]).get_body(video_thum=file_data[1], video_dur=file_data[2], upload_type=file_data[3])
 
-    @token_required
+    # @token_required
     def batch_upload(self):
         self.check_file_size()
         files = request.files.to_dict()
@@ -47,7 +47,7 @@ class CFile(object):
         for file in files.values():
             upload_file = self._upload_file(file, folder)
             file_dict = {
-                'file_url': upload_file[0],
+                'data': upload_file[0],
                 'video_thum': upload_file[1],
                 'video_dur': upload_file[2],
                 'upload_type': upload_file[3]
