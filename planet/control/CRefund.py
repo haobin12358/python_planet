@@ -581,6 +581,14 @@ class CRefund(object):
                 ).count()
 
                 current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
+                fresh_man_join_all = FreshManJoinFlow.query.filter(
+                FreshManJoinFlow.isdelete == False,
+                FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
+                FreshManJoinFlow.OMid == OrderMain.OMid,
+                OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
+                OrderMain.OMinRefund == False,
+                OrderMain.isdelete == False
+                )   .all()
                 if fresh_man_join_count > 3:
                     current_app.logger.info('分享次数超过3次。不减少佣金')
                     return
