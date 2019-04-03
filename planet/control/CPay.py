@@ -22,7 +22,7 @@ from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
-    Products, Supplizer
+    Products, Supplizer, SupplizerDepositLog
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -305,6 +305,7 @@ class CPay():
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
 
+        desposit = commision_for_supplizer
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
@@ -375,26 +376,47 @@ class CPay():
         order_coupon = order_part.order_coupon
         if order_coupon:
             if order_coupon.SUid:
-                commision_for_supplizer -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                # commision_for_supplizer -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                commision_sub = (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
+                if commision_for_supplizer >= commision_sub:
+                    desposit = commision_sub
+                    commision_for_supplizer -= commision_sub
+                else:
+                    commision_for_supplizer = 0
             else:
                 planet_remain -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
 
         # 供应商获取佣金
         if suid:
-            commision_account = UserCommission.create({
-                'UCid': str(uuid.uuid1()),
-                'OMid': order_part.OMid,
-                'OPid': order_part.OPid,
-                'UCcommission': commision_for_supplizer,
-                'USid': suid,
-                'CommisionFor': ApplyFrom.supplizer.value,
-                'PRtitle': order_part.PRtitle,
-                'SKUpic': order_part.SKUpic,
-                'UCstatus': UCstatus,
-                'FromUsid': user.USid
-            })
-            db.session.add(commision_account)
-            current_app.logger.info('供应商获取佣金: {}'.format(commision_account.UCcommission))
+            su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
+            if su:
+                # su.SUdeposit += desposit
+                current_app.logger.info('start add supplizer deposit before {} change {} after'.format(
+                    su.SUdeposit, desposit, su.SUdeposit + desposit
+                ))
+                sdl = SupplizerDepositLog.create({
+                    'SDLid': str(uuid.uuid1()),
+                    'SUid': su.SUid,
+                    'SDLnum': desposit,
+                    'SDafter': su.SUdeposit + desposit,
+                    'SDbefore': su.SUdeposit,
+                    'SDLacid': 'system'
+                })
+                db.session.add(sdl)
+                commision_account = UserCommission.create({
+                    'UCid': str(uuid.uuid1()),
+                    'OMid': order_part.OMid,
+                    'OPid': order_part.OPid,
+                    'UCcommission': commision_for_supplizer,
+                    'USid': suid,
+                    'CommisionFor': ApplyFrom.supplizer.value,
+                    'PRtitle': order_part.PRtitle,
+                    'SKUpic': order_part.SKUpic,
+                    'UCstatus': UCstatus,
+                    'FromUsid': user.USid
+                })
+                db.session.add(commision_account)
+                current_app.logger.info('供应商获取佣金: {}'.format(commision_account.UCcommission))
         else:
             planet_remain += commision_for_supplizer
         # 平台剩余佣金

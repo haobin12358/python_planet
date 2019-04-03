@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from flask import request, current_app
 from sqlalchemy import or_
@@ -151,7 +152,7 @@ class CCoupon(object):
         elif is_supplizer():
             suid = request.user.id
             """如果是供应商暂时取消发布折扣优惠券权限"""
-            if form.codiscount.data == 10:
+            if form.codiscount.data != 10:
                 raise ParamsError('暂不提供供应商发放折扣优惠券，请联系平台后台发放')
         else:
             raise AuthorityError()
@@ -205,17 +206,25 @@ class CCoupon(object):
                 s_list.append(coupon_for)
 
             if is_supplizer():
+                # 供应商发放优惠券 押金扣除
                 su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == request.user.id).first()
-                co_total = coupon_instance.COlimitNum * coupon_instance.COdiscount
+                co_total = Decimal(str(coupon_instance.COlimitNum * coupon_instance.COsubtration))
                 if su.SUdeposit < co_total:
                     raise ParamsError('供应商押金不足。当前账户剩余押金 {} 发放优惠券需要 {}'.format(su.SUdeposit, co_total))
+                after_deposit = su.SUdeposit - co_total
                 sdl = SupplizerDepositLog.create({
                     'SDLid': str(uuid.uuid1()),
                     'SUid': su.SUid,
                     'SDLnum': co_total,
-                    'SDLtype': SupplizerDepositLogType.account_out.value,
+                    # 'SDLtype': SupplizerDepositLogType.account_out.value,
+                    'SDafer': after_deposit,
+                    'SDbefore': su.SUdeposit,
                     'SDLacid': su.SUid
                 })
+                current_app.logger.info('供应商 {} 押金 {} 发放优惠券 {} 变更后 押金剩余 {} '.format(
+                    su.SUname, su.SUdeposit, co_total, after_deposit
+                ))
+                su.SUdeposit = after_deposit
                 s_list.append(sdl)
 
             # todo 优惠券历史创建
@@ -256,6 +265,10 @@ class CCoupon(object):
             if form.colimitnum.data:
                 coupon_dict.setdefault('COremainNum', form.colimitnum.data)
             coupon.update(coupon_dict, 'dont ignore')
+            if coupon.SUid:
+                # todo 如果修改的是供应商的优惠券。需要涉及押金的修改 目前不做校验
+                pass
+
             db.session.add(coupon)
             for itid in itids:
                 Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
@@ -276,9 +289,7 @@ class CCoupon(object):
             CouponFor.query.filter(
                 CouponFor.COid == coid,
                 CouponFor.isdelete == False
-            ).update({
-                'isdelete': True
-            })
+            ).delete_(synchronize_session=False)
             # 优惠券和应用对象的中间表
             for pbid in pbids:
                 coupon_for = CouponFor.create({
