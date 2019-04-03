@@ -2,6 +2,7 @@ import random
 import re
 import uuid
 import json
+from decimal import Decimal
 from threading import Thread
 from flask import current_app
 from sqlalchemy import or_, and_
@@ -12,14 +13,14 @@ from planet.common.base_service import get_session
 from planet.common.error_response import AuthorityError, ParamsError, DumpliError, NotFound, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required
+from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
     ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
-    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm
+    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm, request
 from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes, \
-    OrderMain, OrderRefundApply, OrderRefund, OrderPart
+    OrderMain, OrderRefundApply, OrderRefund, OrderPart, SupplizerDepositLog, Admin
 
 
 class CSupplizer:
@@ -61,23 +62,39 @@ class CSupplizer:
             supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
         return Success(data=supplizers)
 
-    @admin_required
     def create(self):
         """添加"""
+        if is_admin():
+            Admin.query.filter_by_(ADid=request.user.id).first_('账号状态异常')
+            current_app.logger.info(">>>  Admin Create a Supplizer  <<<")
+        elif is_tourist():
+            current_app.logger.info(">>>  Tourist Uploading Supplizer Files  <<<")
+        else:
+            raise AuthorityError('无权限')
         form = SupplizerCreateForm().valid_data()
         pbids = form.pbids.data
+        suid = str(uuid.uuid1())
+        if is_admin():
+            sustatus = UserStatus.usual.value
+            sudeposit = form.sudeposit.value
+        else:
+            sustatus = UserStatus.auditing.value
+            sudeposit = None
+        supassword = generate_password_hash(form.supassword.data) if form.supassword.data else None
         with db.auto_commit():
             supperlizer = Supplizer.create({
-                'SUid': str(uuid.uuid1()),
+                'SUid': suid,
                 'SUlinkPhone': form.sulinkphone.data,
                 'SUloginPhone': form.suloginphone.data,
                 'SUname': form.suname.data,
                 'SUlinkman': form.sulinkman.data,
                 'SUbaseRate': form.subaserate.data,
                 'SUaddress': form.suaddress.data,
+                'SUdeposit': sudeposit,
+                'SUstatus': sustatus,  # 管理员添加的可直接上线
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
-                'SUpassword': generate_password_hash(form.supassword.data),
+                'SUpassword': supassword,
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
                 'SUbusinessLicense': form.subusinesslicense.data,
@@ -102,6 +119,15 @@ class CSupplizer:
                         raise DumpliError('品牌已有供应商')
                     product_brand.SUid = supperlizer.SUid
                     db.session.add(product_brand)
+            if sudeposit and is_admin():
+                SupplizerDepositLog.create({
+                    'SDLid': str(uuid.uuid1()),
+                    'SUid': suid,
+                    'SDLnum': Decimal(sudeposit),
+                    'SDafter': Decimal(sudeposit),
+                    'SDbefore': 0,
+                    'SDLacid': request.user.id,
+                })
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
     def update(self):
@@ -111,10 +137,8 @@ class CSupplizer:
         form = SupplizerUpdateForm().valid_data()
         pbids = form.pbids.data
         with db.auto_commit():
-            supplizer = Supplizer.query.filter(
-                Supplizer.isdelete == False,
-                Supplizer.SUid == form.suid.data
-            ).first_('供应商不存在')
+            supplizer = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == form.suid.data
+                                               ).first_('供应商不存在')
             supplizer_dict = {
                 'SUlinkPhone': form.sulinkphone.data,
                 'SUname': form.suname.data,
@@ -122,14 +146,30 @@ class CSupplizer:
                 'SUaddress': form.suaddress.data,
                 'SUbanksn': form.subanksn.data,
                 'SUbankname': form.subankname.data,
-                # 'SUbaseRate': form.subaserate.data,
                 # 'SUpassword': generate_password_hash(form.supassword.data),  # todo 是不是要加上
                 'SUheader': form.suheader.data,
                 'SUcontract': form.sucontract.data,
                 'SUemail': form.suemail.data,
             }
-            if is_admin() and form.subaserate.data:
-                supplizer_dict['SUbaseRate'] = form.subaserate.data,
+            if is_admin():
+                if form.subaserate.data:
+                    supplizer_dict['SUbaseRate'] = form.subaserate.data,
+                if form.sustatus.data:
+                    supplizer_dict['SUstatus'] = form.sustatus.data
+                if form.sudeposit.data:
+                    sudeposit = form.subaserate.data
+                    supplizer_dict['SUdeposit'] = Decimal(sudeposit)
+                    if Decimal(sudeposit) != Decimal(getattr(supplizer, 'SUdeposit', 0)):  # 押金有变化时进行记录
+                        depositlog = SupplizerDepositLog.create({
+                            'SDLid': str(uuid.uuid1()),
+                            'SUid': form.suid.data,
+                            'SDLnum': Decimal(sudeposit) - Decimal(getattr(supplizer, 'SUdeposit', 0)),
+                            'SDafter': Decimal(sudeposit),
+                            'SDbefore': Decimal(getattr(supplizer, 'SUdeposit', 0)),
+                            'SDLacid': request.user.id,
+                        })
+                        db.session.add(depositlog)
+
             supplizer.update(supplizer_dict, null='dont ignore')
             db.session.add(supplizer)
             if pbids and is_admin():
@@ -257,11 +297,13 @@ class CSupplizer:
         suid = kwargs.get('suid')
         # 已付款但是未完成的正常订单
         nomal_order = OrderMain.query.filter(OrderMain.isdelete == False,
-                                        OrderMain.PRcreateId == suid,
-                                        OrderMain.OMinRefund == False,
-                                        OrderMain.OMstatus.in_([OrderMainStatus.wait_recv.value,
-                                                                OrderMainStatus.wait_comment.value,
-                                                                OrderMainStatus.wait_send.value]))
+                                             OrderMain.PRcreateId == suid,
+                                             OrderMain.OMinRefund == False,
+                                             OrderMain.OMstatus.in_([OrderMainStatus.wait_send.value,
+                                                                     OrderMainStatus.wait_recv.value,
+                                                                     OrderMainStatus.wait_comment.value,
+                                                                     OrderMainStatus.complete_comment.value
+                                                                     ]))
         # 主订单在售后中
         refund_order = OrderMain.query.filter(OrderMain.isdelete == False,
                                               OrderMain.PRcreateId == suid,

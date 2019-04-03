@@ -4,6 +4,7 @@ from .base_enum import Enum
 
 class UserStatus(Enum):
     """user状态,供应商状态"""
+    auditing = 10, '待审核'
     usual = 0, '正常'
     forbidden = -10, '禁用'
 

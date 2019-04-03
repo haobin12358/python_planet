@@ -178,7 +178,7 @@ class Supplizer(Base):
     SUname = Column(String(32), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
-    SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
+    SUstatus = Column(Integer, default=0, comment='状态: 10 待审核 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
     SUbaseRate = Column(DECIMAL(scale=2), comment='供应商最低让利比')
     SUdeposit = Column(DECIMAL(precision=28, scale=2), comment='供应商押金')
@@ -211,7 +211,7 @@ class SupplizerAccount(Base):
     __tablename__ = 'SupplizerAccount'
     SAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商id')
-    SAbankName = Column(Text,comment='开户行')
+    SAbankName = Column(Text, comment='开户行')
     SAbankDetail = Column(Text, comment='开户网点详情')
     SAcardNo = Column(String(32), comment='卡号')
     SAcardName = Column(Text, comment='开户人')
