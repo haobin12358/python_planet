@@ -22,7 +22,7 @@ from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer
-from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow,FreshManFirstProduct, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -206,8 +206,17 @@ class CPay():
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
+        # 判断邀请人是否有购买记录
+            fresh_man_join_flow_upid = None
+            if fresh_man_join_flow and fresh_man_join_flow.UPid :
+                fresh_man_join_flow_upid = OrderMain.query.filter(
+                    OrderMain.isdelete == True,
+                    OrderMain.USid == fresh_man_join_flow.UPid,
+                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                ).first()
 
-            if fresh_man_join_flow and fresh_man_join_flow.UPid:
+            if fresh_man_join_flow and fresh_man_join_flow.UPid and fresh_man_join_flow_upid:
                 fresh_man_join_count = FreshManJoinFlow.query.filter(
                     FreshManJoinFlow.isdelete == False,
                     FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
