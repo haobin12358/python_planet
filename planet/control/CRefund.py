@@ -559,7 +559,6 @@ class CRefund(object):
             if result["code"] != "10000":
                 raise ApiError('退款错误')
         return result
-    # cancel_commission是否发生在删除user_commission，ordermain，freshmain之后
     def _cancle_commision(self, *args, **kwargs):
         order_main = kwargs.get('order_main')
         order_part = kwargs.get('order_part')
@@ -569,77 +568,87 @@ class CRefund(object):
                     UserCommission.OMid == order_main.OMid,
                     UserCommission.isdelete == False
                 ).first()
-                # user_commision.FromUSid?
-                current_app.logger.info('检测到有新人首单退货。订单id是 {}, 用户id是 {}'.format(
-                    order_main.OMid, user_commision.USid))
-                fresh_man_join_count = FreshManJoinFlow.query.filter(
-                    FreshManJoinFlow.isdelete == False,
-                    FreshManJoinFlow.UPid == user_commision.USid,
-                    FreshManJoinFlow.OMid == OrderMain.OMid,
-                    OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
-                    OrderMain.OMinRefund == False,
-                    OrderMain.isdelete == False
-                ).count()
+                if user_commision:
+                    current_app.logger.info('检测到有新人首单退货。订单id是 {}, 用户id是 {}'.format(
+                        order_main.OMid, user_commision.USid))
+                    fresh_man_join_count = FreshManJoinFlow.query.filter(
+                        FreshManJoinFlow.isdelete == False,
+                        FreshManJoinFlow.UPid == user_commision.USid,
+                        FreshManJoinFlow.OMid == OrderMain.OMid,
+                        OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
+                        OrderMain.OMinRefund == False,
+                        OrderMain.isdelete == False
+                    ).count()
 
-                current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
-                fresh_man_join_all = FreshManJoinFlow.query.filter(
-                    FreshManJoinFlow.isdelete == False,
-                    FreshManJoinFlow.UPid == user_commision.USid,
-                    FreshManJoinFlow.OMid == OrderMain.OMid,
-                    OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
-                    OrderMain.OMinRefund == False,
-                    OrderMain.isdelete == False
-                ) .limit(3)
+                    current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
+                    fresh_man_join_all = FreshManJoinFlow.query.filter(
+                        FreshManJoinFlow.isdelete == False,
+                        FreshManJoinFlow.UPid == user_commision.USid,
+                        FreshManJoinFlow.OMid == OrderMain.OMid,
+                        OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
+                        OrderMain.OMinRefund == False,
+                        OrderMain.isdelete == False
+                    ) .limit(3)
 
-                user_commision_max = UserCommission.query.filter(
-                    UserCommission.USid == user_commision.USid,
-                    UserCommission.isdelete == False,
-                    UserCommission.UCtype == UserCommissionType.fresh_man.value
-                ).order_by(UserCommission.UCcommission.desc()).first()
-                if not user_commision_max:
-                    current_app.logger.info('该订单没有上级返佣')
+                    user_commision_max = UserCommission.query.filter(
+                        UserCommission.USid == user_commision.USid,
+                        UserCommission.isdelete == False,
+                        UserCommission.UCtype == UserCommissionType.fresh_man.value
+                    ).order_by(UserCommission.UCcommission.desc()).first()
+                    if not user_commision_max:
+                        current_app.logger.info('该订单没有上级返佣')
+                        return
+
+                    # 邀请人新品佣金修改
+                    user_order_main = OrderMain.query.filter(
+                        OrderMain.isdelete == False,
+                        OrderMain.USid == user_commision.USid,
+                        OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                        OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                        ).first()
+                    user_fresh_order_price = user_order_main.OMtrueMount
+                    first = 20
+                    second = 30
+                    third = 50
+                    commissions = 0
+                    fresh_man_count = 1
+                    for fresh_man in fresh_man_join_all:
+                        fresh_man = fresh_man.to_dict()
+                        if commissions < user_fresh_order_price:
+                            reward = fresh_man['OMprice']
+                            if fresh_man_count == 1:
+                                reward = reward * (first / 100)
+                            elif fresh_man_count == 2:
+                                reward = reward * (second / 100)
+                            elif fresh_man_count == 3:
+                                reward = reward * (third / 100)
+                            else:
+                                break
+                            if reward + commissions > user_fresh_order_price:
+                                reward = user_fresh_order_price - commissions
+                            if reward:
+                                UserCommission.query.filter(
+                                    UserCommission.isdelete == False,
+                                    UserCommission.USid == fresh_man['UPid'],
+                                    UserCommission.OMid == fresh_man['OMid'],
+                                    ).update({
+                                    'UCcommission': reward
+                                })
+                        fresh_man_count += 1
+
+                    current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
+                    user_commision_max.UCstatus = UserCommissionStatus.error.value
                     return
-
-                # 邀请人新品佣金修改
-                user_order_main = OrderMain.query.filter(
-                    OrderMain.isdelete == False,
-                    OrderMain.USid == user_commision.USid,
-                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
-                    OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                    ).first()
-                user_fresh_order_price = user_order_main.OMtrueMount
-                first = 20
-                second = 30
-                third = 50
-                commissions = 0
-                fresh_man_count = 1
-                for fresh_man in fresh_man_join_all:
-                    fresh_man = fresh_man.to_dict()
-                    if commissions < user_fresh_order_price:
-                        reward = fresh_man['OMprice']
-                        if fresh_man_count == 1:
-                            reward = reward * (first / 100)
-                        elif fresh_man_count == 2:
-                            reward = reward * (second / 100)
-                        elif fresh_man_count == 3:
-                            reward = reward * (third / 100)
-                        else:
-                            break
-                        if reward + commissions > user_fresh_order_price:
-                            reward = user_fresh_order_price - commissions
-                        if reward:
-                            UserCommission.query.filter(
-                                UserCommission.isdelete == False,
-                                UserCommission.USid == fresh_man['UPid'],
-                                UserCommission.OMid == fresh_man['OMid'],
-                                ).update({
-                                'UCcommission': reward
-                            })
-                    fresh_man_count += 1
-
-                current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
-                user_commision_max.UCstatus = UserCommissionStatus.error.value
-                return
+                else:
+                    UserCommission.query.filter(
+                        UserCommission.isdelete == False,
+                        UserCommission.USid == order_main.USid,
+                        UserCommission.UCtype == UserCommissionType.fresh_man.value,
+                        UserCommission.UCstatus < UserCommissionStatus.out_count
+                    ).update({
+                        'UCcommission': 0,
+                        'is_delete': True
+                    })
 
             order_parts = OrderPart.query.filter(
                 OrderPart.isdelete == False,
