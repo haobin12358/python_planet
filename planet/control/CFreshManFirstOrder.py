@@ -226,8 +226,6 @@ class CFreshManFirstOrder(COrder, CUser):
                 except ValueError:
                     current_app.logger.info('secret_usid decode error : {}'.format(secret_usid))
                     from_user_order = None
-                if from_user_order == None:
-                    raise StatusError('分享者未购买商品')
             else:
                 from_user_order = None
 
