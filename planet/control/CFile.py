@@ -43,8 +43,8 @@ class CFile(object):
         self.check_file_size()
         files = request.files.to_dict()
         current_app.logger.info(">>> Uploading {} Files  <<<".format(len(files)))
-        if len(files) > 9:
-            raise ParamsError('最多可同时上传9张图片')
+        if len(files) > 30:
+            raise ParamsError('最多可同时上传30张图片')
         # todo 视频数量限制
         data = parameter_required()
         folder = self.allowed_folder(data.get('type'))
