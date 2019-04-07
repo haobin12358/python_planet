@@ -146,10 +146,10 @@ class CRefund(object):
                         'OPayType': order_pay_instance.OPayType,
                     })
                     s_list.append(refund_flow_instance)
-                    # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
-                    # old_total_fee = order_pay_instance.OPayMount
-                    mount = 0.01
-                    old_total_fee = 0.01
+                    mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
+                    old_total_fee = order_pay_instance.OPayMount
+                    # mount = 0.01
+                    # old_total_fee = 0.01
                     current_app.logger.info('正在退款中 {} '.format(refund_apply_instance.ORAmount))
 
                     self._refund_to_user(  # 执行退款, 待测试
