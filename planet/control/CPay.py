@@ -22,7 +22,7 @@ from planet.extensions.register_ext import alipay, wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer
-from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow,FreshManFirstProduct, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -206,8 +206,7 @@ class CPay():
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
-
-            if fresh_man_join_flow and fresh_man_join_flow.UPid:
+            if fresh_man_join_flow and fresh_man_join_flow.UPid :
                 fresh_man_join_count = FreshManJoinFlow.query.filter(
                     FreshManJoinFlow.isdelete == False,
                     FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
@@ -219,32 +218,49 @@ class CPay():
                 current_app.logger.info("当前邀请人 邀请了总共 {} ".format(fresh_man_join_count))
                 # 邀请人的新人首单
                 up_order_main = OrderMain.query.filter(
-                    OrderMain.isdelete == True,
+                    OrderMain.isdelete == False,
                     OrderMain.USid == fresh_man_join_flow.UPid,
                     OrderMain.OMfrom == OrderFrom.fresh_man.value,
                     OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                ).first()
-                if up_order_main:
-                    reward = min(order_main.OMtrueMount, up_order_main.OMtrueMount)
-                    if fresh_man_join_count < 1:
-                        reward = reward * (first / 100)
-                    elif fresh_man_join_count == 1:
-                        reward = reward * (second / 100)
-                    elif fresh_man_join_count == 2:
-                        reward = reward * (third / 100)
-                    else:
-                        reward = 0
-
-                    if reward:
-                        user_commision_dict = {
-                            'UCid': str(uuid.uuid1()),
-                            'OMid': omid,
-                            'UCcommission': reward,
-                            'USid': fresh_man_join_flow.UPid,
-                            'UCtype': UserCommissionType.fresh_man.value,
-                            'UCendTime': UCendTime
-                        }
-                        db.session.add(UserCommission.create(user_commision_dict))
+                    ).first()
+                # 邀请人的新人首单佣金列表
+                up_order_fresh_commissions = UserCommission.query.filter(
+                    UserCommission.isdelete == False,
+                    # OrderMain.OMinRefund == False,
+                    UserCommission.USid == up_order_main.USid,
+                    UserCommission.UCstatus >= UserCommissionStatus.preview.value,
+                    UserCommission.UCtype == UserCommissionType.fresh_man.value,
+                    ).limit(3)
+                # 邀请人的新人首单佣金
+                commissions = 0
+                for commission in up_order_fresh_commissions:
+                    commission = commission.to_dict()
+                    commissions += commission['UCcommission']
+                if up_order_main :
+                    up_fresh_order_price = up_order_main.OMtrueMount
+                    # 邀请人新品佣金小于这次新人返现并且这次新人在前三个返现的人之内
+                    if commissions < up_fresh_order_price and fresh_man_join_count <= 3:
+                        reward = fresh_man_join_flow.OMprice
+                        if fresh_man_join_count == 1:
+                            reward = reward * (first / 100)
+                        elif fresh_man_join_count == 2:
+                            reward = reward * (second / 100)
+                        elif fresh_man_join_count == 3:
+                            reward = reward * (third / 100)
+                        else:
+                            reward = 0
+                        if reward + commissions > up_fresh_order_price:
+                            reward = up_fresh_order_price - commissions
+                        if reward:
+                            user_commision_dict = {
+                                'UCid': str(uuid.uuid1()),
+                                'OMid': omid,
+                                'UCcommission': reward,
+                                'USid': fresh_man_join_flow.UPid,
+                                'UCtype': UserCommissionType.fresh_man.value,
+                                'UCendTime': UCendTime
+                            }
+                            db.session.add(UserCommission.create(user_commision_dict))
         # 线上发货
         if order_main.OMlogisticType == OMlogisticTypeEnum.online.value:
             order_main.OMstatus = OrderMainStatus.ready.value
