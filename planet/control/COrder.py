@@ -1758,19 +1758,19 @@ class COrder(CPay, CCoupon):
 
     # 新人首单的佣金到账
     def _fresh_commsion_into_count(self,order_part):
+        opid = order_part.OPid
         fresh_order_main = OrderMain.query.filter_(
             OrderMain.isdelete == False,
             OrderMain.OMid == order_part.OMid,
             OrderMain.OMfrom == OrderFrom.fresh_man.value
         ).first()
         if fresh_order_main:
-            # 当前是否是新人首单的邀请人
             up_commison_order = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.OMid == fresh_order_main.OMid
             ).first()
             if up_commison_order:
-            # 检查邀请人的订单是否已完成
+                # 作为被分享者
                 up_main_order = OrderMain.query.filter(
                     OrderMain.isdelete == False,
                     OrderMain.OMfrom == OrderFrom.fresh_man.value,
@@ -1781,15 +1781,15 @@ class COrder(CPay, CCoupon):
                     self._commsion_into_count(order_part)
                 else:
                     return
-            else:
-                # 检查是否有应到账需要移到已到账
-                commisions = UserCommission.query.filter(
-                    UserCommission.isdelete == False,
-                    UserCommission.USid == fresh_order_main.USid,
-                    UserCommission.UCtype == UserCommissionType.fresh_man,
-                    UserCommission.UCstatus == UserCommissionStatus.preview.value,
-                    OrderMain.OMstatus == OrderMainStatus.ready.value,
-                ).all()
+            # 作为分享者
+            commisions = UserCommission.query.filter(
+                UserCommission.isdelete == False,
+                UserCommission.USid == fresh_order_main.USid,
+                UserCommission.UCtype == UserCommissionType.fresh_man,
+                UserCommission.UCstatus == UserCommissionStatus.preview.value,
+                OrderMain.OMstatus == OrderMainStatus.ready.value,
+            ).all()
+            if commisions:
                 for commision in commisions:
                     commision.update({
                         'UCstatus': UserCommissionStatus.in_account.value

@@ -592,15 +592,6 @@ class CRefund(object):
                         OrderMain.isdelete == False
                     ) .limit(3)
 
-                    user_commision_max = UserCommission.query.filter(
-                        UserCommission.USid == user_commision.USid,
-                        UserCommission.isdelete == False,
-                        UserCommission.UCtype == UserCommissionType.fresh_man.value
-                    ).order_by(UserCommission.UCcommission.desc()).first()
-                    if not user_commision_max:
-                        current_app.logger.info('该订单没有上级返佣')
-                        return
-
                     # 邀请人新品佣金修改
                     user_order_main = OrderMain.query.filter(
                         OrderMain.isdelete == False,
@@ -613,42 +604,61 @@ class CRefund(object):
                     second = 30
                     third = 50
                     commissions = 0
-                    for fresh_man_count, fresh_man in enumerate(fresh_man_join_all, start=1):
-                        fresh_man = fresh_man.to_dict()
-                        if commissions < user_fresh_order_price:
-                            reward = fresh_man['OMprice']
-                            if fresh_man_count == 1:
-                                reward = reward * (first / 100)
-                            elif fresh_man_count == 2:
-                                reward = reward * (second / 100)
-                            elif fresh_man_count == 3:
-                                reward = reward * (third / 100)
-                            else:
-                                break
-                            if reward + commissions > user_fresh_order_price:
-                                reward = user_fresh_order_price - commissions
-                            if reward:
-                                UserCommission.query.filter(
-                                    UserCommission.isdelete == False,
-                                    UserCommission.USid == fresh_man['UPid'],
-                                    UserCommission.OMid == fresh_man['OMid'],
-                                    ).update({
-                                    'UCcommission': reward
-                                })
-                    current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
-                    user_commision_max.UCstatus = UserCommissionStatus.error.value
-                    return
-                else:
-                    UserCommission.query.filter(
-                        UserCommission.isdelete == False,
-                        UserCommission.USid == order_main.USid,
-                        UserCommission.UCtype == UserCommissionType.fresh_man.value,
-                        UserCommission.UCstatus < UserCommissionStatus.out_count
-                    ).update({
-                        'UCcommission': 0,
-                        'is_delete': True
-                    })
-
+                    if fresh_man_join_all:
+                        for fresh_man_count, fresh_man in enumerate(fresh_man_join_all, start=1):
+                            fresh_man = fresh_man.to_dict()
+                            if commissions < user_fresh_order_price:
+                                reward = fresh_man['OMprice']
+                                if fresh_man_count == 1:
+                                    reward = reward * (first / 100)
+                                elif fresh_man_count == 2:
+                                    reward = reward * (second / 100)
+                                elif fresh_man_count == 3:
+                                    reward = reward * (third / 100)
+                                else:
+                                    break
+                                if reward + commissions > user_fresh_order_price:
+                                    reward = user_fresh_order_price - commissions
+                                if reward:
+                                    if fresh_man_count <= 2:
+                                        UserCommission.query.filter(
+                                            UserCommission.isdelete == False,
+                                            UserCommission.USid == fresh_man['UPid'],
+                                            UserCommission.OMid == fresh_man['OMid'],
+                                            UserCommission.UCstatus == UserCommissionStatus.preview.value
+                                            ).update({
+                                            'UCcommission': reward
+                                        })
+                                    else:
+                                        user_main_order = OrderMain.query.filter(
+                                            OrderMain.isdelete == False,
+                                            OrderMain.OMid == fresh_man['OMid'],
+                                        ).first()
+                                        user_main_order = user_main_order.to_dict()
+                                        user_order_status = user_main_order['OMstatus']
+                                        if user_order_status == OrderMainStatus.ready.value:
+                                            status = UserCommissionStatus.in_account.value
+                                        else:
+                                            status = UserCommissionStatus.preview.value
+                                        user_commision_dict = {
+                                            'UCid': str(uuid.uuid1()),
+                                            'OMid': user_main_order['OMid'],
+                                            'UCcommission': reward,
+                                            'USid': user_main_order['USid'],
+                                            'UCtype': UserCommissionType.fresh_man.value,
+                                            'UCstatus' : status
+                                        }
+                                        db.session.add(UserCommission.create(user_commision_dict))
+                UserCommission.query.filter(
+                    UserCommission.isdelete == False,
+                    UserCommission.USid == order_main.USid,
+                    UserCommission.UCtype == UserCommissionType.fresh_man.value,
+                    UserCommission.UCstatus == UserCommissionStatus.preview
+                ).update({
+                    'UCcommission': 0,
+                    'is_delete': True
+                })
+                return
             order_parts = OrderPart.query.filter(
                 OrderPart.isdelete == False,
                 OrderPart.OMid == order_main.OMid
