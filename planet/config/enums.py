@@ -7,6 +7,7 @@ class UserStatus(Enum):
     auditing = 10, '待审核'
     usual = 0, '正常'
     forbidden = -10, '禁用'
+    all = None
 
 
 class ProductStatus(Enum):

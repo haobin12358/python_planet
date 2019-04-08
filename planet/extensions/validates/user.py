@@ -14,6 +14,14 @@ class SupplizerLoginForm(BaseForm):
 class SupplizerListForm(BaseForm):
     kw = StringField('关键词', default='')
     mobile = StringField('手机号', default='')
+    sustatus = StringField('筛选状态', default='all')
+
+    def validate_sustatus(self, raw):
+        from planet.config.enums import UserStatus
+        try:
+            self.sustatus.data = getattr(UserStatus, raw.data).value
+        except:
+            raise ParamsError('状态参数不正确')
 
 
 class SupplizerGetForm(BaseForm):
@@ -39,7 +47,7 @@ class SupplizerCreateForm(BaseForm):
     suname = StringField('供应商名字')
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
-    subaserate = DecimalField('最低分销比')
+    subaserate = DecimalField('最低分销比', default=0)
     sudeposit = DecimalField('押金')
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
@@ -93,7 +101,7 @@ class SupplizerUpdateForm(BaseForm):
     subusinesslicense = StringField('营业执照')
     suregisteredfund = StringField('注册资金',)
     sumaincategory = StringField('主营类目', )
-    suregisteredtime = DateField('注册时间',)
+    suregisteredtime = DateTimeField('注册时间',)
     sulegalperson = StringField('法人',)
     sulegalpersonidcardfront = StringField('法人身份证正面', )
     sulegalpersonidcardback = StringField('法人身份证反面', )
