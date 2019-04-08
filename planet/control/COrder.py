@@ -580,8 +580,9 @@ class COrder(CPay, CCoupon):
                     today = datetime.now()
                     month_sale_updated = s.query(ProductMonthSaleValue).filter_(
                         ProductMonthSaleValue.PRid == prid,
+                        extract('year', ProductMonthSaleValue.createtime) == today.year,
                         extract('month', ProductMonthSaleValue.createtime) == today.month,
-                        extract('year', ProductMonthSaleValue.createtime) == today.year
+                        ProductMonthSaleValue.isdelete == False
                     ).update({
                         'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
                         'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
@@ -906,6 +907,19 @@ class COrder(CPay, CCoupon):
                                                           'TCstocks': TrialCommodity.TCstocks + opnum})
                     TrialCommoditySku.query.filter(TrialCommoditySku.SKUid == skuid
                                                    ).update({'SKUstock': TrialCommoditySku.SKUstock + opnum})
+
+                # 商品销量修改
+                product.update({'PRsalesValue': product.PRsalesValue - opnum})
+                db.session.add(product)
+                # 月销量修改
+                ProductMonthSaleValue.query.filter(
+                    ProductMonthSaleValue.PRid == prid,
+                    ProductMonthSaleValue.isdelete == False,
+                    extract('year', ProductMonthSaleValue.createtime) == datetime.now().year,
+                    extract('month', ProductMonthSaleValue.createtime) == datetime.now().month,
+                ).update({
+                    'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
+                }, synchronize_session=False)
 
     @token_required
     def delete(self):
