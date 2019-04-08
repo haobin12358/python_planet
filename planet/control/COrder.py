@@ -915,8 +915,8 @@ class COrder(CPay, CCoupon):
                 ProductMonthSaleValue.query.filter(
                     ProductMonthSaleValue.PRid == prid,
                     ProductMonthSaleValue.isdelete == False,
-                    extract('year', ProductMonthSaleValue.createtime) == datetime.now().year,
-                    extract('month', ProductMonthSaleValue.createtime) == datetime.now().month,
+                    extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
+                    extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
                 ).update({
                     'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
                 }, synchronize_session=False)

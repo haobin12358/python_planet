@@ -182,8 +182,8 @@ class CRefund(object):
                         ProductMonthSaleValue.query.filter(
                             ProductMonthSaleValue.PRid == reop.PRid,
                             ProductMonthSaleValue.isdelete == False,
-                            extract('year', ProductMonthSaleValue.createtime) == datetime.now().year,
-                            extract('month', ProductMonthSaleValue.createtime) == datetime.now().month,
+                            extract('year', ProductMonthSaleValue.createtime) == reop.createtime.year,
+                            extract('month', ProductMonthSaleValue.createtime) == reop.createtime.month,
                         ).update({
                             'PMSVnum': ProductMonthSaleValue.PMSVnum - reop.OPnum,
                         }, synchronize_session=False)
@@ -315,8 +315,8 @@ class CRefund(object):
                     ProductMonthSaleValue.query.filter(
                         ProductMonthSaleValue.PRid == reop.PRid,
                         ProductMonthSaleValue.isdelete == False,
-                        extract('year', ProductMonthSaleValue.createtime) == datetime.now().year,
-                        extract('month', ProductMonthSaleValue.createtime) == datetime.now().month,
+                        extract('year', ProductMonthSaleValue.createtime) == reop.createtime.year,
+                        extract('month', ProductMonthSaleValue.createtime) == reop.createtime.month,
                     ).update({
                         'PMSVnum': ProductMonthSaleValue.PMSVnum - reop.OPnum,
                     }, synchronize_session=False)
