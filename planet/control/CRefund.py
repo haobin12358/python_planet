@@ -559,6 +559,7 @@ class CRefund(object):
             if result["code"] != "10000":
                 raise ApiError('退款错误')
         return result
+
     def _cancle_commision(self, *args, **kwargs):
         order_main = kwargs.get('order_main')
         order_part = kwargs.get('order_part')
@@ -581,6 +582,7 @@ class CRefund(object):
                     ).count()
 
                     current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
+                    # 获取其前三个有效的新人首单
                     fresh_man_join_all = FreshManJoinFlow.query.filter(
                         FreshManJoinFlow.isdelete == False,
                         FreshManJoinFlow.UPid == user_commision.USid,
@@ -611,8 +613,7 @@ class CRefund(object):
                     second = 30
                     third = 50
                     commissions = 0
-                    fresh_man_count = 1
-                    for fresh_man in fresh_man_join_all:
+                    for fresh_man_count, fresh_man in enumerate(fresh_man_join_all, start=1):
                         fresh_man = fresh_man.to_dict()
                         if commissions < user_fresh_order_price:
                             reward = fresh_man['OMprice']
@@ -634,8 +635,6 @@ class CRefund(object):
                                     ).update({
                                     'UCcommission': reward
                                 })
-                        fresh_man_count += 1
-
                     current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
                     user_commision_max.UCstatus = UserCommissionStatus.error.value
                     return
@@ -656,6 +655,8 @@ class CRefund(object):
             ).all()
             for order_part in order_parts:
                 self._cancle_commision(order_part=order_part)
+
+        # 如果是分享者
         elif order_part:
             user_commision = UserCommission.query.filter(
                 UserCommission.isdelete == False,
