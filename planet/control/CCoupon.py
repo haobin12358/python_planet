@@ -156,6 +156,9 @@ class CCoupon(object):
                 raise ParamsError('暂不提供供应商发放折扣优惠券，请联系平台后台发放')
             if not form.colimitnum:
                 raise ParamsError('需要指定发放数量')
+            if not (pbids or prids):
+                raise ParamsError('不能发放全平台优惠券')
+
         else:
             raise AuthorityError()
         with self.strade.auto_commit() as s:
@@ -193,6 +196,10 @@ class CCoupon(object):
                 s_list.append(couponitem_instance)
             # 优惠券和应用对象的中间表
             for pbid in pbids:
+                # 限制使用品牌
+                pb = ProductBrand.query.filter(
+                    ProductBrand.isdelete == False, ProductBrand.PBid == pbid, ProductBrand.SUid == suid).first_(
+                    '品牌不存在')
                 coupon_for = CouponFor.create({
                     'CFid': str(uuid.uuid1()),
                     'PBid': pbid,
@@ -200,6 +207,11 @@ class CCoupon(object):
                 })
                 s_list.append(coupon_for)
             for prid in prids:
+                # 限制使用商品
+                product = Products.query.filter(
+                    Products.isdelete == False, Products.PRid == prid, Products.CreaterId == suid
+                ).first_('不能指定其他供应商商品')
+
                 coupon_for = CouponFor.create({
                     'CFid': str(uuid.uuid1()),
                     'PRid': prid,
