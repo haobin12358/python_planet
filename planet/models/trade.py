@@ -34,7 +34,7 @@ class OrderMain(Base):
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='总价')
     OMtrueMount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='实际总价')
-    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 35 待评价, 30完成 -40取消交易')
+    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 25待评价, 26已评价，30完成 -40取消交易')
     OMinRefund = Column(Boolean, default=False, comment='主单是否在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
