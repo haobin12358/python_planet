@@ -92,7 +92,8 @@ class SProducts(SBase):
 
     @close_session
     def get_monthsale_value_one(self, args, error=None):
-        return self.session.query(ProductMonthSaleValue).filter_by_(args).first_(error)
+        return self.session.query(ProductMonthSaleValue
+                                  ).filter_by_(args).order_by(ProductMonthSaleValue.createtime.desc()).first_(error)
 
     @close_session
     def get_search_history(self, *args, order=()):

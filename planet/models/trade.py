@@ -305,6 +305,16 @@ class CouponFor(Base):
     COid = Column(String(64), comment='优惠券id')
 
 
+class CounponHistory(Base):
+    __tablename__ = 'CounponHistory'
+    CHid = Column(String(64), primary_key=True)
+    COid = Column(String(64), comment='优惠券id')
+    COcontent = Column(Text, comment='优惠券详情')
+    COaction = Column(Integer, default=1, comment='操作 1 创建 2 更新 3 删除')
+    CHuser = Column(String(64), comment='操作人id')
+    CHuserType = Column(Integer, default=10, comment='操作人身份 10 供应商 20 管理员')
+
+
 class ActivationCodeApply(Base):
     """购买商品激活码申请提交"""
     __tablename__ = 'ActivationCodeApply'

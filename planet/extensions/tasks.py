@@ -19,7 +19,8 @@ from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
-    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl
+    GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
+    SupplizerDepositLog
 
 celery = Celery()
 
@@ -633,6 +634,48 @@ def get_url_local(url_list):
     current_app.logger.info('end dbsession')
 
 
+@celery.task(name='return_coupon_deposite')
+def return_coupon_deposite():
+    now = datetime.now()
+    yesterday = now - timedelta(days=1)
+    current_app.logger.info('开始返回供应商发布优惠券剩余押金')
+    with db.auto_commit():
+        coupon_list = Coupon.query.filter(
+            Coupon.isdelete == False,
+            Coupon.COvalidEndTime > yesterday,
+            Coupon.COvalidEndTime <= now,
+            Coupon.SUid != None
+        ).all()
+        current_app.logger.info('今天有 {} 优惠券到期'.format(len(coupon_list)))
+        for coupon in coupon_list:
+
+            su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == coupon.SUid).first()
+            if not su:
+                continue
+            unused_count = CouponUser.query.filter(
+                CouponUser.isdelete == False, CouponUser.COid == coupon.COid, CouponUser.UCalreadyUse == False).count()
+            current_app.logger.info('get 优惠券 {} 未使用的 {} 未领取的 {}'.format(
+                coupon.COid, unused_count, coupon.COremainNum))
+            coupon_remain = (Decimal(str(coupon.COremainNum or 0)) + Decimal(str(unused_count or 0))) * Decimal(
+                str(coupon.COsubtration))
+            # 押金返回
+            su_remain = Decimal(str(su.SUdeposit or 0))
+            current_app.logger.info('开始返回供应商 {} 押金 该供应商押金剩余 {} 本次增加 {} 修改后为 {} '.format(
+                su.SUname, su_remain, coupon_remain, su_remain + coupon_remain
+            ))
+            su.SUdeposit = su_remain + coupon_remain
+            # 增加押金变更记录
+            sdl = SupplizerDepositLog.create({
+                "SDLid": str(uuid.uuid1()),
+                'SUid': su.SUid,
+                'SDLnum': coupon_remain,
+                'SDafter': su.SUdeposit,
+                'SDbefore': su_remain,
+                'SDLacid': 'system'
+            })
+            db.session.add(sdl)
+            db.session.flush()
+    current_app.logger.info('返回供应商押金结束')
 
 if __name__ == '__main__':
     from planet import create_app
@@ -645,4 +688,5 @@ if __name__ == '__main__':
         # auto_evaluate()
         # check_for_update()
         # auto_confirm_order()
-        get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
+        # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
+        return_coupon_deposite()

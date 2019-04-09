@@ -581,16 +581,19 @@ class COrder(CPay, CCoupon):
                     today = datetime.now()
                     month_sale_updated = s.query(ProductMonthSaleValue).filter_(
                         ProductMonthSaleValue.PRid == prid,
+                        extract('year', ProductMonthSaleValue.createtime) == today.year,
                         extract('month', ProductMonthSaleValue.createtime) == today.month,
-                        extract('year', ProductMonthSaleValue.createtime) == today.year
+                        ProductMonthSaleValue.isdelete == False
                     ).update({
-                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                        'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
                     }, synchronize_session=False)
                     if not month_sale_updated:
                         month_sale_instance = ProductMonthSaleValue.create({
                             'PMSVid': str(uuid.uuid1()),
                             'PRid': prid,
-                            'PMSVnum': opnum
+                            'PMSVnum': opnum,
+                            'PMSVfakenum': opnum
                         })
                         # model_bean.append(month_sale_instance)
                         s.add(month_sale_instance)
@@ -678,6 +681,7 @@ class COrder(CPay, CCoupon):
                             'OMid': omid,
                             'COid': coid,
                             'OCreduce': reduce_price,
+                            'SUid': coupon.SUid
                         }
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
@@ -904,6 +908,19 @@ class COrder(CPay, CCoupon):
                                                           'TCstocks': TrialCommodity.TCstocks + opnum})
                     TrialCommoditySku.query.filter(TrialCommoditySku.SKUid == skuid
                                                    ).update({'SKUstock': TrialCommoditySku.SKUstock + opnum})
+
+                # 商品销量修改
+                product.update({'PRsalesValue': product.PRsalesValue - opnum})
+                db.session.add(product)
+                # 月销量修改
+                ProductMonthSaleValue.query.filter(
+                    ProductMonthSaleValue.PRid == prid,
+                    ProductMonthSaleValue.isdelete == False,
+                    extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
+                    extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
+                ).update({
+                    'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
+                }, synchronize_session=False)
 
     @token_required
     def delete(self):
@@ -1697,13 +1714,15 @@ class COrder(CPay, CCoupon):
                     extract('month', ProductMonthSaleValue.createtime) == today.month,
                     extract('year', ProductMonthSaleValue.createtime) == today.year
                 ).update({
-                    'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum
+                    'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                    'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
                 }, synchronize_session=False)
                 if not month_sale_updated:
                     month_sale_instance = ProductMonthSaleValue.create({
                         'PMSVid': str(uuid.uuid1()),
                         'PRid': prid,
-                        'PMSVnum': opnum
+                        'PMSVnum': opnum,
+                        'PMSVfakenum': opnum
                     })
 
                     s.add(month_sale_instance)
