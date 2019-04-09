@@ -146,10 +146,10 @@ class CRefund(object):
                         'OPayType': order_pay_instance.OPayType,
                     })
                     s_list.append(refund_flow_instance)
-                    mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
-                    old_total_fee = order_pay_instance.OPayMount
-                    # mount = 0.01
-                    # old_total_fee = 0.01
+                    # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
+                    # old_total_fee = order_pay_instance.OPayMount
+                    mount = 0.01
+                    old_total_fee = 0.01
                     current_app.logger.info('正在退款中 {} '.format(refund_apply_instance.ORAmount))
 
                     self._refund_to_user(  # 执行退款, 待测试
@@ -589,7 +589,7 @@ class CRefund(object):
                         OrderMain.OMinRefund == False,
                         OrderMain.isdelete == False
                     ) .limit(3)
-
+                    # user_commision_max 这个的逻辑删除已经不需要了。
                     user_commision_max = UserCommission.query.filter(
                         UserCommission.USid == user_commision.USid,
                         UserCommission.isdelete == False,
@@ -612,6 +612,7 @@ class CRefund(object):
                     third = 50
                     commissions = 0
                     fresh_man_count = 1
+                    # 这个 fresh_man_count 可以用迭代器实现
                     for fresh_man in fresh_man_join_all:
                         fresh_man = fresh_man.to_dict()
                         if commissions < user_fresh_order_price:
@@ -635,7 +636,7 @@ class CRefund(object):
                                     'UCcommission': reward
                                 })
                         fresh_man_count += 1
-
+                    # 异常情况，如果其他订单已经确认收货。逻辑缺失
                     current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
                     user_commision_max.UCstatus = UserCommissionStatus.error.value
                     return
