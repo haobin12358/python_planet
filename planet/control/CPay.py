@@ -415,7 +415,7 @@ class CPay():
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
             current_app.logger.info('get supplizer {}'.format(su))
             if su:
-                # su.SUdeposit += desposit
+
                 current_app.logger.info('get change {}'.format(desposit))
                 desposit = Decimal(str(desposit))
                 sudeposit = Decimal(str(su.SUdeposit or 0))
@@ -431,6 +431,7 @@ class CPay():
                     'SDbefore': sudeposit,
                     'SDLacid': 'system'
                 })
+                su.SUdeposit = after_deposit
                 db.session.add(sdl)
                 commision_account = UserCommission.create({
                     'UCid': str(uuid.uuid1()),
