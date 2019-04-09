@@ -633,7 +633,7 @@ class CRefund(object):
                         OrderMain.OMstatus >= OrderMainStatus.wait_send.value,
                         OrderMain.OMinRefund == False,
                         OrderMain.isdelete == False
-                    ) .limit(3)
+                    ).order_by(FreshManJoinFlow.createtime.asc()).limit(3)
 
                     # 邀请人新品佣金修改
                     user_order_main = OrderMain.query.filter(
