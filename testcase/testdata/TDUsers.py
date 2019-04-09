@@ -87,3 +87,4 @@ class TDUsers():
                 current_app.logger.info(usid + "设置过非平台预定佣金比例")
                 data_text += "{0},设置过非平台预定佣金比例\n".format(usid)
         current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>User test data end>>>>>>>>>>>>>>>>>>>>>>>>")
+        return data_text
