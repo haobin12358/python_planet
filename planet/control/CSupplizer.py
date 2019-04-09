@@ -33,11 +33,13 @@ class CSupplizer:
         form = SupplizerListForm().valid_data()
         kw = form.kw.data
         mobile = form.mobile.data
+        sustatus = form.sustatus.data
 
         supplizers = Supplizer.query.filter_by_().filter_(
             Supplizer.SUname.contains(kw),
-            Supplizer.SUlinkPhone.contains(mobile)
-        ).all_with_page()
+            Supplizer.SUlinkPhone.contains(mobile),
+            Supplizer.SUstatus == sustatus
+        ).order_by(Supplizer.createtime.desc()).all_with_page()
         for supplizer in supplizers:
             supplizer.hide('SUpassword')
             if is_admin():
@@ -56,10 +58,12 @@ class CSupplizer:
                 UserWallet.USid == supplizer.SUid,
                 UserWallet.CommisionFor == ApplyFrom.supplizer.value
             ).first()
-            supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
-            supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
-            supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
-            supplizer.fill('SUbaseRate', supplizer.SUbaseRate or 0)
+            supplizer.fill('uwbalance', getattr(favor, 'UWbalance', 0))
+            supplizer.fill('uwtotal', getattr(favor, 'UWtotal', 0))
+            supplizer.fill('uwcash', getattr(favor, 'UWcash', 0))
+            supplizer.fill('subaserate', supplizer.SUbaseRate or 0)
+            supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
+            supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
         return Success(data=supplizers)
 
     def create(self):
@@ -76,7 +80,7 @@ class CSupplizer:
         suid = str(uuid.uuid1())
         if is_admin():
             sustatus = UserStatus.usual.value
-            sudeposit = form.sudeposit.value
+            sudeposit = form.sudeposit.data
         else:
             sustatus = UserStatus.auditing.value
             sudeposit = None
@@ -161,10 +165,10 @@ class CSupplizer:
             if is_admin():
                 if form.subaserate.data:
                     supplizer_dict['SUbaseRate'] = form.subaserate.data,
-                if form.sustatus.data:
+                if isinstance(form.sustatus.data, int):
                     supplizer_dict['SUstatus'] = form.sustatus.data
                 if form.sudeposit.data:
-                    sudeposit = form.subaserate.data
+                    sudeposit = form.sudeposit.data
                     supplizer_dict['SUdeposit'] = Decimal(sudeposit)
                     if Decimal(sudeposit) != Decimal(getattr(supplizer, 'SUdeposit', 0)):  # 押金有变化时进行记录
                         depositlog = SupplizerDepositLog.create({
@@ -229,9 +233,11 @@ class CSupplizer:
             UserWallet.USid == supplizer.SUid,
             UserWallet.CommisionFor == ApplyFrom.supplizer.value
         ).first()
-        supplizer.fill('UWbalance', getattr(favor, 'UWbalance', 0))
-        supplizer.fill('UWtotal', getattr(favor, 'UWtotal', 0))
-        supplizer.fill('UWcash', getattr(favor, 'UWcash', 0))
+        supplizer.fill('uwbalance', getattr(favor, 'UWbalance', 0))
+        supplizer.fill('uwtotal', getattr(favor, 'UWtotal', 0))
+        supplizer.fill('uwcash', getattr(favor, 'UWcash', 0))
+        supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
+        supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
 
 
     @admin_required

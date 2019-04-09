@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_
+from sqlalchemy import or_, extract
 
 from planet.common.error_response import ParamsError, StatusError, ApiError, DumpliError
 from planet.common.params_validates import parameter_required, validate_arg
@@ -15,9 +15,10 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType
+from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
-from planet.models import UserCommission, FreshManJoinFlow
+from planet.models import UserCommission, FreshManJoinFlow, Products, ProductMonthSaleValue
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay, OrderRefundNotes
 from planet.service.STrade import STrade
@@ -122,7 +123,8 @@ class CRefund(object):
         agree = data.get('agree')
         with self.strade.auto_commit() as s:
             s_list = []
-            refund_apply_instance = s.query(OrderRefundApply).filter_by_({'ORAid': oraid, 'ORAstatus': ApplyStatus.wait_check.value }).first_('申请已处理或不存在')
+            refund_apply_instance = s.query(OrderRefundApply).filter_by_(
+                {'ORAid': oraid, 'ORAstatus': ApplyStatus.wait_check.value}).first_('申请已处理或不存在')
             refund_apply_instance.ORAcheckTime = datetime.now()
             # 获取订单
             if refund_apply_instance.OMid:
@@ -146,10 +148,11 @@ class CRefund(object):
                         'OPayType': order_pay_instance.OPayType,
                     })
                     s_list.append(refund_flow_instance)
-                    # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
-                    # old_total_fee = order_pay_instance.OPayMount
-                    mount = 0.01
-                    old_total_fee = 0.01
+                    mount = refund_apply_instance.ORAmount  # todo 退款金额需要改正
+                    old_total_fee = order_pay_instance.OPayMount
+                    if API_HOST == 'https://test.bigxingxing.com':
+                        mount = 0.01
+                        old_total_fee = 0.01
                     current_app.logger.info('正在退款中 {} '.format(refund_apply_instance.ORAmount))
 
                     self._refund_to_user(  # 执行退款, 待测试
@@ -165,6 +168,25 @@ class CRefund(object):
                         self._cancle_commision(order_part=order_part_instance)
                     if refund_apply_instance.OMid:
                         self._cancle_commision(order_main=order_main_instance)
+
+                    # 减少商品相应销量
+                    refund_order_parts = OrderPart.query.filter(OrderPart.OMid == order_main_instance.OMid,
+                                                                OrderPart.isdelete == False).all()
+                    current_app.logger.info('退款的副单数有{}个'.format(len(refund_order_parts)))
+                    for reop in refund_order_parts:
+                        res = Products.query.filter_by(PRid=reop.PRid).update(
+                            {'PRsalesValue': Products.PRsalesValue - reop.OPnum})
+                        if res:
+                            current_app.logger.info('退货商品id{} 销量减少{}'.format(reop.PRid, reop.OPnum))
+                        # 月销量更新
+                        ProductMonthSaleValue.query.filter(
+                            ProductMonthSaleValue.PRid == reop.PRid,
+                            ProductMonthSaleValue.isdelete == False,
+                            extract('year', ProductMonthSaleValue.createtime) == reop.createtime.year,
+                            extract('month', ProductMonthSaleValue.createtime) == reop.createtime.month,
+                        ).update({
+                            'PMSVnum': ProductMonthSaleValue.PMSVnum - reop.OPnum,
+                        }, synchronize_session=False)
 
                 if refund_apply_instance.ORAstate == OrderRefundORAstate.goods_money.value:  # 退货退款
                     # 取消原来的退货表, (主要是因为因为可能因撤销为未完全删除)
@@ -258,8 +280,8 @@ class CRefund(object):
                 order_refund.ORstatus = OrderRefundOrstatus.ready_refund.value
                 db.session.add(order_refund)
                 # TODO 执行退款
-                # mount = refund_apply_instance.ORAmount # todo 退款金额需要改正
-                # old_total_fee = order_pay_instance.OPayMount
+                mount = refund_apply_instance.ORAmount  # todo 退款金额需要改正
+                old_total_fee = order_pay_instance.OPayMount
                 refund_flow_instance = OrderRefundFlow.create({
                     'ORFid': str(uuid.uuid1()),
                     'ORAid': oraid,
@@ -268,8 +290,9 @@ class CRefund(object):
                     'OPayType': order_pay_instance.OPayType,
                 })
                 db.session.add(refund_flow_instance)
-                mount = 0.01
-                old_total_fee = 0.01
+                if API_HOST == 'https://test.bigxingxing.com':
+                    mount = 0.01
+                    old_total_fee = 0.01
                 self._refund_to_user(  # 执行退款, 待测试
                     out_trade_no=order_main_instance.OPayno,
                     out_request_no=oraid,
@@ -278,6 +301,26 @@ class CRefund(object):
                     old_total_fee=old_total_fee
                 )
                 msg = '已同意, 正在退款'
+
+                # 减去对应商品的销量
+                refund_order_parts = OrderPart.query.filter(OrderPart.OMid == order_main_instance.OMid,
+                                                            OrderPart.isdelete == False).all()
+                current_app.logger.info('退货退款的副单数有{}个'.format(len(refund_order_parts)))
+                for reop in refund_order_parts:
+                    res = Products.query.filter_by(PRid=reop.PRid).update(
+                        {'PRsalesValue': Products.PRsalesValue - reop.OPnum})
+                    if res:
+                        current_app.logger.info('退货商品id{} 销量减少{}'.format(reop.PRid, reop.OPnum))
+                    # 月销量更新
+                    ProductMonthSaleValue.query.filter(
+                        ProductMonthSaleValue.PRid == reop.PRid,
+                        ProductMonthSaleValue.isdelete == False,
+                        extract('year', ProductMonthSaleValue.createtime) == reop.createtime.year,
+                        extract('month', ProductMonthSaleValue.createtime) == reop.createtime.month,
+                    ).update({
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum - reop.OPnum,
+                    }, synchronize_session=False)
+
             elif agree is False:
                 order_refund.ORstatus = OrderRefundOrstatus.reject.value
                 db.session.add(order_refund)

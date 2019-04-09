@@ -144,14 +144,14 @@ class CProducts(BaseController):
             if not month_sale_instance:
                 salevolume_dict = {'PMSVid': str(uuid.uuid1()),
                                    'PRid': prid,
-                                   'PMSVfakenum': random.randint(300, 10000)
+                                   'PMSVfakenum': random.randint(15, 100)
                                    }
                 month_sale_value = salevolume_dict['PMSVfakenum']
                 current_app.logger.info('没有销量记录，现在创建 >>> {}'.format(month_sale_value))
 
             elif month_sale_instance.createtime.month != datetime.now().month:
                 month_sale_value = getattr(month_sale_instance, 'PMSVnum')
-                month_sale_value = random.randint(300, 10000) if month_sale_value < 300 else month_sale_value
+                month_sale_value = random.randint(15, 100) if month_sale_value < 15 else month_sale_value
 
                 salevolume_dict = {'PMSVid': str(uuid.uuid1()),
                                    'PRid': prid,
@@ -163,8 +163,8 @@ class CProducts(BaseController):
                 salevolume_dict = None
                 month_sale_value = getattr(month_sale_instance, 'PMSVnum')
                 current_app.logger.info('存在本月销量 {}'.format(month_sale_value))
-                if month_sale_value < 300:
-                    month_sale_value = random.randint(300, 10000)
+                if month_sale_value < 15:
+                    month_sale_value = random.randint(15, 100)
                     month_sale_instance.update({'PMSVfakenum': month_sale_value})
                     db.session.add(month_sale_instance)
                     current_app.logger.info('本月销量更新为 {}'.format(month_sale_value))
