@@ -40,10 +40,11 @@ class CClub():
         :return:
         """
         form = CompanyMessageForm().valid_data()
-        if form.cmindex.data and int(form.cmindex.data) == 1:
-            CMindex = 1
-        else:
-            CMindex = 2
+        # if form.cmindex.data and int(form.cmindex.data) == 1:
+        #     CMindex = 1
+        # else:
+        #     CMindex = 2
+        CMindex = 1
         new_companymessage = CompanyMessage.create({
             "CMid": str(uuid.uuid1()),
             "CMtitle": form.cmtitle.data,
