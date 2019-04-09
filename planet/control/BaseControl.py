@@ -401,6 +401,8 @@ class BASEAPPROVAL():
             return self.__fill_activationcode(start, content)
         elif pt.PTid == 'tosettlenment':
             return self.__fill_settlenment(start, content)
+        elif pt.PTid == 'toli':
+            return
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
