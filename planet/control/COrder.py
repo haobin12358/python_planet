@@ -22,7 +22,8 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus,UserCommissionType
+
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
@@ -34,7 +35,7 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku,FreshManJoinFlow
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -1773,6 +1774,48 @@ class COrder(CPay, CCoupon):
         }
         order_pay_instance = OrderPay.create(order_pay_dict)
         s.add(order_pay_instance)
+
+    # 新人首单的佣金到账
+    def _fresh_commsion_into_count(self,order_part):
+        opid = order_part.OPid
+        fresh_order_main = OrderMain.query.filter_(
+            OrderMain.isdelete == False,
+            OrderMain.OMid == order_part.OMid,
+            OrderMain.OMfrom == OrderFrom.fresh_man.value
+        ).first()
+        if fresh_order_main:
+            up_commison_order = UserCommission.query.filter(
+                UserCommission.isdelete == False,
+                UserCommission.OMid == fresh_order_main.OMid
+            ).first()
+            if up_commison_order:
+                # 作为被分享者
+                up_main_order = OrderMain.query.filter(
+                    OrderMain.isdelete == False,
+                    OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                    OrderMain.USid == up_commison_order.USid,
+                    OrderMain.OMstatus == OrderMainStatus.ready.value
+                ).first()
+                if up_main_order:
+                    self._commsion_into_count(order_part)
+            # 作为分享者
+            commisions = UserCommission.query.filter(
+                UserCommission.isdelete == False,
+                UserCommission.USid == fresh_order_main.USid,
+                UserCommission.UCtype == UserCommissionType.fresh_man,
+                UserCommission.UCstatus == UserCommissionStatus.preview.value,
+                OrderMain.OMstatus == OrderMainStatus.ready.value,
+            ).all()
+            if commisions:
+                for commision in commisions:
+                    commision.update({
+                        'UCstatus': UserCommissionStatus.in_account.value
+                    })
+                return
+        else:
+            # 如果不是新人首单走正常到账逻辑
+            self._commsion_into_count(order_part)
+
 
     def _commsion_into_count(self, order_part):
         """佣金到账"""

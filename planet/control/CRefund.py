@@ -602,6 +602,7 @@ class CRefund(object):
             if result["code"] != "10000":
                 raise ApiError('退款错误')
         return result
+
     def _cancle_commision(self, *args, **kwargs):
         order_main = kwargs.get('order_main')
         order_part = kwargs.get('order_part')
@@ -624,6 +625,7 @@ class CRefund(object):
                     ).count()
 
                     current_app.logger.info('当前用户已分享的有效新人首单商品订单有 {}'.format(fresh_man_join_count))
+                    # 获取其前三个有效的新人首单
                     fresh_man_join_all = FreshManJoinFlow.query.filter(
                         FreshManJoinFlow.isdelete == False,
                         FreshManJoinFlow.UPid == user_commision.USid,
@@ -632,15 +634,6 @@ class CRefund(object):
                         OrderMain.OMinRefund == False,
                         OrderMain.isdelete == False
                     ) .limit(3)
-                    # user_commision_max 这个的逻辑删除已经不需要了。
-                    user_commision_max = UserCommission.query.filter(
-                        UserCommission.USid == user_commision.USid,
-                        UserCommission.isdelete == False,
-                        UserCommission.UCtype == UserCommissionType.fresh_man.value
-                    ).order_by(UserCommission.UCcommission.desc()).first()
-                    if not user_commision_max:
-                        current_app.logger.info('该订单没有上级返佣')
-                        return
 
                     # 邀请人新品佣金修改
                     user_order_main = OrderMain.query.filter(
@@ -654,45 +647,62 @@ class CRefund(object):
                     second = 30
                     third = 50
                     commissions = 0
-                    fresh_man_count = 1
-                    # 这个 fresh_man_count 可以用迭代器实现
-                    for fresh_man in fresh_man_join_all:
-                        fresh_man = fresh_man.to_dict()
-                        if commissions < user_fresh_order_price:
-                            reward = fresh_man['OMprice']
-                            if fresh_man_count == 1:
-                                reward = reward * (first / 100)
-                            elif fresh_man_count == 2:
-                                reward = reward * (second / 100)
-                            elif fresh_man_count == 3:
-                                reward = reward * (third / 100)
-                            else:
-                                break
-                            if reward + commissions > user_fresh_order_price:
-                                reward = user_fresh_order_price - commissions
-                            if reward:
-                                UserCommission.query.filter(
-                                    UserCommission.isdelete == False,
-                                    UserCommission.USid == fresh_man['UPid'],
-                                    UserCommission.OMid == fresh_man['OMid'],
-                                    ).update({
-                                    'UCcommission': reward
-                                })
-                        fresh_man_count += 1
-                    # 异常情况，如果其他订单已经确认收货。逻辑缺失
-                    current_app.logger.info('开始修改用户的 最后一个返佣奖励 具体内容： {}'.format(user_commision_max.__dict__))
-                    user_commision_max.UCstatus = UserCommissionStatus.error.value
-                    return
-                else:
-                    UserCommission.query.filter(
-                        UserCommission.isdelete == False,
-                        UserCommission.USid == order_main.USid,
-                        UserCommission.UCtype == UserCommissionType.fresh_man.value,
-                        UserCommission.UCstatus < UserCommissionStatus.out_count
-                    ).update({
-                        'UCcommission': 0,
-                        'is_delete': True
-                    })
+
+                    if fresh_man_join_all:
+                        for fresh_man_count, fresh_man in enumerate(fresh_man_join_all, start=1):
+                            fresh_man = fresh_man.to_dict()
+                            if commissions < user_fresh_order_price:
+                                reward = fresh_man['OMprice']
+                                if fresh_man_count == 1:
+                                    reward = reward * (first / 100)
+                                elif fresh_man_count == 2:
+                                    reward = reward * (second / 100)
+                                elif fresh_man_count == 3:
+                                    reward = reward * (third / 100)
+                                else:
+                                    break
+                                if reward + commissions > user_fresh_order_price:
+                                    reward = user_fresh_order_price - commissions
+                                if reward:
+                                    if fresh_man_count <= 2:
+                                        UserCommission.query.filter(
+                                            UserCommission.isdelete == False,
+                                            UserCommission.USid == fresh_man['UPid'],
+                                            UserCommission.OMid == fresh_man['OMid'],
+                                            UserCommission.UCstatus == UserCommissionStatus.preview.value
+                                            ).update({
+                                            'UCcommission': reward
+                                        })
+                                    else:
+                                        user_main_order = OrderMain.query.filter(
+                                            OrderMain.isdelete == False,
+                                            OrderMain.OMid == fresh_man['OMid'],
+                                        ).first()
+                                        user_main_order = user_main_order.to_dict()
+                                        user_order_status = user_main_order['OMstatus']
+                                        if user_order_status == OrderMainStatus.ready.value:
+                                            status = UserCommissionStatus.in_account.value
+                                        else:
+                                            status = UserCommissionStatus.preview.value
+                                        user_commision_dict = {
+                                            'UCid': str(uuid.uuid1()),
+                                            'OMid': user_main_order['OMid'],
+                                            'UCcommission': reward,
+                                            'USid': user_main_order['USid'],
+                                            'UCtype': UserCommissionType.fresh_man.value,
+                                            'UCstatus' : status
+                                        }
+                                        db.session.add(UserCommission.create(user_commision_dict))
+                UserCommission.query.filter(
+                    UserCommission.isdelete == False,
+                    UserCommission.USid == order_main.USid,
+                    UserCommission.UCtype == UserCommissionType.fresh_man.value,
+                    UserCommission.UCstatus == UserCommissionStatus.preview
+                ).update({
+                    'UCcommission': 0,
+                    'isdelete': True
+                })
+                return
 
             order_parts = OrderPart.query.filter(
                 OrderPart.isdelete == False,
@@ -700,6 +710,8 @@ class CRefund(object):
             ).all()
             for order_part in order_parts:
                 self._cancle_commision(order_part=order_part)
+
+        # 如果是分享者
         elif order_part:
             user_commision = UserCommission.query.filter(
                 UserCommission.isdelete == False,

@@ -112,7 +112,7 @@ def auto_evaluate():
                                 ">>>>>  该副单已存在评价, OPid : {}, OMid : {}, OMstatus : {}".format(order_part.OPid,
                                                                                               order_part.OMid,
                                                                                               order_main.OMstatus))
-                            corder._commsion_into_count(order_part)  # 佣金到账
+                            corder._fresh_commsion_into_count(order_part)  # 佣金到账
                             if user:  # 防止因用户不存在,进入下个方法报错停止
                                 corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                             continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
