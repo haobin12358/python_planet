@@ -236,7 +236,7 @@ class CPay():
                     UserCommission.USid == up_order_main.USid,
                     UserCommission.UCstatus >= UserCommissionStatus.preview.value,
                     UserCommission.UCtype == UserCommissionType.fresh_man.value,
-                    ).limit(3)
+                    ).order_by(UserCommission.createtime.asc()).limit(3)
                 # 邀请人的新人首单佣金
                 commissions = 0
                 for commission in up_order_fresh_commissions:
