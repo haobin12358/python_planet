@@ -66,7 +66,7 @@ class TDUsers():
                 if not ussupper2 or not ussupper1:
                     current_app.logger.info(usid + "异常的分销体系，中间有断层")
                     data_text += "{0},异常的分销体系，中间有断层\n".format(usid)
-                user_test = User.query.filter(User.USid == ussupper3. User.isdelete == 0).all()
+                user_test = User.query.filter(User.USid == str(ussupper3). User.isdelete == 0).all()
                 if not user_test:
                     current_app.logger.info(usid + "第三级分佣人员数据异常")
                     data_text += "{0},第三级分佣人员数据异常\n".format(usid)
@@ -74,12 +74,12 @@ class TDUsers():
                 if not ussupper1:
                     current_app.logger.info(usid + "异常的分销体系，中间有断层")
                     data_text += "{0},异常的分销体系，中间有断层\n".format(usid)
-                user_test = User.query.filter(User.USid == ussupper2. User.isdelete == 0).all()
+                user_test = User.query.filter(User.USid == str(ussupper2), User.isdelete == 0).all()
                 if not user_test:
                     current_app.logger.info(usid + "第二级分佣人员数据异常")
                     data_text += "{0},第二级分佣人员数据异常\n".format(usid)
             if ussupper1:
-                user_test = User.query.filter(User.USid == ussupper1. User.isdelete == 0).all()
+                user_test = User.query.filter(User.USid == str(ussupper1), User.isdelete == 0).all()
                 if not user_test:
                     current_app.logger.info(usid + "第一级分佣人员数据异常")
                     data_text += "{0},第一级分佣人员数据异常\n".format(usid)
