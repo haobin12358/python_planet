@@ -120,7 +120,7 @@ def auto_evaluate():
                         if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
                             continue
 
-                        corder._commsion_into_count(order_part)  # 佣金到账
+                        corder._fresh_commsion_into_count(order_part)  # 佣金到账
 
                         if user and order_main.OMfrom != OrderFrom.trial_commodity.value:
 

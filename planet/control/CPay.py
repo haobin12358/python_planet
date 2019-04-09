@@ -234,8 +234,7 @@ class CPay():
                 # 邀请人的新人首单佣金
                 commissions = 0
                 for commission in up_order_fresh_commissions:
-                    commission = commission.to_dict()
-                    commissions += commission['UCcommission']
+                    commissions += commission.UCcommission
                 if up_order_main :
                     up_fresh_order_price = up_order_main.OMtrueMount
                     # 邀请人新品佣金小于这次新人返现并且这次新人在前三个返现的人之内

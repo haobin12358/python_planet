@@ -377,6 +377,12 @@ class BASEAPPROVAL():
         content.fill('product', product)
         return start_model, content
 
+    def __fill_totimelimited(self, startid, contentid):
+        # 限时
+        start_model =
+        content
+
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -401,6 +407,8 @@ class BASEAPPROVAL():
             return self.__fill_activationcode(start, content)
         elif pt.PTid == 'tosettlenment':
             return self.__fill_settlenment(start, content)
+        elif pt.PTid == 'totimelimited':
+            return self.__fill_totimelimited(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
