@@ -83,7 +83,7 @@ class CSupplizer:
             sudeposit = form.sudeposit.data
         else:
             sustatus = UserStatus.auditing.value
-            sudeposit = None
+            sudeposit = 0
         supassword = generate_password_hash(form.supassword.data) if form.supassword.data else None
         with db.auto_commit():
             supperlizer = Supplizer.create({
@@ -167,6 +167,8 @@ class CSupplizer:
                     supplizer_dict['SUbaseRate'] = form.subaserate.data,
                 if isinstance(form.sustatus.data, int):
                     supplizer_dict['SUstatus'] = form.sustatus.data
+                    if form.sustatus.data == UserStatus.usual.value and not supplizer.SUpassword:
+                        supplizer_dict['SUpassword'] = generate_password_hash(supplizer.SUloginPhone)
                 if form.sudeposit.data:
                     sudeposit = form.sudeposit.data
                     supplizer_dict['SUdeposit'] = Decimal(sudeposit)
