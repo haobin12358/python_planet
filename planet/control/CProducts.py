@@ -279,6 +279,7 @@ class CProducts(BaseController):
         # 填充
         current_app.logger.info('end query and start fill product {}'.format(datetime.now()))
         for product in products:
+            product.hide('PRdesc')
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
             product.fill('prstatus_zh', ProductStatus(product.PRstatus).zh_value)
             # 品牌

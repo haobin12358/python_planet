@@ -48,7 +48,7 @@ class SupplizerCreateForm(BaseForm):
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
     subaserate = DecimalField('最低分销比', default=0)
-    sudeposit = DecimalField('押金')
+    sudeposit = DecimalField('押金', default=0)
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     # supassword = StringField('密码', validators=[DataRequired('密码不可为空')])
@@ -142,7 +142,7 @@ class SupplizerResetPasswordForm(BaseForm):
     ])
     suid = StringField('供应商id')
     code = StringField('验证码')
-    supassword = StringField(validators=[DataRequired('验证码不可为空')])
+    supassword = StringField(validators=[DataRequired('新密码不可为空')])
 
     def validate_suid(self, raw):
         if is_supplizer():
@@ -151,7 +151,7 @@ class SupplizerResetPasswordForm(BaseForm):
 
 class SupplizerChangePasswordForm(BaseForm):
     suid = StringField('供应商id')
-    supassword = StringField(validators=[DataRequired('验证码不可为空')])
+    supassword = StringField(validators=[DataRequired('新密码不可为空')])
     oldpassword = StringField('旧密码')
 
     def validate_suid(self, raw):

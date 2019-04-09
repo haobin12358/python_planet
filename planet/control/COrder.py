@@ -700,7 +700,7 @@ class COrder(CPay, CCoupon):
                     'OMfreight': freight,
                     'OMmount': order_old_price,
                     'OMmessage': ommessage,
-                    'OMtrueMount': order_price + Decimal(str(freight)),
+                    'OMtrueMount': Decimal(order_price) + Decimal(str(freight)),
                     # 收货信息
                     'OMrecvPhone': omrecvphone,
                     'OMrecvName': omrecvname,
@@ -1462,6 +1462,7 @@ class COrder(CPay, CCoupon):
 
     def _tosalesvolume(self, amount, usid):
         today = datetime.today()
+        current_app.logger.info("进行销售额统计 AMOUNT : {} ； USid: {} ".format(amount, usid))
         user = User.query.filter_by_(USid=usid).first_('订单数据异常')
         if user:
             usv = UserSalesVolume.query.filter(
