@@ -2,6 +2,8 @@
 import json
 from decimal import Decimal
 
+from flask import current_app
+
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.control.CExcel import CExcel
@@ -23,6 +25,17 @@ def make_items():
         })
         s_list.append(index_hot_items)
 
+        news_product_evaluation = Items.create({
+            'ITid': 'product_evaluation',
+            'ITname': '商品评测',
+            'ITsort': 1,
+            'ITdesc': '圈子默认标签',
+            'ITtype': ItemType.news.value,
+            'ITauthority': ItemAuthrity.no_limit.value,
+        })
+        s_list.append(news_product_evaluation)
+
+        # 暂时不需要这两类了
         # news_bind_product = Items.create({
         #     'ITid': 'news_bind_product',
         #     'ITname': '资讯关联商品',
@@ -235,6 +248,86 @@ def add_product_promotion():
                 product.PRpromotion = assemble.assemble()
 
 
+def check_abnormal_sale_volume():
+    """销量修正"""
+    with db.auto_commit():
+        from planet.models import OrderPart, OrderMain, ProductMonthSaleValue
+        from sqlalchemy import extract
+        from sqlalchemy import func
+
+        product_list = Products.query.filter(Products.PRsalesValue != 0, Products.isdelete == False).all()
+        for product in product_list:
+            opcount = OrderPart.query.outerjoin(OrderMain, OrderMain.OMid == OrderPart.OMid
+                                                ).filter(OrderMain.isdelete == False,
+                                                         OrderPart.isdelete == False,
+                                                         OrderMain.OMstatus != -40,
+                                                         OrderPart.PRid == product.PRid,
+                                                         OrderPart.OPisinORA == False).count()
+            print('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            # 修正商品销量
+            product.update({'PRsalesValue': opcount}, null='no')
+            db.session.add(product)
+            # 修正商品月销量
+            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
+                                                                 OrderMain.OMid == OrderPart.OMid
+                                                                 ).filter(OrderMain.isdelete == False,
+                                                                          OrderPart.isdelete == False,
+                                                                          OrderMain.OMstatus != -40,
+                                                                          OrderPart.PRid == product.PRid,
+                                                                          OrderPart.OPisinORA == False
+                                                                          ).group_by(
+                extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
+            for o in ops:
+                # print(o)
+                print("该商品{}月份销量为{}".format(o[0], o[-1]))
+                current_app.logger.info("该商品{}月份销量为{}".format(o[0], o[-1]))
+                ProductMonthSaleValue.query.filter(
+                    ProductMonthSaleValue.PRid == product.PRid,
+                    ProductMonthSaleValue.isdelete == False,
+                    extract('year', ProductMonthSaleValue.createtime) == 2019,
+                    extract('month', ProductMonthSaleValue.createtime) == o[0],
+                ).update({
+                    'PMSVnum': o[-1],
+                }, synchronize_session=False)
+
+            # ops = db.session.query(OrderPart).outerjoin(OrderMain,
+            #                                             OrderMain.OMid == OrderPart.OMid
+            #                                             ).filter(OrderMain.isdelete == False,
+            #                                                      OrderPart.isdelete == False,
+            #                                                      OrderMain.OMstatus != -40,
+            #                                                      OrderPart.PRid == product.PRid,
+            #                                                      OrderPart.OPisinORA == False
+            #                                                      ).order_by(OrderPart.createtime.desc()).all()
+            # march_sale_volume = 0
+            # april_sale_volume = 0
+            # for op in ops:
+            #     if op.createtime.month == 3:
+            #         march_sale_volume += 1
+            #     elif op.createtime.month == 4:
+            #         april_sale_volume += 1
+            # print(ops)
+
+            # print("该商品三月销量为{} ， 四月销量为{}".format(march_sale_volume, april_sale_volume))
+            # 修正月销量
+            # ProductMonthSaleValue.query.filter(
+            #     ProductMonthSaleValue.PRid == product.PRid,
+            #     ProductMonthSaleValue.isdelete == False,
+            #     extract('year', ProductMonthSaleValue.createtime) == 2018,
+            #     extract('month', ProductMonthSaleValue.createtime) == 3,
+            # ).update({
+            #     'PMSVnum': march_sale_volume,
+            # }, synchronize_session=False)
+            # ProductMonthSaleValue.query.filter(
+            #     ProductMonthSaleValue.PRid == product.PRid,
+            #     ProductMonthSaleValue.isdelete == False,
+            #     extract('year', ProductMonthSaleValue.createtime) == 2018,
+            #     extract('month', ProductMonthSaleValue.createtime) == 4,
+            # ).update({
+            #     'PMSVnum': april_sale_volume,
+            # }, synchronize_session=False)
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -251,6 +344,7 @@ if __name__ == '__main__':
         # filepath = 'C:\Users\刘帅斌\Desktop\product_insert.xlsx'
         # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
         # cexcel._insertproduct(filepath)
-        add_product_promotion()
+        # add_product_promotion()
+        # check_abnormal_sale_volume()
         pass
 

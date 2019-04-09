@@ -479,9 +479,11 @@ class CApproval(BASEAPPROVAL):
                     pic_url = new_content[image_index[0]].get('content')[0]
                     pic_url = self.__verify_get_url([pic_url, ])[0]
                     content['mainpic'] = pic_url
-                else:
+                elif len(text_index):
                     showtype = 'text'
                     content['netext'] = new_content[text_index[0]].get('content')[:100] + ' ...'
+                else:
+                    continue
                 content['showtype'] = showtype
 
             ap.fill('content', content)
