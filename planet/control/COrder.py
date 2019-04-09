@@ -1375,6 +1375,16 @@ class COrder(CPay, CCoupon):
             if order_main:
                 order_main.OMstatus = OrderMainStatus.wait_comment.value
                 db.session.add(order_main)
+                res = OrderLogistics.query.filter(OrderLogistics.OMid == order_main.OMid,
+                                                  OrderLogistics.isdelete == False,
+                                                  OrderLogistics.OLsignStatus.notin_(
+                                                      [LogisticsSignStatus.api_error.value,
+                                                       LogisticsSignStatus.already_signed.value,
+                                                       LogisticsSignStatus.error.value]),
+                                                  ).update({'OLsignStatus': LogisticsSignStatus.already_signed.value},
+                                                           synchronize_session=False)
+                if res:
+                    current_app.logger.info("订单 OMid:{} 被提前确认收货".format(order_main.OMid))
                 return order_main
 
     @token_required
