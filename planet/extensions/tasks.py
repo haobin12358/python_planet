@@ -104,7 +104,7 @@ def auto_evaluate():
                     for order_part in order_parts:
                         if order_part.OPisinORA is True:
                             continue
-                        user = User.query.filter_by(USid=order_main.USid).first()
+                        user = User.query.filter_by(USid=order_main.USid, isdelete=False).first()
 
                         exist_evaluation = OrderEvaluation.query.filter_by_(OPid=order_part.OPid).first()
                         if exist_evaluation:
@@ -126,7 +126,6 @@ def auto_evaluate():
                         if user and order_main.OMfrom != OrderFrom.trial_commodity.value:
 
                             usname, usheader = user.USname, user.USheader
-
                             corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
                         else:
                             usname, usheader = '神秘的客官', ''
