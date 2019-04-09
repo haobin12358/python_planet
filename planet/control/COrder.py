@@ -1779,8 +1779,6 @@ class COrder(CPay, CCoupon):
                 ).first()
                 if up_main_order:
                     self._commsion_into_count(order_part)
-                else:
-                    return
             # 作为分享者
             commisions = UserCommission.query.filter(
                 UserCommission.isdelete == False,
