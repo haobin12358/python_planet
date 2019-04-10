@@ -152,6 +152,7 @@ class BASEAPPROVAL():
 
                 skus.append(sku)
         elif isinstance(product, TimeLimitedProduct):
+            product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             tls = TimeLimitedSku.query.filter_by(TLPid=product.TLPid, isdelete=False).all()
 
             skus = []
@@ -166,7 +167,6 @@ class BASEAPPROVAL():
                 skus.append(sku)
 
         else:
-
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
 
@@ -396,10 +396,16 @@ class BASEAPPROVAL():
         # 限时
         start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
                       Admin.query.filter_by_(ADid=startid).first()
-        content = TimeLimitedActivity.query.filter_by_(TLAid=contentid).first()
+        content = TimeLimitedProduct.query.filter_by(TLPid=contentid,isdelete = False).first()
         if not start_model or not content:
             return None, None
-        product = TimeLimitedProduct.query.filter_by_(TLAid=contentid).first()
+        product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
+        product_model = Products.query.filter_by(PRid=product.PRid, isdelete=False).first_('商品已下架')
+        product.fill('PBid',product_model.PBid)
+        product.fill('PRattribute',product_model.PRattribute)
+        product.fill('PRremarks',product_model.PRremarks)
+        product.fill('PCid',product_model.PCid)
+        # product.fill('PBid',product_model.PBid)
         self.__fill_product_detail(product, content=content)
         content.fill('product', product)
         return start_model, content

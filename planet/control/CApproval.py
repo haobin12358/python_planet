@@ -31,8 +31,9 @@ from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
 
-
 from planet.control.BaseControl import BASEAPPROVAL
+
+
 # from .BaseControl import BASEAPPROVAL
 
 
@@ -86,7 +87,7 @@ class CApproval(BASEAPPROVAL):
             ptn.setdefault('PINaction', '更新权限标签 {} 为 {}'.format(pi.PIname, piname))
             pi.PIname = piname
             db.session.add(PermissionNotes.create(ptn))
-            return Success('修改权限标名成功', data={'piid':pi.PIid})
+            return Success('修改权限标名成功', data={'piid': pi.PIid})
         pi = PermissionItems.create({
             'PIid': str(uuid.uuid1()),
             'PIname': piname,
@@ -271,7 +272,8 @@ class CApproval(BASEAPPROVAL):
         ptid_list = list(set(ptid_list))  # 去重
 
         pt_list = PermissionType.query.filter(
-            PermissionType.PTid in ptid_list, PermissionType.isdelete == False).order_by(PermissionType.createtime.desc()).all()
+            PermissionType.PTid in ptid_list, PermissionType.isdelete == False).order_by(
+            PermissionType.createtime.desc()).all()
         for pt in pt_list:
             pm_num = Permission.query.filter_by_(PTid=pt.PTid).count()
             pt.fill('amount', pm_num)
@@ -280,7 +282,7 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def get_permission_list(self):
         """获取管理员下所有审批类型"""
-        data = parameter_required(('ptid', ))
+        data = parameter_required(('ptid',))
         admin = Admin.query.filter_by_(ADid=request.user.id).first()
         if not admin:
             gennerc_log('get admin failed id is {0}'.format(admin.ADid))
@@ -298,7 +300,7 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def get_permission_admin_list(self):
         """获取审批权限下的管理员列表"""
-        data = parameter_required(('piid', ))
+        data = parameter_required(('piid',))
         admin = Admin.query.filter_by_(ADid=request.user.id).first()
         if not admin:
             gennerc_log('get admin failed id is {0}'.format(admin.ADid))
@@ -397,7 +399,7 @@ class CApproval(BASEAPPROVAL):
                 Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == Approval.PTid,
                 Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                 Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False,
-                )
+            )
             # import ipdb
             # ipdb.set_trace()
             if avstatus is not None:
@@ -501,7 +503,8 @@ class CApproval(BASEAPPROVAL):
             raise AuthorityError('权限不足')
         data = parameter_required(('avid', 'anaction', 'anabo'))
         admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
-        approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
+        approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_(
+            '审批已处理')
         Permission.query.filter(
             Permission.isdelete == False, AdminPermission.isdelete == False,
             Permission.PIid == AdminPermission.PIid,
@@ -615,7 +618,7 @@ class CApproval(BASEAPPROVAL):
     @get_session
     @token_required
     def get_permissiontype(self):
-        data = parameter_required(('ptid', ))
+        data = parameter_required(('ptid',))
         pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('参数异常')
         pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
         pe_list = []
@@ -691,7 +694,8 @@ class CApproval(BASEAPPROVAL):
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')
         if not pelevel:
-            pelevel_model = Permission.query.filter_by_(PTid=data.get('ptid')).order_by(Permission.PELevel.desc()).first()
+            pelevel_model = Permission.query.filter_by_(PTid=data.get('ptid')).order_by(
+                Permission.PELevel.desc()).first()
             pelevel = pelevel_model.PElevel + 1
 
         if not pe:
@@ -785,7 +789,7 @@ class CApproval(BASEAPPROVAL):
             pt = PermissionType.query.filter_by_(PTid=actionid).first()
             if pt:
                 pt.isdelete = True
-                ptn.setdefault('PINaction', '{0}删除权限类型 {1}'.format(admin.ADname, pt.PTname),)
+                ptn.setdefault('PINaction', '{0}删除权限类型 {1}'.format(admin.ADname, pt.PTname), )
         elif actiontype == PermissionNotesType.adp.value:
             adp = AdminPermission.qeury.filter_by_(ADPid=actionid).first()
             if adp:
@@ -1016,7 +1020,7 @@ class CApproval(BASEAPPROVAL):
             GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
             GuessNumAwardSku.isdelete == False,
             GuessNumAwardProduct.isdelete == False,
-            ).all()
+        ).all()
         from planet.control.COrder import COrder
 
         # 遍历原sku 将库存退出去
@@ -1119,7 +1123,7 @@ class CApproval(BASEAPPROVAL):
         tla = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first_('限时活动商品申请数据异常')
         tla.TLAstatus = ApplyStatus.agree.value
 
-    def refuse_timelimited(self,approval_model, refuse_abo):
+    def refuse_timelimited(self, approval_model, refuse_abo):
         tlp = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first()
         if not tlp:
             return
@@ -1129,19 +1133,17 @@ class CApproval(BASEAPPROVAL):
         product = tlp
         # 获取原sku属性
         tls_old = TimeLimitedSku.query.filter(
-            TimeLimitedSku.TLPid == TimeLimitedProduct.TLPid,
+            TimeLimitedSku.TLPid == tlp.TLPid,
             TimeLimitedSku.isdelete == False,
             TimeLimitedProduct.isdelete == False,
-            ).all()
+        ).all()
         from planet.control.COrder import COrder
 
         # 遍历原sku 将库存退出去
         for sku in tls_old:
             sku_instance = ProductSku.query.filter_by(
                 isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
-            COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
-
-
+            COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}
