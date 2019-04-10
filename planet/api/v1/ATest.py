@@ -11,7 +11,9 @@ class ATest(Resource):
 
     def get(self, test):
         apis = {
-            "test_user_data": self.test.test_user_data
+            "test_user_data": self.test.test_user_data,
+            "test_userlogintime_data": self.test.test_userlogintime_data,
+            "test_usercommission_data": self.test.test_usercommission_data
         }
         return apis
 

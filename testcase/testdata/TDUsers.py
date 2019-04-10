@@ -1,12 +1,15 @@
 from flask import current_app
-from planet.common.base_service import get_session, db
-from planet.models.user import User
-
+from planet.models.user import User, UserLoginTime, Admin, UserCommission
+from planet.models.product import Supplizer
+from planet.models.trade import OrderMain, OrderPart
 
 class TDUsers():
 
-    @get_session
     def test_user_data(self):
+        """
+        测试用户数据
+        :return:
+        """
         data_text = ""
         current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>User test data start>>>>>>>>>>>>>>>>>>>>>>>>")
         all_user = User.query.filter(User.isdelete == 0).all()
@@ -66,7 +69,7 @@ class TDUsers():
                 if not ussupper2 or not ussupper1:
                     current_app.logger.info(usid + "异常的分销体系，中间有断层")
                     data_text += "{0},异常的分销体系，中间有断层\n".format(usid)
-                user_test = User.query.filter(User.USid == str(ussupper3). User.isdelete == 0).all()
+                user_test = User.query.filter(User.USid == str(ussupper3), User.isdelete == 0).all()
                 if not user_test:
                     current_app.logger.info(usid + "第三级分佣人员数据异常")
                     data_text += "{0},第三级分佣人员数据异常\n".format(usid)
@@ -87,4 +90,99 @@ class TDUsers():
                 current_app.logger.info(usid + "设置过非平台预定佣金比例")
                 data_text += "{0},设置过非平台预定佣金比例\n".format(usid)
         current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>User test data end>>>>>>>>>>>>>>>>>>>>>>>>")
+        if data_text == "":
+            return "No error data"
+        return data_text
+
+    def test_userlogintime_data(self):
+        """
+        测试用户登录时间数据
+        :return:
+        """
+        data_text = ""
+        current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>UserLoginTime test data start>>>>>>>>>>>>>>>>>>>>>>>>")
+        all_user = UserLoginTime.query.filter(UserLoginTime.isdelete == 0).all()
+        for user in all_user:
+            ultid = user.ULTid
+            usid = user.USid
+            ustip = user.USTip
+            ultype = user.ULtype
+            if not usid:
+                data_text += "{0}, 异常的数据写入，安全警告\n".format(ultid)
+            if not ustip:
+                data_text += "{0}, 未知区域数据写入，安全警告\n".format(ultid)
+            if int(ultype) == 1:
+                test_user = User.query.filter(User.USid == usid, User.isdelete == 0)
+                if not test_user:
+                    data_text += "{0}, 异常用户{1}数据\n".format(ultid, usid)
+            elif int(ultype) == 2:
+                test_user = Admin.query.filter(Admin.ADid == usid, Admin.isdelete == 0)
+                if not test_user:
+                    data_text += "{0}, 异常管理员{1}数据\n".format(ultid, usid)
+        current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>UserLoginTime test data end>>>>>>>>>>>>>>>>>>>>>>>>")
+        if data_text == "":
+            return "No error data"
+        return data_text
+
+    def test_usercommission_data(self):
+        """
+        测试佣金数据
+        :return:
+        """
+        data_text = ""
+        current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>UserLoginTime test data start>>>>>>>>>>>>>>>>>>>>>>>>")
+        all_user = UserCommission.query.filter(UserCommission.isdelete == 0)
+        for user in all_user:
+            ucid = user.UCid
+            uccommission = user.UCcommission
+            usid = user.USid
+            commisionfor = user.CommisionFor
+            fromusid = user.FromUsid
+            ucstatus = user.UCstatus
+            uctype = user.UCtype
+            ucendtime = user.UCendTime
+            prtitle = user.PCtitle
+            skupic = user.SKUpic
+            omid = user.OMid
+            opid = user.OPid
+            if float(uccommission) < 0:
+                if commisionfor == 0 or usid == "0":
+                    data_text += "{0},佣金不合法\n".format(ucid)
+            if commisionfor == 0:
+                if usid != "0":
+                    data_text += "{0},平台状态异常\n".format(ucid)
+            elif commisionfor == 10:
+                test_user = Supplizer.query.filter(Supplizer.isdelete == 0, Supplizer.SUid == usid).all()
+                if not test_user:
+                    data_text += "{0},佣金发放缺失对应供应商{1}\n".format(ucid, usid)
+            elif commisionfor == 20:
+                test_user = User.query.filter(User.isdelete == 0, User.USid == usid).all()
+                if not test_user:
+                    data_text += "{0},佣金发放缺失对应用户{1}\n".format(ucid, usid)
+            else:
+                data_text += "{0}，身份状态异常\n".format(ucid)
+            test_user = User.query.filter(User.isdelete == 0, User.USid == fromusid).all()
+            if not test_user:
+                data_text += "{0}, 佣金来源用户{1}缺失\n".format(ucid, fromusid)
+            if ucstatus == -1:
+                data_text += "{0}，佣金状态异常\n".format(ucid)
+            if ucstatus not in [-1, 0, 1, 2]:
+                data_text += "{0}, 佣金状态不合法\n".format(ucid)
+            if uctype not in [0, 1, 2]:
+                data_text += "{0}, 收益类型不合法\n".format(ucid)
+            if not ucendtime and uctype == 2:
+                data_text += "{0}, 押金不合法\n".format(ucid)
+            if not prtitle or not skupic:
+                data_text += "{0}, 商品数据异常\n".format(ucid)
+            if not omid or not opid:
+                data_text += "{0}, 订单数据异常\n".format(ucid)
+            test_ordermain = OrderMain.query.filter(OrderMain.isdelete == 0, OrderMain.OMid == omid).all()
+            test_orderpart = OrderPart.query.filter(OrderPart.isdelete == 0, OrderPart.OPid == opid).all()
+            if not test_ordermain:
+                data_text += "{0}, 主单{1}数据不存在\n".format(ucid, omid)
+            if not test_orderpart:
+                data_text += "{0}, 副单{1}数据不存在\n".format(ucid, opid)
+        current_app.logger.info(">>>>>>>>>>>>>>>>>>>>>>UserLoginTime test data end>>>>>>>>>>>>>>>>>>>>>>>>")
+        if data_text == "":
+            return "No error data"
         return data_text
