@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType
-from planet.extensions.register_ext import wx_pay, alipay, db
+from planet.extensions.register_ext import wx_pay,  db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
 from planet.models import UserCommission, FreshManJoinFlow
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \

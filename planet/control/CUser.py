@@ -1292,6 +1292,7 @@ class CUser(SUser, BASEAPPROVAL):
     def get_wxconfig(self):
         """获取微信参数"""
         url = request.args.get("url", request.url)
+        print(request.__dict__)
         gennerc_log('get url %s' % url)
         app_from = request.args.get('app_from', )
         # todo 根据不同的来源处理不同的mp
@@ -2032,6 +2033,26 @@ class CUser(SUser, BASEAPPROVAL):
         del_rule = cfg.get_item('integralrule', 'rule')
         del_integral = cfg.get_item('integralbase', 'integral')
         return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
+
+    @token_required
+    def set_favorite_default(self):
+        if not is_admin():
+            raise AuthorityError()
+        data = request.json
+        default_integral = data.get('integral_favorite')
+        if not re.match(r'^\d+$', str(default_integral)):
+            raise ParamsError('默认积分无效')
+        cfg = ConfigSettings()
+        cfg.set_item('integralbase', 'integral_favorite', default_integral)
+        return Success('修改成功')
+
+    def get_favorite_default(self):
+        if not is_admin():
+            raise AuthorityError
+        cfg = ConfigSettings()
+        # del_integral = cfg.get_item('integralbase', 'integral_favorite')
+        del_integral = 123
+        return Success('获取默认签到设置成功', data={'integral_favorite': del_integral})
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""

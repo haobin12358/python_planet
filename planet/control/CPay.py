@@ -18,7 +18,7 @@ from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
-from planet.extensions.register_ext import alipay, wx_pay, db
+from planet.extensions.register_ext import  wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer

@@ -232,6 +232,8 @@ class AdminStatus(Enum):
 class UserIntegralAction(Enum):
     signin = 1, '签到'
     consumption = 2, '积分消费'
+    favorite = 3, '点赞'
+    commit = 4, '评论'
 
 
 class AdminAction(Enum):

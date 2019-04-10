@@ -5,6 +5,7 @@ from planet.extensions.tasks import celery
 
 app = create_app()
 
+
 @app.route('/')
 def hi():
     return 'ok'
