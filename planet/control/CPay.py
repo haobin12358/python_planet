@@ -24,11 +24,7 @@ from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
     ProductSku
-# from planet.models iomprt OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
-# =======
-#     Products, Supplizer
-# from planet.models import
-# >>>>>>> 6bb675cff9ebd29e48bcbe41b4a8e7b46ae3f38a
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -240,9 +236,8 @@ class CPay():
                 # 邀请人的新人首单佣金
                 commissions = 0
                 for commission in up_order_fresh_commissions:
-                    commission = commission.to_dict()
-                    commissions += commission['UCcommission']
-                if up_order_main :
+                    commissions += commission.UCcommission
+                if up_order_main:
                     up_fresh_order_price = up_order_main.OMtrueMount
                     # 邀请人新品佣金小于这次新人返现并且这次新人在前三个返现的人之内
                     if commissions < up_fresh_order_price and fresh_man_join_count <= 3:

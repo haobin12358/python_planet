@@ -1813,7 +1813,7 @@ class COrder(CPay, CCoupon):
             commisions = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.USid == fresh_order_main.USid,
-                UserCommission.UCtype == UserCommissionType.fresh_man,
+                UserCommission.UCtype == UserCommissionType.fresh_man.value,
                 UserCommission.UCstatus == UserCommissionStatus.preview.value,
                 OrderMain.OMstatus == OrderMainStatus.ready.value,
             ).all()
@@ -1822,6 +1822,7 @@ class COrder(CPay, CCoupon):
                     commision.update({
                         'UCstatus': UserCommissionStatus.in_account.value
                     })
+                    db.session.add(commision)
                 return
         else:
             # 如果不是新人首单走正常到账逻辑

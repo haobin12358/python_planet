@@ -15,7 +15,8 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku
+    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
+    TimeLimitedSku
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -150,8 +151,22 @@ class BASEAPPROVAL():
                 sku.fill('SKUdiscountsix', fmf.SKUdiscountsix)
 
                 skus.append(sku)
-        else:
+        elif isinstance(product, TimeLimitedProduct):
+            product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
+            tls = TimeLimitedSku.query.filter_by(TLPid=product.TLPid, isdelete=False).all()
 
+            skus = []
+            for fmf in tls:
+                sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
+                sku.hide('SKUprice')
+                sku.hide('SKUstock')
+                sku.fill('skuprice', fmf.SKUprice)
+                sku.fill('skustock', fmf.TLSstock)
+                sku.fill('skuid', fmf.SKUid)
+
+                skus.append(sku)
+
+        else:
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
 
@@ -377,6 +392,25 @@ class BASEAPPROVAL():
         content.fill('product', product)
         return start_model, content
 
+    def __fill_timelimited(self, startid, contentid):
+        # 限时
+        start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
+                      Admin.query.filter_by_(ADid=startid).first()
+        content = TimeLimitedProduct.query.filter_by(TLPid=contentid,isdelete = False).first()
+        if not start_model or not content:
+            return None, None
+        product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
+        product_model = Products.query.filter_by(PRid=product.PRid, isdelete=False).first_('商品已下架')
+        product.fill('PBid',product_model.PBid)
+        product.fill('PRattribute',product_model.PRattribute)
+        product.fill('PRremarks',product_model.PRremarks)
+        product.fill('PCid',product_model.PCid)
+        # product.fill('PBid',product_model.PBid)
+        self.__fill_product_detail(product, content=content)
+        content.fill('product', product)
+        return start_model, content
+
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -401,8 +435,8 @@ class BASEAPPROVAL():
             return self.__fill_activationcode(start, content)
         elif pt.PTid == 'tosettlenment':
             return self.__fill_settlenment(start, content)
-        elif pt.PTid == 'toli':
-            return
+        elif pt.PTid == 'totimelimited':
+            return self.__fill_timelimited(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
