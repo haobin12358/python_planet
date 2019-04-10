@@ -880,6 +880,7 @@ class COrder(CPay, CCoupon):
                         FreshManFirstApply.FMFAendTime >= order_main.createtime.date(),
                     ).order_by(FreshManFirstApply.updatetime.desc()).first_('新人首单数据异常')
                     now = date.today()
+                    current_app.logger.info('get fmfa = {}'.format(fmfa))
                     if fmfa.FMFAendTime < now:
                         current_app.logger.info('活动已结束，返回库存给原商品')
                         self._update_stock(opnum, product, sku_instance)

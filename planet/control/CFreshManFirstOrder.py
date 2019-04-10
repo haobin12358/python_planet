@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, date, timedelta
 
 from flask import request, current_app
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -215,6 +215,7 @@ class CFreshManFirstOrder(COrder, CUser):
             omrecvname = user_address_instance.UAname
             # 判断是否是别人分享而来
             secret_usid = data.get('secret_usid')
+            from_usid = None
             if secret_usid:
                 try:
                     from_usid = self._base_decode(secret_usid)
@@ -362,12 +363,18 @@ class CFreshManFirstOrder(COrder, CUser):
             check_product = FreshManFirstProduct.query.filter(
                 FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid,
                 FreshManFirstProduct.PRid == prid,
-                or_(FreshManFirstApply.FMFAstartTime <= fresh_first_apply.FMFAendTime,
-                    FreshManFirstApply.FMFAendTime >= fresh_first_apply.FMFAstartTime),
+                or_(
+                    and_(FreshManFirstApply.FMFAstartTime >= fresh_first_apply.FMFAstartTime,
+                         FreshManFirstApply.FMFAstartTime <= fresh_first_apply.FMFAendTime),
+                    and_(FreshManFirstApply.FMFAendTime >= fresh_first_apply.FMFAstartTime,
+                         FreshManFirstApply.FMFAendTime <= fresh_first_apply.FMFAendTime)
+                    # and_(FreshManFirstApply.FMFAstartTime > fresh_first_apply.FMFAendTime)
+                ),
                 FreshManFirstApply.isdelete == False,
                 FreshManFirstProduct.isdelete == False
             ).all()
             if check_product:
+                current_app.logger.info('dumpler {}'.format([product_id.FMFPid for product_id in check_product]))
                 raise ParamsError('重复提交 重叠时间')
 
             fresh_first_product = FreshManFirstProduct.create({
