@@ -293,7 +293,7 @@ class TimeLimitedActivity(Base):
     TLAendTime = Column(DateTime, comment='活动结束时间')
     TLAstatus = Column(Integer, default=0, comment='活动状态, 0: 发布, -10: 中止, 10: 结束')
     ADid = Column(String(64), comment='处理人')
-
+    TLAsort = Column(Integer, comment='权重')
     TLAtopPic = Column(Text, url=True, comment='活动背景图')
     TlAname = Column(Text, comment='活动名称')
     # AgreeStartime = Column(DateTime, default=TLAstartTime, comment='最终确认起始时间')  # 同意之后不可为空
