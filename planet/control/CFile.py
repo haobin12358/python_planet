@@ -9,7 +9,7 @@ from planet.common.compress_picture import CompressPicture
 from planet.common.error_response import NotFound, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required
+from planet.common.token_handler import token_required, is_tourist
 from planet.common.video_extraction_thumbnail import video2frames
 from planet.config.http_config import API_HOST
 from planet.extensions.qiniu.storage import QiniuStorage
@@ -19,8 +19,12 @@ class CFile(object):
     def __init__(self):
         self.qiniu = QiniuStorage(current_app)
 
-    @token_required
+    # @token_required
     def upload_img(self):
+        if is_tourist():
+            current_app.logger.info(">>>  Tourist Uploading Files  <<<")
+        else:
+            current_app.logger.info(">>>  {} Uploading Files  <<<".format(request.user.model))
         self.check_file_size()
         file = request.files.get('file')
         data = parameter_required()
@@ -30,12 +34,17 @@ class CFile(object):
         file_data = self._upload_file(file, folder)
         return Success('上传成功', data=file_data[0]).get_body(video_thum=file_data[1], video_dur=file_data[2], upload_type=file_data[3])
 
-    @token_required
+    # @token_required
     def batch_upload(self):
+        if is_tourist():
+            current_app.logger.info(">>>  Tourist Bulk Uploading Files  <<<")
+        else:
+            current_app.logger.info(">>>  {} Bulk Uploading Files  <<<".format(request.user.model))
         self.check_file_size()
         files = request.files.to_dict()
-        if len(files) > 9:
-            raise ParamsError('最多可同时上传9张图片')
+        current_app.logger.info(">>> Uploading {} Files  <<<".format(len(files)))
+        if len(files) > 30:
+            raise ParamsError('最多可同时上传30张图片')
         # todo 视频数量限制
         data = parameter_required()
         folder = self.allowed_folder(data.get('type'))
@@ -43,7 +52,7 @@ class CFile(object):
         for file in files.values():
             upload_file = self._upload_file(file, folder)
             file_dict = {
-                'file_url': upload_file[0],
+                'data': upload_file[0],
                 'video_thum': upload_file[1],
                 'video_dur': upload_file[2],
                 'upload_type': upload_file[3]
@@ -148,11 +157,11 @@ class CFile(object):
         return Success(u'删除成功')
 
     def check_file_size(self):
-        max_file_size = 20 * 1024 * 1024
+        max_file_size = 50 * 1024 * 1024
         upload_file_size = request.content_length
         current_app.logger.info(">>>  Upload File Size is {0} MB <<<".format(round(upload_file_size/1048576, 2)))
         if upload_file_size > max_file_size:
-            raise ParamsError("上传文件过大，请上传小于20MB的文件")
+            raise ParamsError("上传文件过大，请上传小于50MB的文件")
 
     @staticmethod
     def allowed_file(shuffix):
@@ -161,7 +170,7 @@ class CFile(object):
     @staticmethod
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar',
-                                    'voucher', 'idcard', 'brand', 'activity'] else 'temp'
+                                    'voucher', 'idcard', 'brand', 'activity', 'contract'] else 'temp'
 
     def new_name(self, shuffix):
         import string, random  # import random

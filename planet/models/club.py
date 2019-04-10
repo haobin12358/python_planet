@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL
+from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL, orm
 from sqlalchemy.dialects.mysql import LONGTEXT
 from planet.common.base_model import Base, Column
+
 
 class CompanyMessage(Base):
     """
@@ -13,6 +14,12 @@ class CompanyMessage(Base):
     CMmessage = Column(LONGTEXT, nullable=False, comment="公告详情")
     CMindex = Column(Integer, nullable=False, default=0, comment="公告是否展示首页")
     CMreadnum = Column(Integer, default=0, comment="公告阅读量")
+
+    @orm.reconstructor
+    def __init__(self):
+        super(CompanyMessage, self).__init__()
+        self.add('createtime')
+
 
 class UserWords(Base):
     """

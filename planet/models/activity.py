@@ -284,3 +284,47 @@ class OutStock(Base):
     SKUid = Column(String(64), nullable=False, comment='出库sku')
     OSnum = Column(BIGINT, default=1, comment='活动出库数量')
 
+
+class TimeLimitedActivity(Base):
+    """限时活动"""
+    __tablename__ = 'TimeLimitedApply'
+    TLAid = Column(String(64), primary_key=True)
+    TLAstartTime = Column(DateTime, comment='活动开始时间')
+    TLAendTime = Column(DateTime, comment='活动结束时间')
+    TLAstatus = Column(Integer, default=0, comment='活动状态, 0: 发布, -10: 中止, 10: 结束')
+    ADid = Column(String(64), comment='处理人')
+
+    TLAtopPic = Column(Text, url=True, comment='活动背景图')
+    TlAname = Column(Text, comment='活动名称')
+    # AgreeStartime = Column(DateTime, default=TLAstartTime, comment='最终确认起始时间')  # 同意之后不可为空
+    # AgreeEndtime = Column(DateTime, default=TLAendTime, comment='最终确认结束时间')
+
+
+class TimeLimitedProduct(Base):
+    """限时活动商品"""
+    __tablename__ = 'TimeLimitedProduct'
+    TLPid = Column(String(64), primary_key=True)
+    TLAid = Column(String(64), comment='活动单id')
+    TLAfrom = Column(Integer, comment='来源 10: 供应商, 0平台管理员')
+    SUid = Column(String(64), comment='供应商')
+    PRid = Column(String(64), comment='商品id')
+    TLArejectReson = Column(String(255), comment='拒绝理由')
+    TLAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
+    PRmainpic = Column(String(255), nullable=False, comment='主图', url=True)
+    PRtitle = Column(String(255), nullable=False, comment='商品标题')
+    PBid = Column(String(64), nullable=False, comment='品牌id')
+    PBname = Column(String(64), nullable=False, comment='品牌名字')
+    PRattribute = Column(String(255), comment='商品属性 ["网络","颜色","存储"]')
+    PRdescription = Column(Text, comment='描述')
+    PRfeight = Column(Float, default=0, comment='快递费用')
+    PRprice = Column(Float, nullable=False, comment='显示价格')
+
+
+class TimeLimitedSku(Base):
+    """限时活动sku"""
+    __tablename__ = 'TimeLimitedSku'
+    TLSid = Column(String(64), primary_key=True)
+    TLPid = Column(String(64), comment='申请商品id')
+    TLSstock = Column(String(64), comment='库存')
+    SKUid = Column(String(64), comment='skuid')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), comment='sku价格')

@@ -15,7 +15,8 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku
+    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
+    TimeLimitedSku
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -150,6 +151,19 @@ class BASEAPPROVAL():
                 sku.fill('SKUdiscountsix', fmf.SKUdiscountsix)
 
                 skus.append(sku)
+        elif isinstance(product, TimeLimitedProduct):
+            tls = TimeLimitedSku.query.filter_by(TLPid=product.TLPid, isdelete=False).all()
+
+            skus = []
+            for fmf in tls:
+                sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
+                sku.hide('SKUprice')
+                sku.hide('SKUstock')
+                sku.fill('skuprice', fmf.SKUprice)
+                sku.fill('skustock', fmf.TLSstock)
+
+                skus.append(sku)
+
         else:
 
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
@@ -377,10 +391,17 @@ class BASEAPPROVAL():
         content.fill('product', product)
         return start_model, content
 
-    def __fill_totimelimited(self, startid, contentid):
+    def __fill_timelimited(self, startid, contentid):
         # 限时
-        start_model =
-        content
+        start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
+                      Admin.query.filter_by_(ADid=startid).first()
+        content = TimeLimitedActivity.query.filter_by_(TLAid=contentid).first()
+        if not start_model or not content:
+            return None, None
+        product = TimeLimitedProduct.query.filter_by_(TLAid=contentid).first()
+        self.__fill_product_detail(product, content=content)
+        content.fill('product', product)
+        return start_model, content
 
 
     def __fill_approval(self, pt, start, content, **kwargs):
@@ -408,7 +429,7 @@ class BASEAPPROVAL():
         elif pt.PTid == 'tosettlenment':
             return self.__fill_settlenment(start, content)
         elif pt.PTid == 'totimelimited':
-            return self.__fill_totimelimited(start, content)
+            return self.__fill_timelimited(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
