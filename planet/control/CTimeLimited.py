@@ -97,7 +97,135 @@ class CTimeLimited(COrder, CUser):
 
     @token_required
     def add_order(self):
-        pass
+        data = parameter_required(('skuid', 'omclient', 'uaid', 'opaytype', 'tlaid', 'nums'))
+        try:
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            Client(omclient)
+        except Exception as e:
+            raise ParamsError('客户端或商品来源错误')
+        try:
+            opaytype = int(data.get('opaytype'))
+        except ValueError:
+            raise StatusError('支付方式异常, 未创建订单')
+        skuid = data.get('skuid')
+        uaid = data.get('uaid')
+        # 校验活动是否开启
+        tla = TimeLimitedActivity.query.filter(
+            TimeLimitedActivity.TLAid == data.get('tlaid'), TimeLimitedActivity.isdelete == False,
+            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value).first_('活动不存在')
+
+        now = datetime.now()
+        usid = request.user.id
+        user = get_current_user()
+        tlp = TimeLimitedProduct.query.filter(
+            TimeLimitedProduct.isdelete == False,
+            TimeLimitedProduct.TLAid == tla.TLAid,
+            TimeLimitedProduct.TLPid == TimeLimitedSku.TLPid,
+            TimeLimitedSku.SKUid == data.get('skuid')).first_('商品已售空')
+        product = self._fill_tlp(tlp, tla)
+        product_category = ProductCategory.query.filter_by(PCid=product.PCid).first()
+        tls = TimeLimitedSku.query.filter(
+            TimeLimitedSku.isdelete == False,
+            TimeLimitedSku.TLPid == tlp.TLPid,
+            TimeLimitedSku.SKUid == data.get('skuid')
+        ).first_('sku 已售罄')
+        with db.auto_commit():
+            if tls.TLSstock is not None:
+                if tls.TLSstock <= 0:
+                    raise StatusError('库存不足')
+                tls.TLSstock -= 1
+            suid = tlp.SUid
+            # 地址拼接
+            user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            omrecvphone = user_address_instance.UAphone
+            areaid = user_address_instance.AAid
+            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
+                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
+                AddressArea.AAid == areaid).first_('地址有误')
+            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
+                area, "AAname", '')
+            omrecvaddress = address + user_address_instance.UAtext
+            omrecvname = user_address_instance.UAname
+            # 创建订单
+            omid = str(uuid.uuid1())
+            opayno = self.wx_pay.nonce_str
+            nums = data.get('nums', 1)
+            assert nums > 0
+            price = tls.SKUprice * int(nums)
+            sku_instance = ProductSku.query.filter(ProductSku.SKUid == tls.SKUid, ProductSku.isdelete == False).first()
+            # 如果活动时间未到 使用原价购买
+            if now < tla.TLAstartTime:
+                price = sku_instance.SKUprice
+            # 主单
+            order_main_dict = {
+                'OMid': omid,
+                'OMno': self._generic_omno(),
+                'OPayno': opayno,
+                'USid': usid,
+                'OMfrom': OrderFrom.fresh_man.value,
+                'PBname': product.PBname,
+                'PBid': product.PBid,
+                'OMclient': omclient,
+                'OMfreight': 0,  # 运费暂时为0
+                'OMmount': price,
+                'OMmessage': data.get('ommessage'),
+                'OMtrueMount': price,
+                # 收货信息
+                'OMrecvPhone': omrecvphone,
+                'OMrecvName': omrecvname,
+                'OMrecvAddress': omrecvaddress,
+                'PRcreateId': suid
+            }
+            order_main_instance = OrderMain.create(order_main_dict)
+            db.session.add(order_main_instance)
+            # 副单
+            order_part_dict = {
+                'OPid': str(uuid.uuid1()),
+                'OMid': omid,
+                'SKUid': skuid,
+                'PRid': product.PRid,
+                'PRattribute': product.PRattribute,
+                'SKUattriteDetail': product.SKUattriteDetail,
+                'SKUprice': price,
+                'PRtitle': product.PRtitle,
+                'SKUsn': sku_instance.SKUsn,
+                'PCname': product_category.PCname,
+                'PRmainpic': product.PRmainpic,
+                'OPnum': 1,
+                # # 副单商品来源
+                'PRfrom': product.PRfrom,
+                'UPperid': getattr(user, 'USsupper1', ''),
+                'UPperid2': getattr(user, 'USsupper2', ''),
+                'UPperid3': getattr(user, 'USsupper3', ''),
+                'USCommission1': getattr(user, 'USCommission1', ''),
+                'USCommission2': getattr(user, 'USCommission2', ''),
+                'USCommission3': getattr(user, 'USCommission3', '')
+            }
+            order_part_instance = OrderPart.create(order_part_dict)
+            db.session.add(order_part_instance)
+            # 支付数据表
+            order_pay_dict = {
+                'OPayid': str(uuid.uuid1()),
+                'OPayno': opayno,
+                'OPayType': opaytype,
+                'OPayMount': price,
+            }
+            order_pay_instance = OrderPay.create(order_pay_dict)
+            db.session.add(order_pay_instance)
+        from planet.extensions.tasks import auto_cancle_order
+
+        auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
+        # 生成支付信息
+        body = product.PRtitle
+        current_user = get_current_user()
+        openid = current_user.USopenid1 or current_user.USopenid2
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
+        response = {
+            'pay_type': PayType(opaytype).name,
+            'opaytype': opaytype,
+            'args': pay_args
+        }
+        return Success('创建订单成功', data=response)
 
     @admin_required
     def create(self):
@@ -129,7 +257,10 @@ class CTimeLimited(COrder, CUser):
             raise AuthorityError()
         data = parameter_required(('prid', 'prprice', 'skus', 'tlaid'))
         tlp = TimeLimitedProduct.query.filter(
-            TimeLimitedProduct.TLAid == data.get('tlaid'), TimeLimitedProduct.PRid == data.get('prid')).first()
+            # TimeLimitedProduct.TLAstatus != ApplyStatus.agree.value,
+            TimeLimitedProduct.isdelete == False,
+            TimeLimitedProduct.TLAid == data.get('tlaid'),
+            TimeLimitedProduct.PRid == data.get('prid')).first()
         if tlp:
             raise DumpliError('重复提交')
         filter_args = {
@@ -271,7 +402,7 @@ class CTimeLimited(COrder, CUser):
                 TimeLimitedSku.isdelete == False,
                 TimeLimitedSku.SKUid.notin_(skuids),
                 TimeLimitedSku.TLPid == apply_info.TLPid
-            )
+            ).all()
             for tls in delete_sku:
                 sku_instance = ProductSku.query.filter_by(
                     isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
@@ -281,7 +412,40 @@ class CTimeLimited(COrder, CUser):
             current_app.logger.info('本次修改 sku {} 个 新增 {} 删除 {} '.format(
                 len(skuids), len(new_skuid), len(delete_sku)))
             # prstock += skustock
+
             db.session.add_all(instance_list)
+        return Success('修改成功')
+
+    @admin_required
+    def update_activity(self):
+        data = parameter_required(('tlaid',))
+        with db.auto_commit():
+            tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.TLAid == data.get('tlaid'),
+                                                   TimeLimitedActivity.isdelete == False).first_('活动已删除')
+            if data.get('delete'):
+                tla.isdelete = True
+                tlp_list = TimeLimitedProduct.query.filter(TimeLimitedProduct.isdelete == False,
+                                                           TimeLimitedProduct.TLAid == tla.TLAid).all()
+                # 如果删除活动的话，退还库存
+                for tlp in tlp_list:
+                    self._re_stock(tlp)
+                return Success('删除成功')
+
+            for k in tla.keys():
+                if k == 'TLAid' or k == 'isdelete':
+                    continue
+                low_k = str(k).lower()
+                value = data.get(low_k)
+                if  value or value == 0:
+                    if k == 'TLAstatus':
+                        try:
+                            TimeLimitedStatus(value)
+                        except:
+                            continue
+                    if k == 'TLAsort':
+                        value = self._check_sort(value)
+                    tla.__setattr__(k, value)
+        return Success('修改成功')
 
     def award_detail(self):
         """查看申请详情"""
@@ -291,9 +455,77 @@ class CTimeLimited(COrder, CUser):
 
     def shelf_award(self):
         """撤销申请"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('tlpid',))
+        tlpid = data.get('tlpid')
+        if is_supplizer():
+            tlp_from = ApplyFrom.supplizer.value
+            suid = request.user.id
+
+        else:
+            tlp_from = ApplyFrom.platform.value
+
+            suid = None
+        with db.auto_commit():
+            apply_info = TimeLimitedProduct.query.filter_by(TLPid=tlpid, isdelete=False).first_('无此申请记录')
+
+            if apply_info.TLAstatus != ApplyStatus.wait_check.value:
+                raise StatusError('只有在审核状态的申请可以撤销')
+            if apply_info.SUid !=suid:
+                raise AuthorityError('仅可撤销自己提交的申请')
+            apply_info.TLAstatus = ApplyStatus.cancle.value
+
+            # 获取原商品属性
+            # gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == apply_info.GNAAid,
+            #                                                 GuessNumAwardProduct.isdelete == False).first()
+            product = Products.query.filter_by(PRid=apply_info.PRid, PRfrom=tlp_from, isdelete=False).first_('商品信息出错')
+            # 获取原sku属性
+            tls_list = TimeLimitedSku.query.filter(
+                TimeLimitedSku.isdelete == False,
+                TimeLimitedSku.TLPid == apply_info.TLPid
+            ).all()
+
+            # 遍历原sku 将库存退出去
+            for sku in tls_list:
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                self._update_stock(int(sku.TLSstock), product, sku_instance)
+
+            # 同时将正在进行的审批流改为取消 todo
+            # approval_info = Approval.query.filter_by_(AVcontent=tlpid, AVstartid=request.user.id,
+            #                                           AVstatus=ApplyStatus.wait_check.value).first()
+            # approval_info.AVstatus = ApplyStatus.cancle.value
+        return Success('取消成功', {'tlpid': tlpid})
 
     def del_award(self):
         """删除申请"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+            suid = sup.SUid
+            current_app.logger.info('Supplizer {} delete guessnum apply'.format(sup.SUname))
+        elif is_admin():
+            usid = request.user.id
+            admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
+            current_app.logger.info('Admin {} guessnum apply'.format(admin.ADname))
+            sup = None
+            suid = None
+        else:
+            raise AuthorityError()
+        data = parameter_required(('tlpid',))
+        tlpid = data.get('tlpid')
+        with db.auto_commit():
+            apply_info = TimeLimitedProduct.query.filter_by(TLPid=tlpid, isdelete=False).first_('无此申请记录')
+            # if sup:
+            #     assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
+            if apply_info.SUid != suid:
+                raise ParamsError('只能删除自己提交的申请')
+            if apply_info.TLAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value, ApplyStatus.shelves.value]:
+                raise StatusError('只能删除已拒绝或已撤销状态下的申请')
+            apply_info.isdelete = True
+
+        return Success('删除成功', {'tlpid': tlpid})
 
     @staticmethod
     def _getBetweenDay(begin_date, end_date):
@@ -306,16 +538,16 @@ class CTimeLimited(COrder, CUser):
             begin_date += timedelta(days=1)
         return date_list
 
-    def _re_stock(self, apply):
+    def _re_stock(self, tlp):
         """库存回复"""
-        apply_skus = FreshManFirstSku.query.join(
-            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
-            FreshManFirstProduct.FMFAid == apply.FMFAid).all()
+        apply_skus = TimeLimitedSku.query.filter(
+            TimeLimitedSku.isdelete == False,
+            TimeLimitedSku.TLPid == tlp.TLPid).all()
         for apply_sku in apply_skus:
             sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
             # 加库存
-            self._update_stock(apply_sku.FMFPstock, product, sku)
+            self._update_stock(apply_sku.TLSstock, product, sku)
 
     def _fill_tlp(self, tlp, tla):
         if not tlp:
@@ -377,3 +609,14 @@ class CTimeLimited(COrder, CUser):
         product.fill('tlastatus', tlp.TLAstatus)
 
         return product
+
+    def _check_sort(self, sort):
+        if not sort:
+            return 1
+        sort = int(sort)
+        count_pc = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False).count()
+        if sort < 1:
+            return 1
+        if sort > count_pc:
+            return count_pc
+        return sort
