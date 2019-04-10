@@ -40,7 +40,7 @@ from planet.api.v1.AQuestanswer import AQuestanswer
 from planet.api.v1.AWechatShareParams import AWechatShareParams
 from planet.api.v1.ASigninSetting import ASigninSetting
 from planet.api.v1.AClub import AClub
-# from planet.api.v1.ATest import ATest
+from planet.api.v1.ATest import ATest
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -156,7 +156,7 @@ def register_v1(app):
     v1.add_url_rule('/siginsetting/<string:siginsetting>', view_func=ASigninSetting.as_view('siginsetting'))  # 签到设置
     v1.add_url_rule('/excel/<string:excel>', view_func=AExcel.as_view('excel'))  # 签到设置
     v1.add_url_rule('/club/<string:club>', view_func=AClub.as_view('club'))  # 官网相关
-    # v1.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
+    v1.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
     v1.add_url_rule('/timelimited/<string:timelimited>', view_func=ATimelimited.as_view('timelimited'))  # 测试
 
     # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))

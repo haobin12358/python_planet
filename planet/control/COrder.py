@@ -707,7 +707,7 @@ class COrder(CPay, CCoupon):
                     'OMrecvAddress': omrecvaddress,
                     'UseCoupon': bool(coupons),
                     'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
-                    'PRcreateId': product_brand_instance.SUid,
+                    'PRcreateId': product_instance.CreaterId,
                 }
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)

@@ -360,7 +360,8 @@ class CTimeLimited(COrder, CUser):
                 'TLAfrom': tlp_from,
                 'SUid': suid,
                 'PRid': product.PRid,
-                'PRprice': data.get('prprice')
+                'PRprice': data.get('prprice'),
+                'TLAstatus': ApplyStatus.wait_check.value
             })
             instance_list = [apply_info]
             skuids = list()
@@ -547,7 +548,7 @@ class CTimeLimited(COrder, CUser):
             sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
             # 加库存
-            self._update_stock(apply_sku.TLSstock, product, sku)
+            self._update_stock(int(apply_sku.TLSstock), product, sku)
 
     def _fill_tlp(self, tlp, tla):
         if not tlp:
