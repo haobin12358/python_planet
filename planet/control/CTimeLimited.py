@@ -37,13 +37,20 @@ class CTimeLimited(COrder, CUser):
     def list_product(self):
         """获取活动商品"""
         data = parameter_required(('tlaid',))
+        tla = TimeLimitedActivity.query.filter(
+            TimeLimitedActivity.isdelete == False,
+            TimeLimitedActivity.TLAid == data.get('tlaid'),
+            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
+        ).first_('活动已下架')
+
         tlp_list = TimeLimitedProduct.query.filter(
             TimeLimitedProduct.isdelete == False,
             TimeLimitedProduct.TLAid == data.get('tlaid'),
+            TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value
         ).order_by(TimeLimitedProduct.createtime.desc()).all()
         product_list = list()
         for tlp in tlp_list:
-            product = self._fill_tlp(tlp)
+            product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
 
@@ -70,7 +77,10 @@ class CTimeLimited(COrder, CUser):
         data = parameter_required(('tlpid', ))
         tlp = TimeLimitedProduct.query.filter(TimeLimitedProduct.isdelete == False,
                                               TimeLimitedProduct.TLPid == data.get('tlpid')).first_('活动商品已售空')
-        return Success(data=self._fill_tlp(tlp))
+        tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False,
+                                               TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value,
+                                               TimeLimitedActivity.TLAid == tlp.TLAid).first_('活动已结束')
+        return Success(data=self._fill_tlp(tlp, tla))
 
     @token_required
     def add_order(self):
@@ -122,44 +132,44 @@ class CTimeLimited(COrder, CUser):
             filter_args.add(Products.PRfrom == tlp_from)
             suid = None
         # tlp_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
-
-        product = Products.query.filter(*filter_args).first_('商品未上架')
-        # instance_list = list()
-        skus = data.get('skus')
-        tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
-        tlp = TimeLimitedProduct.create({
-            'TLPid': str(uuid.uuid1()),
-            'TLAid': tla.TLAid,
-            'TLAfrom': tlp_from,
-            'SUid': suid,
-            'PRid': product.PRid,
-            # 'PRmainpic': product.PRmainpic,
-            # 'PRattribute': product.PRattribute,
-            # 'PBid': product.PBid,
-            # 'PBname': product.PBname,
-            # 'PRtitle': product.PRtitle,
-            'PRprice': data.get('prprice')
-        })
-        instance_list = [tlp]
-        for sku in skus:
-            skuid = sku.get('skuid')
-            skuprice = sku.get('skuprice')
-            skustock = sku.get('skustock')
-            sku_instance = ProductSku.query.filter_by(
-                isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
-            self._update_stock(-int(skustock), product, sku_instance)
-            tls = TimeLimitedSku.create({
-                'TLSid': str(uuid.uuid1()),
-                'TLPid': tlp.TLPid,
-                'TLSstock': skustock,
-                'SKUid': skuid,
-                'SKUprice': skuprice
+        with db.auto_commit():
+            product = Products.query.filter(*filter_args).first_('商品未上架')
+            # instance_list = list()
+            skus = data.get('skus')
+            tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
+            tlp = TimeLimitedProduct.create({
+                'TLPid': str(uuid.uuid1()),
+                'TLAid': tla.TLAid,
+                'TLAfrom': tlp_from,
+                'SUid': suid,
+                'PRid': product.PRid,
+                # 'PRmainpic': product.PRmainpic,
+                # 'PRattribute': product.PRattribute,
+                # 'PBid': product.PBid,
+                # 'PBname': product.PBname,
+                # 'PRtitle': product.PRtitle,
+                'PRprice': data.get('prprice')
             })
-            instance_list.append(tls)
-            # prstock += skustock
+            instance_list = [tlp]
+            for sku in skus:
+                skuid = sku.get('skuid')
+                skuprice = sku.get('skuprice')
+                skustock = sku.get('skustock')
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
+                self._update_stock(-int(skustock), product, sku_instance)
+                tls = TimeLimitedSku.create({
+                    'TLSid': str(uuid.uuid1()),
+                    'TLPid': tlp.TLPid,
+                    'TLSstock': skustock,
+                    'SKUid': skuid,
+                    'SKUprice': skuprice
+                })
+                instance_list.append(tls)
+                # prstock += skustock
+            db.session.add_all(instance_list)
+
         # todo  添加到审批流
-        # with db.auto_commit():
-        #     db.session.add_all(instance_list)
         # super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid)
         return Success('申请成功', {'tlpid': tlp.TLPid})
 
@@ -204,7 +214,7 @@ class CTimeLimited(COrder, CUser):
             # 加库存
             self._update_stock(apply_sku.FMFPstock, product, sku)
 
-    def _fill_tlp(self, tlp):
+    def _fill_tlp(self, tlp, tla):
         if not tlp:
             return
         product = Products.query.filter(
@@ -231,10 +241,10 @@ class CTimeLimited(COrder, CUser):
             if not sku:
                 current_app.logger.info('该sku已删除 skuid = {0}'.format(tls.SKUid))
                 continue
-            sku.hide('SKUprice')
-            sku.hide('SKUstock')
-            sku.fill('skuprice', tls.SKUprice)
-            sku.fill('skustock', tls.SKUstock)
+            # sku.hide('SKUprice')
+            # sku.hide('SKUstock')
+            sku.fill('tlsprice', tls.SKUprice)
+            sku.fill('tlsstock', tls.TLSstock)
 
             if isinstance(sku.SKUattriteDetail, str):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
@@ -254,6 +264,11 @@ class CTimeLimited(COrder, CUser):
             }
             sku_value_item_reverse.append(temp)
         product.fill('SkuValue', sku_value_item_reverse)
+        product.fill('tlastarttime', tla.TLAstartTime)
+        product.fill('tlaendtime', tla.TLAendTime)
+        product.fill('tlpprice', tlp.PRprice)
+        product.fill('tlpid', tlp.TLPid)
+
         return product
 
 

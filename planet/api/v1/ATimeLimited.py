@@ -10,6 +10,8 @@ class ATimelimited(Resource):
         apis = {
             'get': self.ctl.get,
             'list_activity': self.ctl.list_activity,
+            'list_product': self.ctl.list_product,
+            'get': self.ctl.get,
         }
         return apis
 
