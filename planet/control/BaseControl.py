@@ -161,6 +161,7 @@ class BASEAPPROVAL():
                 sku.hide('SKUstock')
                 sku.fill('skuprice', fmf.SKUprice)
                 sku.fill('skustock', fmf.TLSstock)
+                sku.fill('skuid', fmf.SKUid)
 
                 skus.append(sku)
 

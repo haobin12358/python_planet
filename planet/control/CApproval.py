@@ -20,7 +20,7 @@ from planet.common.token_handler import token_required, is_admin, is_hign_level_
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
-    GuessNumAwardSku
+    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -242,7 +242,7 @@ class CApproval(BASEAPPROVAL):
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
             if check_adp.ADid not in adid_list:
-               check_adp.isdelete = True
+                check_adp.isdelete = True
 
         return Success('创建管理员权限成功')
 
@@ -397,7 +397,7 @@ class CApproval(BASEAPPROVAL):
                 Approval.PTid == pt.PTid, Approval.AVlevel == Permission.PELevel, Permission.PTid == Approval.PTid,
                 Permission.PIid == AdminPermission.PIid, AdminPermission.ADid == admin.ADid,
                 Approval.isdelete == False, Permission.isdelete == False, AdminPermission.isdelete == False,
-            )
+                )
             # import ipdb
             # ipdb.set_trace()
             if avstatus is not None:
@@ -709,7 +709,7 @@ class CApproval(BASEAPPROVAL):
                 'PNcontent': pe.PEid,
                 'PNType': PermissionNotesType.pe.value,
                 'PINaction': '创建 {2} 权限 {0} 等级 {1}'.format(
-                pt.PTname, pelevel, pi.PIname),
+                    pt.PTname, pelevel, pi.PIname),
             }
             db.session.add(PermissionNotes.create(ptn_pe))
 
@@ -1016,7 +1016,7 @@ class CApproval(BASEAPPROVAL):
             GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
             GuessNumAwardSku.isdelete == False,
             GuessNumAwardProduct.isdelete == False,
-        ).all()
+            ).all()
         from planet.control.COrder import COrder
 
         # 遍历原sku 将库存退出去
@@ -1114,13 +1114,32 @@ class CApproval(BASEAPPROVAL):
         if not aca:
             return
         aca.ACAapplyStatus = ApplyStatus.reject.value
-    def agree_totimelimited(self, approval_model):
-        pass
 
-    def refuse_totimelimited(self,approval_model, refuse_abo):
+    def agree_timelimited(self, approval_model):
+        tla = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first_('限时活动商品申请数据异常')
+        tla.TLAstatus = ApplyStatus.agree.value
 
+    def refuse_timelimited(self,approval_model, refuse_abo):
+        tlp = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first()
+        if not tlp:
+            return
+        tlp.TLAstatus = ApplyStatus.reject.value
+        tlp.TLArejectReson = refuse_abo
+        # 获取原商品属性
+        product = tlp
+        # 获取原sku属性
+        tls_old = TimeLimitedSku.query.filter(
+            TimeLimitedSku.TLPid == TimeLimitedProduct.TLPid,
+            TimeLimitedSku.isdelete == False,
+            TimeLimitedProduct.isdelete == False,
+            ).all()
+        from planet.control.COrder import COrder
 
-        pass
+        # 遍历原sku 将库存退出去
+        for sku in tls_old:
+            sku_instance = ProductSku.query.filter_by(
+                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+            COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
 
 
 
