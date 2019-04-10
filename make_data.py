@@ -150,6 +150,18 @@ def make_acvitity():
         })
         db.session.add(free)
 
+        timelimit = Activity.create({
+            'ACid': 4,
+            'ACbackGround': '/img/temp/2018/11/29/6qEKBbcPEd3yXyLq2r6hanonymous.jpg_1024x1024.jpg',
+            'ACtopPic': '/img/temp/2018/11/29/4v815Zfzq3tXvVETkdt3anonymous.jpg_1076x500.jpg',
+            'ACbutton': '限时特惠',
+            'ACtype': ActivityType.time_limited.value,
+            'ACname': '限时特惠',
+            'ACsort': 4
+        })
+        db.session.add(timelimit)
+
+
 def make_permissiontype():
     with db.auto_commit():
         toagent = PermissionType.create({
