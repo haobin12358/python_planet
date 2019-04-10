@@ -17,7 +17,7 @@ from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, She
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
     FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval, ProductCategory, \
-    ProductItems, Items
+    ProductItems, Items, UserInvitation
 from .CUser import CUser
 
 
@@ -218,17 +218,33 @@ class CFreshManFirstOrder(COrder, CUser):
                 try:
                     from_usid = self._base_decode(secret_usid)
                     # 来源用户是否购买
-                    from_user_order = OrderMain.query.filter_by().filter(
-                        OrderMain.USid == from_usid,
-                        OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                        OrderMain.OMfrom == OrderFrom.fresh_man.value,
-                    ).first()
+                    current_app.logger.info('该用户直接点击了链接购买 分享人id 是 {}'.format(from_usid))
+                    if from_usid == user.USid:
+                        from_usid = None
                 except ValueError:
                     current_app.logger.info('secret_usid decode error : {}'.format(secret_usid))
-                    from_user_order = None
-            else:
-                from_user_order = None
+                    from_usid = None
 
+            if not from_usid:
+                ui = UserInvitation.query.filter(
+                    UserInvitation.isdelete == False,
+                    UserInvitation.USInvited == user.USid
+                ).order_by(UserInvitation.createtime.desc()).first()
+                from_usid = None
+                if ui:
+                    from_usid = ui.USInviter
+                    current_app.logger.info('该用户没有点击链接直接购买，通过邀请记录找到最后一个邀请他的人 id是 {}'.format(
+                        from_usid))
+
+            current_app.logger.info('get share user id = {}'.format(from_usid))
+
+            from_user_order = OrderMain.query.filter_by().filter(
+                OrderMain.USid == from_usid,
+                OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                OrderMain.OMfrom == OrderFrom.fresh_man.value,
+            ).first()
+
+            current_app.logger.info('get share user order = {}'.format(from_user_order))
 
             # 创建订单
             omid = str(uuid.uuid1())
