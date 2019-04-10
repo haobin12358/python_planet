@@ -104,7 +104,7 @@ class CCoupon(object):
         if can_use:
             user_coupons = user_coupon.filter_(
                 or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
-                or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
+                # or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
                 Coupon.COisAvailable == True,  # 可用
                 # CouponUser.UCalreadyUse == False,  # 未用
             ).order_by(CouponUser.createtime.desc()).all_with_page()
