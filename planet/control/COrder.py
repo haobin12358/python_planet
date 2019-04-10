@@ -143,7 +143,7 @@ class COrder(CPay, CCoupon):
                 # 用户
                 # todo 卖家订单
                 if is_admin() or is_supplizer():
-                    user = User.query.filter_by_({'USid': usid}).first_()
+                    user = User.query.filter_by({'USid': usid}).first_()
                     if user:
                         user.fields = ['USname', 'USheader', 'USgender']
                         order_main.fill('user', user)
@@ -1826,7 +1826,6 @@ class COrder(CPay, CCoupon):
         else:
             # 如果不是新人首单走正常到账逻辑
             self._commsion_into_count(order_part)
-
 
     def _commsion_into_count(self, order_part):
         """佣金到账"""
