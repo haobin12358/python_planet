@@ -35,7 +35,8 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku,FreshManJoinFlow
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
+    FreshManFirstApply, FreshManFirstProduct
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -872,8 +873,28 @@ class COrder(CPay, CCoupon):
                     gnas.SKUstock = gnas.SKUstock + opnum
 
                 elif omfrom == OrderFrom.fresh_man.value:
-                    # todo
-                    pass
+                    current_app.logger.info('新人首单库存退回')
+                    fmfa = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.isdelete == False,
+                        FreshManFirstApply.FMFAstartTime <= order_main.createtime.date(),
+                        FreshManFirstApply.FMFAendTime >= order_main.createtime.date(),
+                    ).order_by(FreshManFirstApply.updatetime.desc()).first_('新人首单数据异常')
+                    now = date.today()
+                    if fmfa.FMFAendTime < now:
+                        current_app.logger.info('活动已结束，返回库存给原商品')
+                        self._update_stock(opnum, product, sku_instance)
+                    else:
+                        fmfs = FreshManFirstSku.query.filter(
+                            FreshManFirstProduct.isdelete == False,
+                            FreshManFirstSku.isdelete == False,
+                            FreshManFirstProduct.FMFAid == fmfa.FMFAid,
+                            FreshManFirstSku.FMFPid == FreshManFirstProduct.FMFPid,
+                            FreshManFirstSku.SKUid == skuid
+                        ).first_('新人首单数据异常')
+                        current_app.logger.info('开始退还 新人首单 fmfsid 为 {}的库存 skuid 是 {} 日期是 {} '.format(
+                            fmfs.FMFSid, skuid, order_main.createtime))
+                        fmfs.FMFPstock = fmfs.FMFPstock + opnum
+
                 elif omfrom == OrderFrom.magic_box.value:
                     current_app.logger.info('活动魔盒订单')
                     magic_box_flow = MagicBoxFlow.query.filter(

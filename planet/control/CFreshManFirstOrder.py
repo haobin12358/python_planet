@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, date, timedelta
 
 from flask import request, current_app
+from sqlalchemy import or_
 
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -358,6 +359,17 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             # 商品, 暂时只可以添加一个商品
+            check_product = FreshManFirstProduct.query.filter(
+                FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid,
+                FreshManFirstProduct.PRid == prid,
+                or_(FreshManFirstApply.FMFAstartTime <= fresh_first_apply.FMFAendTime,
+                    FreshManFirstApply.FMFAendTime >= fresh_first_apply.FMFAstartTime),
+                FreshManFirstApply.isdelete == False,
+                FreshManFirstProduct.isdelete == False
+            ).all()
+            if check_product:
+                raise ParamsError('重复提交 重叠时间')
+
             fresh_first_product = FreshManFirstProduct.create({
                 'FMFPid': str(uuid.uuid1()),
                 'FMFAid': fresh_first_apply.FMFAid,
