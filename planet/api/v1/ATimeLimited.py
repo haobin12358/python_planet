@@ -18,6 +18,7 @@ class ATimelimited(Resource):
     def post(self, timelimited):
         apis = {
             'create': self.ctl.create,
-            'apply_award': self.ctl.apply_award
+            'apply_award': self.ctl.apply_award,
+            'update_award': self.ctl.update_award
         }
         return apis
