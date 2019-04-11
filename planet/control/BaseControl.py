@@ -183,8 +183,6 @@ class BASEAPPROVAL():
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
 
-        # sku_value_instance = ProductSkuValue.query.filter_by_({'PRid': product.PRid}).first()
-        # if not sku_value_instance:
         sku_value_item_reverse = []
         for index, name in enumerate(product.PRattribute):
             value = list(set([attribute[index] for attribute in sku_value_item]))
@@ -194,17 +192,6 @@ class BASEAPPROVAL():
                 'value': value
             }
             sku_value_item_reverse.append(temp)
-        # else:
-        #     sku_value_item_reverse = []
-        #     pskuvalue = sku_value_instance.PSKUvalue
-        #     if isinstance(sku_value_instance.PSKUvalue, str):
-        #         pskuvalue = json.loads(sku_value_instance.PSKUvalue)
-        #     for index, value in enumerate(pskuvalue):
-        #         sku_value_item_reverse.append({
-        #             'name': product.PRattribute[index],
-        #             'value': value
-        #         })
-
         product.fill('SkuValue', sku_value_item_reverse)
         product.fill('brand', pb)
         product.fill('skus', skus)
