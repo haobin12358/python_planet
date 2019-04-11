@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import uuid
 
-from flask import request, json
+from flask import request, json, current_app
 
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import ProductStatus
+from planet.config.enums import ProductStatus, CartFrom
 from planet.models import ProductSku, Products
 from planet.models.trade import Carts
 from planet.service.SProduct import SProducts
@@ -23,6 +23,18 @@ class CCart(object):
     def add(self):
         """添加购物车"""
         data = parameter_required(('skuid', ))
+        try:
+            cafrom = CartFrom(data.get('cafrom')).value
+            current_app.logger.info('获取到了cafrom value = {}'.format(cafrom))
+        except:
+            current_app.logger.info('cafrom 参数异常')
+            cafrom = 10
+        contentid = data.get('contentid')
+        # todo 前端目前只会在限时活动传该参数
+        if cafrom == CartFrom.time_limited.value and not contentid:
+            current_app.logger.info('miss content  cafrom {}'.format(cafrom))
+            raise ParamsError('非活动商品加入购物车参数异常')
+
         skuid = data.get('skuid')
         try:
             num = int(data.get('canums', 1))
@@ -62,7 +74,9 @@ class CCart(object):
                     'SKUid': skuid,
                     'CAnums': num,
                     'PBid': pbid,
-                    'PRid': prid
+                    'PRid': prid,
+                    'Contentid': contentid,
+                    'CAfrom': cafrom
                 })
                 msg = '添加购物车成功'
                 session.add(cart)
@@ -71,7 +85,7 @@ class CCart(object):
     @token_required
     def update(self):
         """更新购物车"""
-        data = parameter_required(('caid', ))
+        data = parameter_required(('caid',))
         caid = data.get('caid')
         usid = request.user.id
         card = self.scart.get_card_one({'CAid': caid, 'USid': usid}, error='购物车不存在')  # card就是cart.
@@ -114,7 +128,7 @@ class CCart(object):
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             if not pb:
                 continue
-            cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
+            cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})  # 购物车的sku
             if not cart_sku:
                 continue
             cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
@@ -176,8 +190,3 @@ class CCart(object):
                 Carts.USid == usid
             ).delete_(synchronize_session=False)
         return Success('删除成功')
-
-
-
-
-

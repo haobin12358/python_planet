@@ -15,7 +15,8 @@ class Carts(Base):
     CAnums = Column(Integer, default=1, comment='数量')
     PBid = Column(String(64), comment='品牌id')
     PRid = Column(String(64), comment='商品id')
-
+    CAfrom = Column(Integer, default=10, comment='商品来源 10 普通商品 0: 新人 1 猜数字 2 魔术礼盒 3 免费试用 4 限时特惠 ')
+    Contentid = Column(String(64), comment='关联活动prid')
 
 
 class OrderMain(Base):

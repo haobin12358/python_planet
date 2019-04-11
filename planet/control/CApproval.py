@@ -1130,7 +1130,7 @@ class CApproval(BASEAPPROVAL):
         tlp.TLAstatus = ApplyStatus.reject.value
         tlp.TLArejectReson = refuse_abo
         # 获取原商品属性
-        product = tlp
+        product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
         # 获取原sku属性
         tls_old = TimeLimitedSku.query.filter(
             TimeLimitedSku.TLPid == tlp.TLPid,

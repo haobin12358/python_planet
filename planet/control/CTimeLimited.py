@@ -343,7 +343,7 @@ class CTimeLimited(COrder, CUser):
             db.session.add_all(instance_list)
 
         # todo  添加到审批流
-        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid)
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid, applyfrom=tlp_from)
         return Success('申请成功', {'tlpid': tlp.TLPid})
 
     def update_award(self):
@@ -443,7 +443,7 @@ class CTimeLimited(COrder, CUser):
 
             db.session.add_all(instance_list)
 
-        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid)
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid, applyfrom=tlp_from)
         return Success('修改成功')
 
     @admin_required
