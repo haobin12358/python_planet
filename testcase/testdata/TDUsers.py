@@ -141,7 +141,7 @@ class TDUsers():
             ucstatus = user.UCstatus
             uctype = user.UCtype
             ucendtime = user.UCendTime
-            prtitle = user.PCtitle
+            prtitle = user.PRtitle
             skupic = user.SKUpic
             omid = user.OMid
             opid = user.OPid
