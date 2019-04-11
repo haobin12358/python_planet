@@ -331,6 +331,7 @@ class CProducts(BaseController):
     @token_required
     def add_product(self):
         if is_admin():
+            raise StatusError("管理员账号不允许直接上传商品，请使用相应品牌的供应商账号上传")
             product_from = ProductFrom.platform.value
         elif is_supplizer():
             product_from = ProductFrom.supplizer.value

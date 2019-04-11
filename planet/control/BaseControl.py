@@ -107,7 +107,7 @@ class BASEAPPROVAL():
         # 填充商品详情
         if not product:
             return
-
+        current_app.logger.info('开始填充商品详情 ')
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -206,6 +206,7 @@ class BASEAPPROVAL():
         product.fill('SkuValue', sku_value_item_reverse)
         product.fill('brand', pb)
         product.fill('skus', skus)
+        current_app.logger.info('填充完商品信息')
 
     def __fill_publish(self, startid, contentid):
         """填充资讯发布"""
@@ -396,18 +397,18 @@ class BASEAPPROVAL():
         # 限时
         start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
                       Admin.query.filter_by_(ADid=startid).first()
-        content = TimeLimitedProduct.query.filter_by(TLPid=contentid,isdelete = False).first()
+        content = TimeLimitedProduct.query.filter_by(TLPid=contentid, isdelete = False).first()
         if not start_model or not content:
             return None, None
-        product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
-        product_model = Products.query.filter_by(PRid=product.PRid, isdelete=False).first_('商品已下架')
-        product.fill('PBid',product_model.PBid)
-        product.fill('PRattribute',product_model.PRattribute)
-        product.fill('PRremarks',product_model.PRremarks)
-        product.fill('PCid',product_model.PCid)
+        # product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
+        product_model = Products.query.filter_by(PRid=content.PRid, isdelete=False).first_('商品已下架')
+        content.fill('PBid',product_model.PBid)
+        content.fill('PRattribute',product_model.PRattribute)
+        content.fill('PRremarks',product_model.PRremarks)
+        content.fill('PCid',product_model.PCid)
         # product.fill('PBid',product_model.PBid)
-        self.__fill_product_detail(product, content=content)
-        content.fill('product', product)
+        self.__fill_product_detail(content, content=content)
+        # content.fill('product', content)
         return start_model, content
 
 

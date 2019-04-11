@@ -35,7 +35,8 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku,FreshManJoinFlow
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
+    FreshManFirstApply, FreshManFirstProduct
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -143,7 +144,7 @@ class COrder(CPay, CCoupon):
                 # 用户
                 # todo 卖家订单
                 if is_admin() or is_supplizer():
-                    user = User.query.filter_by_({'USid': usid}).first_()
+                    user = User.query.filter_by({'USid': usid}).first_()
                     if user:
                         user.fields = ['USname', 'USheader', 'USgender']
                         order_main.fill('user', user)
@@ -707,7 +708,7 @@ class COrder(CPay, CCoupon):
                     'OMrecvAddress': omrecvaddress,
                     'UseCoupon': bool(coupons),
                     'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
-                    'PRcreateId': product_brand_instance.SUid,
+                    'PRcreateId': product_instance.CreaterId,
                 }
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
@@ -872,8 +873,29 @@ class COrder(CPay, CCoupon):
                     gnas.SKUstock = gnas.SKUstock + opnum
 
                 elif omfrom == OrderFrom.fresh_man.value:
-                    # todo
-                    pass
+                    current_app.logger.info('新人首单库存退回')
+                    fmfa = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.isdelete == False,
+                        FreshManFirstApply.FMFAstartTime <= order_main.createtime.date(),
+                        FreshManFirstApply.FMFAendTime >= order_main.createtime.date(),
+                    ).order_by(FreshManFirstApply.updatetime.desc()).first_('新人首单数据异常')
+                    now = date.today()
+                    current_app.logger.info('get fmfa = {}'.format(fmfa))
+                    if fmfa.FMFAendTime < now:
+                        current_app.logger.info('活动已结束，返回库存给原商品')
+                        self._update_stock(opnum, product, sku_instance)
+                    else:
+                        fmfs = FreshManFirstSku.query.filter(
+                            FreshManFirstProduct.isdelete == False,
+                            FreshManFirstSku.isdelete == False,
+                            FreshManFirstProduct.FMFAid == fmfa.FMFAid,
+                            FreshManFirstSku.FMFPid == FreshManFirstProduct.FMFPid,
+                            FreshManFirstSku.SKUid == skuid
+                        ).first_('新人首单数据异常')
+                        current_app.logger.info('开始退还 新人首单 fmfsid 为 {}的库存 skuid 是 {} 日期是 {} '.format(
+                            fmfs.FMFSid, skuid, order_main.createtime))
+                        fmfs.FMFPstock = fmfs.FMFPstock + opnum
+
                 elif omfrom == OrderFrom.magic_box.value:
                     current_app.logger.info('活动魔盒订单')
                     magic_box_flow = MagicBoxFlow.query.filter(
@@ -1787,7 +1809,7 @@ class COrder(CPay, CCoupon):
         s.add(order_pay_instance)
 
     # 新人首单的佣金到账
-    def _fresh_commsion_into_count(self,order_part):
+    def _fresh_commsion_into_count(self, order_part):
         opid = order_part.OPid
         fresh_order_main = OrderMain.query.filter_(
             OrderMain.isdelete == False,
@@ -1795,10 +1817,12 @@ class COrder(CPay, CCoupon):
             OrderMain.OMfrom == OrderFrom.fresh_man.value
         ).first()
         if fresh_order_main:
+            current_app.logger.info('新人首单计算佣金')
             up_commison_order = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.OMid == fresh_order_main.OMid
             ).first()
+            current_app.logger.info('新人首单上级佣金记录 {}'.format(up_commison_order.__dict__))
             if up_commison_order:
                 # 作为被分享者
                 up_main_order = OrderMain.query.filter(
@@ -1807,7 +1831,9 @@ class COrder(CPay, CCoupon):
                     OrderMain.USid == up_commison_order.USid,
                     OrderMain.OMstatus == OrderMainStatus.ready.value
                 ).first()
+
                 if up_main_order:
+                    current_app.logger.info('新人首单上级存在已完成订单 订单数据直接返回押金')
                     self._commsion_into_count(order_part)
             # 作为分享者
             commisions = UserCommission.query.filter(
@@ -1817,8 +1843,11 @@ class COrder(CPay, CCoupon):
                 UserCommission.UCstatus == UserCommissionStatus.preview.value,
                 OrderMain.OMstatus == OrderMainStatus.ready.value,
             ).all()
+
+            current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(len(commisions)))
             if commisions:
                 for commision in commisions:
+                    current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(commision.COid))
                     commision.update({
                         'UCstatus': UserCommissionStatus.in_account.value
                     })
@@ -1827,7 +1856,6 @@ class COrder(CPay, CCoupon):
         else:
             # 如果不是新人首单走正常到账逻辑
             self._commsion_into_count(order_part)
-
 
     def _commsion_into_count(self, order_part):
         """佣金到账"""

@@ -819,8 +819,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_freshmanfirstproduct(approval_model)
         elif approval_model.PTid == 'totrialcommodity':
             self.agree_trialcommodity(approval_model)
-        elif approval_model.PTid == 'totrialcommodity':
-            self.agree_totimelimited(approval_model)
+        elif approval_model.PTid == 'totimelimited':
+            self.agree_timelimited(approval_model)
         elif approval_model.PTid == 'toreturn':
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')
@@ -854,7 +854,7 @@ class CApproval(BASEAPPROVAL):
         elif approval_model.PTid == 'toactivationcode':
             self.refuse_activationcode(approval_model, refuse_abo)
         elif approval_model.PTid == 'totimelimited':
-            self.refuse_totimelimited(approval_model, refuse_abo)
+            self.refuse_timelimited(approval_model, refuse_abo)
         elif approval_model.PTid == 'toreturn':
             # todo 退货申请目前没有图
             # return ParamsError('退货申请前往订单页面实现')

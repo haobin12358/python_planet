@@ -17,6 +17,7 @@ class Carts(Base):
     PRid = Column(String(64), comment='商品id')
 
 
+
 class OrderMain(Base):
     """
     订单主单, 下单时每种品牌单独一个订单, 但是一并付费

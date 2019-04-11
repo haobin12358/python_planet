@@ -344,7 +344,7 @@ class CTimeLimited(COrder, CUser):
             db.session.add_all(instance_list)
 
         # todo  添加到审批流
-        # super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid)
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid)
         return Success('申请成功', {'tlpid': tlp.TLPid})
 
     def update_award(self):
@@ -388,7 +388,8 @@ class CTimeLimited(COrder, CUser):
                 'TLAfrom': tlp_from,
                 'SUid': suid,
                 'PRid': product.PRid,
-                'PRprice': data.get('prprice')
+                'PRprice': data.get('prprice'),
+                'TLAstatus': ApplyStatus.wait_check.value
             })
             instance_list = [apply_info]
             skuids = list()
@@ -442,6 +443,8 @@ class CTimeLimited(COrder, CUser):
             # prstock += skustock
 
             db.session.add_all(instance_list)
+
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid)
         return Success('修改成功')
 
     @admin_required
@@ -521,9 +524,10 @@ class CTimeLimited(COrder, CUser):
                 self._update_stock(int(sku.TLSstock), product, sku_instance)
 
             # 同时将正在进行的审批流改为取消 todo
-            # approval_info = Approval.query.filter_by_(AVcontent=tlpid, AVstartid=request.user.id,
-            #                                           AVstatus=ApplyStatus.wait_check.value).first()
-            # approval_info.AVstatus = ApplyStatus.cancle.value
+            approval_info = Approval.query.filter_by(
+                AVcontent=tlpid, AVstartid=request.user.id, isdelete=False,
+                AVstatus=ApplyStatus.wait_check.value).first()
+            approval_info.AVstatus = ApplyStatus.cancle.value
         return Success('取消成功', {'tlpid': tlpid})
 
     def del_award(self):
@@ -575,7 +579,7 @@ class CTimeLimited(COrder, CUser):
             sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
             # 加库存
-            self._update_stock(apply_sku.TLSstock, product, sku)
+            self._update_stock(int(apply_sku.TLSstock), product, sku)
 
     def _fill_tlp(self, tlp, tla):
         if not tlp:
