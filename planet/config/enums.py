@@ -550,6 +550,16 @@ class TimeLimitedStatus(Enum):
     abort = -10, '中止'
     end = 10, '结束'
 
+
+class CartFrom(Enum):
+    normal = 10, '普通商品'
+    fresh_man = 0, '新人'
+    guess_num = 1, '猜数字'
+    magic_box = 2, '魔术礼盒'
+    free_use = 3, '免费试用'
+    time_limited = 4, '限时活动'
+
+
 # class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
