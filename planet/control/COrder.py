@@ -1822,9 +1822,10 @@ class COrder(CPay, CCoupon):
                 UserCommission.isdelete == False,
                 UserCommission.OMid == fresh_order_main.OMid
             ).first()
-            current_app.logger.info('新人首单上级佣金记录 {}'.format(up_commison_order.__dict__))
+
             if up_commison_order:
                 # 作为被分享者
+                current_app.logger.info('新人首单上级佣金记录 {}'.format(up_commison_order.__dict__))
                 up_main_order = OrderMain.query.filter(
                     OrderMain.isdelete == False,
                     OrderMain.OMfrom == OrderFrom.fresh_man.value,

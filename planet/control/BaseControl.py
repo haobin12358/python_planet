@@ -156,6 +156,7 @@ class BASEAPPROVAL():
             tls = TimeLimitedSku.query.filter_by(TLPid=product.TLPid, isdelete=False).all()
 
             skus = []
+            tlpstock = 0
             for fmf in tls:
                 sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
                 sku.hide('SKUprice')
@@ -163,9 +164,10 @@ class BASEAPPROVAL():
                 sku.fill('skuprice', fmf.SKUprice)
                 sku.fill('skustock', fmf.TLSstock)
                 sku.fill('skuid', fmf.SKUid)
-
                 skus.append(sku)
-
+                tlpstock += int(fmf.TLSstock)
+            current_app.logger.info('本次申请共计库存 {}'.format(tlpstock))
+            product.fill('tlpstock', tlpstock)
         else:
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
@@ -397,7 +399,8 @@ class BASEAPPROVAL():
         # 限时
         start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
                       Admin.query.filter_by_(ADid=startid).first()
-        content = TimeLimitedProduct.query.filter_by(TLPid=contentid, isdelete = False).first()
+        content = TimeLimitedProduct.query.filter_by(TLPid=contentid, isdelete=False).first()
+        tla = TimeLimitedActivity.query.filter_by(TLAid=content.TLAid, isdelete=False).first()
         if not start_model or not content:
             return None, None
         # product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
@@ -406,6 +409,11 @@ class BASEAPPROVAL():
         content.fill('PRattribute',product_model.PRattribute)
         content.fill('PRremarks',product_model.PRremarks)
         content.fill('PCid',product_model.PCid)
+        content.fill('PRtitle', product_model.PRtitle)
+        content.fill('PRmainpic', product_model.PRmainpic)
+        content.fill('TlAname', tla.TlAname)
+        # content.fill('PRtitle', product_model.PRtitle)
+        # content.fill('PRtitle', product_model.PRtitle)
         # product.fill('PBid',product_model.PBid)
         self.__fill_product_detail(content, content=content)
         # content.fill('product', content)
