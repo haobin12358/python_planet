@@ -22,13 +22,19 @@ class CCart(object):
     @token_required
     def add(self):
         """添加购物车"""
-        data = parameter_required(('skuid', 'cafrom'))
+        data = parameter_required(('skuid', ))
         try:
             cafrom = CartFrom(data.get('cafrom')).value
             current_app.logger.info('获取到了cafrom value = {}'.format(cafrom))
         except:
             current_app.logger.info('cafrom 参数异常')
             cafrom = 10
+        contentid = data.get('contentid')
+        # todo 前端目前只会在限时活动传该参数
+        if cafrom == CartFrom.time_limited.value and not contentid:
+            current_app.logger.info('miss content  cafrom {}'.format(cafrom))
+            raise ParamsError('非活动商品加入购物车参数异常')
+
         skuid = data.get('skuid')
         try:
             num = int(data.get('canums', 1))
@@ -69,6 +75,7 @@ class CCart(object):
                     'CAnums': num,
                     'PBid': pbid,
                     'PRid': prid,
+                    'Contentid': contentid,
                     'CAfrom': cafrom
                 })
                 msg = '添加购物车成功'

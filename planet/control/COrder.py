@@ -22,7 +22,7 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus,UserCommissionType
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -36,7 +36,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
-    FreshManFirstApply, FreshManFirstProduct
+    FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -434,6 +434,7 @@ class COrder(CPay, CCoupon):
         data = parameter_required(('info', 'omclient', 'omfrom', 'uaid', 'opaytype'))
         usid = request.user.id
         gennerc_log('current user is {}'.format(usid))
+
         uaid = data.get('uaid')
         opaytype = data.get('opaytype')
         try:
@@ -513,11 +514,18 @@ class COrder(CPay, CCoupon):
                 freight_list = []  # 快递费
                 for sku in skus:
                     # 订单副单
+                    cafrom = sku.get('cafrom', 10)
+                    try:
+                        cafrom = CartFrom(cafrom).value
+                    except:
+                        cafrom = 10
+
                     opid = str(uuid.uuid1())
                     skuid = sku.get('skuid')
                     opnum = int(sku.get('nums', 1))
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+
                     prid = sku_instance.PRid
                     product_instance = s.query(Products).filter_by_({
                         'PRid': prid,
@@ -528,6 +536,24 @@ class COrder(CPay, CCoupon):
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                    current_app.logger.info('商品sku 价格为 {}'.format(small_total))
+                    if cafrom == CartFrom.time_limited.value:
+                        # 限时活动使用限时活动的sku 价格
+                        current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
+                        contentid = sku.get('contentid')
+                        tls_instance = TimeLimitedSku.query.filter_by(
+                            TLPid=contentid,
+                            SKUid=sku.get('skuid'), isdelete=False).first()
+
+                        now = datetime.now()
+                        tla = TimeLimitedActivity.query.filter(TimeLimitedProduct.TLPid == contentid,
+                                                               TimeLimitedActivity.isdelete == False).first()
+                        current_app.logger.info('get tla {}  tlp id = {} '.format(tla, contentid))
+                        current_app.logger.info('get tls {}  tlp id = {} '.format(tla, contentid))
+                        if tls_instance and tla and (tla.TLAstartTime <= now <= tla.TLAendTime):
+                            small_total = Decimal(str(tls_instance.SKUprice)) * opnum
+                            current_app.logger.info('修改价格为限时活动价格 {}'.format(small_total))
+
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,
