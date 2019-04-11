@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import uuid
 from decimal import Decimal
 
 from flask import current_app
@@ -291,41 +292,53 @@ def check_abnormal_sale_volume():
                     'PMSVnum': o[-1],
                 }, synchronize_session=False)
 
-            # ops = db.session.query(OrderPart).outerjoin(OrderMain,
-            #                                             OrderMain.OMid == OrderPart.OMid
-            #                                             ).filter(OrderMain.isdelete == False,
-            #                                                      OrderPart.isdelete == False,
-            #                                                      OrderMain.OMstatus != -40,
-            #                                                      OrderPart.PRid == product.PRid,
-            #                                                      OrderPart.OPisinORA == False
-            #                                                      ).order_by(OrderPart.createtime.desc()).all()
-            # march_sale_volume = 0
-            # april_sale_volume = 0
-            # for op in ops:
-            #     if op.createtime.month == 3:
-            #         march_sale_volume += 1
-            #     elif op.createtime.month == 4:
-            #         april_sale_volume += 1
-            # print(ops)
 
-            # print("该商品三月销量为{} ， 四月销量为{}".format(march_sale_volume, april_sale_volume))
-            # 修正月销量
-            # ProductMonthSaleValue.query.filter(
-            #     ProductMonthSaleValue.PRid == product.PRid,
-            #     ProductMonthSaleValue.isdelete == False,
-            #     extract('year', ProductMonthSaleValue.createtime) == 2018,
-            #     extract('month', ProductMonthSaleValue.createtime) == 3,
-            # ).update({
-            #     'PMSVnum': march_sale_volume,
-            # }, synchronize_session=False)
-            # ProductMonthSaleValue.query.filter(
-            #     ProductMonthSaleValue.PRid == product.PRid,
-            #     ProductMonthSaleValue.isdelete == False,
-            #     extract('year', ProductMonthSaleValue.createtime) == 2018,
-            #     extract('month', ProductMonthSaleValue.createtime) == 4,
-            # ).update({
-            #     'PMSVnum': april_sale_volume,
-            # }, synchronize_session=False)
+def check_product_from():
+    """平台上架供应商商品修正"""
+    with db.auto_commit():
+        from planet.config.enums import ProductFrom
+        from planet.models.product import SupplizerProduct, Supplizer
+        products = Products.query.join(ProductBrand, ProductBrand.PBid == Products.PBid
+                                       ).filter(Products.PRfrom == ProductFrom.platform.value,
+                                                Products.isdelete == False,
+                                                ProductBrand.isdelete == False,
+                                                ProductBrand.SUid.isnot(None),
+                                                ).order_by(Products.createtime.desc()).all()
+        old_prid = []
+        for pr in products:
+            pb = ProductBrand.query.join(Supplizer, Supplizer.SUid == ProductBrand.SUid
+                                         ).filter(Supplizer.isdelete == False,
+                                                  Supplizer.SUstatus == 0,
+                                                  ProductBrand.PBid == pr.PBid,
+                                                  ProductBrand.isdelete == False).first()
+            if not pb:
+                print("品牌供应商状态异常")
+                continue
+            old_prid.append(pr.PRid)
+
+            if SupplizerProduct.query.filter(SupplizerProduct.SUid == pb.SUid,
+                                             SupplizerProduct.PRid == pr.PBid,
+                                             SupplizerProduct.isdelete == False
+                                             ).first():
+                print("该商品存在与供应商商品关联表中")
+            else:
+                print("该商品不在供应商商品关联表中")
+
+            a = '平台' if str(pr.PRfrom) == '0' else '供应商'
+            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
+            # 避免操作错误，暂时注释掉，使用时取消注释
+            print("  >>> 开始修改 <<< ")
+            pr.update({'PRfrom': 10, 'CreaterId': pb.SUid})
+            db.session.add(pr)
+            sp_instance = SupplizerProduct.create({
+                'SPid': str(uuid.uuid1()),
+                'PRid': pr.PRid,
+                'SUid': pb.SUid
+            })
+            db.session.add(sp_instance)
+            print("  >>> 修改结束 <<<  ")
+        print("共有{}个商品存在来源于平台，但关联了供应商品牌的情况".format(len(products)))
+        print("修改的PRids >>> {}".format(old_prid))
 
 
 if __name__ == '__main__':
@@ -346,5 +359,6 @@ if __name__ == '__main__':
         # cexcel._insertproduct(filepath)
         # add_product_promotion()
         # check_abnormal_sale_volume()
+        # check_product_from()
         pass
 
