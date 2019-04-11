@@ -61,6 +61,7 @@ class OrderFrom(Enum):
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
     trial_commodity = 60, '试用商品'
+    time_limited = 70, '限时特惠'
 
 
 class OrderMainStatus(Enum):
