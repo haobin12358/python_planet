@@ -42,12 +42,11 @@ class CTimeLimited(COrder, CUser):
         if tlastatus:
             filter_args.append(TimeLimitedActivity.TLAstatus == tlastatus)
         elif kw:
-            # filter_args.append(and_(*[TimeLimitedActivity.TlAname.contains(x) for x in kw]))
             filter_args.append(TimeLimitedActivity.TlAname.ilike('%{}%'.format(kw)))
         elif adid:
             filter_args.append(TimeLimitedActivity.ADid == adid)
-        else:
-            filter_args.append(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
+        # else:
+            # filter_args.append(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
 
         time_limited_list = TimeLimitedActivity.query.filter_(*filter_args).order_by(TimeLimitedActivity.TLAsort.asc(),
                                                                                      TimeLimitedActivity.createtime.desc()).all()
