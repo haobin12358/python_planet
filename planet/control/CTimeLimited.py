@@ -2,6 +2,7 @@ import json
 import math
 import uuid
 from datetime import datetime, date, timedelta
+from operator import or_, and_
 
 from flask import request, current_app
 
@@ -27,12 +28,29 @@ class CTimeLimited(COrder, CUser):
 
     def list_activity(self):
         """获取活动列表"""
+        # 根据分类查询
         time_now = datetime.now()
-        time_limited_list = TimeLimitedActivity.query.filter(
+        data = parameter_required()
+        tlastatus = data.get('tlastatus')
+        kw = data.get('tlaname', '').split() or ['']  # 关键词
+        adid = data.get('adid')
+
+        filter_args = [
             TimeLimitedActivity.TLAendTime >= time_now,
             TimeLimitedActivity.isdelete == False,
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
-        ).order_by(TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()).all()
+        ]
+        if tlastatus:
+            filter_args.append(TimeLimitedActivity.TLAstatus == tlastatus)
+        elif kw:
+            # filter_args.append(and_(*[TimeLimitedActivity.TlAname.contains(x) for x in kw]))
+            filter_args.append(TimeLimitedActivity.TlAname.ilike('%{}%'.format(kw)))
+        elif adid:
+            filter_args.append(TimeLimitedActivity.ADid == adid)
+        else:
+            filter_args.append(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
+
+        time_limited_list = TimeLimitedActivity.query.filter_(*filter_args).order_by(TimeLimitedActivity.TLAsort.asc(),
+                                                                                     TimeLimitedActivity.createtime.desc()).all()
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
@@ -47,22 +65,32 @@ class CTimeLimited(COrder, CUser):
 
     def list_product(self):
         """获取活动商品"""
-        data = parameter_required(('tlaid',))
-        tla = TimeLimitedActivity.query.filter(
-            TimeLimitedActivity.isdelete == False,
-            TimeLimitedActivity.TLAid == data.get('tlaid'),
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
-        ).first_('活动已下架')
-        filter_args = {
+        data = parameter_required()
+        tlaid = data.get('tlaid')
+        tlastatus = data.get('tlastatus')
+        kw = data.get('prtitle', '').split() or ['']  # 关键词
+        filter_args = [
             TimeLimitedProduct.isdelete == False,
-            TimeLimitedProduct.TLAid == data.get('tlaid'),
-        }
+        ]
+        if tlaid:
+            filter_args.append(TimeLimitedProduct.TLAid == data.get('tlaid'))
+        elif tlastatus:
+            filter_args.append(TimeLimitedProduct.TLAstatus == data.get('tlastatus'))
+        elif kw:
+            filter_args.append(Products.PRtitle.ilike('%{}%'.format(kw)))
+
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
-        tlp_list = TimeLimitedProduct.query.filter(*filter_args).order_by(
+        tlp_list = TimeLimitedProduct.join(Products, Products.PRid == TimeLimitedProduct.PRid).query.filter(*filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
         product_list = list()
         for tlp in tlp_list:
+            tlaid = tlp.TLAid
+            tla = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAid == tlaid,
+                TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
+            ).first_('活动已下架')
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
