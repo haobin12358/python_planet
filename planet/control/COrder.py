@@ -1809,7 +1809,7 @@ class COrder(CPay, CCoupon):
         s.add(order_pay_instance)
 
     # 新人首单的佣金到账
-    def _fresh_commsion_into_count(self,order_part):
+    def _fresh_commsion_into_count(self, order_part):
         opid = order_part.OPid
         fresh_order_main = OrderMain.query.filter_(
             OrderMain.isdelete == False,
@@ -1817,10 +1817,12 @@ class COrder(CPay, CCoupon):
             OrderMain.OMfrom == OrderFrom.fresh_man.value
         ).first()
         if fresh_order_main:
+            current_app.logger.info('新人首单计算佣金')
             up_commison_order = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.OMid == fresh_order_main.OMid
             ).first()
+            current_app.logger.info('新人首单上级佣金记录 {}'.format(up_commison_order.__dict__))
             if up_commison_order:
                 # 作为被分享者
                 up_main_order = OrderMain.query.filter(
@@ -1829,7 +1831,9 @@ class COrder(CPay, CCoupon):
                     OrderMain.USid == up_commison_order.USid,
                     OrderMain.OMstatus == OrderMainStatus.ready.value
                 ).first()
+
                 if up_main_order:
+                    current_app.logger.info('新人首单上级存在已完成订单 订单数据直接返回押金')
                     self._commsion_into_count(order_part)
             # 作为分享者
             commisions = UserCommission.query.filter(
@@ -1839,8 +1843,11 @@ class COrder(CPay, CCoupon):
                 UserCommission.UCstatus == UserCommissionStatus.preview.value,
                 OrderMain.OMstatus == OrderMainStatus.ready.value,
             ).all()
+
+            current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(len(commisions)))
             if commisions:
                 for commision in commisions:
+                    current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(commision.COid))
                     commision.update({
                         'UCstatus': UserCommissionStatus.in_account.value
                     })
@@ -1849,7 +1856,6 @@ class COrder(CPay, CCoupon):
         else:
             # 如果不是新人首单走正常到账逻辑
             self._commsion_into_count(order_part)
-
 
     def _commsion_into_count(self, order_part):
         """佣金到账"""
