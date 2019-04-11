@@ -149,12 +149,12 @@ def auto_evaluate():
                             ">>>>>>  评价第{0}条，OPid ：{1}  <<<<<<".format(str(count), str(order_part.OPid)))
                         # 商品总体评分变化
                         try:
-                            product_info = Products.query.filter_by_(PRid=order_part.PRid).first()
+                            product_info = Products.query.filter_by_(PRid=order_part.PRid).first_("商品不存在")
                             scores = [oe.OEscore for oe in
                                       OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
                                                                    OrderEvaluation.isdelete == False).all()]
                             average_score = round(((float(sum(scores)) + float(5.0)) / (len(scores) + 1)) * 2)
-                            Products.query.filter_by_(PRid=order_part.PRid).update({'PRaverageScore': average_score})
+                            Products.query.filter_by(PRid=order_part.PRid).update({'PRaverageScore': average_score})
                         except Exception as e:
                             current_app.logger.info("更改商品评分失败, 商品可能已被删除；Update Product Score ERROR ：{}".format(e))
 

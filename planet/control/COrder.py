@@ -144,7 +144,7 @@ class COrder(CPay, CCoupon):
                 # 用户
                 # todo 卖家订单
                 if is_admin() or is_supplizer():
-                    user = User.query.filter_by_({'USid': usid}).first_()
+                    user = User.query.filter_by({'USid': usid}).first_()
                     if user:
                         user.fields = ['USname', 'USheader', 'USgender']
                         order_main.fill('user', user)
