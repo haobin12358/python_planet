@@ -36,7 +36,8 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
-    FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity
+    FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
+    OrderPartContentActivity
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -431,7 +432,7 @@ class COrder(CPay, CCoupon):
     @token_required
     def create(self):
         """创建并发起支付"""
-        data = parameter_required(('info', 'omclient', 'omfrom', 'uaid', 'opaytype'))
+        data = parameter_required(('info', 'omclient', 'uaid', 'opaytype'))
         usid = request.user.id
         gennerc_log('current user is {}'.format(usid))
 
@@ -540,6 +541,10 @@ class COrder(CPay, CCoupon):
                     if cafrom == CartFrom.time_limited.value:
                         # 限时活动使用限时活动的sku 价格
                         current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
+                        # 删除购物车
+                        if omfrom == OrderFrom.carts.value:
+                            s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
+                        omfrom = OrderFrom.time_limited.value
                         contentid = sku.get('contentid')
                         tls_instance = TimeLimitedSku.query.filter_by(
                             TLPid=contentid,
@@ -552,7 +557,51 @@ class COrder(CPay, CCoupon):
                         current_app.logger.info('get tls {}  tlp id = {} '.format(tla, contentid))
                         if tls_instance and tla and (tla.TLAstartTime <= now <= tla.TLAendTime):
                             small_total = Decimal(str(tls_instance.SKUprice)) * opnum
+                            tls_instance.TLSstock = int(tls_instance.TLSstock or 0) - opnum
+                            if tls_instance.TLSstock < 0:
+                                raise ParamsError('库存不足')
                             current_app.logger.info('修改价格为限时活动价格 {}'.format(small_total))
+                            oca = OrderPartContentActivity.create({
+                                'OCAid': str(uuid.uuid1()),
+                                'OPid': opid,
+                                'CAfrom': cafrom,
+                                'OCAcontentid': contentid
+                            })
+                            db.session.add(oca)
+
+                    else:
+                        # 对应商品销量 + num sku库存 -num
+                        product_instance.PRsalesValue = product_instance.PRsalesValue + opnum
+                        product_instance.PRstocks = product_instance.PRstocks - opnum
+                        sku_instance.SKUstock = sku_instance.SKUstock - opnum
+                        if sku_instance.SKUstock < 0:
+                            raise StatusError('货源不足')
+                        if product_instance.PRstocks <= 0:
+                            product_instance.PRstatus = ProductStatus.sell_out.value
+                        s.add(product_instance)
+                        s.add(sku_instance)
+                        s.flush()
+                        current_app.logger.info('商品剩余库存: {}'.format(product_instance.PRstocks))
+                        # 月销量 修改或新增
+                        today = datetime.now()
+                        month_sale_updated = s.query(ProductMonthSaleValue).filter_(
+                            ProductMonthSaleValue.PRid == prid,
+                            extract('year', ProductMonthSaleValue.createtime) == today.year,
+                            extract('month', ProductMonthSaleValue.createtime) == today.month,
+                            ProductMonthSaleValue.isdelete == False
+                        ).update({
+                            'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                            'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
+                        }, synchronize_session=False)
+                        if not month_sale_updated:
+                            month_sale_instance = ProductMonthSaleValue.create({
+                                'PMSVid': str(uuid.uuid1()),
+                                'PRid': prid,
+                                'PMSVnum': opnum,
+                                'PMSVfakenum': opnum
+                            })
+                            # model_bean.append(month_sale_instance)
+                            s.add(month_sale_instance)
 
                     order_part_dict = {
                         'OMid': omid,
@@ -592,38 +641,7 @@ class COrder(CPay, CCoupon):
                         s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
-                    # 对应商品销量 + num sku库存 -num
-                    product_instance.PRsalesValue = product_instance.PRsalesValue + opnum
-                    product_instance.PRstocks = product_instance.PRstocks - opnum
-                    sku_instance.SKUstock = sku_instance.SKUstock - opnum
-                    if sku_instance.SKUstock < 0:
-                        raise StatusError('货源不足')
-                    if product_instance.PRstocks <= 0:
-                        product_instance.PRstatus = ProductStatus.sell_out.value
-                    s.add(product_instance)
-                    s.add(sku_instance)
-                    s.flush()
-                    current_app.logger.info('商品剩余库存: {}'.format(product_instance.PRstocks))
-                    # 月销量 修改或新增
-                    today = datetime.now()
-                    month_sale_updated = s.query(ProductMonthSaleValue).filter_(
-                        ProductMonthSaleValue.PRid == prid,
-                        extract('year', ProductMonthSaleValue.createtime) == today.year,
-                        extract('month', ProductMonthSaleValue.createtime) == today.month,
-                        ProductMonthSaleValue.isdelete == False
-                    ).update({
-                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
-                        'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
-                    }, synchronize_session=False)
-                    if not month_sale_updated:
-                        month_sale_instance = ProductMonthSaleValue.create({
-                            'PMSVid': str(uuid.uuid1()),
-                            'PRid': prid,
-                            'PMSVnum': opnum,
-                            'PMSVfakenum': opnum
-                        })
-                        # model_bean.append(month_sale_instance)
-                        s.add(month_sale_instance)
+
                     # 是否是开店大礼包
                     item = Items.query.join(ProductItems, Items.ITid == ProductItems.ITid).filter(
                         Items.isdelete == False,
@@ -920,7 +938,7 @@ class COrder(CPay, CCoupon):
                         ).first_('新人首单数据异常')
                         current_app.logger.info('开始退还 新人首单 fmfsid 为 {}的库存 skuid 是 {} 日期是 {} '.format(
                             fmfs.FMFSid, skuid, order_main.createtime))
-                        fmfs.FMFPstock = fmfs.FMFPstock + opnum
+                        fmfs.FMFPstock = int(fmfs.FMFPstock) + int(opnum)
 
                 elif omfrom == OrderFrom.magic_box.value:
                     current_app.logger.info('活动魔盒订单')
@@ -948,7 +966,7 @@ class COrder(CPay, CCoupon):
                         current_app.logger.info('魔盒取消订单, 增加库存{}, 当前 {}'.format(opnum, out_stock.OSnum))
                         db.session.add(out_stock)
                     db.session.flush()
-                    # todo 库存操作
+
                 elif omfrom == OrderFrom.trial_commodity.value:
                     current_app.logger.info('正在取消一个试用商品订单')
                     TrialCommodity.query.filter(TrialCommodity.TCid == prid
@@ -956,6 +974,19 @@ class COrder(CPay, CCoupon):
                                                           'TCstocks': TrialCommodity.TCstocks + opnum})
                     TrialCommoditySku.query.filter(TrialCommoditySku.SKUid == skuid
                                                    ).update({'SKUstock': TrialCommoditySku.SKUstock + opnum})
+
+                elif omfrom == OrderFrom.time_limited.value:
+                    current_app.logger.info('正在取消一个限时特惠订单')
+                    # todo  根据oca 表查找具体的数据
+                    oca = OrderPartContentActivity.query.filter_by(OPid=order_part.OPid, isdelete=False).first()
+                    current_app.logger.info('get op {} oca {}'.format(order_part.OPid, oca))
+
+                    if oca:
+                        tlp = TimeLimitedProduct.query.filter_by(TLPid=oca.OCAcontentid, isdelete=False).first()
+                        tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, SKUid=skuid, isdelete=False).first()
+                        current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
+                            tlp.TLPid, skuid, tls))
+                        tls.TLSstock = int(tls.TLSstock) + int(opnum)
 
                 # 商品销量修改
                 product.update({'PRsalesValue': product.PRsalesValue - opnum})

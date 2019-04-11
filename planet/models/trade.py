@@ -354,3 +354,11 @@ class ActivationCodeRule(Base):
     ACRisShow = Column(Boolean, default=True, comment='是否显示')
     ACRnum = Column(Integer, default=10, comment='激活码生成数量')
     ACRcash = Column(DECIMAL, default=0, comment='激活码购买金额')
+
+
+class OrderPartContentActivity(Base):
+    __tablename__ = 'OrderMainContent'
+    OCAid = Column(String(64), primary_key=True)
+    CAfrom = Column(Integer, comment='商品来源')
+    OPid = Column(String(64), comment='订单id')
+    OCAcontentid = Column(String(64), comment='关联活动id')
