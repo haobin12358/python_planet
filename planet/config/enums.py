@@ -534,6 +534,11 @@ class NotesStatus(Enum):
     publish = 1, '发布'
 
 
+class ExcelTemplateType(Enum):
+    product = 0, '商品导入模板'
+    delivery = 1, '批量发货模板'
+
+
 class HistoryStatus(Enum):
     normal = 0, '未购买'
     bought = 10, '已购买'
