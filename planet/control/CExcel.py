@@ -207,9 +207,12 @@ class CExcel(object):
                         continue
 
                 olcompany = row_content[heads.get('发货物流')].value
-                olexpressno = row_content[heads.get('物流单号')].value
+                try:
+                    olexpressno = str(row_content[heads.get('物流单号')].value).split('.')[0]
+                except Exception:
+                    raise ParamsError("订单号{} 所填写物流单号错误，请检查后重试".format(order_no))
                 # 创建物流记录
-                order_logistics_instance = self._send_order(order_main, olcompany, int(olexpressno))
+                order_logistics_instance = self._send_order(order_main, olcompany, olexpressno)
                 session_list.append(order_logistics_instance)
                 # 更改订单状态
                 order_main.update({'OMstatus': OrderMainStatus.wait_recv.value})
