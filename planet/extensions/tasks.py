@@ -270,10 +270,10 @@ def create_settlenment():
                 UserCommission.isdelete == False,
                 UserCommission.UCstatus == UserCommissionStatus.in_account.value,
                 UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                UserCommission.createtime < tomonth_22,
-                UserCommission.createtime >= pre_month_22,
+                cast(UserCommission.createtime, Date) < tomonth_22,
+                cast(UserCommission.createtime, Date) >= pre_month_22,
             ).first()
-            ss_total = su_comiission[0]
+            ss_total = su_comiission[0] or 0
             ss = SupplizerSettlement.create({
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
@@ -688,4 +688,5 @@ if __name__ == '__main__':
         # check_for_update()
         # auto_confirm_order()
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
-        return_coupon_deposite()
+        # return_coupon_deposite()
+        create_settlenment()

@@ -61,6 +61,7 @@ class CSupplizer:
             supplizer.fill('uwbalance', getattr(favor, 'UWbalance', 0))
             supplizer.fill('uwtotal', getattr(favor, 'UWtotal', 0))
             supplizer.fill('uwcash', getattr(favor, 'UWcash', 0))
+            supplizer.fill('uwexpect', getattr(favor, 'UWexpect', 0))
             supplizer.fill('subaserate', supplizer.SUbaseRate or 0)
             supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
             supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
