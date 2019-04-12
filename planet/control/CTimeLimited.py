@@ -32,29 +32,34 @@ class CTimeLimited(COrder, CUser):
         time_now = datetime.now()
         data = parameter_required()
         tlastatus = data.get('tlastatus')
-        kw = data.get('tlaname', '').split() or ['']  # 关键词
-        print(kw)
-        adid = data.get('adid')
-        tlaid = data.get('tlaid')
+        # kw = data.get('tlaname', '').split() or ['']  # 关键词
+        kw = data.get('tlaname', '')
+        # print(kw)
+        # adid = data.get('adname')
+        # tlaid = data.get('tlaid')
+        # adname = data.get('adname')
+        # tlaname = data.get('tlaname')
+
         filter_args = {
             TimeLimitedActivity.isdelete == False,
         }
         if common_user():
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
-        if tlastatus:
-            filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
-        elif kw:
-            filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(kw)))
-        elif adid:
-            filter_args.add(TimeLimitedActivity.ADid == adid)
-        elif tlaid:
-            filter_args.add(TimeLimitedActivity.TLAid == tlaid)
+        else:
+            if tlastatus or tlastatus == 0:
+                filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
+            if kw:
+                filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(kw)))
+            # if adname:
+            #     filter_args.add(Admin.ADname.ilike('%{}%'.format(adname)))
+            # if tlaname:
+            #     filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
 
-        filter_args.add(TimeLimitedActivity.TLAstatus >= TimeLimitedStatus.abort.value)
+        # filter_args.add(TimeLimitedActivity.TLAstatus >= TimeLimitedStatus.abort.value)
 
-        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(TimeLimitedActivity.TLAsort.asc(),
-                                                                                   TimeLimitedActivity.createtime.desc()).all()
+        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(
+            TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()).all()
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
