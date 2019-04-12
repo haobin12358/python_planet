@@ -33,9 +33,9 @@ class CTimeLimited(COrder, CUser):
         data = parameter_required()
         tlastatus = data.get('tlastatus')
         kw = data.get('tlaname', '').split() or ['']  # 关键词
+        print(kw)
         adid = data.get('adid')
         tlaid = data.get('tlaid')
-        tlastarttime = data.get('tlastarttime')
         filter_args = {
             TimeLimitedActivity.isdelete == False,
         }
@@ -50,13 +50,11 @@ class CTimeLimited(COrder, CUser):
             filter_args.add(TimeLimitedActivity.ADid == adid)
         elif tlaid:
             filter_args.add(TimeLimitedActivity.TLAid == tlaid)
-        elif tlastarttime:
-            filter_args.add(TimeLimitedActivity.TLAstartTime == tlastarttime)
 
         filter_args.add(TimeLimitedActivity.TLAstatus >= TimeLimitedStatus.abort.value)
 
         time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(TimeLimitedActivity.TLAsort.asc(),
-                                                                                     TimeLimitedActivity.createtime.desc()).all()
+                                                                                   TimeLimitedActivity.createtime.desc()).all()
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
@@ -80,6 +78,7 @@ class CTimeLimited(COrder, CUser):
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
+
         if tlaid:
             filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
         elif tlastatus:
