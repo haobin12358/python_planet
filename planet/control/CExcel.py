@@ -127,7 +127,7 @@ class CExcel(object):
             current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(newFile))
             return newFile
         else:
-            raise SystemError(u'上传有误, 不支持的文件类型 {}'.format(shuffix))
+            raise ParamsError(u"不支持的文件类型 '{}' ，请上传正确的Excel模板".format(shuffix))
 
     def _allowed_file(self, shuffix):
         """
@@ -180,10 +180,10 @@ class CExcel(object):
             session_list, omnos = list(), list()
             for row_num in range(1, content_sheet.nrows):
                 row_content = content_sheet.row(row_num)
-                current_app.logger.info('发货模板读取到本行数据为: {}'.format(row_content))
+                current_app.logger.info('发货模板，第{}行读取的数据为: {}'.format(row_num, row_content))
                 order_no = row_content[heads.get('订单号')].value
                 if order_no in omnos:
-                    raise ParamsError("订单号重复: {}， 请检查后重新上传".format(order_no))
+                    raise ParamsError("订单号重复，请检查后重新上传：{}".format(order_no))
                 omnos.append(order_no)
 
                 order_main = OrderMain.query.filter(OrderMain.OMno == order_no,
@@ -216,14 +216,15 @@ class CExcel(object):
                 session_list.append(order_main)
 
             if status_error_order:
-                raise ParamsError("""请检查订单号是否填写正确(订单需处于待发货状态，且不在售后中)；
-                                  请修改后重新上传模板发货，订单号： {}""".format(status_error_order))
+                raise ParamsError("请检查以下订单号是否填写正确，修改后重新上传模板发货；"
+                                  "（注意：订单需处于待发货状态，且不在售后中）；"
+                                  "{}".format(status_error_order))
             if other_error_order:
-                raise ParamsError("""以下订单不属于自己管理的品牌，不能代替发货，请检查后重试，
-                                  订单号：{}""".format(other_error_order))
+                raise ParamsError("以下订单不属于自己管理的品牌，"
+                                  "不能代替发货，请检查后重试，订单号：{}".format(other_error_order))
             if band_error_order:
-                raise ParamsError("""以下订单相应品牌已下架，请检查后重试。
-                                  订单号：{}""".format(band_error_order))
+                raise ParamsError("以下订单相应品牌已下架，请检查后重试。"
+                                  "订单号：{}".format(band_error_order))
             db.session.add_all(session_list)
         return content_sheet.nrows
 
