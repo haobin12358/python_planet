@@ -2091,7 +2091,7 @@ class CUser(SUser, BASEAPPROVAL):
         if ss.SSstatus != SupplizerSettementStatus.settlementing.value:
             raise TimeError('结算处理中')
 
-        action = data.get('action', ApplyStatus.agree.value)
+        action = data.get('action', ApprovalAction.agree.value)
         anabo = data.get('anabo')
         if int(action) == ApprovalAction.agree.value:
             ss.SSstatus = SupplizerSettementStatus.settlemented.value
