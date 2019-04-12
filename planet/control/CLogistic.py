@@ -63,7 +63,7 @@ class CLogistic:
 
             # 添加物流记录
             order_logistics_instance = OrderLogistics.create({
-                'OLid': str(uuid.uuid4()),
+                'OLid': str(uuid.uuid1()),
                 'OMid': omid,
                 'OLcompany': olcompany,
                 'OLexpressNo': olexpressno,
