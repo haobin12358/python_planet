@@ -81,6 +81,7 @@ class ActivityOrderNavigation(Enum):
     guess_num_award = 30, '每日竞猜'
     magic_box = 50, '好友魔盒'
     trial_commodity = 60, '免费试用'
+    time_limited = 70, '限时特惠'
 
 
 class OrderEvaluationScore(Enum):
