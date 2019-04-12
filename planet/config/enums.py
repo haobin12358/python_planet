@@ -61,6 +61,7 @@ class OrderFrom(Enum):
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
     trial_commodity = 60, '试用商品'
+    time_limited = 70, '限时特惠'
 
 
 class OrderMainStatus(Enum):
@@ -532,6 +533,11 @@ class SupplizerSettementStatus(Enum):
 class NotesStatus(Enum):
     draft = 0, '草稿'
     publish = 1, '发布'
+
+
+class ExcelTemplateType(Enum):
+    product = 0, '商品导入模板'
+    delivery = 1, '批量发货模板'
 
 
 class HistoryStatus(Enum):
