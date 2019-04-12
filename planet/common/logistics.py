@@ -22,10 +22,10 @@ class Logistics(object):
         if response.status_code != 200:
             current_app.logger.error('物流接口请求状态异常，可能是配置错误或者接口挂了; 状态：{} , 接口返回体： {}'.format(response, response.__dict__))
             return
-        current_app.logger.error('物流接口返回的状态：{}， 直接数据为 >>> {}'.format(response, response.__dict__))
         if json:
             try:
                 res = response.json()
+                current_app.logger.info('返回物流数据正常 >>> {}'.format(res))
             except Exception as e:
                 res = response.text
                 current_app.logger.error('返回物流数据异常 >>> {}'.format(e))
