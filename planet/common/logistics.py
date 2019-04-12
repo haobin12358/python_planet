@@ -18,6 +18,10 @@ class Logistics(object):
             response = requests.get(url, params=arg, headers=self.headers)
         else:
             response = requests.post(url, data=arg, headers=self.headers)
+
+        if response.status_code != 200:
+            current_app.logger.error('物流接口请求状态异常，可能是配置错误或者接口挂了; 状态：{} , 接口返回体： {}'.format(response, response.__dict__))
+            return
         current_app.logger.error('物流接口返回的状态：{}， 直接数据为 >>> {}'.format(response, response.__dict__))
         if json:
             try:
