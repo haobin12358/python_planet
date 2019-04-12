@@ -94,10 +94,10 @@ class CExcel(object):
         file_path = self._save_excel(file, folder)
 
         # 进行订单发货
-        self._order_delivery(file_path)
+        nrows = self._order_delivery(file_path)
 
         current_app.logger.info('End Add Delivery Template {}'.format(datetime.now()))
-        return Success('批量发货成功')
+        return Success('批量发货成功, 共发货 {} 个订单'.format(nrows - 1))
 
     def _save_excel(self, file, folder):
         """
@@ -164,6 +164,9 @@ class CExcel(object):
             content_sheet = excel_file.sheet_by_name('order')
         except Exception:
             raise ParamsError('模板固定格式可能被修改过，请下载原模板，重新填写后再次上传')
+        current_app.logger.info('nrows >>> {}'.format(content_sheet.nrows))
+        if content_sheet.nrows == 1:
+            raise ParamsError("表格中没有订单数据，请检查后重新上传")
 
         heads = dict()
         # 读取文件首行表头配置 防止行位置变更
@@ -174,11 +177,15 @@ class CExcel(object):
 
         with db.auto_commit():
             status_error_order, other_error_order, band_error_order = list(), list(), list()
-            session_list = list()
+            session_list, omnos = list(), list()
             for row_num in range(1, content_sheet.nrows):
                 row_content = content_sheet.row(row_num)
                 current_app.logger.info('发货模板读取到本行数据为: {}'.format(row_content))
                 order_no = row_content[heads.get('订单号')].value
+                if order_no in omnos:
+                    raise ParamsError("订单号重复: {}， 请检查后重新上传".format(order_no))
+                omnos.append(order_no)
+
                 order_main = OrderMain.query.filter(OrderMain.OMno == order_no,
                                                     OrderMain.OMstatus == OrderMainStatus.wait_send.value,
                                                     OrderMain.isdelete == False,
@@ -209,9 +216,8 @@ class CExcel(object):
                 session_list.append(order_main)
 
             if status_error_order:
-                raise ParamsError("""请查看订单是否处于待发货状态，且不在售后状态中；
-                                  请检查后重新导入模板发货，订单号：
-                                   {}""".format(status_error_order))
+                raise ParamsError("""请检查订单号是否填写正确(订单需处于待发货状态，且不在售后中)；
+                                  请修改后重新上传模板发货，订单号： {}""".format(status_error_order))
             if other_error_order:
                 raise ParamsError("""以下订单不属于自己管理的品牌，不能代替发货，请检查后重试，
                                   订单号：{}""".format(other_error_order))
@@ -219,6 +225,7 @@ class CExcel(object):
                 raise ParamsError("""以下订单相应品牌已下架，请检查后重试。
                                   订单号：{}""".format(band_error_order))
             db.session.add_all(session_list)
+        return content_sheet.nrows
 
     def _send_order(self, om, olcompany, olexpressno):
         """
@@ -236,7 +243,7 @@ class CExcel(object):
                                     OrderLogistics.isdelete == False
                                     ).delete_()
         # 检验单号是否填写错误
-        response = Logistics().get_logistic(lcompany.LCcode, olexpressno)
+        response = Logistics().get_logistic(olexpressno, lcompany.LCcode)
         if not bool(response) or response.get('status') not in ['0', '205']:
             raise ParamsError("订单号 {} ，填写的物流信息错误，请检查快递公司与单号无误后重新上传模板".format(om.OMno))
 
