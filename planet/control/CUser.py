@@ -2077,8 +2077,8 @@ class CUser(SUser, BASEAPPROVAL):
         data = request.json
 
         day = today.day
-        # if 1 < day < 22:
-        #     raise TimeError('未到结算时间，每月22号之后可以结算')
+        if 1 < day < 22:
+            raise TimeError('未到结算时间，每月22号之后可以结算')
         su = Supplizer.query.filter(Supplizer.SUid == request.user.id, Supplizer.isdelete == False).first()
         if not su:
             raise AuthorityError('账号已被回收')
