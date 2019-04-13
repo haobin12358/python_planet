@@ -14,13 +14,13 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
 
 celery = Celery()
 
@@ -449,6 +449,7 @@ def event_expired_revert():
     """过期活动商品返还库存"""
     current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
     from planet.control.COrder import COrder
+    corder = COrder()
     today = date.today()
 
     try:
@@ -476,7 +477,7 @@ def event_expired_revert():
                 for fresh_man_sku in fresh_man_skus:
                     # 加库存
                     current_app.logger.info(' 恢复库存的新人首单SKUid >> {} '.format(fresh_man_sku.SKUid))
-                    COrder()._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
+                    corder._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
 
             # 猜数字
             guess_num_products = GuessNumAwardProduct.query.join(
@@ -501,7 +502,7 @@ def event_expired_revert():
                 for gna_sku in gna_skus:
                     # 加库存
                     current_app.logger.info(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
-                    COrder()._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
+                    corder._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
 
             # 魔术礼盒
             magic_box_applys = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
@@ -526,7 +527,7 @@ def event_expired_revert():
                 try:
                     out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
                     current_app.logger.info(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
-                    COrder()._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
+                    corder._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
                     out_stock.OSnum = 0
                 except Exception as err:
                     current_app.logger.error('MBAid "{}" , 魔盒库存单出错 >> {}'.format(magic_box_apply.MBAid, err))
@@ -543,6 +544,26 @@ def event_expired_revert():
                 trialcommodity.update({'TCstatus': TrialCommodityStatus.reject.value})
 
             #  试用商品不占用普通商品库存
+
+            # 限时活动
+            tla_list = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAstatus <= TimeLimitedStatus.publish.value,
+                cast(TimeLimitedActivity.TLAendTime, Date) < today).all()
+            current_app.logger.info('开始退还限时活动的库存 本日到期限时活动 {} 个 '.format(len(tla_list)))
+            for tla in tla_list:
+                tlp_list = TimeLimitedProduct.query.filter(
+                    TimeLimitedProduct.isdelete == False,
+                    TimeLimitedProduct.TLAstatus >= ApplyStatus.wait_check.value,
+                    TimeLimitedProduct.TLAid == tla.TLAid).all()
+                tla.TLAstatus = TimeLimitedStatus.end.value
+                current_app.logger.info('过期活动 tlaid = {} 过期商品有 {} '.format(tla.TLAid, len(tlp_list)))
+                for tlp in tlp_list:
+                    current_app.logger.info('过期限时活动商品 TLPid ： {}'.format(tlp.TLPid))
+                    tls = TimeLimitedSku.query.filter(
+                        TimeLimitedSku.isdelete == False,
+                        TimeLimitedSku.TLPid == tlp.TLPid).all()
+                    corder._update_stock(tls.TLSstock, skuid=tls.SKUid)
 
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
@@ -680,7 +701,7 @@ if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        # event_expired_revert()
+        event_expired_revert()
         # deposit_to_account()
         # fetch_share_deal()
         # create_settlenment()
@@ -689,4 +710,4 @@ if __name__ == '__main__':
         # auto_confirm_order()
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
-        create_settlenment()
+        # create_settlenment()

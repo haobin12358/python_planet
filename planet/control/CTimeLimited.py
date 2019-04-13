@@ -314,7 +314,7 @@ class CTimeLimited(COrder, CUser):
             suid = None
         # tlp_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         with db.auto_commit():
-            product = Products.query.filter(*filter_args).first_('商品未上架')
+            product = Products.query.filter(*filter_args).first_('只能选择自己的商品')
             # instance_list = list()
             skus = data.get('skus')
             tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False,
