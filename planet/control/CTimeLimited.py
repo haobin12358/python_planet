@@ -2,7 +2,6 @@ import json
 import math
 import uuid
 from datetime import datetime, date, timedelta
-from operator import or_, and_
 
 from flask import request, current_app
 
@@ -32,9 +31,7 @@ class CTimeLimited(COrder, CUser):
         time_now = datetime.now()
         data = parameter_required()
         tlastatus = data.get('tlastatus')
-        # kw = data.get('tlaname', '').split() or ['']  # 关键词
         kw = data.get('tlaname', '')
-        # print(kw)
         # adid = data.get('adname')
         # tlaid = data.get('tlaid')
         # adname = data.get('adname')
@@ -75,23 +72,22 @@ class CTimeLimited(COrder, CUser):
     def list_product(self):
         """获取活动商品"""
         data = parameter_required()
-        tlaid = data.get('tlaid')
+        # tlaid = data.get('tlaid')
         tlastatus = data.get('tlastatus')
-        kw = data.get('prtitle', '').split() or ['']  # 关键词
+        kw = data.get('prtitle', '') # 关键词
         filter_args = {
             TimeLimitedProduct.isdelete == False,
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
 
-        if tlaid:
-            filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
-        elif tlastatus:
+        # if tlaid:
+        #     filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
+        if tlastatus or tlastatus == 0:
             filter_args.add(TimeLimitedProduct.TLAstatus == data.get('tlastatus'))
         elif kw:
             filter_args.add(Products.PRtitle.ilike('%{}%'.format(kw)))
 
-        filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
         tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(*filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
 
