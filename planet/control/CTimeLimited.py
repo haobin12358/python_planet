@@ -2,6 +2,7 @@ import json
 import math
 import uuid
 from datetime import datetime, date, timedelta
+from operator import or_, and_
 
 from flask import request, current_app
 
@@ -31,29 +32,27 @@ class CTimeLimited(COrder, CUser):
         time_now = datetime.now()
         data = parameter_required()
         tlastatus = data.get('tlastatus')
-        kw = data.get('tlaname', '')
-        # adid = data.get('adname')
-        # tlaid = data.get('tlaid')
-        # adname = data.get('adname')
-        # tlaname = data.get('tlaname')
+        tlaname = data.get('tlaname', '')
+        tlastarttime = data.get('tlastarttime')
+        tlaendtime = data.get('tlaendtime')
 
         filter_args = {
             TimeLimitedActivity.isdelete == False,
         }
+
         if common_user():
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
         else:
+            current_app.logger.info('本次是管理员进行查询')
             if tlastatus or tlastatus == 0:
                 filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
-            if kw:
-                filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(kw)))
-            # if adname:
-            #     filter_args.add(Admin.ADname.ilike('%{}%'.format(adname)))
-            # if tlaname:
-            #     filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
-
-        # filter_args.add(TimeLimitedActivity.TLAstatus >= TimeLimitedStatus.abort.value)
+        if tlaname:
+            filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
+        if tlastarttime:
+            filter_args.add(TimeLimitedActivity.TLAstartTime >= tlastarttime)
+        if tlaendtime:
+            filter_args.add(TimeLimitedActivity.TLAendTime <= tlaendtime)
 
         time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(
             TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()).all()
@@ -71,34 +70,41 @@ class CTimeLimited(COrder, CUser):
 
     def list_product(self):
         """获取活动商品"""
-        data = parameter_required()
-        # tlaid = data.get('tlaid')
+        data = parameter_required(('tlaid',))
+        tlaid = data.get('tlaid')
         tlastatus = data.get('tlastatus')
-        kw = data.get('prtitle', '') # 关键词
+        kw = data.get('prtitle', '')
         filter_args = {
             TimeLimitedProduct.isdelete == False,
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
 
-        # if tlaid:
-        #     filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
-        if tlastatus or tlastatus == 0:
+        if tlaid:
+            filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
+        elif tlastatus:
             filter_args.add(TimeLimitedProduct.TLAstatus == data.get('tlastatus'))
         elif kw:
             filter_args.add(Products.PRtitle.ilike('%{}%'.format(kw)))
 
+        filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
         tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(*filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
 
         product_list = list()
         for tlp in tlp_list:
             tlaid = tlp.TLAid
-            tla = TimeLimitedActivity.query.filter(
-                TimeLimitedActivity.isdelete == False,
-                TimeLimitedActivity.TLAid == tlaid,
-                TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
+            if common_user():
+                tla = TimeLimitedActivity.query.filter(
+                    TimeLimitedActivity.isdelete == False,
+                    TimeLimitedActivity.TLAid == tlaid,
+                    TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
             ).first_('活动已下架')
+            else:
+                tla = TimeLimitedActivity.query.filter(
+                    TimeLimitedActivity.isdelete == False,
+                    TimeLimitedActivity.TLAid == tlaid,
+                ).first_('没有此活动')
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
