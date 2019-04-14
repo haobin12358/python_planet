@@ -234,6 +234,7 @@ class UserIntegralAction(Enum):
     consumption = 2, '积分消费'
     favorite = 3, '点赞'
     commit = 4, '评论'
+    transmit = 5, '转发'
 
 
 class AdminAction(Enum):

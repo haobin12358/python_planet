@@ -17,6 +17,7 @@ class ANews(Resource):
             'news_shelves': self.cnews.news_shelves,
             'update_news': self.cnews.update_news,
             'del_news': self.cnews.del_news,
+            'transmit_content': self.cnews.transmit_content
         }
         return apis
 

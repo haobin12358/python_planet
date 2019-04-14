@@ -17,13 +17,14 @@ from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
     Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval
-from planet.models import NewsComment, NewsCommentFavorite
+from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
 from sqlalchemy import extract
 from planet.models import UserIntegral
 from planet.config.enums import UserIntegralAction, UserIntegralType
+
 
 
 class CNews(BASEAPPROVAL):
@@ -551,16 +552,14 @@ class CNews(BASEAPPROVAL):
                         'USid': usid
                     })
                     s.add(news_favorite)
-                msg = '已赞同'
 
-                # 点赞加星币，一天最多加五次，一次加三个
-                with self.snews.auto_commit() as s:
+                    # 点赞加星币，一天最多加五次，一次加三个
                     now_time = datetime.now()
                     count = s.query(NewsFavorite).filter(
-                            extract('month', NewsFavorite.createtime) == now_time.month,
-                            extract('year', NewsFavorite.createtime) == now_time.year,
-                            extract('day', NewsFavorite.createtime) == now_time.day,
-                            NewsFavorite.USid == usid).count()
+                        extract('month', NewsFavorite.createtime) == now_time.month,
+                        extract('year', NewsFavorite.createtime) == now_time.year,
+                        extract('day', NewsFavorite.createtime) == now_time.day,
+                        NewsFavorite.USid == usid).count()
                     if count <= 5:
                         integral = ConfigSettings().get_item('integralbase', 'integral_favorite')
                         # integral = '3'  # 引用签到配置文件
@@ -574,6 +573,7 @@ class CNews(BASEAPPROVAL):
                         s.add(ui)
                         user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
                         s.add(user)
+                msg = '已赞同'
             else:
                 cancel_favorite = self.snews.cancel_favorite(neid, usid)
                 if not cancel_favorite:
@@ -703,18 +703,16 @@ class CNews(BASEAPPROVAL):
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
-            # 评论加星币，一天最多加五次，一次加三个
-            with self.snews.auto_commit() as s:
+                # 评论加星币，一天最多加五次，一次加三个
                 now_time = datetime.now()
-                count = s.query(NewsComment).filter(
+                count = nc.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
                 if count <= 5:
-                    from planet.models import UserIntegral
-                    from planet.config.enums import UserIntegralAction, UserIntegralType
-                    integral = '3'
+                    # integral = '3'
+                    integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
                         'USid': usid,
@@ -722,9 +720,9 @@ class CNews(BASEAPPROVAL):
                         'UIaction': UserIntegralAction.commit.value,
                         'UItype': UserIntegralType.income.value
                     })
-                    s.add(ui)
+                    nc.add(ui)
                     user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                    s.add(user)
+                    nc.add(user)
             # 评论后返回刷新结果
             news_comment = NewsComment.query.filter_by_(NCid=comment_ncid).first()
             self._get_one_comment(news_comment, neid, usid)
@@ -748,19 +746,16 @@ class CNews(BASEAPPROVAL):
                     'NCrootid': ncrootid,
                 })
                 r.add(reply)
-
-            # 回复评论加星币，一天最多加五次，一次加三个
-            with self.snews.auto_commit() as s:
+                # 回复评论加星币，一天最多加五次，一次加三个
                 now_time = datetime.now()
-                count = s.query(NewsComment).filter(
+                count = r.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
                 if count <= 5:
-                    from planet.models import UserIntegral
-                    from planet.config.enums import UserIntegralAction, UserIntegralType
-                    integral = '3'
+                    # integral = '3'
+                    integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
                         'USid': usid,
@@ -768,9 +763,9 @@ class CNews(BASEAPPROVAL):
                         'UIaction': UserIntegralAction.commit.value,
                         'UItype': UserIntegralType.income.value
                     })
-                    s.add(ui)
+                    r.add(ui)
                     user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                    s.add(user)
+                    r.add(user)
             # 评论后返回刷新结果
             news_comment = NewsComment.query.filter_by_(NCid=ncrootid).first()
             self._get_one_comment(news_comment, neid, usid)
@@ -809,6 +804,44 @@ class CNews(BASEAPPROVAL):
         favorite = self.snews.comment_is_favorite(ncid, usid)
         fav = 1 if favorite else 0
         return Success(msg, {'is_favorite': fav})
+
+    @token_required
+    def transmit_content(self):
+        """转发"""
+        usid = request.user.id
+        if usid:
+            user = self.snews.get_user_by_id(usid)
+            current_app.logger.info('User {0} transmit '.format(user.USname))  # 在服务器打印日志
+        data = parameter_required(('Contentid', 'UTtype'))
+        contentid = data.get('Contentid')
+        uttype = data.get('Uttype')  # {1:资讯，2：商品，3：活动}
+        with self.snews.auto_commit() as s:
+            content_transmit = UserTransmit.create({
+                'UTid': str(uuid.uuid1()),
+                'Contentid': contentid,
+                'USid': usid,
+                'UTtype': uttype
+            })
+            s.add(content_transmit)
+            now_time = datetime.now()
+            count = s.query(UserTransmit).filter(
+                extract('month', UserTransmit.createtime) == now_time.month,
+                extract('year', UserTransmit.createtime) == now_time.year,
+                extract('day', UserTransmit.createtime) == now_time.day,
+                UserTransmit.USid == usid).count()
+            if count <= 5:
+                integral = '5'
+                # integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
+                ui = UserIntegral.create({
+                    'UIid': str(uuid.uuid1()),
+                    'USid': usid,
+                    'UIintegral': integral,
+                    'UIaction': UserIntegralAction.transmit.value,
+                    'UItype': UserIntegralType.income.value
+                })
+                s.add(ui)
+                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                s.add(user)
 
     @token_required
     def del_comment(self):

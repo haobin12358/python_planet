@@ -2014,13 +2014,22 @@ class CUser(SUser, BASEAPPROVAL):
         if not is_admin():
             raise AuthorityError()
         data = request.json
-        default_integral = str(data.get('integral'))
-        if not re.match(r'^\d+$', default_integral):
+        default_integral_sign = str(data.get('integral'))
+        default_integral_favorite = data.get('integral_favorite')
+        default_integral_commit = data.get('integral_commit')
+        if not re.match(r'^\d+$', str(default_integral_sign)):
             raise ParamsError('默认积分无效')
+        if not re.match(r'^\d+$', str(default_integral_commit)):
+            raise ParamsError('默认积分无效')
+        if not re.match(r'^\d+$', str(default_integral_favorite)):
+            raise ParamsError('默认积分无效')
+
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
-        cfg.set_item('integralbase', 'integral', default_integral)
         cfg.set_item('integralrule', 'rule', default_rule)
+        cfg.set_item('integralbase', 'integral', default_integral_sign)
+        cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
+        cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
 
         return Success('修改成功')
 
@@ -2032,27 +2041,11 @@ class CUser(SUser, BASEAPPROVAL):
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
         del_rule = cfg.get_item('integralrule', 'rule')
         del_integral = cfg.get_item('integralbase', 'integral')
-        return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
-
-    @token_required
-    def set_favorite_default(self):
-        if not is_admin():
-            raise AuthorityError()
-        data = request.json
-        default_integral = data.get('integral_favorite')
-        if not re.match(r'^\d+$', str(default_integral)):
-            raise ParamsError('默认积分无效')
-        cfg = ConfigSettings()
-        cfg.set_item('integralbase', 'integral_favorite', default_integral)
-        return Success('修改成功')
-
-    def get_favorite_default(self):
-        if not is_admin():
-            raise AuthorityError
-        cfg = ConfigSettings()
-        # del_integral = cfg.get_item('integralbase', 'integral_favorite')
-        del_integral = 123
-        return Success('获取默认签到设置成功', data={'integral_favorite': del_integral})
+        del_integral_favorite = cfg.get_item('integralbase', 'integral_favorite')
+        del_integral_commit = cfg.get_item('integralbase', 'integral_commit')
+        return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral,
+                                           'integral_favorite': del_integral_favorite,
+                                           'integral_commit': del_integral_commit})
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
