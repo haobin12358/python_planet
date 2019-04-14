@@ -806,44 +806,6 @@ class CNews(BASEAPPROVAL):
         return Success(msg, {'is_favorite': fav})
 
     @token_required
-    def transmit_content(self):
-        """转发"""
-        usid = request.user.id
-        if usid:
-            user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} transmit '.format(user.USname))  # 在服务器打印日志
-        data = parameter_required(('Contentid', 'UTtype'))
-        contentid = data.get('Contentid')
-        uttype = data.get('Uttype')  # {1:资讯，2：商品，3：活动}
-        with self.snews.auto_commit() as s:
-            content_transmit = UserTransmit.create({
-                'UTid': str(uuid.uuid1()),
-                'Contentid': contentid,
-                'USid': usid,
-                'UTtype': uttype
-            })
-            s.add(content_transmit)
-            now_time = datetime.now()
-            count = s.query(UserTransmit).filter(
-                extract('month', UserTransmit.createtime) == now_time.month,
-                extract('year', UserTransmit.createtime) == now_time.year,
-                extract('day', UserTransmit.createtime) == now_time.day,
-                UserTransmit.USid == usid).count()
-            if count <= 5:
-                integral = '5'
-                # integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
-                ui = UserIntegral.create({
-                    'UIid': str(uuid.uuid1()),
-                    'USid': usid,
-                    'UIintegral': integral,
-                    'UIaction': UserIntegralAction.transmit.value,
-                    'UItype': UserIntegralType.income.value
-                })
-                s.add(ui)
-                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                s.add(user)
-
-    @token_required
     def del_comment(self):
         """删除评论"""
         usid = request.user.id

@@ -29,6 +29,7 @@ class AUser(Resource):
             'set_signin_default': self.user.set_signin_default,  # 设置默认签到规则
             'settlenment': self.user.settlenment,  # 供应商确认结算
             'create_settlenment': self.user.create_settlenment,  # 供应商确认结算创建
+            'transmit': self.user.transmit  # 用户转发
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }

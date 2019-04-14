@@ -43,12 +43,13 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval
+    Approval, UserTransmit
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.qiniu.storage import QiniuStorage
+from datetime import datetime
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -2164,3 +2165,43 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('suname', su.SUname)
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
+
+    @get_session
+    @token_required
+    def transmit(self):
+        """转发"""
+        usid = request.user.id
+        if usid:
+            user = self.get_user_by_id(usid)
+            current_app.logger.info('User {0} transmit '.format(user.USname))  # 在服务器打印日志
+        data = parameter_required(('Contentid', 'UTtype'))
+        contentid = data.get('Contentid')
+        uttype = data.get('Uttype')  # {1:资讯，2：商品，3：活动}
+        content_transmit = UserTransmit.create({
+                'UTid': str(uuid.uuid1()),
+                'Contentid': contentid,
+                'USid': usid,
+                'UTtype': uttype
+        })
+        db.session.add(content_transmit)
+        now_time = datetime.now()
+        count = db.query(UserTransmit).filter(
+                extract('month', UserTransmit.createtime) == now_time.month,
+                extract('year', UserTransmit.createtime) == now_time.year,
+                extract('day', UserTransmit.createtime) == now_time.day,
+                UserTransmit.USid == usid).count()
+        if count <= 5:
+            integral = '5'
+            # integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
+            ui = UserIntegral.create({
+                    'UIid': str(uuid.uuid1()),
+                    'USid': usid,
+                    'UIintegral': integral,
+                    'UIaction': UserIntegralAction.transmit.value,
+                    'UItype': UserIntegralType.income.value
+                })
+            db.session.add(ui)
+            user.USintegral += int(ui.UIintegral)
+        return Success('转发成功')
+
+
