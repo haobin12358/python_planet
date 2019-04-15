@@ -230,3 +230,11 @@ class CashNotes(Base):
     CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
     CNrejectReason = Column(Text, comment='拒绝理由')
 
+
+class UserCollection(Base):
+    """用户收藏记录"""
+    __tablename__ = 'UserCollection'
+    UCid = Column(String(64),primary_key=True)
+    Collector = Column(String(64),comment='收藏者')
+    Collection = Column(String(64),comment='收藏品')
+    CoType = Column(String(64),comment='收藏品类型')

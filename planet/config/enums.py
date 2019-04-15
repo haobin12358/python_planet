@@ -550,6 +550,12 @@ class TimeLimitedStatus(Enum):
     abort = -10, '中止'
     end = 10, '结束'
 
+
+class CollectionType(Enum):
+    product = 0, '商品'
+    news = 1, '圈子'
+    user =2, '用户'
+
 # class MagicBoxStatus()
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
