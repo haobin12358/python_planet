@@ -16,6 +16,7 @@ from planet.common.error_response import StatusError, ParamsError, AuthorityErro
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
+from planet.extensions.tasks import end_timelimited, start_timelimited
 from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
@@ -161,14 +162,24 @@ class CTimeLimited(COrder, CUser):
         ).first()
         if tla:
             raise ParamsError('活动名与正在进行的活动重复')
+        time_now = datetime.now()
+        start_time = datetime.strptime(data.get('tlastarttime'), '%Y-%m-%d %H:%M:%S')
+        end_time = datetime.strptime(data.get('tlaendtime'), '%Y-%m-%d %H:%M:%S')
+        if start_time > time_now:
+            tlastatus = TimeLimitedStatus.waiting.value
+        elif end_time < time_now:
+            tlastatus = TimeLimitedStatus.end.value
+        else:
+            tlastatus = TimeLimitedStatus.starting.value
         tla = TimeLimitedActivity.create({
             'TLAid': str(uuid.uuid1()),
-            'TLAsort': 0,
+            'TLAsort': 1,
             'TLAstartTime': data.get('tlastarttime'),
             'TLAtopPic': data.get('tlatoppic'),
             'TLAendTime': data.get('tlaendtime'),
             'TlAname': data.get('tlaname'),
             'ADid': request.user.id,
+            'TLAstatus': tlastatus,
         })
         with db.auto_commit():
             db.session.add(tla)
@@ -379,6 +390,19 @@ class CTimeLimited(COrder, CUser):
                     if k == 'TLAsort':
                         value = self._check_sort(value)
                     tla.__setattr__(k, value)
+
+            # if tla.TLAstatus != TimeLimitedStatus.end.value:
+            if data.get('tlastatus') != TimeLimitedStatus.abort.value:
+                time_now = datetime.now()
+                if time_now < datetime.strptime(str(tla.TLAstartTime), '%Y-%m-%d %H:%M:%S'):
+                    tlastatus = TimeLimitedStatus.waiting.value
+                elif time_now > datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S'):
+                    tlastatus = TimeLimitedStatus.end.value
+                else:
+                    tlastatus = TimeLimitedStatus.starting.value
+
+                tla.TLAstatus = tlastatus
+
         return Success('修改成功')
 
     def award_detail(self):
@@ -555,3 +579,9 @@ class CTimeLimited(COrder, CUser):
         if sort > count_pc:
             return count_pc
         return sort
+
+    def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
+        if tlastatus < TimeLimitedStatus.starting.value:
+            start_timelimited.apply_async(args=(tlaid), eta=start_time - timedelta(hours=8))
+        if tlastatus < TimeLimitedStatus.end.value:
+            end_timelimited.apply_async(args=(tlaid), eta=end_time - timedelta(hours=8))
