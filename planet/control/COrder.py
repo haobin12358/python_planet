@@ -67,8 +67,11 @@ class COrder(CPay, CCoupon):
         # 过滤下活动产生的订单
         if omfrom is None:
             # 默认获取非活动订单
-            order_main_query = order_main_query.filter(
-                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
+            # order_main_query = order_main_query.filter(
+            #     OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
+
+            pass
+
         else:
             om_filter = {
                 OrderMain.OMfrom.in_(omfrom),
