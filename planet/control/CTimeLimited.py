@@ -39,11 +39,12 @@ class CTimeLimited(COrder, CUser):
         filter_args = {
             TimeLimitedActivity.isdelete == False,
         }
-
+        order_by_args = []
         if not(is_admin() or is_supplizer()):
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus.in_([
                 TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value]))
+            order_by_args.append(TimeLimitedActivity.TLAstartTime.desc())
         else:
             current_app.logger.info('本次是管理员进行查询')
             if tlastatus or tlastatus == 0:

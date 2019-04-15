@@ -489,6 +489,7 @@ class COrder(CPay, CCoupon):
                     omrecvname, omrecvphone, opaytype, activation_code)
                 # 购买大礼包之后修改用户状态为已购买大礼包
                 user.USlevel = UserIdentityStatus.agent.value
+                s.flush()
                 from planet.extensions.tasks import auto_agree_task
                 avid = cuser.create_approval('toagent', request.user.id, request.user.id)
 
