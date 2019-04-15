@@ -75,26 +75,30 @@ class CTimeLimited(COrder, CUser):
         data = parameter_required(('tlaid',))
         tlaid = data.get('tlaid')
         tlastatus = data.get('tlastatus')
-        kw = data.get('prtitle', '')
+        prtitle = data.get('prtitle', '')
         filter_args = {
             TimeLimitedProduct.isdelete == False,
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
+            current_app.logger.info('本次是普通用户进行查询')
+        else:
+            current_app.logger.info('本次是管理员进行查询')
+
 
         if tlaid:
             filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
-        elif tlastatus:
+        if tlastatus:
             filter_args.add(TimeLimitedProduct.TLAstatus == data.get('tlastatus'))
-        elif kw:
-            filter_args.add(Products.PRtitle.ilike('%{}%'.format(kw)))
+        if prtitle:
+            filter_args.add(Products.PRtitle.ilike('%{}%'.format(prtitle)))
 
         filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
         tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(*filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
-
         product_list = list()
         for tlp in tlp_list:
+            current_app.logger.info(tlp)
             tlaid = tlp.TLAid
             if common_user():
                 tla = TimeLimitedActivity.query.filter(
@@ -102,12 +106,12 @@ class CTimeLimited(COrder, CUser):
                     TimeLimitedActivity.TLAid == tlaid,
                     TimeLimitedActivity.TLAstatus.in_(
                         [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
-            ).first_('活动已下架')
+                ).first_('活动已下架')
             else:
                 tla = TimeLimitedActivity.query.filter(
                     TimeLimitedActivity.isdelete == False,
                     TimeLimitedActivity.TLAid == tlaid,
-                ).first_('没有此活动')
+                    ).first_('没有此活动')
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
