@@ -33,14 +33,14 @@ class SQLAlchemy(_SQLAlchemy):
             raise e
 
 
-alipay = AliPay(
-    appid=alipay_appid,
-    app_notify_url=alipay_notify,  # 默认回调url
-    app_private_key_string=open(app_private_path).read(),
-    alipay_public_key_string=open(alipay_public_key_path).read(),
-    debug=True
-    # sign_type="RSA2",  # RSA 或者 RSA2
-     )
+# alipay = AliPay(
+#     appid=alipay_appid,
+#     app_notify_url=alipay_notify,  # 默认回调url
+#     app_private_key_string=open(app_private_path).read(),
+#     alipay_public_key_string=open(alipay_public_key_path).read(),
+#     debug=True
+#     # sign_type="RSA2",  # RSA 或者 RSA2
+#      )
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 

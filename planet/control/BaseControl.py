@@ -10,7 +10,7 @@ from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, Apply
     TrialCommodityStatus
 from planet.common.error_response import SystemError, ParamsError
 from planet.common.request_handler import gennerc_log
-from planet.extensions.register_ext import db
+# from planet.extensions.register_ext import db
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
