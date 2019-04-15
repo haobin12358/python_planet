@@ -43,7 +43,7 @@ class CTimeLimited(COrder, CUser):
         filter_args = {
             TimeLimitedActivity.isdelete == False,
         }
-        if common_user():
+        if not(is_admin() or is_supplizer()):
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value)
         else:
