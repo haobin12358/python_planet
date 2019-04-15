@@ -263,7 +263,6 @@ class BASEAPPROVAL():
         # umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
         # if not start_model or not umback or not umfront:
         #     return None, None
-
         # start_model.fill('umfront', umfront['UMurl'])
         # start_model.fill('umback', umback['UMurl'])
 
