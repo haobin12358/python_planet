@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 import json
 import uuid
 from decimal import Decimal
@@ -6,10 +7,11 @@ from decimal import Decimal
 from flask import current_app
 
 from planet import create_app
-from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
+from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType, TimeLimitedStatus
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
+    TimeLimitedActivity
 
 
 # 添加一些默认的数据
@@ -353,6 +355,19 @@ def check_product_from():
         print("修改的PRids >>> {}".format(old_prid))
 
 
+def change_tla_status():
+    tla_list = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False).all()
+    time_now = datetime.datetime.now()
+    with db.auto_commit():
+        for tla in tla_list:
+            if tla.TLAstartTime > time_now:
+                tla.TLAstatus = TimeLimitedStatus.waiting.value
+            elif tla.TLAendTime < time_now:
+                tla.TLAstatus = TimeLimitedStatus.end.value
+            else:
+                tla.TLAstatus = TimeLimitedStatus.starting.value
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -372,5 +387,6 @@ if __name__ == '__main__':
         # add_product_promotion()
         # check_abnormal_sale_volume()
         # check_product_from()
+        change_tla_status()
         pass
 
