@@ -489,7 +489,10 @@ class COrder(CPay, CCoupon):
                     omrecvname, omrecvphone, opaytype, activation_code)
                 # 购买大礼包之后修改用户状态为已购买大礼包
                 user.USlevel = UserIdentityStatus.toapply.value
+                from planet.extensions.tasks import auto_agree_task
+                avid = cuser.create_approval('toagent', request.user.id, request.user.id)
 
+                auto_agree_task.apply_async(args=[avid], countdown=2 * 7, expires=10 * 60)
                 res = {
                     'pay_type': PayType(opaytype).name,
                     'opaytype': opaytype,
@@ -653,6 +656,10 @@ class COrder(CPay, CCoupon):
                         OMlogisticType = OMlogisticTypeEnum.online.value
                         cuser = CUser()
                         cuser._check_gift_order('重复购买开店大礼包')
+                        from planet.extensions.tasks import auto_agree_task
+                        avid = cuser.create_approval('toagent', request.user.id, request.user.id)
+
+                        auto_agree_task.apply_async(args=[avid], countdown=2 * 7, expires=10 * 60)
                     else:
                         OMlogisticType = None
 

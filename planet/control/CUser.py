@@ -847,6 +847,9 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def upgrade_agent(self):
         """申请成为店主"""
+        # 改接口废弃
+        return
+
         data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
         user = self.get_user_by_id(request.user.id)
         if user.USlevel == self.AGENT_TYPE:
