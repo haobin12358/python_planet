@@ -30,6 +30,7 @@ class Products(Base):
     PRfeatured = Column(Boolean, default=False, comment='是否为场景下的精选商品')
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     PRcode = Column(String(64), comment='商品的外部编号')
+    PRpromotion = Column(Text, comment='商品推广基图')
 
     @orm.reconstructor
     def __init__(self):
@@ -43,6 +44,14 @@ class ProductMonthSaleValue(Base):
     PMSVid = Column(String(64), primary_key=True)
     PRid = Column(String(64), nullable=False, comment='商品id')
     PMSVnum = Column(BIGINT, default=0)
+    PMSVfakenum = Column(BIGINT, default=0)
+
+    @orm.reconstructor
+    def __init__(self):
+        super(ProductMonthSaleValue, self).__init__()
+        self.hide('PMSVfakenum')
+        if isinstance(self.PMSVnum, int) and isinstance(self.PMSVfakenum, int):
+            self.PMSVnum = max(self.PMSVnum, self.PMSVfakenum)
 
 
 class ProductSku(Base):
@@ -177,9 +186,10 @@ class Supplizer(Base):
     SUname = Column(String(32), default=SUlinkPhone, comment='供应商名字')
     SUlinkman = Column(String(16), nullable=False, comment='供应商联系人')
     SUaddress = Column(String(255), nullable=False, comment='供应商地址')
-    SUstatus = Column(Integer, default=0, comment='状态, 0 正常 -10 禁用')
+    SUstatus = Column(Integer, default=0, comment='状态: 10 待审核 0 正常 -10 禁用')
     SUisseller = Column(Boolean, default=False, comment='是否是卖家')  # 未知用处
     SUbaseRate = Column(DECIMAL(scale=2), comment='供应商最低让利比')
+    SUdeposit = Column(DECIMAL(precision=28, scale=2), comment='供应商押金')
 
     SUbanksn = Column(String(32), comment='卡号')
     SUbankname = Column(String(64), comment='银行')
@@ -209,7 +219,7 @@ class SupplizerAccount(Base):
     __tablename__ = 'SupplizerAccount'
     SAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商id')
-    SAbankName = Column(Text,comment='开户行')
+    SAbankName = Column(Text, comment='开户行')
     SAbankDetail = Column(Text, comment='开户网点详情')
     SAcardNo = Column(String(32), comment='卡号')
     SAcardName = Column(Text, comment='开户人')
@@ -245,6 +255,17 @@ class ProductUrl(Base):
     PUid = Column(String(64), primary_key=True)
     PUurl = Column(Text, nullable=False, comment='外部url')
     PUdir = Column(Text, nullable=False, comment='服务器路由')
+
+
+class SupplizerDepositLog(Base):
+    __tablename__ = 'SupplizerDepositLog'
+    SDLid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商id')
+    SDLnum = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='押金更改金额')
+    SDafter = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改后金额')
+    SDbefore = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改前金额')
+    # SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
+    SDLacid = Column(String(64), comment='操作人id')
 
 
 # class SupplizerBrand(Base):

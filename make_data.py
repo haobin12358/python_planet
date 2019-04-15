@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 import json
+import uuid
 from decimal import Decimal
+
+from flask import current_app
 
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products
 
 
 # 添加一些默认的数据
@@ -23,6 +26,17 @@ def make_items():
         })
         s_list.append(index_hot_items)
 
+        news_product_evaluation = Items.create({
+            'ITid': 'product_evaluation',
+            'ITname': '商品评测',
+            'ITsort': 1,
+            'ITdesc': '圈子默认标签',
+            'ITtype': ItemType.news.value,
+            'ITauthority': ItemAuthrity.no_limit.value,
+        })
+        s_list.append(news_product_evaluation)
+
+        # 暂时不需要这两类了
         # news_bind_product = Items.create({
         #     'ITid': 'news_bind_product',
         #     'ITname': '资讯关联商品',
@@ -223,6 +237,110 @@ def make_admin():
         }))
 
 
+def add_product_promotion():
+    with db.auto_commit():
+        product_list = Products.query.filter(Products.isdelete == False).all()
+        for product in product_list:
+            if not product.PRpromotion:
+                from planet.common.assemble_picture import AssemblePicture
+                assemble = AssemblePicture(
+                    product.PRid, product.PRtitle, product.PRprice, product.PRlinePrice, product.PRmainpic)
+
+                product.PRpromotion = assemble.assemble()
+
+
+def check_abnormal_sale_volume():
+    """销量修正"""
+    with db.auto_commit():
+        from planet.models import OrderPart, OrderMain, ProductMonthSaleValue
+        from sqlalchemy import extract
+        from sqlalchemy import func
+
+        product_list = Products.query.filter(Products.PRsalesValue != 0, Products.isdelete == False).all()
+        for product in product_list:
+            opcount = OrderPart.query.outerjoin(OrderMain, OrderMain.OMid == OrderPart.OMid
+                                                ).filter(OrderMain.isdelete == False,
+                                                         OrderPart.isdelete == False,
+                                                         OrderMain.OMstatus != -40,
+                                                         OrderPart.PRid == product.PRid,
+                                                         OrderPart.OPisinORA == False).count()
+            print('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            # 修正商品销量
+            product.update({'PRsalesValue': opcount}, null='no')
+            db.session.add(product)
+            # 修正商品月销量
+            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
+                                                                 OrderMain.OMid == OrderPart.OMid
+                                                                 ).filter(OrderMain.isdelete == False,
+                                                                          OrderPart.isdelete == False,
+                                                                          OrderMain.OMstatus != -40,
+                                                                          OrderPart.PRid == product.PRid,
+                                                                          OrderPart.OPisinORA == False
+                                                                          ).group_by(
+                extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
+            for o in ops:
+                # print(o)
+                print("该商品{}月份销量为{}".format(o[0], o[-1]))
+                current_app.logger.info("该商品{}月份销量为{}".format(o[0], o[-1]))
+                ProductMonthSaleValue.query.filter(
+                    ProductMonthSaleValue.PRid == product.PRid,
+                    ProductMonthSaleValue.isdelete == False,
+                    extract('year', ProductMonthSaleValue.createtime) == 2019,
+                    extract('month', ProductMonthSaleValue.createtime) == o[0],
+                ).update({
+                    'PMSVnum': o[-1],
+                }, synchronize_session=False)
+
+
+def check_product_from():
+    """平台上架供应商商品修正"""
+    with db.auto_commit():
+        from planet.config.enums import ProductFrom
+        from planet.models.product import SupplizerProduct, Supplizer
+        products = Products.query.join(ProductBrand, ProductBrand.PBid == Products.PBid
+                                       ).filter(Products.PRfrom == ProductFrom.platform.value,
+                                                Products.isdelete == False,
+                                                ProductBrand.isdelete == False,
+                                                ProductBrand.SUid.isnot(None),
+                                                ).order_by(Products.createtime.desc()).all()
+        old_prid = []
+        for pr in products:
+            pb = ProductBrand.query.join(Supplizer, Supplizer.SUid == ProductBrand.SUid
+                                         ).filter(Supplizer.isdelete == False,
+                                                  Supplizer.SUstatus == 0,
+                                                  ProductBrand.PBid == pr.PBid,
+                                                  ProductBrand.isdelete == False).first()
+            if not pb:
+                print("品牌供应商状态异常")
+                continue
+            old_prid.append(pr.PRid)
+
+            if SupplizerProduct.query.filter(SupplizerProduct.SUid == pb.SUid,
+                                             SupplizerProduct.PRid == pr.PBid,
+                                             SupplizerProduct.isdelete == False
+                                             ).first():
+                print("该商品存在与供应商商品关联表中")
+            else:
+                print("该商品不在供应商商品关联表中")
+
+            a = '平台' if str(pr.PRfrom) == '0' else '供应商'
+            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
+            # 避免操作错误，暂时注释掉，使用时取消注释
+            print("  >>> 开始修改 <<< ")
+            pr.update({'PRfrom': 10, 'CreaterId': pb.SUid})
+            db.session.add(pr)
+            sp_instance = SupplizerProduct.create({
+                'SPid': str(uuid.uuid1()),
+                'PRid': pr.PRid,
+                'SUid': pb.SUid
+            })
+            db.session.add(sp_instance)
+            print("  >>> 修改结束 <<<  ")
+        print("共有{}个商品存在来源于平台，但关联了供应商品牌的情况".format(len(products)))
+        print("修改的PRids >>> {}".format(old_prid))
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -234,10 +352,13 @@ if __name__ == '__main__':
         # make_items()
         # make_permissiontype()
         # make_admin()
-        cexcel = CExcel()
-        filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
+        # cexcel = CExcel()
+        # filepath = r'D:\QQ\微信\file\WeChat Files\wxid_wnsa7sn01tu922\FileStorage\File\2019-03\product_insert.xlsx'
         # filepath = 'C:\Users\刘帅斌\Desktop\product_insert.xlsx'
         # cexcel.insertproduct(filepath)  urllib.request.urlretrieve
-        cexcel._insertproduct(filepath)
+        # cexcel._insertproduct(filepath)
+        # add_product_promotion()
+        # check_abnormal_sale_volume()
+        # check_product_from()
         pass
 

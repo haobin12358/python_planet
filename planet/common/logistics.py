@@ -18,6 +18,7 @@ class Logistics(object):
             response = requests.get(url, params=arg, headers=self.headers)
         else:
             response = requests.post(url, data=arg, headers=self.headers)
+        current_app.logger.error('物流接口返回的状态：{}， 直接数据为 >>> {}'.format(response, response.__dict__))
         if json:
             try:
                 res = response.json()

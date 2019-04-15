@@ -229,6 +229,7 @@ class CFreshManFirstOrder(COrder, CUser):
             else:
                 from_user_order = None
 
+
             # 创建订单
             omid = str(uuid.uuid1())
             opayno = self.wx_pay.nonce_str

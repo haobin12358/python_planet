@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import random
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -7,6 +8,7 @@ from decimal import Decimal
 from flask import request, current_app
 from sqlalchemy import or_, and_, not_
 
+from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -18,7 +20,8 @@ from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
-    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem
+    SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
+    ProductMonthSaleValue
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -133,11 +136,42 @@ class CProducts(BaseController):
                                                               'index_recommend_product_for_you',
                                                               'upgrade_product']))
         items = self.sproduct.get_item_list(item_filter_args)
+        product.fill('items', items)
+
         # 月销量
         month_sale_instance = self.sproduct.get_monthsale_value_one({'PRid': prid})
-        month_sale_value = getattr(month_sale_instance, 'PMSVnum', 0)
+        with db.auto_commit():
+            if not month_sale_instance:
+                salevolume_dict = {'PMSVid': str(uuid.uuid1()),
+                                   'PRid': prid,
+                                   'PMSVfakenum': random.randint(15, 100)
+                                   }
+                month_sale_value = salevolume_dict['PMSVfakenum']
+                current_app.logger.info('没有销量记录，现在创建 >>> {}'.format(month_sale_value))
+
+            elif month_sale_instance.createtime.month != datetime.now().month:
+                month_sale_value = getattr(month_sale_instance, 'PMSVnum')
+                month_sale_value = random.randint(15, 100) if month_sale_value < 15 else month_sale_value
+
+                salevolume_dict = {'PMSVid': str(uuid.uuid1()),
+                                   'PRid': prid,
+                                   'PMSVfakenum': month_sale_value
+                                   }
+                current_app.logger.info('没有本月销量记录，现在创建 >>> {}'.format(month_sale_value))
+
+            else:
+                salevolume_dict = None
+                month_sale_value = getattr(month_sale_instance, 'PMSVnum')
+                current_app.logger.info('存在本月销量 {}'.format(month_sale_value))
+                if month_sale_value < 15:
+                    month_sale_value = random.randint(15, 100)
+                    month_sale_instance.update({'PMSVfakenum': month_sale_value})
+                    db.session.add(month_sale_instance)
+                    current_app.logger.info('本月销量更新为 {}'.format(month_sale_value))
+
+            if salevolume_dict:
+                db.session.add(ProductMonthSaleValue.create(salevolume_dict))
         product.fill('month_sale_value', month_sale_value)
-        product.fill('items', items)
 
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
@@ -146,6 +180,8 @@ class CProducts(BaseController):
 
     def get_produt_list(self):
         data = parameter_required()
+
+        current_app.logger.info('start get product list {}'.format(datetime.now()))
         try:
             order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
             order_enum = {
@@ -184,6 +220,7 @@ class CProducts(BaseController):
             Products.PCid.in_(pcids),
             Products.PRstatus == prstatus,
         ]
+        current_app.logger.info('start get product list query info {}'.format(datetime.now()))
         # 标签位置和权限筛选
         if not is_admin() and not is_supplizer():
             if not itid:
@@ -207,6 +244,7 @@ class CProducts(BaseController):
                                                                           ProductBrand.isdelete == False,
                                                                           ProductItems.isdelete == False,
                                                                           Items.isdelete == False)
+        current_app.logger.info('start add filter')
         if itid == 'planet_featured' and psid:  # 筛选该场景下的所有精选商品
             scene_items = [sit.ITid for sit in
                            SceneItem.query.filter(SceneItem.PSid == psid, SceneItem.isdelete == False,
@@ -239,7 +277,9 @@ class CProducts(BaseController):
 
         products = query.filter_(*filter_args).order_by(by_order).all_with_page()
         # 填充
+        current_app.logger.info('end query and start fill product {}'.format(datetime.now()))
         for product in products:
+            product.hide('PRdesc')
             product.fill('prstatus_en', ProductStatus(product.PRstatus).name)
             product.fill('prstatus_zh', ProductStatus(product.PRstatus).zh_value)
             # 品牌
@@ -271,6 +311,8 @@ class CProducts(BaseController):
                     sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
                 product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
+
+        current_app.logger.info('start add search history {}'.format(datetime.now()))
         # 搜索记录表
         if kw != [''] and not is_tourist():
             with db.auto_commit():
@@ -282,11 +324,14 @@ class CProducts(BaseController):
                 })
                 current_app.logger.info(dict(instance))
                 db.session.add(instance)
+
+        current_app.logger.info('end get product {}'.format(datetime.now()))
         return Success(data=products)
 
     @token_required
     def add_product(self):
         if is_admin():
+            raise StatusError("管理员账号不允许直接上传商品，请使用相应品牌的供应商账号上传")
             product_from = ProductFrom.platform.value
         elif is_supplizer():
             product_from = ProductFrom.supplizer.value
@@ -826,6 +871,14 @@ class CProducts(BaseController):
                 msg = '上架成功'
                 product.PRstatus = ProductStatus.auditing.value
                 brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('品牌已删除')
+                assesmble = AssemblePicture(
+                    prid=product.PRid, prprice=product.PRprice,
+                    prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
+                current_app.logger.info('get product assemble base {}'.format(assesmble))
+
+                product.PRpromotion = assesmble.assemble()
+                current_app.logger.info('changed product ={}'.format(product))
+
             else:
                 product.PRstatus = status
                 msg = '下架成功'
@@ -926,6 +979,27 @@ class CProducts(BaseController):
         )
         [sw.hide('USid', 'USHid') for sw in search_words]
         return Success(data=search_words)
+
+    @token_required
+    def get_promotion(self):
+        data = parameter_required(('url', 'prid'))
+        product = Products.query.filter(
+            Products.isdelete == False,
+            Products.PRid == data.get('prid'),
+            Products.PRstatus == ProductStatus.usual.value).first_('商品已下架')
+        assesmble = AssemblePicture(
+            prid=product.PRid, prprice=product.PRprice,
+            prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
+        promotion_path, local_path = assesmble.add_qrcode(data.get('url'), product.PRpromotion)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        try:
+            qiniu.save(local_path, filename=promotion_path[1:])
+        except Exception as e:
+            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+            # raise ParamsError('服务器繁忙，请稍后重试')
+
+        return Success(data=promotion_path)
 
     def _can_add_product(self):
         if is_admin():

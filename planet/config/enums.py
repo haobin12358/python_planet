@@ -4,8 +4,10 @@ from .base_enum import Enum
 
 class UserStatus(Enum):
     """user状态,供应商状态"""
+    auditing = 10, '待审核'
     usual = 0, '正常'
     forbidden = -10, '禁用'
+    all = None
 
 
 class ProductStatus(Enum):
@@ -277,6 +279,7 @@ class ActivityType(Enum):
     guess_num = 1, '猜数字'
     magic_box = 2, '魔术礼盒'
     free_use = 3, '免费试用'
+    time_limited = 4, '限时活动'
 
 
 class QuestAnswerNoteType(Enum):
@@ -539,6 +542,16 @@ class HistoryStatus(Enum):
     bought = 10, '已购买'
     invalid = -10, '已失效'
 
+
+class SupplizerDepositLogType(Enum):
+    account_entry = 10, '入账'
+    account_out = 20, '出账'
+
+
+class TimeLimitedStatus(Enum):
+    publish = 0, '发布'
+    abort = -10, '中止'
+    end = 10, '结束'
 
 # class MagicBoxStatus()
 if __name__ == '__main__':

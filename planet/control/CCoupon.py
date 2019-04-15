@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from flask import request, current_app
 from sqlalchemy import or_
 
-from planet.common.error_response import StatusError, AuthorityError
+from planet.common.error_response import StatusError, AuthorityError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType
+from planet.config.enums import ItemType, SupplizerDepositLogType
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm, \
     CouponUpdateForm
-from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products
+from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products, Supplizer, \
+    SupplizerDepositLog
 from planet.models.trade import Coupon, CouponUser, CouponItem
 from planet.service.STrade import STrade
 
@@ -102,7 +104,7 @@ class CCoupon(object):
         if can_use:
             user_coupons = user_coupon.filter_(
                 or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
-                or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
+                # or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
                 Coupon.COisAvailable == True,  # 可用
                 # CouponUser.UCalreadyUse == False,  # 未用
             ).order_by(CouponUser.createtime.desc()).all_with_page()
@@ -149,6 +151,14 @@ class CCoupon(object):
             adid = request.user.id
         elif is_supplizer():
             suid = request.user.id
+            """如果是供应商暂时取消发布折扣优惠券权限"""
+            if form.codiscount.data != 10:
+                raise ParamsError('暂不提供供应商发放折扣优惠券，请联系平台后台发放')
+            if not form.colimitnum:
+                raise ParamsError('需要指定发放数量')
+            if not (pbids or prids):
+                raise ParamsError('不能发放全平台优惠券')
+
         else:
             raise AuthorityError()
         with self.strade.auto_commit() as s:
@@ -186,6 +196,10 @@ class CCoupon(object):
                 s_list.append(couponitem_instance)
             # 优惠券和应用对象的中间表
             for pbid in pbids:
+                # 限制使用品牌
+                pb = ProductBrand.query.filter(
+                    ProductBrand.isdelete == False, ProductBrand.PBid == pbid, ProductBrand.SUid == suid).first_(
+                    '品牌不存在')
                 coupon_for = CouponFor.create({
                     'CFid': str(uuid.uuid1()),
                     'PBid': pbid,
@@ -193,12 +207,41 @@ class CCoupon(object):
                 })
                 s_list.append(coupon_for)
             for prid in prids:
+                # 限制使用商品
+                product = Products.query.filter(
+                    Products.isdelete == False, Products.PRid == prid, Products.CreaterId == suid
+                ).first_('不能指定其他供应商商品')
+
                 coupon_for = CouponFor.create({
                     'CFid': str(uuid.uuid1()),
                     'PRid': prid,
                     'COid': coupon_instance.COid,
                 })
                 s_list.append(coupon_for)
+
+            if is_supplizer():
+                # 供应商发放优惠券 押金扣除
+                su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == request.user.id).first()
+                co_total = Decimal(str(coupon_instance.COlimitNum * coupon_instance.COsubtration))
+                if su.SUdeposit < co_total:
+                    raise ParamsError('供应商押金不足。当前账户剩余押金 {} 发放优惠券需要 {}'.format(su.SUdeposit, co_total))
+                after_deposit = su.SUdeposit - co_total
+                sdl = SupplizerDepositLog.create({
+                    'SDLid': str(uuid.uuid1()),
+                    'SUid': su.SUid,
+                    'SDLnum': co_total,
+                    # 'SDLtype': SupplizerDepositLogType.account_out.value,
+                    'SDafter': after_deposit,
+                    'SDbefore': su.SUdeposit,
+                    'SDLacid': su.SUid
+                })
+                current_app.logger.info('供应商 {} 押金 {} 发放优惠券 {} 变更后 押金剩余 {} '.format(
+                    su.SUname, su.SUdeposit, co_total, after_deposit
+                ))
+                su.SUdeposit = after_deposit
+                s_list.append(sdl)
+
+            # todo 优惠券历史创建
             s.add_all(s_list)
         return Success('添加成功', data=coid)
 
@@ -236,6 +279,10 @@ class CCoupon(object):
             if form.colimitnum.data:
                 coupon_dict.setdefault('COremainNum', form.colimitnum.data)
             coupon.update(coupon_dict, 'dont ignore')
+            if coupon.SUid:
+                # todo 如果修改的是供应商的优惠券。需要涉及押金的修改 目前不做校验
+                pass
+
             db.session.add(coupon)
             for itid in itids:
                 Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
@@ -256,9 +303,7 @@ class CCoupon(object):
             CouponFor.query.filter(
                 CouponFor.COid == coid,
                 CouponFor.isdelete == False
-            ).update({
-                'isdelete': True
-            })
+            ).delete_(synchronize_session=False)
             # 优惠券和应用对象的中间表
             for pbid in pbids:
                 coupon_for = CouponFor.create({

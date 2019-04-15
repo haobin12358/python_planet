@@ -492,8 +492,8 @@ class CUser(SUser, BASEAPPROVAL):
         ).filter(
             CouponUser.USid == request.user.id,
             CouponUser.isdelete == False,
-            or_(Coupon.COvalidEndTime < time_now, Coupon.COvalidEndTime.is_(None)),
-            or_(Coupon.COvalidStartTime > time_now, Coupon.COvalidStartTime.is_(None)),
+            or_(Coupon.COvalidEndTime > time_now, Coupon.COvalidEndTime.is_(None)),
+            # or_(Coupon.COvalidStartTime < time_now, Coupon.COvalidStartTime.is_(None)),
             CouponUser.UCalreadyUse == False,
         ).first()
         # user.fields = ['USname', 'USintegral','USheader', 'USlevel', 'USqrcode', 'USgender']
@@ -1365,6 +1365,7 @@ class CUser(SUser, BASEAPPROVAL):
             user.USheader = head
             user.USname = user_info.get('nickname')
             user.USgender = sex
+            user.USqrcode = self._create_qrcode(head, usid, fromdict.get('url'))
         else:
             usid = str(uuid.uuid1())
             user_dict = {
@@ -1637,10 +1638,15 @@ class CUser(SUser, BASEAPPROVAL):
         mobile = form.mobile.data
         password = form.password.data
         supplizer = Supplizer.query.filter_by_({'SUloginPhone': mobile}).first_()
-        if not supplizer or not check_password_hash(supplizer.SUpassword, password):
-            raise NotFound('手机号或密码错误')
-        if supplizer.SUstatus == UserStatus.forbidden.value:
-            raise StatusError('账户禁用')
+
+        if not supplizer:
+            raise NotFound('登录账号错误')
+        elif not supplizer.SUpassword:
+            raise StatusError('账号正在审核中，请耐心等待')
+        elif not check_password_hash(supplizer.SUpassword, password):
+            raise StatusError('密码错误')
+        elif supplizer.SUstatus == UserStatus.forbidden.value:
+            raise StatusError('该账号已被冻结, 详情请联系管理员')
         jwt = usid_to_token(supplizer.SUid, 'Supplizer', username=supplizer.SUname)  # 供应商jwt
         supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
         return Success('登录成功', data={

@@ -34,7 +34,7 @@ class OrderMain(Base):
     OMfreight = Column(Float, default=0, comment='运费')
     OMmount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='总价')
     OMtrueMount = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='实际总价')
-    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 35 待评价, 30完成 -40取消交易')
+    OMstatus = Column(Integer, default=0, comment='订单状态 0待付款,10待发货,20待收货, 25待评价, 26已评价，30完成 -40取消交易')
     OMinRefund = Column(Boolean, default=False, comment='主单是否在售后状态')
     OMmessage = Column(String(255), comment='留言')
     # 收货信息
@@ -303,6 +303,16 @@ class CouponFor(Base):
     PRid = Column(String(64), comment='限制使用商品')
     PBid = Column(String(64), comment='限制使用品牌')  # pbid prid pcid 不可以同时存在
     COid = Column(String(64), comment='优惠券id')
+
+
+class CounponHistory(Base):
+    __tablename__ = 'CounponHistory'
+    CHid = Column(String(64), primary_key=True)
+    COid = Column(String(64), comment='优惠券id')
+    COcontent = Column(Text, comment='优惠券详情')
+    COaction = Column(Integer, default=1, comment='操作 1 创建 2 更新 3 删除')
+    CHuser = Column(String(64), comment='操作人id')
+    CHuserType = Column(Integer, default=10, comment='操作人身份 10 供应商 20 管理员')
 
 
 class ActivationCodeApply(Base):
