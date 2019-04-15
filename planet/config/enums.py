@@ -553,7 +553,7 @@ class SupplizerDepositLogType(Enum):
 
 
 class TimeLimitedStatus(Enum):
-    publish = 0, '发布'
+    # publish = 0, '发布'
     waiting = 1, '未开始'
     starting = 2, '已开始'
     abort = -10, '中止'
