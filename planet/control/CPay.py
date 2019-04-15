@@ -19,7 +19,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import  wx_pay, db
+from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \

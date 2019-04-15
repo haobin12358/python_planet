@@ -79,6 +79,8 @@ class CTimeLimited(COrder, CUser):
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
+            current_app.logger.info('本次是普通用户进行查询')
+
 
         if tlaid:
             filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
