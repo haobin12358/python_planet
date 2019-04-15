@@ -545,25 +545,25 @@ def event_expired_revert():
 
             #  试用商品不占用普通商品库存
 
-            # 限时活动
-            tla_list = TimeLimitedActivity.query.filter(
-                TimeLimitedActivity.isdelete == False,
-                TimeLimitedActivity.TLAstatus <= TimeLimitedStatus.publish.value,
-                cast(TimeLimitedActivity.TLAendTime, Date) < today).all()
-            current_app.logger.info('开始退还限时活动的库存 本日到期限时活动 {} 个 '.format(len(tla_list)))
-            for tla in tla_list:
-                tlp_list = TimeLimitedProduct.query.filter(
-                    TimeLimitedProduct.isdelete == False,
-                    TimeLimitedProduct.TLAstatus >= ApplyStatus.wait_check.value,
-                    TimeLimitedProduct.TLAid == tla.TLAid).all()
-                tla.TLAstatus = TimeLimitedStatus.end.value
-                current_app.logger.info('过期活动 tlaid = {} 过期商品有 {} '.format(tla.TLAid, len(tlp_list)))
-                for tlp in tlp_list:
-                    current_app.logger.info('过期限时活动商品 TLPid ： {}'.format(tlp.TLPid))
-                    tls = TimeLimitedSku.query.filter(
-                        TimeLimitedSku.isdelete == False,
-                        TimeLimitedSku.TLPid == tlp.TLPid).all()
-                    corder._update_stock(tls.TLSstock, skuid=tls.SKUid)
+            # # 限时活动
+            # tla_list = TimeLimitedActivity.query.filter(
+            #     TimeLimitedActivity.isdelete == False,
+            #     TimeLimitedActivity.TLAstatus <= TimeLimitedStatus.publish.value,
+            #     cast(TimeLimitedActivity.TLAendTime, Date) < today).all()
+            # current_app.logger.info('开始退还限时活动的库存 本日到期限时活动 {} 个 '.format(len(tla_list)))
+            # for tla in tla_list:
+            #     tlp_list = TimeLimitedProduct.query.filter(
+            #         TimeLimitedProduct.isdelete == False,
+            #         TimeLimitedProduct.TLAstatus >= ApplyStatus.wait_check.value,
+            #         TimeLimitedProduct.TLAid == tla.TLAid).all()
+            #     tla.TLAstatus = TimeLimitedStatus.end.value
+            #     current_app.logger.info('过期活动 tlaid = {} 过期商品有 {} '.format(tla.TLAid, len(tlp_list)))
+            #     for tlp in tlp_list:
+            #         current_app.logger.info('过期限时活动商品 TLPid ： {}'.format(tlp.TLPid))
+            #         tls = TimeLimitedSku.query.filter(
+            #             TimeLimitedSku.isdelete == False,
+            #             TimeLimitedSku.TLPid == tlp.TLPid).all()
+            #         corder._update_stock(tls.TLSstock, skuid=tls.SKUid)
 
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
@@ -696,6 +696,31 @@ def return_coupon_deposite():
             db.session.add(sdl)
             db.session.flush()
     current_app.logger.info('返回供应商押金结束')
+
+
+@celery.task()
+def end_timelimited(tlaid):
+    current_app.logger.info('开始修改限时活动为结束，并且退还库存给商品')
+
+    tla = TimeLimitedActivity.query.filter(
+        TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
+    if not tla:
+        current_app.logger.info('已删除该活动 ')
+
+
+@celery.task()
+def start_timelimited(tlaid):
+    current_app.logger.info('开始修改限时活动为开始')
+    tla = TimeLimitedActivity.query.filter(
+        TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
+    if not tla:
+        current_app.logger.info('已删除该活动 任务结束')
+        return
+
+    with db.auto_commit():
+        tla.TLAstatus = TimeLimitedStatus.starting.value
+
+
 
 if __name__ == '__main__':
     from planet import create_app
