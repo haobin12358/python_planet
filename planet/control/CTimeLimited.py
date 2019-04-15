@@ -49,6 +49,7 @@ class CTimeLimited(COrder, CUser):
             current_app.logger.info('本次是管理员进行查询')
             if tlastatus or tlastatus == 0:
                 filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
+            order_by_args.extend([TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()])
         if tlaname:
             filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
         if tlastarttime:
@@ -56,8 +57,7 @@ class CTimeLimited(COrder, CUser):
         if tlaendtime:
             filter_args.add(TimeLimitedActivity.TLAendTime <= tlaendtime)
 
-        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(
-            TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()).all()
+        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(*order_by_args).all()
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
