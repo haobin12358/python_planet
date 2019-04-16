@@ -29,7 +29,7 @@ class OrderMain(Base):
     OPayno = Column(String(64), comment='付款流水号,与orderpay对应')
     USid = Column(String(64), nullable=False, comment='用户id')
     UseCoupon = Column(Boolean, default=False, comment='是否优惠券')
-    OMfrom = Column(Integer, default=0, comment='来源: 0: 购物车, 10: 商品详情 20: 店主权限, 30: 猜数字奖品, 40: 新人商品, 50: 帮拆礼盒, 60: 试用商品')
+    OMfrom = Column(Integer, default=0, comment='来源: 0: 购物车, 10: 商品详情 20: 店主权限, 30: 猜数字奖品, 40: 新人商品, 50: 帮拆礼盒, 60: 试用商品,6 70: 限时特惠')
     PBname = Column(String(32), nullable=False, comment='品牌名')
     PBid = Column(String(64), nullable=False, comment='品牌id')
     OMclient = Column(Integer, default=0, comment='下单设备: 0: 微信, 10: app')
@@ -354,3 +354,11 @@ class ActivationCodeRule(Base):
     ACRisShow = Column(Boolean, default=True, comment='是否显示')
     ACRnum = Column(Integer, default=10, comment='激活码生成数量')
     ACRcash = Column(DECIMAL, default=0, comment='激活码购买金额')
+
+
+class OrderPartContentActivity(Base):
+    __tablename__ = 'OrderMainContent'
+    OCAid = Column(String(64), primary_key=True)
+    CAfrom = Column(Integer, comment='商品来源')
+    OPid = Column(String(64), comment='订单id')
+    OCAcontentid = Column(String(64), comment='关联活动id')

@@ -2,6 +2,7 @@ import json
 import math
 import uuid
 from datetime import datetime, date, timedelta
+from operator import or_, and_
 
 from flask import request, current_app
 
@@ -15,6 +16,7 @@ from planet.common.error_response import StatusError, ParamsError, AuthorityErro
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
+from planet.extensions.tasks import end_timelimited, start_timelimited
 from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
 from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
     ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
@@ -27,12 +29,36 @@ class CTimeLimited(COrder, CUser):
 
     def list_activity(self):
         """获取活动列表"""
+        # 根据分类查询
         time_now = datetime.now()
-        time_limited_list = TimeLimitedActivity.query.filter(
-            TimeLimitedActivity.TLAendTime >= time_now,
+        data = parameter_required()
+        tlastatus = data.get('tlastatus')
+        tlaname = data.get('tlaname', '')
+        tlastarttime = data.get('tlastarttime')
+        tlaendtime = data.get('tlaendtime')
+
+        filter_args = {
             TimeLimitedActivity.isdelete == False,
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
-        ).order_by(TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()).all()
+        }
+        order_by_args = []
+        if not(is_admin() or is_supplizer()):
+            filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
+            filter_args.add(TimeLimitedActivity.TLAstatus.in_([
+                TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value]))
+            order_by_args.append(TimeLimitedActivity.TLAstartTime.asc())
+        else:
+            current_app.logger.info('本次是管理员进行查询')
+            if tlastatus or tlastatus == 0:
+                filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
+            order_by_args.extend([TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.asc()])
+        if tlaname:
+            filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
+        if tlastarttime:
+            filter_args.add(TimeLimitedActivity.TLAstartTime >= tlastarttime)
+        if tlaendtime:
+            filter_args.add(TimeLimitedActivity.TLAendTime <= tlaendtime)
+
+        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(*order_by_args).all()
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
@@ -48,21 +74,45 @@ class CTimeLimited(COrder, CUser):
     def list_product(self):
         """获取活动商品"""
         data = parameter_required(('tlaid',))
-        tla = TimeLimitedActivity.query.filter(
-            TimeLimitedActivity.isdelete == False,
-            TimeLimitedActivity.TLAid == data.get('tlaid'),
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
-        ).first_('活动已下架')
+        tlaid = data.get('tlaid')
+        tlastatus = data.get('tlastatus')
+        prtitle = data.get('prtitle', '')
         filter_args = {
             TimeLimitedProduct.isdelete == False,
-            TimeLimitedProduct.TLAid == data.get('tlaid'),
         }
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
-        tlp_list = TimeLimitedProduct.query.filter(*filter_args).order_by(
+            current_app.logger.info('本次是普通用户进行查询')
+        else:
+            current_app.logger.info('本次是管理员进行查询')
+
+
+        if tlaid:
+            filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
+        if tlastatus:
+            filter_args.add(TimeLimitedProduct.TLAstatus == data.get('tlastatus'))
+        if prtitle:
+            filter_args.add(Products.PRtitle.ilike('%{}%'.format(prtitle)))
+
+        filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
+        tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(*filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
         product_list = list()
         for tlp in tlp_list:
+            current_app.logger.info(tlp)
+            tlaid = tlp.TLAid
+            if common_user():
+                tla = TimeLimitedActivity.query.filter(
+                    TimeLimitedActivity.isdelete == False,
+                    TimeLimitedActivity.TLAid == tlaid,
+                    TimeLimitedActivity.TLAstatus.in_(
+                        [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
+                ).first_('活动已下架')
+            else:
+                tla = TimeLimitedActivity.query.filter(
+                    TimeLimitedActivity.isdelete == False,
+                    TimeLimitedActivity.TLAid == tlaid,
+                    ).first_('没有此活动')
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
@@ -91,141 +141,15 @@ class CTimeLimited(COrder, CUser):
         tlp = TimeLimitedProduct.query.filter(TimeLimitedProduct.isdelete == False,
                                               TimeLimitedProduct.TLPid == data.get('tlpid')).first_('活动商品已售空')
         tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False,
-                                               TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value,
+                                               TimeLimitedActivity.TLAstatus.in_(
+                                                   [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value]),
                                                TimeLimitedActivity.TLAid == tlp.TLAid).first_('活动已结束')
         return Success(data=self._fill_tlp(tlp, tla))
 
     @token_required
     def add_order(self):
-        data = parameter_required(('skuid', 'omclient', 'uaid', 'opaytype', 'tlaid', 'nums'))
-        try:
-            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
-            Client(omclient)
-        except Exception as e:
-            raise ParamsError('客户端或商品来源错误')
-        try:
-            opaytype = int(data.get('opaytype'))
-        except ValueError:
-            raise StatusError('支付方式异常, 未创建订单')
-        skuid = data.get('skuid')
-        uaid = data.get('uaid')
-        # 校验活动是否开启
-        tla = TimeLimitedActivity.query.filter(
-            TimeLimitedActivity.TLAid == data.get('tlaid'), TimeLimitedActivity.isdelete == False,
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value).first_('活动不存在')
-
-        now = datetime.now()
-        usid = request.user.id
-        user = get_current_user()
-        tlp = TimeLimitedProduct.query.filter(
-            TimeLimitedProduct.isdelete == False,
-            TimeLimitedProduct.TLAid == tla.TLAid,
-            TimeLimitedProduct.TLPid == TimeLimitedSku.TLPid,
-            TimeLimitedSku.SKUid == data.get('skuid')).first_('商品已售空')
-        product = self._fill_tlp(tlp, tla)
-        product_category = ProductCategory.query.filter_by(PCid=product.PCid).first()
-        tls = TimeLimitedSku.query.filter(
-            TimeLimitedSku.isdelete == False,
-            TimeLimitedSku.TLPid == tlp.TLPid,
-            TimeLimitedSku.SKUid == data.get('skuid')
-        ).first_('sku 已售罄')
-        with db.auto_commit():
-            if tls.TLSstock is not None:
-                if tls.TLSstock <= 0:
-                    raise StatusError('库存不足')
-                tls.TLSstock -= 1
-            suid = tlp.SUid
-            # 地址拼接
-            user_address_instance = UserAddress.query.filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
-            omrecvphone = user_address_instance.UAphone
-            areaid = user_address_instance.AAid
-            area, city, province = db.session.query(AddressArea, AddressCity, AddressProvince).filter(
-                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid).filter(
-                AddressArea.AAid == areaid).first_('地址有误')
-            address = getattr(province, "APname", '') + getattr(city, "ACname", '') + getattr(
-                area, "AAname", '')
-            omrecvaddress = address + user_address_instance.UAtext
-            omrecvname = user_address_instance.UAname
-            # 创建订单
-            omid = str(uuid.uuid1())
-            opayno = self.wx_pay.nonce_str
-            nums = data.get('nums', 1)
-            assert nums > 0
-            price = tls.SKUprice * int(nums)
-            sku_instance = ProductSku.query.filter(ProductSku.SKUid == tls.SKUid, ProductSku.isdelete == False).first()
-            # 如果活动时间未到 使用原价购买
-            if now < tla.TLAstartTime:
-                price = sku_instance.SKUprice
-            # 主单
-            order_main_dict = {
-                'OMid': omid,
-                'OMno': self._generic_omno(),
-                'OPayno': opayno,
-                'USid': usid,
-                'OMfrom': OrderFrom.fresh_man.value,
-                'PBname': product.PBname,
-                'PBid': product.PBid,
-                'OMclient': omclient,
-                'OMfreight': 0,  # 运费暂时为0
-                'OMmount': price,
-                'OMmessage': data.get('ommessage'),
-                'OMtrueMount': price,
-                # 收货信息
-                'OMrecvPhone': omrecvphone,
-                'OMrecvName': omrecvname,
-                'OMrecvAddress': omrecvaddress,
-                'PRcreateId': suid
-            }
-            order_main_instance = OrderMain.create(order_main_dict)
-            db.session.add(order_main_instance)
-            # 副单
-            order_part_dict = {
-                'OPid': str(uuid.uuid1()),
-                'OMid': omid,
-                'SKUid': skuid,
-                'PRid': product.PRid,
-                'PRattribute': product.PRattribute,
-                'SKUattriteDetail': product.SKUattriteDetail,
-                'SKUprice': price,
-                'PRtitle': product.PRtitle,
-                'SKUsn': sku_instance.SKUsn,
-                'PCname': product_category.PCname,
-                'PRmainpic': product.PRmainpic,
-                'OPnum': 1,
-                # # 副单商品来源
-                'PRfrom': product.PRfrom,
-                'UPperid': getattr(user, 'USsupper1', ''),
-                'UPperid2': getattr(user, 'USsupper2', ''),
-                'UPperid3': getattr(user, 'USsupper3', ''),
-                'USCommission1': getattr(user, 'USCommission1', ''),
-                'USCommission2': getattr(user, 'USCommission2', ''),
-                'USCommission3': getattr(user, 'USCommission3', '')
-            }
-            order_part_instance = OrderPart.create(order_part_dict)
-            db.session.add(order_part_instance)
-            # 支付数据表
-            order_pay_dict = {
-                'OPayid': str(uuid.uuid1()),
-                'OPayno': opayno,
-                'OPayType': opaytype,
-                'OPayMount': price,
-            }
-            order_pay_instance = OrderPay.create(order_pay_dict)
-            db.session.add(order_pay_instance)
-        from planet.extensions.tasks import auto_cancle_order
-
-        auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
-        # 生成支付信息
-        body = product.PRtitle
-        current_user = get_current_user()
-        openid = current_user.USopenid1 or current_user.USopenid2
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
-        response = {
-            'pay_type': PayType(opaytype).name,
-            'opaytype': opaytype,
-            'args': pay_args
-        }
-        return Success('创建订单成功', data=response)
+        # 该接口废弃
+        return
 
     @admin_required
     def create(self):
@@ -233,22 +157,36 @@ class CTimeLimited(COrder, CUser):
         tla = TimeLimitedActivity.query.filter(
             TimeLimitedActivity.isdelete == False,
             TimeLimitedActivity.TlAname == data.get('tlaname'),
-            TimeLimitedActivity.TLAstatus == TimeLimitedStatus.publish.value
+            TimeLimitedActivity.TLAstatus.in_(
+                [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
         ).first()
         if tla:
             raise ParamsError('活动名与正在进行的活动重复')
+        time_now = datetime.now()
+        start_time = datetime.strptime(data.get('tlastarttime'), '%Y-%m-%d %H:%M:%S')
+        end_time = datetime.strptime(data.get('tlaendtime'), '%Y-%m-%d %H:%M:%S')
+        if start_time > time_now:
+            tlastatus = TimeLimitedStatus.waiting.value
+            # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid, start_time=start_time,
+            #                         end_time=end_time)
+        elif end_time < time_now:
+            tlastatus = TimeLimitedStatus.end.value
+        else:
+            tlastatus = TimeLimitedStatus.starting.value
+
         tla = TimeLimitedActivity.create({
             'TLAid': str(uuid.uuid1()),
-            'TLAsort': 0,
+            'TLAsort': 1,
             'TLAstartTime': data.get('tlastarttime'),
             'TLAtopPic': data.get('tlatoppic'),
             'TLAendTime': data.get('tlaendtime'),
             'TlAname': data.get('tlaname'),
             'ADid': request.user.id,
+            'TLAstatus': tlastatus,
         })
+        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
         with db.auto_commit():
             db.session.add(tla)
-
         return Success('创建活动成功', data={'tlaid': tla.TLAid})
 
     def apply_award(self):
@@ -278,11 +216,13 @@ class CTimeLimited(COrder, CUser):
             suid = None
         # tlp_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         with db.auto_commit():
-            product = Products.query.filter(*filter_args).first_('商品未上架')
+            product = Products.query.filter(*filter_args).first_('只能选择自己的商品')
             # instance_list = list()
             skus = data.get('skus')
-            tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.isdelete == False,
-                                                   TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
+            tla = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAstatus == TimeLimitedStatus.waiting.value,
+                TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
             tlp = TimeLimitedProduct.create({
                 'TLPid': str(uuid.uuid1()),
                 'TLAid': tla.TLAid,
@@ -354,6 +294,7 @@ class CTimeLimited(COrder, CUser):
             skus = data.get('skus')
             tla = TimeLimitedActivity.query.filter(
                 TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAstatus == TimeLimitedStatus.waiting.value,
                 TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
             apply_info.update({
                 'TLAid': tla.TLAid,
@@ -423,8 +364,9 @@ class CTimeLimited(COrder, CUser):
     def update_activity(self):
         data = parameter_required(('tlaid',))
         with db.auto_commit():
-            tla = TimeLimitedActivity.query.filter(TimeLimitedActivity.TLAid == data.get('tlaid'),
-                                                   TimeLimitedActivity.isdelete == False).first_('活动已删除')
+            tla = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.TLAid == data.get('tlaid'),
+                TimeLimitedActivity.isdelete == False).first_('活动已删除')
             if data.get('delete'):
                 tla.isdelete = True
                 tlp_list = TimeLimitedProduct.query.filter(TimeLimitedProduct.isdelete == False,
@@ -434,12 +376,15 @@ class CTimeLimited(COrder, CUser):
                     self._re_stock(tlp)
                 return Success('删除成功')
 
+            if tla.TLAstatus == TimeLimitedStatus.starting.value:
+                data = dict(tlastatus=data.get('tlastatus'), tlasort=data.get('tlasort'))
+
             for k in tla.keys():
                 if k == 'TLAid' or k == 'isdelete':
                     continue
                 low_k = str(k).lower()
                 value = data.get(low_k)
-                if  value or value == 0:
+                if value or value == 0:
                     if k == 'TLAstatus':
                         try:
                             TimeLimitedStatus(value)
@@ -448,6 +393,25 @@ class CTimeLimited(COrder, CUser):
                     if k == 'TLAsort':
                         value = self._check_sort(value)
                     tla.__setattr__(k, value)
+
+            # if tla.TLAstatus != TimeLimitedStatus.end.value:
+            if data.get('tlastatus') != TimeLimitedStatus.abort.value:
+                time_now = datetime.now()
+                start_time = datetime.strptime(str(tla.TLAstartTime), '%Y-%m-%d %H:%M:%S')
+                end_time = datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S')
+                if time_now < start_time:
+                    tlastatus = TimeLimitedStatus.waiting.value
+                    # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
+                    #                         start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
+                elif time_now > end_time:
+                    tlastatus = TimeLimitedStatus.end.value
+                else:
+                    tlastatus = TimeLimitedStatus.starting.value
+
+                tla.TLAstatus = tlastatus
+                self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
+                                        start_time=start_time, end_time=end_time)
+
         return Success('修改成功')
 
     def award_detail(self):
@@ -624,3 +588,12 @@ class CTimeLimited(COrder, CUser):
         if sort > count_pc:
             return count_pc
         return sort
+
+    def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
+        current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
+        if tlastatus < TimeLimitedStatus.starting.value:
+            current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
+            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+        if tlastatus < TimeLimitedStatus.end.value:
+            current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
+            end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))

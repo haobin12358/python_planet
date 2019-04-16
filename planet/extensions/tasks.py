@@ -14,13 +14,14 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, CartFrom
+
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts
 
 celery = Celery()
 
@@ -270,10 +271,10 @@ def create_settlenment():
                 UserCommission.isdelete == False,
                 UserCommission.UCstatus == UserCommissionStatus.in_account.value,
                 UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                UserCommission.createtime < tomonth_22,
-                UserCommission.createtime >= pre_month_22,
+                cast(UserCommission.createtime, Date) < tomonth_22,
+                cast(UserCommission.createtime, Date) >= pre_month_22,
             ).first()
-            ss_total = su_comiission[0]
+            ss_total = su_comiission[0] or 0
             ss = SupplizerSettlement.create({
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
@@ -449,6 +450,7 @@ def event_expired_revert():
     """过期活动商品返还库存"""
     current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
     from planet.control.COrder import COrder
+    corder = COrder()
     today = date.today()
 
     try:
@@ -476,7 +478,7 @@ def event_expired_revert():
                 for fresh_man_sku in fresh_man_skus:
                     # 加库存
                     current_app.logger.info(' 恢复库存的新人首单SKUid >> {} '.format(fresh_man_sku.SKUid))
-                    COrder()._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
+                    corder._update_stock(fresh_man_sku.FMFPstock, skuid=fresh_man_sku.SKUid)
 
             # 猜数字
             guess_num_products = GuessNumAwardProduct.query.join(
@@ -501,7 +503,7 @@ def event_expired_revert():
                 for gna_sku in gna_skus:
                     # 加库存
                     current_app.logger.info(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
-                    COrder()._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
+                    corder._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
 
             # 魔术礼盒
             magic_box_applys = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
@@ -526,7 +528,7 @@ def event_expired_revert():
                 try:
                     out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
                     current_app.logger.info(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
-                    COrder()._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
+                    corder._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
                     out_stock.OSnum = 0
                 except Exception as err:
                     current_app.logger.error('MBAid "{}" , 魔盒库存单出错 >> {}'.format(magic_box_apply.MBAid, err))
@@ -543,6 +545,26 @@ def event_expired_revert():
                 trialcommodity.update({'TCstatus': TrialCommodityStatus.reject.value})
 
             #  试用商品不占用普通商品库存
+
+            # # 限时活动
+            # tla_list = TimeLimitedActivity.query.filter(
+            #     TimeLimitedActivity.isdelete == False,
+            #     TimeLimitedActivity.TLAstatus <= TimeLimitedStatus.publish.value,
+            #     cast(TimeLimitedActivity.TLAendTime, Date) < today).all()
+            # current_app.logger.info('开始退还限时活动的库存 本日到期限时活动 {} 个 '.format(len(tla_list)))
+            # for tla in tla_list:
+            #     tlp_list = TimeLimitedProduct.query.filter(
+            #         TimeLimitedProduct.isdelete == False,
+            #         TimeLimitedProduct.TLAstatus >= ApplyStatus.wait_check.value,
+            #         TimeLimitedProduct.TLAid == tla.TLAid).all()
+            #     tla.TLAstatus = TimeLimitedStatus.end.value
+            #     current_app.logger.info('过期活动 tlaid = {} 过期商品有 {} '.format(tla.TLAid, len(tlp_list)))
+            #     for tlp in tlp_list:
+            #         current_app.logger.info('过期限时活动商品 TLPid ： {}'.format(tlp.TLPid))
+            #         tls = TimeLimitedSku.query.filter(
+            #             TimeLimitedSku.isdelete == False,
+            #             TimeLimitedSku.TLPid == tlp.TLPid).all()
+            #         corder._update_stock(tls.TLSstock, skuid=tls.SKUid)
 
     except Exception as e:
         current_app.logger.error('活动商品到期返回库存出错 >>> {}'.format(e))
@@ -676,11 +698,66 @@ def return_coupon_deposite():
             db.session.flush()
     current_app.logger.info('返回供应商押金结束')
 
+
+@celery.task()
+def end_timelimited(tlaid):
+    current_app.logger.info('开始修改限时活动为结束，并且退还库存给商品')
+    from planet.control.COrder import COrder
+    tla = TimeLimitedActivity.query.filter(
+        TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
+    if not tla:
+        current_app.logger.info('已删除该活动 任务结束')
+        return
+
+    tlps = TimeLimitedProduct.query.filter(
+        TimeLimitedProduct.isdelete == False, TimeLimitedProduct.TLAid == tlaid).all()
+    with db.auto_commit():
+        # 获取原sku属性
+
+        corder = COrder()
+        for tlp in tlps:
+            tls_old = TimeLimitedSku.query.filter(
+                TimeLimitedSku.TLPid == tlp.TLPid,
+                TimeLimitedSku.isdelete == False,
+                TimeLimitedProduct.isdelete == False,
+                ).all()
+            # 获取原商品属性
+            product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
+            if not product:
+                current_app.logger.info('退还库存的商品已删除 库存保留在活动商品里 prid = {}'.format(tlp.PRid))
+                continue
+            # 遍历原sku 将库存退出去
+            for sku in tls_old:
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                corder._update_stock(int(sku.TLSstock), product, sku_instance)
+                Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
+        tla.TLAstatus = TimeLimitedStatus.end.value
+    current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
+
+
+@celery.task()
+def start_timelimited(tlaid):
+    current_app.logger.info('开始修改限时活动为开始')
+    tla = TimeLimitedActivity.query.filter(
+        TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
+    if not tla:
+        current_app.logger.info('已删除该活动 任务结束')
+        return
+    if tla.TLAstatus  == TimeLimitedStatus.abort.value:
+        current_app.logger.info('已中止的活动不自动开启')
+        return
+
+    with db.auto_commit():
+        tla.TLAstatus = TimeLimitedStatus.starting.value
+    current_app.logger.info('修改限时活动为开始 结束')
+
+
 if __name__ == '__main__':
     from planet import create_app
     app = create_app()
     with app.app_context():
-        # event_expired_revert()
+        event_expired_revert()
         # deposit_to_account()
         # fetch_share_deal()
         # create_settlenment()
@@ -688,4 +765,5 @@ if __name__ == '__main__':
         # check_for_update()
         # auto_confirm_order()
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
-        return_coupon_deposite()
+        # return_coupon_deposite()
+        # create_settlenment()

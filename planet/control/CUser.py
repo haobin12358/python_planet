@@ -847,6 +847,8 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def upgrade_agent(self):
         """申请成为店主"""
+        # 该接口废弃
+        return
         data = parameter_required(('usrealname', 'usidentification', 'umfront', 'umback'))
         user = self.get_user_by_id(request.user.id)
         if user.USlevel == self.AGENT_TYPE:
@@ -2091,7 +2093,7 @@ class CUser(SUser, BASEAPPROVAL):
         if ss.SSstatus != SupplizerSettementStatus.settlementing.value:
             raise TimeError('结算处理中')
 
-        action = data.get('action', ApplyStatus.agree.value)
+        action = data.get('action', ApprovalAction.agree.value)
         anabo = data.get('anabo')
         if int(action) == ApprovalAction.agree.value:
             ss.SSstatus = SupplizerSettementStatus.settlemented.value

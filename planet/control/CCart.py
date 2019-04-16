@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 import uuid
 
 from flask import request, json, current_app
@@ -7,8 +8,8 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import ProductStatus, CartFrom
-from planet.models import ProductSku, Products
+from planet.config.enums import ProductStatus, CartFrom, ApplyStatus, TimeLimitedStatus
+from planet.models import ProductSku, Products, TimeLimitedProduct, TimeLimitedActivity, TimeLimitedSku
 from planet.models.trade import Carts
 from planet.service.SProduct import SProducts
 from planet.service.STrade import STrade
@@ -41,7 +42,7 @@ class CCart(object):
         except TypeError as e:
             raise ParamsError('num参数类型错误')
         usid = request.user.id
-        is_exists = self.scart.get_card_one({'USid': usid, 'SKUid': skuid})
+        is_exists = self.scart.get_card_one({'USid': usid, 'SKUid': skuid, 'CAfrom': cafrom})
         if is_exists:
             # 已存在
             caid = is_exists.CAid
@@ -121,9 +122,11 @@ class CCart(object):
         product_num = 0
         for cart in my_carts:
             pbid = cart.PBid
+            car_from = cart.CAfrom
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
             if not product:
                 continue
+
             product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             if not pb:
@@ -154,10 +157,14 @@ class CCart(object):
                 }
                 sku_value_item_reverse.append(temp)
             product.fill('SkuValue', sku_value_item_reverse)
+            # 填充活动商品信息
+
 
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)
+            if car_from == CartFrom.time_limited.value:
+                self._fill_tlp(cart)
             # 小计
             # cart.subtotal =
             # 数量
@@ -190,3 +197,23 @@ class CCart(object):
                 Carts.USid == usid
             ).delete_(synchronize_session=False)
         return Success('删除成功')
+
+    def _fill_tlp(self, cart):
+
+        tlp = TimeLimitedProduct.query.filter_by(TLPid=cart.Contentid, isdelete=False,
+                                                 TLAstatus=ApplyStatus.agree.value).first()
+        if not tlp:
+            current_app.logger.info('当前活动商品尚未通过审批')
+            return
+        tla = TimeLimitedActivity.query.filter_by(TLAid=tlp.TLAid, isdelete=False).first()
+        if not tla and tla.TLAstatus not in [TimeLimitedStatus.starting.value, TimeLimitedStatus.waiting.value]:
+            current_app.logger.info('当前活动已结束或者已中止 tla = {}'.format(tlp.TLAid))
+            return
+        tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, isdelete=False, SKUid=cart.sku.SKUid).first()
+        if tls:
+            cart.sku.fill('tlsprice', tls.SKUprice)
+            cart.sku.fill('tlsstock', tls.TLSstock)
+
+        cart.product.fill('tlpprice', tlp.PRprice)
+        cart.product.fill('tlastatus', tla.TLAstatus)
+
