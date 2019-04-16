@@ -61,6 +61,7 @@ class OrderFrom(Enum):
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
     trial_commodity = 60, '试用商品'
+    time_limited = 70, '限时特惠'
 
 
 class OrderMainStatus(Enum):
@@ -80,6 +81,7 @@ class ActivityOrderNavigation(Enum):
     guess_num_award = 30, '每日竞猜'
     magic_box = 50, '好友魔盒'
     trial_commodity = 60, '免费试用'
+    time_limited = 70, '限时特惠'
 
 
 class OrderEvaluationScore(Enum):
@@ -534,6 +536,11 @@ class NotesStatus(Enum):
     publish = 1, '发布'
 
 
+class ExcelTemplateType(Enum):
+    product = 0, '商品导入模板'
+    delivery = 1, '批量发货模板'
+
+
 class HistoryStatus(Enum):
     normal = 0, '未购买'
     bought = 10, '已购买'
@@ -546,9 +553,21 @@ class SupplizerDepositLogType(Enum):
 
 
 class TimeLimitedStatus(Enum):
-    publish = 0, '发布'
+    # publish = 0, '发布'
+    waiting = 1, '未开始'
+    starting = 2, '已开始'
     abort = -10, '中止'
     end = 10, '结束'
+
+
+class CartFrom(Enum):
+    normal = 10, '普通商品'
+    fresh_man = 0, '新人'
+    guess_num = 1, '猜数字'
+    magic_box = 2, '魔术礼盒'
+    free_use = 3, '免费试用'
+    time_limited = 4, '限时活动'
+
 
 # class MagicBoxStatus()
 if __name__ == '__main__':

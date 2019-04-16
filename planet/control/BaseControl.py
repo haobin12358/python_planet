@@ -15,7 +15,8 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
-    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku
+    SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
+    TimeLimitedSku
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -106,7 +107,7 @@ class BASEAPPROVAL():
         # 填充商品详情
         if not product:
             return
-
+        current_app.logger.info('开始填充商品详情 ')
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -150,8 +151,24 @@ class BASEAPPROVAL():
                 sku.fill('SKUdiscountsix', fmf.SKUdiscountsix)
 
                 skus.append(sku)
-        else:
+        elif isinstance(product, TimeLimitedProduct):
+            product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
+            tls = TimeLimitedSku.query.filter_by(TLPid=product.TLPid, isdelete=False).all()
 
+            skus = []
+            tlpstock = 0
+            for fmf in tls:
+                sku = ProductSku.query.filter_by_(SKUid=fmf.SKUid).first()
+                sku.hide('SKUprice')
+                sku.hide('SKUstock')
+                sku.fill('skuprice', fmf.SKUprice)
+                sku.fill('skustock', fmf.TLSstock)
+                sku.fill('skuid', fmf.SKUid)
+                skus.append(sku)
+                tlpstock += int(fmf.TLSstock)
+            current_app.logger.info('本次申请共计库存 {}'.format(tlpstock))
+            product.fill('tlpstock', tlpstock)
+        else:
             product.fill('categorys', ' > '.join(self.__get_category(product.PCid)))
             skus = ProductSku.query.filter_by_(PRid=product.PRid).all()
 
@@ -166,8 +183,6 @@ class BASEAPPROVAL():
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
 
-        # sku_value_instance = ProductSkuValue.query.filter_by_({'PRid': product.PRid}).first()
-        # if not sku_value_instance:
         sku_value_item_reverse = []
         for index, name in enumerate(product.PRattribute):
             value = list(set([attribute[index] for attribute in sku_value_item]))
@@ -177,20 +192,10 @@ class BASEAPPROVAL():
                 'value': value
             }
             sku_value_item_reverse.append(temp)
-        # else:
-        #     sku_value_item_reverse = []
-        #     pskuvalue = sku_value_instance.PSKUvalue
-        #     if isinstance(sku_value_instance.PSKUvalue, str):
-        #         pskuvalue = json.loads(sku_value_instance.PSKUvalue)
-        #     for index, value in enumerate(pskuvalue):
-        #         sku_value_item_reverse.append({
-        #             'name': product.PRattribute[index],
-        #             'value': value
-        #         })
-
         product.fill('SkuValue', sku_value_item_reverse)
         product.fill('brand', pb)
         product.fill('skus', skus)
+        current_app.logger.info('填充完商品信息')
 
     def __fill_publish(self, startid, contentid):
         """填充资讯发布"""
@@ -254,13 +259,12 @@ class BASEAPPROVAL():
     def __fill_agent(self, startid, contentid=None):
         # 填充成为代理商内容
         start_model = User.query.filter_by_(USid=startid).first()
-        umfront = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umfront.value).first()
-        umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
-        if not start_model or not umback or not umfront:
-            return None, None
-
-        start_model.fill('umfront', umfront['UMurl'])
-        start_model.fill('umback', umback['UMurl'])
+        # umfront = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umfront.value).first()
+        # umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
+        # if not start_model or not umback or not umfront:
+        #     return None, None
+        # start_model.fill('umfront', umfront['UMurl'])
+        # start_model.fill('umback', umback['UMurl'])
 
         return start_model, None
 
@@ -377,6 +381,31 @@ class BASEAPPROVAL():
         content.fill('product', product)
         return start_model, content
 
+    def __fill_timelimited(self, startid, contentid):
+        # 限时
+        start_model = Supplizer.query.filter_by_(SUid=startid).first() or \
+                      Admin.query.filter_by_(ADid=startid).first()
+        content = TimeLimitedProduct.query.filter_by(TLPid=contentid, isdelete=False).first()
+        tla = TimeLimitedActivity.query.filter_by(TLAid=content.TLAid, isdelete=False).first()
+        if not start_model or not content:
+            return None, None
+        # product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
+        product_model = Products.query.filter_by(PRid=content.PRid, isdelete=False).first_('商品已下架')
+        content.fill('PBid',product_model.PBid)
+        content.fill('PRattribute',product_model.PRattribute)
+        content.fill('PRremarks',product_model.PRremarks)
+        content.fill('PCid',product_model.PCid)
+        content.fill('PRtitle', product_model.PRtitle)
+        content.fill('PRmainpic', product_model.PRmainpic)
+        content.fill('TlAname', tla.TlAname)
+        # content.fill('PRtitle', product_model.PRtitle)
+        # content.fill('PRtitle', product_model.PRtitle)
+        # product.fill('PBid',product_model.PBid)
+        self.__fill_product_detail(content, content=content)
+        # content.fill('product', content)
+        return start_model, content
+
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -401,6 +430,8 @@ class BASEAPPROVAL():
             return self.__fill_activationcode(start, content)
         elif pt.PTid == 'tosettlenment':
             return self.__fill_settlenment(start, content)
+        elif pt.PTid == 'totimelimited':
+            return self.__fill_timelimited(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
