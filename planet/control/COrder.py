@@ -22,7 +22,8 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
+    TimeLimitedStatus
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -546,6 +547,7 @@ class COrder(CPay, CCoupon):
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
                     current_app.logger.info('商品sku 价格为 {}'.format(small_total))
+                    skuprice = sku_instance.SKUprice
                     if cafrom == CartFrom.time_limited.value:
                         # 限时活动使用限时活动的sku 价格
                         current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
@@ -558,12 +560,16 @@ class COrder(CPay, CCoupon):
                             TLPid=contentid,
                             SKUid=sku.get('skuid'), isdelete=False).first()
 
-                        now = datetime.now()
-                        tla = TimeLimitedActivity.query.filter(TimeLimitedProduct.TLPid == contentid,
-                                                               TimeLimitedActivity.isdelete == False).first()
+                        # now = datetime.now()
+                        tla = TimeLimitedActivity.query.filter(
+                            TimeLimitedActivity.TLAstatus.in_(
+                                [TimeLimitedStatus.starting.value, TimeLimitedStatus.abort.value]),
+                            TimeLimitedProduct.TLPid == contentid,
+                            TimeLimitedActivity.isdelete == False).first()
                         current_app.logger.info('get tla {}  tlp id = {} '.format(tla, contentid))
                         current_app.logger.info('get tls {}  tlp id = {} '.format(tla, contentid))
-                        if tls_instance and tla and (tla.TLAstartTime <= now <= tla.TLAendTime):
+                        if tls_instance and tla:
+                            skuprice = tls_instance.SKUprice
                             small_total = Decimal(str(tls_instance.SKUprice)) * opnum
                             tls_instance.TLSstock = int(tls_instance.TLSstock or 0) - opnum
                             if tls_instance.TLSstock < 0:
@@ -620,7 +626,7 @@ class COrder(CPay, CCoupon):
                         'PRattribute': product_instance.PRattribute,
                         'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
-                        'SKUprice': sku_instance.SKUprice,
+                        'SKUprice': skuprice,
                         'PRmainpic': sku_instance.SKUpic,
                         'OPnum': opnum,
                         'PRid': product_instance.PRid,
