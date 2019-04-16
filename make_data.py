@@ -328,23 +328,6 @@ def check_abnormal_sale_volume():
             # }, synchronize_session=False)
 
 
-def test():
-
-    crusid = '9e276802-5107-11e9-9db3-00163e08d30f'
-    cancelid = '0238cbd6-0042-11e9-84bc-00163e08d30f'
-    cancelid = cancelid.split()
-    a = len(cancelid)
-    flag = UserCollection.query.filter(UserCollection.Collector == crusid,
-                                       UserCollection.Collection == cancelid,
-                                       UserCollection.isdelete == 0).first()
-    print(flag)
-
-
-
-
-
-
-
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -363,6 +346,5 @@ if __name__ == '__main__':
         # cexcel._insertproduct(filepath)
         # add_product_promotion()
         # check_abnormal_sale_volume()
-        test()
         pass
 

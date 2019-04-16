@@ -20,7 +20,6 @@ from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessA
     GuessNumAwardSku, User, Activity
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus
-# from planet.extensions.register_ext import alipay, wx_pay
 from .COrder import COrder
 
 

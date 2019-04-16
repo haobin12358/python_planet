@@ -42,7 +42,7 @@ from planet.api.v1.AClub import AClub
 from planet.api.v1.ATest import ATest
 from planet.api.v1.ASetSupper import ASetSupper
 from planet.api.v1.ACollection import ACollection
-from planet.api.v1.ACancelCollection import ACancelCollection
+
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -161,7 +161,6 @@ def register_v1(app):
     v1.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
     v1.add_url_rule('/setsupper/<string:setsupper>',view_func=ASetSupper.as_view('setsupper'))  # 设置邀请人
     v1.add_url_rule('/collection/<string:collection>',view_func=ACollection.as_view('collection')) # 设置收藏
-    v1.add_url_rule('/cancelled/<string:cancelled>',view_func=ACancelCollection.as_view('cancelled')) # 取消收藏
     # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v1.add_url_rule.....
     app.register_blueprint(v1)
