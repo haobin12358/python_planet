@@ -15,7 +15,7 @@ from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus
-from planet.control.COrder import COrder
+
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
@@ -702,7 +702,7 @@ def return_coupon_deposite():
 @celery.task()
 def end_timelimited(tlaid):
     current_app.logger.info('开始修改限时活动为结束，并且退还库存给商品')
-
+    from planet.control.COrder import COrder
     tla = TimeLimitedActivity.query.filter(
         TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
     if not tla:
@@ -713,6 +713,7 @@ def end_timelimited(tlaid):
         TimeLimitedProduct.isdelete == False, TimeLimitedProduct.TLAid == tlaid).all()
     with db.auto_commit():
         # 获取原sku属性
+
         corder = COrder()
         for tlp in tlps:
             tls_old = TimeLimitedSku.query.filter(
