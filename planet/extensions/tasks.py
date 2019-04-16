@@ -711,22 +711,26 @@ def end_timelimited(tlaid):
 
     tlps = TimeLimitedProduct.query.filter(
         TimeLimitedProduct.isdelete == False, TimeLimitedProduct.TLAid == tlaid).all()
-
-    # 获取原sku属性
-    for tlp in tlps:
-        tls_old = TimeLimitedSku.query.filter(
-            TimeLimitedSku.TLPid == tlp.TLPid,
-            TimeLimitedSku.isdelete == False,
-            TimeLimitedProduct.isdelete == False,
-            ).all()
-        # 获取原商品属性
-        product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
-        # 遍历原sku 将库存退出去
-        for sku in tls_old:
-            sku_instance = ProductSku.query.filter_by(
-                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
-            COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
     with db.auto_commit():
+        # 获取原sku属性
+        corder = COrder()
+        for tlp in tlps:
+            tls_old = TimeLimitedSku.query.filter(
+                TimeLimitedSku.TLPid == tlp.TLPid,
+                TimeLimitedSku.isdelete == False,
+                TimeLimitedProduct.isdelete == False,
+                ).all()
+            # 获取原商品属性
+            product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
+            if not product:
+                current_app.logger.info('退还库存的商品已删除 库存保留在活动商品里 prid = {}'.format(tlp.PRid))
+                continue
+            # 遍历原sku 将库存退出去
+            for sku in tls_old:
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                corder._update_stock(int(sku.TLSstock), product, sku_instance)
+
         tla.TLAstatus = TimeLimitedStatus.end.value
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
 
@@ -739,12 +743,13 @@ def start_timelimited(tlaid):
     if not tla:
         current_app.logger.info('已删除该活动 任务结束')
         return
+    if tla.TLAstatus  == TimeLimitedStatus.abort.value:
+        current_app.logger.info('已中止的活动不自动开启')
+        return
 
     with db.auto_commit():
         tla.TLAstatus = TimeLimitedStatus.starting.value
     current_app.logger.info('修改限时活动为开始 结束')
-
-
 
 
 if __name__ == '__main__':

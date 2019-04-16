@@ -167,11 +167,13 @@ class CTimeLimited(COrder, CUser):
         end_time = datetime.strptime(data.get('tlaendtime'), '%Y-%m-%d %H:%M:%S')
         if start_time > time_now:
             tlastatus = TimeLimitedStatus.waiting.value
-            self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid, start_time=start_time, end_time=end_time)
+            # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid, start_time=start_time,
+            #                         end_time=end_time)
         elif end_time < time_now:
             tlastatus = TimeLimitedStatus.end.value
         else:
             tlastatus = TimeLimitedStatus.starting.value
+
         tla = TimeLimitedActivity.create({
             'TLAid': str(uuid.uuid1()),
             'TLAsort': 1,
@@ -182,6 +184,7 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
+        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.tlaid, start_time=start_time, end_time=end_time)
         with db.auto_commit():
             db.session.add(tla)
         return Success('创建活动成功', data={'tlaid': tla.TLAid})
@@ -394,16 +397,20 @@ class CTimeLimited(COrder, CUser):
             # if tla.TLAstatus != TimeLimitedStatus.end.value:
             if data.get('tlastatus') != TimeLimitedStatus.abort.value:
                 time_now = datetime.now()
-                if time_now < datetime.strptime(str(tla.TLAstartTime), '%Y-%m-%d %H:%M:%S'):
+                start_time = datetime.strptime(str(tla.TLAstartTime), '%Y-%m-%d %H:%M:%S')
+                end_time = datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S')
+                if time_now < start_time:
                     tlastatus = TimeLimitedStatus.waiting.value
-                    self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
-                                            start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
-                elif time_now > datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S'):
+                    # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
+                    #                         start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
+                elif time_now > end_time:
                     tlastatus = TimeLimitedStatus.end.value
                 else:
                     tlastatus = TimeLimitedStatus.starting.value
 
                 tla.TLAstatus = tlastatus
+                self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
+                                        start_time=start_time, end_time=end_time)
 
         return Success('修改成功')
 
