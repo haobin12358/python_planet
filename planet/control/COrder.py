@@ -66,27 +66,29 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
+        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+        filter_args = set()
         if omfrom is None:
             # 默认获取非活动订单
-            # order_main_query = order_main_query.filter(
-            #     OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
-
-            pass
-
+            # order_main_query = order_main_query.filter(normal_filter)
+            filter_args.add(normal_filter)
         else:
-            om_filter = {
-                OrderMain.OMfrom.in_(omfrom),
-                # OrderMain.OMinRefund == False
-            }
+            filter_args.add(OrderMain.OMfrom.in_(omfrom))
             if common_user():
                 # 如果是前台用户。需要过滤掉售后订单
-                om_filter.add(OrderMain.OMinRefund == False)
-            order_main_query = order_main_query.filter(*om_filter)
+                filter_args.add(OrderMain.OMinRefund == False)
+            # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
+            filter_args.remove(normal_filter)
+            order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
         elif omstatus:
+            order_main_query = order_main_query.filter(*filter_args)
             order_main_query = order_main_query.filter(*omstatus)
+        else:
+            order_main_query = order_main_query.filter(*filter_args)
+
         if is_supplizer():
             # 供应商仅看自己出售的
             order_main_query = order_main_query.filter(
@@ -508,6 +510,7 @@ class COrder(CPay, CCoupon):
             # 分订单
             # todo 是否按照供应商拆分订单
             for info in infos:
+                part_omfrom = omfrom
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid1())  # 主单id
@@ -552,9 +555,9 @@ class COrder(CPay, CCoupon):
                         # 限时活动使用限时活动的sku 价格
                         current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
                         # 删除购物车
-                        if omfrom == OrderFrom.carts.value:
+                        if part_omfrom == OrderFrom.carts.value:
                             s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
-                        omfrom = OrderFrom.time_limited.value
+                        part_omfrom = OrderFrom.time_limited.value
                         contentid = sku.get('contentid')
                         tls_instance = TimeLimitedSku.query.filter_by(
                             TLPid=contentid,
@@ -651,7 +654,7 @@ class COrder(CPay, CCoupon):
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
-                    if omfrom == OrderFrom.carts.value:
+                    if part_omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
@@ -757,7 +760,7 @@ class COrder(CPay, CCoupon):
                     'OMno': self._generic_omno(),
                     'OPayno': opayno,
                     'USid': usid,
-                    'OMfrom': omfrom,
+                    'OMfrom': part_omfrom,
                     'PBname': product_brand_instance.PBname,
                     'PBid': pbid,
                     'OMclient': omclient,

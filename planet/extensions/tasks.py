@@ -14,14 +14,14 @@ from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, CartFrom
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts
 
 celery = Celery()
 
@@ -731,7 +731,7 @@ def end_timelimited(tlaid):
                 sku_instance = ProductSku.query.filter_by(
                     isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
                 corder._update_stock(int(sku.TLSstock), product, sku_instance)
-
+                Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
         tla.TLAstatus = TimeLimitedStatus.end.value
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
 
