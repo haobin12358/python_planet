@@ -167,6 +167,7 @@ class CTimeLimited(COrder, CUser):
         end_time = datetime.strptime(data.get('tlaendtime'), '%Y-%m-%d %H:%M:%S')
         if start_time > time_now:
             tlastatus = TimeLimitedStatus.waiting.value
+            self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid, start_time=start_time, end_time=end_time)
         elif end_time < time_now:
             tlastatus = TimeLimitedStatus.end.value
         else:
@@ -183,7 +184,6 @@ class CTimeLimited(COrder, CUser):
         })
         with db.auto_commit():
             db.session.add(tla)
-
         return Success('创建活动成功', data={'tlaid': tla.TLAid})
 
     def apply_award(self):
@@ -396,6 +396,8 @@ class CTimeLimited(COrder, CUser):
                 time_now = datetime.now()
                 if time_now < datetime.strptime(str(tla.TLAstartTime), '%Y-%m-%d %H:%M:%S'):
                     tlastatus = TimeLimitedStatus.waiting.value
+                    self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
+                                            start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
                 elif time_now > datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S'):
                     tlastatus = TimeLimitedStatus.end.value
                 else:
