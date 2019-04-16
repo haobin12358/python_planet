@@ -25,6 +25,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
     TimeLimitedStatus
 
+
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
@@ -37,8 +38,10 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
+
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
     OrderPartContentActivity
+
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -550,7 +553,7 @@ class COrder(CPay, CCoupon):
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
                     current_app.logger.info('商品sku 价格为 {}'.format(small_total))
-                    skuprice = sku_instance.SKUprice
+
                     if cafrom == CartFrom.time_limited.value:
                         # 限时活动使用限时活动的sku 价格
                         current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
@@ -558,12 +561,12 @@ class COrder(CPay, CCoupon):
                         if part_omfrom == OrderFrom.carts.value:
                             s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                         part_omfrom = OrderFrom.time_limited.value
+
                         contentid = sku.get('contentid')
                         tls_instance = TimeLimitedSku.query.filter_by(
                             TLPid=contentid,
                             SKUid=sku.get('skuid'), isdelete=False).first()
 
-                        # now = datetime.now()
                         tla = TimeLimitedActivity.query.filter(
                             TimeLimitedActivity.TLAstatus.in_(
                                 [TimeLimitedStatus.starting.value, TimeLimitedStatus.abort.value]),
@@ -619,7 +622,7 @@ class COrder(CPay, CCoupon):
                             })
                             # model_bean.append(month_sale_instance)
                             s.add(month_sale_instance)
-
+                            
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,
