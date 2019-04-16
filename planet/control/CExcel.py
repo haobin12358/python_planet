@@ -12,20 +12,22 @@ from flask import request, current_app, send_from_directory
 # from gevent import thread
 
 
-from planet.common.error_response import ParamsError, AuthorityError
+from planet.common.error_response import ParamsError, AuthorityError, TokenError
+from planet.common.logistics import Logistics
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, is_supplizer, token_required
-from planet.config.enums import ProductFrom
+from planet.config.enums import ProductFrom, ExcelTemplateType, AdminStatus, UserStatus, OrderMainStatus, \
+    ProductBrandStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.tasks import get_url_local, auto_agree_task
 from planet.extensions.register_ext import db
 
 from planet.models import ProductBrand, ProductCategory, Products, ProductImage, ProductSku, Items, \
-    ProductItems
+    ProductItems, Admin, Supplizer, OrderMain, LogisticsCompnay, OrderLogistics
 
 
-class CExcel():
+class CExcel(object):
     # 头部参数配置文件
     heads_config = ('商品编码', '货号', '三级类目', '品牌', '场景标签', '商品名称', '商品描述', '划线价格', '商品运费', '商品主图',
                     '顶部轮播图1', '顶部轮播图2', '顶部轮播图3', '顶部轮播图4', '顶部轮播图5', '顶部轮播图6', '顶部轮播图7',
@@ -35,16 +37,28 @@ class CExcel():
                     '底部长图22', '底部长图23', '底部长图24', '底部长图25', '底部长图26', '底部长图27', '底部长图28',
                     '底部长图29', '底部长图30', 'SKU属性名', 'SKU属性值', 'SKU图', 'SKU库存', '让利比', 'SKU价格')
 
+    delivery_heads = ('订单号', '发货物流', '物流单号')
+
     def __init__(self):
         self._url_list = list()
 
     @token_required
     def upload_products_file(self):
         """
-        文件上传入口
+        批量导入商品，文件上传入口
         :return:
         """
+        if is_admin():
+            Admin.query.filter_by(ADid=request.user.id, ADstatus=AdminStatus.normal.value, isdelete=False
+                                  ).first_('管理员账号错误')
+        elif is_supplizer():
+            Supplizer.query.filter_by(SUid=request.user.id, SUstatus=UserStatus.usual.value, isdelete=False
+                                      ).first_('供应商账号状态错误')
+        else:
+            raise TokenError('未登录')
         file = request.files.get('file')
+        if not file:
+            raise ParamsError('未上传文件')
         data = parameter_required()
         current_app.logger.info('start add template {}'.format(datetime.now()))
         folder = 'xls'
@@ -56,6 +70,34 @@ class CExcel():
             self._url_list = list()
         current_app.logger.info('end add template {}'.format(datetime.now()))
         return Success('上传成功')
+
+    @token_required
+    def upload_delivery_file(self):
+        """
+        订单批量发货，文件上传入口
+        :return:
+        """
+        if is_admin():
+            Admin.query.filter_by(ADid=request.user.id, ADstatus=AdminStatus.normal.value, isdelete=False
+                                  ).first_('管理员账号错误')
+        elif is_supplizer():
+            Supplizer.query.filter_by(SUid=request.user.id, SUstatus=UserStatus.usual.value, isdelete=False
+                                      ).first_('供应商账号状态错误')
+        else:
+            raise TokenError('未登录')
+        file = request.files.get('file')
+        if not file:
+            raise ParamsError('未上传文件')
+        current_app.logger.info('Start Add Delivery Template {}'.format(datetime.now()))
+        folder = 'xls'
+        # 接收数据保存到服务器
+        file_path = self._save_excel(file, folder)
+
+        # 进行订单发货
+        nrows = self._order_delivery(file_path)
+
+        current_app.logger.info('End Add Delivery Template {}'.format(datetime.now()))
+        return Success('批量发货成功, 共发货 {} 个订单'.format(nrows - 1))
 
     def _save_excel(self, file, folder):
         """
@@ -85,7 +127,7 @@ class CExcel():
             current_app.logger.info(">>>  Upload File Path is  {}  <<<".format(newFile))
             return newFile
         else:
-            raise SystemError(u'上传有误, 不支持的文件类型 {}'.format(shuffix))
+            raise ParamsError(u"不支持的文件类型 '{}' ，请上传正确的Excel模板".format(shuffix))
 
     def _allowed_file(self, shuffix):
         """
@@ -109,6 +151,114 @@ class CExcel():
             usid = 'anonymous'
         res = datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f') + random.choice(myStr) + usid + shuffix
         return res
+
+    def _order_delivery(self, filepath):
+        """
+        读取Excel 将表中相应订单发货并添加物流信息
+        :param filepath:
+        :return:
+        """
+        excel_file = xlrd.open_workbook(filepath)
+        # 读取Excel数据
+        try:
+            content_sheet = excel_file.sheet_by_name('order')
+        except Exception:
+            raise ParamsError('模板固定格式可能被修改过，请下载原模板，重新填写后再次上传')
+        current_app.logger.info('nrows >>> {}'.format(content_sheet.nrows))
+        if content_sheet.nrows == 1:
+            raise ParamsError("表格中没有订单数据，请检查后重新上传")
+
+        heads = dict()
+        # 读取文件首行表头配置 防止行位置变更
+        heads_content = content_sheet.row(0)
+        for index, title in enumerate(heads_content):
+            if title.value in self.delivery_heads:
+                heads.setdefault(title.value, index)
+
+        with db.auto_commit():
+            status_error_order, other_error_order, band_error_order = list(), list(), list()
+            session_list, omnos = list(), list()
+            for row_num in range(1, content_sheet.nrows):
+                row_content = content_sheet.row(row_num)
+                current_app.logger.info('发货模板，第{}行读取的数据为: {}'.format(row_num, row_content))
+                order_no = row_content[heads.get('订单号')].value
+                if order_no in omnos:
+                    raise ParamsError("订单号重复，请检查后重新上传：{}".format(order_no))
+                omnos.append(order_no)
+
+                order_main = OrderMain.query.filter(OrderMain.OMno == order_no,
+                                                    OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                                    OrderMain.isdelete == False,
+                                                    OrderMain.OMinRefund == False).first()
+                if not order_main:
+                    status_error_order.append(order_no)
+                    continue
+                elif ((is_supplizer() and order_main.PRcreateId != request.user.id) or
+                      (is_admin() and order_main.PRcreateId)):  # 不属于自己的订单
+                    other_error_order.append(order_main.OMno)
+                    continue
+                else:  # 检验品牌是否正在上架
+                    pb = ProductBrand.query.filter(ProductBrand.PBid == order_main.PBid,
+                                                   ProductBrand.isdelete == False,
+                                                   ProductBrand.PBstatus == ProductBrandStatus.upper.value
+                                                   ).first()
+                    if not pb:
+                        band_error_order.append(order_main.OMno)
+                        continue
+
+                olcompany = row_content[heads.get('发货物流')].value
+                try:
+                    olexpressno = str(row_content[heads.get('物流单号')].value).split('.')[0]
+                except Exception:
+                    raise ParamsError("订单号{} 所填写物流单号错误，请检查后重试".format(order_no))
+                # 创建物流记录
+                order_logistics_instance = self._send_order(order_main, olcompany, olexpressno)
+                session_list.append(order_logistics_instance)
+                # 更改订单状态
+                order_main.update({'OMstatus': OrderMainStatus.wait_recv.value})
+                session_list.append(order_main)
+
+            if status_error_order:
+                raise ParamsError("请检查以下订单号是否填写正确，修改后重新上传模板发货；"
+                                  "（注意：订单需处于待发货状态，且不在售后中）；"
+                                  "{}".format(status_error_order))
+            if other_error_order:
+                raise ParamsError("以下订单不属于自己管理的品牌，"
+                                  "不能代替发货，请检查后重试，订单号：{}".format(other_error_order))
+            if band_error_order:
+                raise ParamsError("以下订单相应品牌已下架，请检查后重试。"
+                                  "订单号：{}".format(band_error_order))
+            db.session.add_all(session_list)
+        return content_sheet.nrows
+
+    def _send_order(self, om, olcompany, olexpressno):
+        """
+        订单发货
+        :param om: 主单对象
+        :param olcompany: 快递公司
+        :param olexpressno: 快递单号
+        :return: object
+        """
+        lcompany = LogisticsCompnay.query.filter_by_(LCname=olcompany).first()
+        if not lcompany:
+            raise ParamsError("订单号 {} ，填写的快递公司不存在, 请检查后重试".format(om.OMno))
+        # 清除之前可能存在的异常物流
+        OrderLogistics.query.filter(OrderLogistics.OMid == om.OMid,
+                                    OrderLogistics.isdelete == False
+                                    ).delete_()
+        # 检验单号是否填写错误
+        response = Logistics().get_logistic(olexpressno, lcompany.LCcode)
+        if not bool(response) or response.get('status') not in ['0', '205']:
+            raise ParamsError("订单号 {} ，填写的物流信息错误，请检查快递公司与单号无误后重新上传模板".format(om.OMno))
+
+        # 添加物流记录
+        order_logistics_instance = OrderLogistics.create({
+            'OLid': str(uuid.uuid1()),
+            'OMid': om.OMid,
+            'OLcompany': lcompany.LCcode,
+            'OLexpressNo': olexpressno,
+        })
+        return order_logistics_instance
 
     def _insertproduct(self, filepath):
         """
@@ -405,10 +555,19 @@ class CExcel():
     def download(self):
         if not is_supplizer() and not is_admin():
             raise AuthorityError()
+        args = parameter_required(('type', ))
+        type = args.get('type')
+        try:
+            tp = getattr(ExcelTemplateType, type).value
+        except Exception:
+            raise ParamsError('type 参数错误')
         current_app.logger.info('start download template')
-
         template_path = os.path.join(current_app.config['BASEDIR'], 'img', 'xls')
         current_app.logger.info('template path {}'.format(template_path))
+        if tp:
+            current_app.logger.info('is file {}'.format(os.path.isfile(os.path.join(template_path,
+                                                                                    'deliverytemplate.xlsx'))))
+            return send_from_directory(template_path, 'deliverytemplate.xlsx', as_attachment=True)
         current_app.logger.info('is file {}'.format(os.path.isfile(os.path.join(template_path, 'template.xlsx'))))
         return send_from_directory(template_path, 'template.xlsx', as_attachment=True)
 

@@ -63,7 +63,7 @@ class CLogistic:
 
             # 添加物流记录
             order_logistics_instance = OrderLogistics.create({
-                'OLid': str(uuid.uuid4()),
+                'OLid': str(uuid.uuid1()),
                 'OMid': omid,
                 'OLcompany': olcompany,
                 'OLexpressNo': olexpressno,
@@ -150,7 +150,7 @@ class CLogistic:
         # http查询
         l = Logistics()
         response = l.get_logistic(order_logistics.OLexpressNo, order_logistics.OLcompany)
-        current_app.logger.info("物流记录OLid--> {} ；快递response --> {}".format(order_logistics.OLid, response))
+        current_app.logger.info("物流记录OLid--> {} ；".format(order_logistics.OLid))
         if response:
             # 插入数据库
             code = response.get('status')

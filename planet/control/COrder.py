@@ -39,6 +39,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
     OrderPartContentActivity
+
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -558,12 +559,12 @@ class COrder(CPay, CCoupon):
                         if part_omfrom == OrderFrom.carts.value:
                             s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                         part_omfrom = OrderFrom.time_limited.value
+
                         contentid = sku.get('contentid')
                         tls_instance = TimeLimitedSku.query.filter_by(
                             TLPid=contentid,
                             SKUid=sku.get('skuid'), isdelete=False).first()
 
-                        # now = datetime.now()
                         tla = TimeLimitedActivity.query.filter(
                             TimeLimitedActivity.TLAstatus.in_(
                                 [TimeLimitedStatus.starting.value, TimeLimitedStatus.abort.value]),
@@ -619,7 +620,7 @@ class COrder(CPay, CCoupon):
                             })
                             # model_bean.append(month_sale_instance)
                             s.add(month_sale_instance)
-
+                            
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,

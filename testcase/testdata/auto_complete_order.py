@@ -17,7 +17,7 @@ class Test(object):
             corder = COrder()
             order_main = OrderMain.query.filter(OrderMain.OMno == omno,
                                                 OrderMain.isdelete == False,
-                                                OrderMain.OMstatus == OrderMainStatus.wait_comment.value,
+                                                OrderMain.OMstatus == OrderMainStatus.wait_recv.value,
                                                 ).first_("该订单不存在或不是待收货状态")
             current_app.logger.info("订单OMid: {} 开始运行自动完成任务".format(order_main.OMid))
             order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
