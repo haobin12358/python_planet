@@ -376,6 +376,9 @@ class CTimeLimited(COrder, CUser):
                     self._re_stock(tlp)
                 return Success('删除成功')
 
+            if tla.TLAstatus == TimeLimitedStatus.end.value:
+                raise ParamsError('已结束活动禁止重新编辑')
+
             if tla.TLAstatus == TimeLimitedStatus.starting.value:
                 data = dict(tlastatus=data.get('tlastatus'), tlasort=data.get('tlasort'))
 
