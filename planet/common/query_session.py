@@ -58,6 +58,14 @@ class Query(_Query):
             return res
         raise NotFound(error)
 
+    def order_by(self, *criterion):
+        """默认在筛选条件中添加对象主键，防止与limit连用时出现获取随机位移错误"""
+        # res = super(Query, self).order_by(*criterion,  self._primary_entity.mapper.primary_key[0].asc())
+        criterion = list(criterion)
+        criterion.append(self._primary_entity.mapper.primary_key[0].asc())
+        res = super(Query, self).order_by(*criterion)
+        return res
+
     def delete_(self, synchronize_session='evaluate', update_args=None):
         return self.update({'isdelete': True}, synchronize_session=synchronize_session, update_args=update_args)
 
@@ -105,10 +113,10 @@ class Query(_Query):
             return self
         return self.filter(cen.left.contains(cen.right))
 
-    def test(self, cen):
-        """测试"""
-        import ipdb
-        ipdb.set_trace()
+    # def test(self, cen):
+    #     """测试"""
+    #     import ipdb
+    #     ipdb.set_trace()
 
 
 class Session(_Session):
