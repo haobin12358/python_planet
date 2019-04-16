@@ -45,12 +45,12 @@ class CTimeLimited(COrder, CUser):
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus.in_([
                 TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value]))
-            order_by_args.append(TimeLimitedActivity.TLAstartTime.desc())
+            order_by_args.append(TimeLimitedActivity.TLAstartTime.asc())
         else:
             current_app.logger.info('本次是管理员进行查询')
             if tlastatus or tlastatus == 0:
                 filter_args.add(TimeLimitedActivity.TLAstatus == tlastatus)
-            order_by_args.extend([TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.desc()])
+            order_by_args.extend([TimeLimitedActivity.TLAsort.asc(), TimeLimitedActivity.createtime.asc()])
         if tlaname:
             filter_args.add(TimeLimitedActivity.TlAname.ilike('%{}%'.format(tlaname)))
         if tlastarttime:
@@ -184,7 +184,7 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
-        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.tlaid, start_time=start_time, end_time=end_time)
+        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
         with db.auto_commit():
             db.session.add(tla)
         return Success('创建活动成功', data={'tlaid': tla.TLAid})
@@ -409,7 +409,7 @@ class CTimeLimited(COrder, CUser):
                     tlastatus = TimeLimitedStatus.starting.value
 
                 tla.TLAstatus = tlastatus
-                self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
+                self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
 
         return Success('修改成功')
@@ -590,7 +590,10 @@ class CTimeLimited(COrder, CUser):
         return sort
 
     def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
+        current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
-            start_timelimited.apply_async(args=(tlaid), eta=start_time - timedelta(hours=8))
+            current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
+            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
         if tlastatus < TimeLimitedStatus.end.value:
-            end_timelimited.apply_async(args=(tlaid), eta=end_time - timedelta(hours=8))
+            current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
+            end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
