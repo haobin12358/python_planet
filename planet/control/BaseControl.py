@@ -259,13 +259,12 @@ class BASEAPPROVAL():
     def __fill_agent(self, startid, contentid=None):
         # 填充成为代理商内容
         start_model = User.query.filter_by_(USid=startid).first()
-        umfront = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umfront.value).first()
-        umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
-        if not start_model or not umback or not umfront:
-            return None, None
-
-        start_model.fill('umfront', umfront['UMurl'])
-        start_model.fill('umback', umback['UMurl'])
+        # umfront = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umfront.value).first()
+        # umback = UserMedia.query.filter_by_(USid=startid, UMtype=UserMediaType.umback.value).first()
+        # if not start_model or not umback or not umfront:
+        #     return None, None
+        # start_model.fill('umfront', umfront['UMurl'])
+        # start_model.fill('umback', umback['UMurl'])
 
         return start_model, None
 

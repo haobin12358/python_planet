@@ -61,6 +61,7 @@ class OrderFrom(Enum):
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
     trial_commodity = 60, '试用商品'
+    time_limited = 70, '限时特惠'
 
 
 class OrderMainStatus(Enum):
@@ -80,6 +81,7 @@ class ActivityOrderNavigation(Enum):
     guess_num_award = 30, '每日竞猜'
     magic_box = 50, '好友魔盒'
     trial_commodity = 60, '免费试用'
+    time_limited = 70, '限时特惠'
 
 
 class OrderEvaluationScore(Enum):
@@ -551,7 +553,9 @@ class SupplizerDepositLogType(Enum):
 
 
 class TimeLimitedStatus(Enum):
-    publish = 0, '发布'
+    # publish = 0, '发布'
+    waiting = 1, '未开始'
+    starting = 2, '已开始'
     abort = -10, '中止'
     end = 10, '结束'
 
