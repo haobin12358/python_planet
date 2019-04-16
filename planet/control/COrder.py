@@ -25,7 +25,6 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
     TimeLimitedStatus
 
-
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
@@ -38,7 +37,6 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
-
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
     OrderPartContentActivity
 
@@ -553,7 +551,7 @@ class COrder(CPay, CCoupon):
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
                     current_app.logger.info('商品sku 价格为 {}'.format(small_total))
-
+                    skuprice = sku_instance.SKUprice
                     if cafrom == CartFrom.time_limited.value:
                         # 限时活动使用限时活动的sku 价格
                         current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
