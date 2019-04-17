@@ -16,7 +16,7 @@ from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
     DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import wx_pay, db
+from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
 from planet.models import UserCommission, FreshManJoinFlow, Products, ProductMonthSaleValue
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
@@ -650,9 +650,8 @@ class CRefund(object):
 
                     if fresh_man_join_all:
                         for fresh_man_count, fresh_man in enumerate(fresh_man_join_all, start=1):
-                            fresh_man = fresh_man.to_dict()
                             if commissions < user_fresh_order_price:
-                                reward = fresh_man['OMprice']
+                                reward = fresh_man.OMprice
                                 if fresh_man_count == 1:
                                     reward = reward * (first / 100)
                                 elif fresh_man_count == 2:
@@ -667,8 +666,8 @@ class CRefund(object):
                                     if fresh_man_count <= 2:
                                         UserCommission.query.filter(
                                             UserCommission.isdelete == False,
-                                            UserCommission.USid == fresh_man['UPid'],
-                                            UserCommission.OMid == fresh_man['OMid'],
+                                            UserCommission.USid == fresh_man.UPid,
+                                            UserCommission.OMid == fresh_man.OMid,
                                             UserCommission.UCstatus == UserCommissionStatus.preview.value
                                             ).update({
                                             'UCcommission': reward
@@ -676,19 +675,18 @@ class CRefund(object):
                                     else:
                                         user_main_order = OrderMain.query.filter(
                                             OrderMain.isdelete == False,
-                                            OrderMain.OMid == fresh_man['OMid'],
+                                            OrderMain.OMid == fresh_man.OMid,
                                         ).first()
-                                        user_main_order = user_main_order.to_dict()
-                                        user_order_status = user_main_order['OMstatus']
+                                        user_order_status = user_main_order.OMstatus
                                         if user_order_status == OrderMainStatus.ready.value:
                                             status = UserCommissionStatus.in_account.value
                                         else:
                                             status = UserCommissionStatus.preview.value
                                         user_commision_dict = {
                                             'UCid': str(uuid.uuid1()),
-                                            'OMid': user_main_order['OMid'],
+                                            'OMid': user_main_order.OMid,
                                             'UCcommission': reward,
-                                            'USid': user_main_order['USid'],
+                                            'USid': user_main_order.USid,
                                             'UCtype': UserCommissionType.fresh_man.value,
                                             'UCstatus' : status
                                         }

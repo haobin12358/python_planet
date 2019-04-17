@@ -19,16 +19,12 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import wx_pay, db
+from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
     ProductSku
-# from planet.models iomprt OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
-# =======
-#     Products, Supplizer
-# from planet.models import
-# >>>>>>> 6bb675cff9ebd29e48bcbe41b4a8e7b46ae3f38a
+from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
 from planet.service.SUser import SUser
@@ -173,15 +169,17 @@ class CPay():
         UCstatus = None
         UCendTime = None
         is_trial_commodity = order_main.OMfrom == OrderFrom.trial_commodity.value
+        opid = None
         for order_part in order_parts:
             # 是否是新人大礼包
             prid = order_part.PRid
+            opid = order_part.OPid
             if order_main.OMfrom == OrderFrom.fresh_man.value:
                 current_app.logger.info('新人首单不参与分佣')
                 continue
-            if self._check_upgrade_gift((prid, )):
+            if self._check_upgrade_gift((prid,)):
                 current_app.logger.info('开店礼包不需要佣金')
-                user.USlevel = UserIdentityStatus.toapply.value
+                # user.USlevel = UserIdentityStatus.toapply.value
                 # continue
             if is_trial_commodity:
                 trialcommodity = TrialCommodity.query.filter_by(TCid=order_parts[0]['PRid']).first()
@@ -211,10 +209,13 @@ class CPay():
             up2_user = User.query.filter(User.isdelete == False, User.USid == up2).first()
             up3_user = User.query.filter(User.isdelete == False, User.USid == up3).first()
             self._caculate_commsion(user, up1_user, up2_user, up3_user, commision,
-                                    order_part, is_act=bool(order_main.OMfrom>OrderFrom.product_info.value))
+                                    order_part, is_act=bool(order_main.OMfrom > OrderFrom.product_info.value))
 
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
+            if not opid:
+                current_app.logger.info('新人首单没有分单id  请检查数据库')
+                return
             first = 20
             second = 30
             third = 50
@@ -223,7 +224,7 @@ class CPay():
                 FreshManJoinFlow.isdelete == False,
                 FreshManJoinFlow.OMid == order_main.OMid,
             ).first()
-            if fresh_man_join_flow and fresh_man_join_flow.UPid :
+            if fresh_man_join_flow and fresh_man_join_flow.UPid:
                 fresh_man_join_count = FreshManJoinFlow.query.filter(
                     FreshManJoinFlow.isdelete == False,
                     FreshManJoinFlow.UPid == fresh_man_join_flow.UPid,
@@ -239,7 +240,7 @@ class CPay():
                     OrderMain.USid == fresh_man_join_flow.UPid,
                     OrderMain.OMfrom == OrderFrom.fresh_man.value,
                     OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                    ).first()
+                ).first()
                 # 邀请人的新人首单佣金列表
                 up_order_fresh_commissions = UserCommission.query.filter(
                     UserCommission.isdelete == False,
@@ -247,27 +248,27 @@ class CPay():
                     UserCommission.USid == up_order_main.USid,
                     UserCommission.UCstatus >= UserCommissionStatus.preview.value,
                     UserCommission.UCtype == UserCommissionType.fresh_man.value,
-                    ).order_by(UserCommission.createtime.asc()).limit(3)
+                ).order_by(UserCommission.createtime.asc()).limit(3)
                 # 邀请人的新人首单佣金
                 commissions = 0
                 for commission in up_order_fresh_commissions:
-                    commission = commission.to_dict()
-                    commissions += commission['UCcommission']
-                if up_order_main :
+                    commissions += commission.UCcommission
+                if up_order_main:
                     up_fresh_order_price = up_order_main.OMtrueMount
                     # 邀请人新品佣金小于这次新人返现并且这次新人在前三个返现的人之内
                     if commissions < up_fresh_order_price and fresh_man_join_count <= 3:
                         reward = fresh_man_join_flow.OMprice
-                        if fresh_man_join_count == 1:
+                        if fresh_man_join_count == 0:
                             reward = reward * (first / 100)
-                        elif fresh_man_join_count == 2:
+                        elif fresh_man_join_count == 1:
                             reward = reward * (second / 100)
-                        elif fresh_man_join_count == 3:
+                        elif fresh_man_join_count == 2:
                             reward = reward * (third / 100)
                         else:
                             reward = 0
                         if reward + commissions > up_fresh_order_price:
                             reward = up_fresh_order_price - commissions
+                        current_app.logger.info('本次订单可以获取的佣金是 {}'.format(reward))
                         if reward:
                             user_commision_dict = {
                                 'UCid': str(uuid.uuid1()),
@@ -275,7 +276,8 @@ class CPay():
                                 'UCcommission': reward,
                                 'USid': fresh_man_join_flow.UPid,
                                 'UCtype': UserCommissionType.fresh_man.value,
-                                'UCendTime': UCendTime
+                                'UCendTime': UCendTime,
+                                'OPid': opid
                             }
                             db.session.add(UserCommission.create(user_commision_dict))
         # 线上发货
