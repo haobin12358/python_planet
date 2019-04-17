@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
+import datetime
 import uuid
 
-from flask import request, json
+from flask import request, json, current_app
 
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import ProductStatus
-from planet.models import ProductSku, Products
+from planet.config.enums import ProductStatus, CartFrom, ApplyStatus, TimeLimitedStatus
+from planet.models import ProductSku, Products, TimeLimitedProduct, TimeLimitedActivity, TimeLimitedSku
 from planet.models.trade import Carts
 from planet.service.SProduct import SProducts
 from planet.service.STrade import STrade
@@ -23,13 +24,25 @@ class CCart(object):
     def add(self):
         """添加购物车"""
         data = parameter_required(('skuid', ))
+        try:
+            cafrom = CartFrom(data.get('cafrom')).value
+            current_app.logger.info('获取到了cafrom value = {}'.format(cafrom))
+        except:
+            current_app.logger.info('cafrom 参数异常')
+            cafrom = 10
+        contentid = data.get('contentid')
+        # todo 前端目前只会在限时活动传该参数
+        if cafrom == CartFrom.time_limited.value and not contentid:
+            current_app.logger.info('miss content  cafrom {}'.format(cafrom))
+            raise ParamsError('非活动商品加入购物车参数异常')
+
         skuid = data.get('skuid')
         try:
             num = int(data.get('canums', 1))
         except TypeError as e:
             raise ParamsError('num参数类型错误')
         usid = request.user.id
-        is_exists = self.scart.get_card_one({'USid': usid, 'SKUid': skuid})
+        is_exists = self.scart.get_card_one({'USid': usid, 'SKUid': skuid, 'CAfrom': cafrom})
         if is_exists:
             # 已存在
             caid = is_exists.CAid
@@ -62,7 +75,9 @@ class CCart(object):
                     'SKUid': skuid,
                     'CAnums': num,
                     'PBid': pbid,
-                    'PRid': prid
+                    'PRid': prid,
+                    'Contentid': contentid,
+                    'CAfrom': cafrom
                 })
                 msg = '添加购物车成功'
                 session.add(cart)
@@ -71,7 +86,7 @@ class CCart(object):
     @token_required
     def update(self):
         """更新购物车"""
-        data = parameter_required(('caid', ))
+        data = parameter_required(('caid',))
         caid = data.get('caid')
         usid = request.user.id
         card = self.scart.get_card_one({'CAid': caid, 'USid': usid}, error='购物车不存在')  # card就是cart.
@@ -107,14 +122,16 @@ class CCart(object):
         product_num = 0
         for cart in my_carts:
             pbid = cart.PBid
+            car_from = cart.CAfrom
             product = self.sproduct.get_product_by_prid(cart.PRid)  # 商品
             if not product:
                 continue
+
             product.PRattribute = json.loads(product.PRattribute)
             pb = self.sproduct.get_product_brand_one({'PBid': pbid})
             if not pb:
                 continue
-            cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})   # 购物车的sku
+            cart_sku = self.sproduct.get_sku_one({'SKUid': cart.SKUid})  # 购物车的sku
             if not cart_sku:
                 continue
             cart_sku.SKUattriteDetail = json.loads(cart_sku.SKUattriteDetail)
@@ -140,10 +157,14 @@ class CCart(object):
                 }
                 sku_value_item_reverse.append(temp)
             product.fill('SkuValue', sku_value_item_reverse)
+            # 填充活动商品信息
+
 
             # 填充购物车
             cart.fill('sku', cart_sku)
             cart.fill('product', product)
+            if car_from == CartFrom.time_limited.value:
+                self._fill_tlp(cart)
             # 小计
             # cart.subtotal =
             # 数量
@@ -177,7 +198,22 @@ class CCart(object):
             ).delete_(synchronize_session=False)
         return Success('删除成功')
 
+    def _fill_tlp(self, cart):
 
+        tlp = TimeLimitedProduct.query.filter_by(TLPid=cart.Contentid, isdelete=False,
+                                                 TLAstatus=ApplyStatus.agree.value).first()
+        if not tlp:
+            current_app.logger.info('当前活动商品尚未通过审批')
+            return
+        tla = TimeLimitedActivity.query.filter_by(TLAid=tlp.TLAid, isdelete=False).first()
+        if not tla and tla.TLAstatus not in [TimeLimitedStatus.starting.value, TimeLimitedStatus.waiting.value]:
+            current_app.logger.info('当前活动已结束或者已中止 tla = {}'.format(tlp.TLAid))
+            return
+        tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, isdelete=False, SKUid=cart.sku.SKUid).first()
+        if tls:
+            cart.sku.fill('tlsprice', tls.SKUprice)
+            cart.sku.fill('tlsstock', tls.TLSstock)
 
-
+        cart.product.fill('tlpprice', tlp.PRprice)
+        cart.product.fill('tlastatus', tla.TLAstatus)
 

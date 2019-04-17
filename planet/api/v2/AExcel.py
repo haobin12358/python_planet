@@ -14,6 +14,7 @@ class AExcel(Resource):
 
     def post(self, excel):
         apis = {
-            'upload': self.cexcel.upload_products_file
+            'upload': self.cexcel.upload_products_file,
+            'delivery': self.cexcel.upload_delivery_file,
         }
         return apis

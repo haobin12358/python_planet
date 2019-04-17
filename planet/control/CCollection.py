@@ -14,12 +14,14 @@ class CCollection:
         c = data.get('cotype')
         flag = UserCollection.query.filter(UserCollection.UCollector == crusid,
                                            UserCollection.UCollection == ctid, UserCollection.isdelete == False).first()
-        if flag == None:
-            uin = UserCollection.create({
-                'UCid': str(uuid.uuid1()), 'Collector': crusid, 'Collection': ctid, 'CoType': c})
-            db.session.add(uin)
-            db.session.commit()
-            return Success('添加成功')
+
+        with db.auto_commit():
+            if flag == None:
+                uin = UserCollection.create({
+                    'UCid': str(uuid.uuid1()), 'Collector': crusid, 'Collection': ctid, 'CoType': c})
+                db.session.add(uin)
+
+                return Success('添加成功')
 
     def cancel(self):
         data = parameter_required(('collector', 'cancelled'))
@@ -38,13 +40,17 @@ class CCollection:
             return Success('还未收藏这些商品')
 
     def show(self):
-        data = parameter_required('collector')
+        data = parameter_required('collector')  # token 获取当前操作用户
+        # 增加筛选条件 收藏类型
         collector = data.get('collector')
         flag = UserCollection.query.filter(UserCollection.UCollector == collector,
                                            UserCollection.isdelete == False).all()
         if flag == None:
             return Success('无收藏品')
         else:
-            for i in range(len(flag)):
-                flag[i] = flag[i].UCollector
+            # for i in range(len(flag)):
+            #     flag[i] = flag[i].UCollector
+            for i in flag:
+                pass
+
             return Success(flag)

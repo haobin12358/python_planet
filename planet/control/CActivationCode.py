@@ -61,6 +61,7 @@ class CActivationCode(BASEAPPROVAL):
                 UserActivationCode.isdelete == False,
                 UserActivationCode.USid == usid
             ).order_by(
+                UserActivationCode.UACuseFor.asc(),
                 UserActivationCode.createtime.desc()
             ).all_with_page()
         elif is_admin():

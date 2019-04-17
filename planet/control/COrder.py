@@ -22,7 +22,8 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus,UserCommissionType
+    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
+    TimeLimitedStatus
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -35,7 +36,10 @@ from planet.extensions.validates.trade import OrderListForm, HistoryDetailForm
 from planet.models import ProductSku, Products, ProductBrand, AddressCity, ProductMonthSaleValue, UserAddress, User, \
     AddressArea, AddressProvince, CouponFor, TrialCommodity, ProductItems, Items, UserCommission, UserActivationCode, \
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
-    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku,FreshManJoinFlow
+    ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
+    FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
+    OrderPartContentActivity
+
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
     OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
@@ -63,24 +67,29 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
+        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+        filter_args = set()
         if omfrom is None:
             # 默认获取非活动订单
-            order_main_query = order_main_query.filter(
-                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value]))
+            # order_main_query = order_main_query.filter(normal_filter)
+            filter_args.add(normal_filter)
         else:
-            om_filter = {
-                OrderMain.OMfrom.in_(omfrom),
-                # OrderMain.OMinRefund == False
-            }
+            filter_args.add(OrderMain.OMfrom.in_(omfrom))
             if common_user():
                 # 如果是前台用户。需要过滤掉售后订单
-                om_filter.add(OrderMain.OMinRefund == False)
-            order_main_query = order_main_query.filter(*om_filter)
+                filter_args.add(OrderMain.OMinRefund == False)
+            # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
+            filter_args.remove(normal_filter)
+            order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
         elif omstatus:
+            order_main_query = order_main_query.filter(*filter_args)
             order_main_query = order_main_query.filter(*omstatus)
+        else:
+            order_main_query = order_main_query.filter(*filter_args)
+
         if is_supplizer():
             # 供应商仅看自己出售的
             order_main_query = order_main_query.filter(
@@ -143,7 +152,7 @@ class COrder(CPay, CCoupon):
                 # 用户
                 # todo 卖家订单
                 if is_admin() or is_supplizer():
-                    user = User.query.filter_by_({'USid': usid}).first_()
+                    user = User.query.filter_by({'USid': usid}).first_()
                     if user:
                         user.fields = ['USname', 'USheader', 'USgender']
                         order_main.fill('user', user)
@@ -430,9 +439,10 @@ class COrder(CPay, CCoupon):
     @token_required
     def create(self):
         """创建并发起支付"""
-        data = parameter_required(('info', 'omclient', 'omfrom', 'uaid', 'opaytype'))
+        data = parameter_required(('info', 'omclient', 'uaid', 'opaytype'))
         usid = request.user.id
         gennerc_log('current user is {}'.format(usid))
+
         uaid = data.get('uaid')
         opaytype = data.get('opaytype')
         try:
@@ -485,7 +495,12 @@ class COrder(CPay, CCoupon):
                     infos, s, omfrom, omclient, omrecvaddress,
                     omrecvname, omrecvphone, opaytype, activation_code)
                 # 购买大礼包之后修改用户状态为已购买大礼包
-                user.USlevel = UserIdentityStatus.toapply.value
+                user.USlevel = UserIdentityStatus.agent.value
+                s.flush()
+                from planet.extensions.tasks import auto_agree_task
+                avid = cuser.create_approval('toagent', request.user.id, request.user.id)
+
+                auto_agree_task.apply_async(args=[avid], countdown=1 * 7, expires=10 * 60)
 
                 res = {
                     'pay_type': PayType(opaytype).name,
@@ -496,6 +511,7 @@ class COrder(CPay, CCoupon):
             # 分订单
             # todo 是否按照供应商拆分订单
             for info in infos:
+                part_omfrom = omfrom
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid1())  # 主单id
@@ -512,11 +528,18 @@ class COrder(CPay, CCoupon):
                 freight_list = []  # 快递费
                 for sku in skus:
                     # 订单副单
+                    cafrom = sku.get('cafrom', 10)
+                    try:
+                        cafrom = CartFrom(cafrom).value
+                    except:
+                        cafrom = 10
+
                     opid = str(uuid.uuid1())
                     skuid = sku.get('skuid')
                     opnum = int(sku.get('nums', 1))
                     assert opnum > 0
                     sku_instance = s.query(ProductSku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+
                     prid = sku_instance.PRid
                     product_instance = s.query(Products).filter_by_({
                         'PRid': prid,
@@ -527,6 +550,77 @@ class COrder(CPay, CCoupon):
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                    current_app.logger.info('商品sku 价格为 {}'.format(small_total))
+                    skuprice = sku_instance.SKUprice
+                    if cafrom == CartFrom.time_limited.value:
+                        # 限时活动使用限时活动的sku 价格
+                        current_app.logger.info('当前商品来自限时活动，开始查询限时活动限制条件')
+                        # 删除购物车
+                        if part_omfrom == OrderFrom.carts.value:
+                            s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
+                        part_omfrom = OrderFrom.time_limited.value
+
+                        contentid = sku.get('contentid')
+                        tls_instance = TimeLimitedSku.query.filter_by(
+                            TLPid=contentid,
+                            SKUid=sku.get('skuid'), isdelete=False).first()
+
+                        tla = TimeLimitedActivity.query.filter(
+                            TimeLimitedActivity.TLAstatus.in_(
+                                [TimeLimitedStatus.starting.value, TimeLimitedStatus.abort.value]),
+                            TimeLimitedProduct.TLPid == contentid,
+                            TimeLimitedActivity.isdelete == False).first()
+                        current_app.logger.info('get tla {}  tlp id = {} '.format(tla, contentid))
+                        current_app.logger.info('get tls {}  tlp id = {} '.format(tla, contentid))
+                        if tls_instance and tla:
+                            skuprice = tls_instance.SKUprice
+                            small_total = Decimal(str(tls_instance.SKUprice)) * opnum
+                            tls_instance.TLSstock = int(tls_instance.TLSstock or 0) - opnum
+                            if tls_instance.TLSstock < 0:
+                                raise ParamsError('库存不足')
+                            current_app.logger.info('修改价格为限时活动价格 {}'.format(small_total))
+                            oca = OrderPartContentActivity.create({
+                                'OCAid': str(uuid.uuid1()),
+                                'OPid': opid,
+                                'CAfrom': cafrom,
+                                'OCAcontentid': contentid
+                            })
+                            db.session.add(oca)
+
+                    else:
+                        # 对应商品销量 + num sku库存 -num
+                        product_instance.PRsalesValue = product_instance.PRsalesValue + opnum
+                        product_instance.PRstocks = product_instance.PRstocks - opnum
+                        sku_instance.SKUstock = sku_instance.SKUstock - opnum
+                        if sku_instance.SKUstock < 0:
+                            raise StatusError('货源不足')
+                        if product_instance.PRstocks <= 0:
+                            product_instance.PRstatus = ProductStatus.sell_out.value
+                        s.add(product_instance)
+                        s.add(sku_instance)
+                        s.flush()
+                        current_app.logger.info('商品剩余库存: {}'.format(product_instance.PRstocks))
+                        # 月销量 修改或新增
+                        today = datetime.now()
+                        month_sale_updated = s.query(ProductMonthSaleValue).filter_(
+                            ProductMonthSaleValue.PRid == prid,
+                            extract('year', ProductMonthSaleValue.createtime) == today.year,
+                            extract('month', ProductMonthSaleValue.createtime) == today.month,
+                            ProductMonthSaleValue.isdelete == False
+                        ).update({
+                            'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
+                            'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
+                        }, synchronize_session=False)
+                        if not month_sale_updated:
+                            month_sale_instance = ProductMonthSaleValue.create({
+                                'PMSVid': str(uuid.uuid1()),
+                                'PRid': prid,
+                                'PMSVnum': opnum,
+                                'PMSVfakenum': opnum
+                            })
+                            # model_bean.append(month_sale_instance)
+                            s.add(month_sale_instance)
+                            
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,
@@ -536,7 +630,7 @@ class COrder(CPay, CCoupon):
                         'PRattribute': product_instance.PRattribute,
                         'SKUattriteDetail': sku_instance.SKUattriteDetail,
                         'PRtitle': product_instance.PRtitle,
-                        'SKUprice': sku_instance.SKUprice,
+                        'SKUprice': skuprice,
                         'PRmainpic': sku_instance.SKUpic,
                         'OPnum': opnum,
                         'PRid': product_instance.PRid,
@@ -561,42 +655,11 @@ class COrder(CPay, CCoupon):
                     # 临时记录单品价格
                     prid_dict[prid] = prid_dict[prid] + small_total if prid in prid_dict else small_total
                     # 删除购物车
-                    if omfrom == OrderFrom.carts.value:
+                    if part_omfrom == OrderFrom.carts.value:
                         s.query(Carts).filter_by({"USid": usid, "SKUid": skuid}).delete_()
                     # body 信息
                     body.add(product_instance.PRtitle)
-                    # 对应商品销量 + num sku库存 -num
-                    product_instance.PRsalesValue = product_instance.PRsalesValue + opnum
-                    product_instance.PRstocks = product_instance.PRstocks - opnum
-                    sku_instance.SKUstock = sku_instance.SKUstock - opnum
-                    if sku_instance.SKUstock < 0:
-                        raise StatusError('货源不足')
-                    if product_instance.PRstocks <= 0:
-                        product_instance.PRstatus = ProductStatus.sell_out.value
-                    s.add(product_instance)
-                    s.add(sku_instance)
-                    s.flush()
-                    current_app.logger.info('商品剩余库存: {}'.format(product_instance.PRstocks))
-                    # 月销量 修改或新增
-                    today = datetime.now()
-                    month_sale_updated = s.query(ProductMonthSaleValue).filter_(
-                        ProductMonthSaleValue.PRid == prid,
-                        extract('year', ProductMonthSaleValue.createtime) == today.year,
-                        extract('month', ProductMonthSaleValue.createtime) == today.month,
-                        ProductMonthSaleValue.isdelete == False
-                    ).update({
-                        'PMSVnum': ProductMonthSaleValue.PMSVnum + opnum,
-                        'PMSVfakenum': ProductMonthSaleValue.PMSVfakenum + opnum
-                    }, synchronize_session=False)
-                    if not month_sale_updated:
-                        month_sale_instance = ProductMonthSaleValue.create({
-                            'PMSVid': str(uuid.uuid1()),
-                            'PRid': prid,
-                            'PMSVnum': opnum,
-                            'PMSVfakenum': opnum
-                        })
-                        # model_bean.append(month_sale_instance)
-                        s.add(month_sale_instance)
+
                     # 是否是开店大礼包
                     item = Items.query.join(ProductItems, Items.ITid == ProductItems.ITid).filter(
                         Items.isdelete == False,
@@ -608,6 +671,11 @@ class COrder(CPay, CCoupon):
                         OMlogisticType = OMlogisticTypeEnum.online.value
                         cuser = CUser()
                         cuser._check_gift_order('重复购买开店大礼包')
+                        user.USlevel = UserIdentityStatus.agent.value
+                        from planet.extensions.tasks import auto_agree_task
+                        avid = cuser.create_approval('toagent', request.user.id, request.user.id)
+                        auto_agree_task.apply_async(args=[avid], countdown=1 * 7, expires=10 * 60)
+
                     else:
                         OMlogisticType = None
 
@@ -693,7 +761,7 @@ class COrder(CPay, CCoupon):
                     'OMno': self._generic_omno(),
                     'OPayno': opayno,
                     'USid': usid,
-                    'OMfrom': omfrom,
+                    'OMfrom': part_omfrom,
                     'PBname': product_brand_instance.PBname,
                     'PBid': pbid,
                     'OMclient': omclient,
@@ -707,7 +775,7 @@ class COrder(CPay, CCoupon):
                     'OMrecvAddress': omrecvaddress,
                     'UseCoupon': bool(coupons),
                     'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
-                    'PRcreateId': product_brand_instance.SUid,
+                    'PRcreateId': product_instance.CreaterId,
                 }
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
@@ -872,8 +940,29 @@ class COrder(CPay, CCoupon):
                     gnas.SKUstock = gnas.SKUstock + opnum
 
                 elif omfrom == OrderFrom.fresh_man.value:
-                    # todo
-                    pass
+                    current_app.logger.info('新人首单库存退回')
+                    fmfa = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.isdelete == False,
+                        FreshManFirstApply.FMFAstartTime <= order_main.createtime.date(),
+                        FreshManFirstApply.FMFAendTime >= order_main.createtime.date(),
+                    ).order_by(FreshManFirstApply.updatetime.desc()).first_('新人首单数据异常')
+                    now = date.today()
+                    current_app.logger.info('get fmfa = {}'.format(fmfa))
+                    if fmfa.FMFAendTime < now:
+                        current_app.logger.info('活动已结束，返回库存给原商品')
+                        self._update_stock(opnum, product, sku_instance)
+                    else:
+                        fmfs = FreshManFirstSku.query.filter(
+                            FreshManFirstProduct.isdelete == False,
+                            FreshManFirstSku.isdelete == False,
+                            FreshManFirstProduct.FMFAid == fmfa.FMFAid,
+                            FreshManFirstSku.FMFPid == FreshManFirstProduct.FMFPid,
+                            FreshManFirstSku.SKUid == skuid
+                        ).first_('新人首单数据异常')
+                        current_app.logger.info('开始退还 新人首单 fmfsid 为 {}的库存 skuid 是 {} 日期是 {} '.format(
+                            fmfs.FMFSid, skuid, order_main.createtime))
+                        fmfs.FMFPstock = int(fmfs.FMFPstock) + int(opnum)
+
                 elif omfrom == OrderFrom.magic_box.value:
                     current_app.logger.info('活动魔盒订单')
                     magic_box_flow = MagicBoxFlow.query.filter(
@@ -900,7 +989,7 @@ class COrder(CPay, CCoupon):
                         current_app.logger.info('魔盒取消订单, 增加库存{}, 当前 {}'.format(opnum, out_stock.OSnum))
                         db.session.add(out_stock)
                     db.session.flush()
-                    # todo 库存操作
+
                 elif omfrom == OrderFrom.trial_commodity.value:
                     current_app.logger.info('正在取消一个试用商品订单')
                     TrialCommodity.query.filter(TrialCommodity.TCid == prid
@@ -908,6 +997,29 @@ class COrder(CPay, CCoupon):
                                                           'TCstocks': TrialCommodity.TCstocks + opnum})
                     TrialCommoditySku.query.filter(TrialCommoditySku.SKUid == skuid
                                                    ).update({'SKUstock': TrialCommoditySku.SKUstock + opnum})
+
+                elif omfrom == OrderFrom.time_limited.value:
+                    current_app.logger.info('正在取消一个限时特惠订单')
+                    # todo  根据oca 表查找具体的数据
+                    oca = OrderPartContentActivity.query.filter_by(OPid=order_part.OPid, isdelete=False).first()
+                    current_app.logger.info('get op {} oca {}'.format(order_part.OPid, oca))
+
+                    if oca:
+                        tlp = TimeLimitedProduct.query.filter_by(TLPid=oca.OCAcontentid, isdelete=False).first()
+                        if not tlp:
+                            continue
+                        tla = TimeLimitedActivity.query.filter_by(TLAid=tlp.TLAid, isdelete=False).first()
+                        if not tla:
+                            continue
+                        if tla.TLAstatus == TimeLimitedStatus.end.value:
+                            current_app.logger.info('开始退还 已结束的限时特惠 tlpid 为 {}的库存  skuid 是 {} '.format(
+                                tlp.TLPid, skuid))
+                            self._update_stock(int(opnum), skuid=skuid)
+                        else:
+                            tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, SKUid=skuid, isdelete=False).first()
+                            current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
+                                tlp.TLPid, skuid, tls))
+                            tls.TLSstock = int(tls.TLSstock) + int(opnum)
 
                 # 商品销量修改
                 product.update({'PRsalesValue': product.PRsalesValue - opnum})
@@ -1787,7 +1899,7 @@ class COrder(CPay, CCoupon):
         s.add(order_pay_instance)
 
     # 新人首单的佣金到账
-    def _fresh_commsion_into_count(self,order_part):
+    def _fresh_commsion_into_count(self, order_part):
         opid = order_part.OPid
         fresh_order_main = OrderMain.query.filter_(
             OrderMain.isdelete == False,
@@ -1795,38 +1907,46 @@ class COrder(CPay, CCoupon):
             OrderMain.OMfrom == OrderFrom.fresh_man.value
         ).first()
         if fresh_order_main:
+            current_app.logger.info('新人首单计算佣金')
             up_commison_order = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.OMid == fresh_order_main.OMid
             ).first()
+
             if up_commison_order:
                 # 作为被分享者
+                current_app.logger.info('新人首单上级佣金记录 {}'.format(up_commison_order.__dict__))
                 up_main_order = OrderMain.query.filter(
                     OrderMain.isdelete == False,
                     OrderMain.OMfrom == OrderFrom.fresh_man.value,
                     OrderMain.USid == up_commison_order.USid,
                     OrderMain.OMstatus == OrderMainStatus.ready.value
                 ).first()
+
                 if up_main_order:
+                    current_app.logger.info('新人首单上级存在已完成订单 订单数据直接返回押金')
                     self._commsion_into_count(order_part)
             # 作为分享者
             commisions = UserCommission.query.filter(
                 UserCommission.isdelete == False,
                 UserCommission.USid == fresh_order_main.USid,
-                UserCommission.UCtype == UserCommissionType.fresh_man,
+                UserCommission.UCtype == UserCommissionType.fresh_man.value,
                 UserCommission.UCstatus == UserCommissionStatus.preview.value,
                 OrderMain.OMstatus == OrderMainStatus.ready.value,
             ).all()
+
+            current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(len(commisions)))
             if commisions:
                 for commision in commisions:
+                    current_app.logger.info('当前订单发起人可以到账的新人首单佣金 {}'.format(commision.COid))
                     commision.update({
                         'UCstatus': UserCommissionStatus.in_account.value
                     })
+                    db.session.add(commision)
                 return
         else:
             # 如果不是新人首单走正常到账逻辑
             self._commsion_into_count(order_part)
-
 
     def _commsion_into_count(self, order_part):
         """佣金到账"""
