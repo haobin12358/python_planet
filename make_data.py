@@ -10,13 +10,8 @@ from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType, TimeLimitedStatus
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
-<<<<<<< HEAD
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, User, \
-    UserCollection, News
-=======
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
     TimeLimitedActivity
->>>>>>> upstream/master
 
 
 # 添加一些默认的数据
