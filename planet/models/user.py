@@ -160,7 +160,7 @@ class UserIntegral (Base):
     UIid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
     UIintegral = Column(Integer, comment='该动作产生的积分变化数')
-    UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费')
+    UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费 3 点赞 4 评论 5 转发')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
 
 
@@ -229,4 +229,13 @@ class CashNotes(Base):
     CNcardName = Column(String(32), comment='开户人')
     CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
     CNrejectReason = Column(Text, comment='拒绝理由')
+
+
+class UserTransmit(Base):
+    """转发"""
+    __tablename__ = 'UserTransmit'
+    UTid = Column(String(64), primary_key=True)
+    Contentid = Column(String(64), nullable=False, comment='转发内容id')
+    USid = Column(String(64), nullable=False, comment='用户id')
+    UTtype = Column(Integer, nullable=False, comment='转发类型')
 

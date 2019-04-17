@@ -133,13 +133,23 @@ class CPay():
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
+            OMtrueMount = 0
             for order_main in order_mains:
+                OMtrueMount += order_main.OMtrueMount  # 计算支付总价格
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
                 self._insert_usercommision(order_main)
+            #  购物加积分
+            # percent = 0.2
+            percent = ConfigSettings().get_item('integralbase', 'trade_percent')
+            add_point = int(percent * OMtrueMount)
+            usid = order_mains.USid
+            user = User.query.filter_by_({'USid': usid}).first()
+            user.update({'USintegral': user.USintegral + int(add_point)})
+            db.session.add(user)
         return self.wx_pay.reply("OK", True).decode()
 
     def _insert_usercommision(self, order_main):

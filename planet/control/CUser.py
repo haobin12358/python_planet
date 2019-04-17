@@ -19,7 +19,6 @@ from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserI
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom
 
-
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
@@ -43,12 +42,13 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval
+    Approval, UserTransmit
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.qiniu.storage import QiniuStorage
+
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -57,7 +57,7 @@ class CUser(SUser, BASEAPPROVAL):
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-            'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
+                   'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
 
     def __init__(self):
         super(CUser, self).__init__()
@@ -69,6 +69,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not idcode:
             return ''
         return idcode[:6] + "*" * 12
+
     #
     # @staticmethod
     # def __cover_telephone(tel):
@@ -161,7 +162,7 @@ class CUser(SUser, BASEAPPROVAL):
             OrderPart.OMid == OrderMain.OMid).all()
 
         end = datetime.datetime.now().timestamp()
-        gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' %(end - start))))
+        gennerc_log('连表查询开店大礼包的查询时间为 {0}'.format(float('%.2f' % (end - start))))
         if op_list and e:
             raise StatusError(e)
         return bool(op_list)
@@ -185,7 +186,7 @@ class CUser(SUser, BASEAPPROVAL):
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
 
         user.fill('usexpect', float('%.2f' % uc_total))
-        
+
     def _base_decode(self, raw):
         import base64
         return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
@@ -360,7 +361,7 @@ class CUser(SUser, BASEAPPROVAL):
             default_head_path = GithubAvatarGenerator().save_avatar(usid)
             user = User.create({
                 "USid": usid,
-                "USname": '客官'+str(ustelphone)[-4:],
+                "USname": '客官' + str(ustelphone)[-4:],
                 "UStelphone": ustelphone,
                 "USheader": default_head_path,
                 "USintegral": 0,
@@ -961,7 +962,7 @@ class CUser(SUser, BASEAPPROVAL):
         usercommission_model_list = self.get_ucall_by_usid(request.user.id)
         uc_count = sum(usercommission_model.UCcommission for usercommission_model in usercommission_model_list)
         fens_sql = User.query.filter(User.isdelete == False,
-            or_(User.USsupper1 == request.user.id, User.USsupper2 ==request.user.id))
+                                     or_(User.USsupper1 == request.user.id, User.USsupper2 == request.user.id))
         fens_count = fens_sql.count()
         fens_mouth_count = fens_sql.filter(
             extract('month', User.createtime) == today.month,
@@ -1051,7 +1052,7 @@ class CUser(SUser, BASEAPPROVAL):
         if not user:
             raise ParamsError('token error')
 
-        ui_model = UserIntegral.query.filter_by_(USid=request.user.id, UIaction=UserIntegralAction.signin.value)\
+        ui_model = UserIntegral.query.filter_by_(USid=request.user.id, UIaction=UserIntegralAction.signin.value) \
             .order_by(UserIntegral.createtime.desc()).first()
 
         today = datetime.datetime.now()
@@ -1065,7 +1066,7 @@ class CUser(SUser, BASEAPPROVAL):
             elif ui_model.createtime.date() == yesterday.date():
                 gennerc_log('连续签到增加天数 原来是 %s' % user.UScontinuous)
                 user.UScontinuous = (user.UScontinuous or 0) + 1
-                gennerc_log('更新后为 uscontinuous %s' %user.UScontinuous)
+                gennerc_log('更新后为 uscontinuous %s' % user.UScontinuous)
             else:
                 user.UScontinuous = 1
                 gennerc_log('今天开始重新签到 uscontinuous %s' % user.UScontinuous)
@@ -1146,7 +1147,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         superadmin = self.get_admin_by_id(request.user.id)
         if not is_hign_level_admin() or \
-                superadmin.ADlevel != AdminLevel.super_admin.value or\
+                superadmin.ADlevel != AdminLevel.super_admin.value or \
                 superadmin.ADstatus != AdminStatus.normal.value:
             raise AuthorityError('当前非超管权限')
 
@@ -1240,7 +1241,8 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_adname(data.get("adname"), filter_adid)
 
         update_admin = {k: v for k, v in update_admin.items() if v or v == 0}
-        update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid, Admin.isdelete == False], ad_or_filter=[], adinfo=update_admin)
+        update_result = self.update_admin_by_filter(ad_and_filter=[Admin.ADid == filter_adid, Admin.isdelete == False],
+                                                    ad_or_filter=[], adinfo=update_admin)
         if not update_result:
             raise ParamsError('管理员不存在')
         filter_admin = self.get_admin_by_id(filter_adid)
@@ -1262,7 +1264,7 @@ class CUser(SUser, BASEAPPROVAL):
         """获取管理员列表"""
         superadmin = self.get_admin_by_id(request.user.id)
         if not is_hign_level_admin() or \
-                superadmin.ADlevel != AdminLevel.super_admin.value or\
+                superadmin.ADlevel != AdminLevel.super_admin.value or \
                 superadmin.ADstatus != AdminStatus.normal.value:
             raise AuthorityError('当前非超管权限')
         args = request.args.to_dict()
@@ -1294,6 +1296,7 @@ class CUser(SUser, BASEAPPROVAL):
     def get_wxconfig(self):
         """获取微信参数"""
         url = request.args.get("url", request.url)
+        print(request.__dict__)
         gennerc_log('get url %s' % url)
         app_from = request.args.get('app_from', )
         # todo 根据不同的来源处理不同的mp
@@ -1488,7 +1491,7 @@ class CUser(SUser, BASEAPPROVAL):
             usid = str(uuid.uuid1())
             user_dict = {
                 'USid': usid,
-                'USname': '客官'+str(datetime.datetime.now())[-4:],
+                'USname': '客官' + str(datetime.datetime.now())[-4:],
                 'USintegral': 0,
                 'USfrom': fromdict.get('apptype'),
                 'USlevel': 1,
@@ -1590,7 +1593,6 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(return_user)
         token = usid_to_token(usid, model='User', level=uslevel, username=return_user.USname)
         return Success('登录成功', data={'token': token, 'user': return_user})
-
 
     @get_session
     @token_required
@@ -1817,7 +1819,8 @@ class CUser(SUser, BASEAPPROVAL):
         user_total = 0  # 个人销售额
         user_fens_total = 0
         user_agent_total = 0
-        user_usv_query = db.session.query(func.sum(UserSalesVolume.USVamount), func.sum(UserSalesVolume.USVamountagent)).filter(
+        user_usv_query = db.session.query(func.sum(UserSalesVolume.USVamount),
+                                          func.sum(UserSalesVolume.USVamountagent)).filter(
             UserSalesVolume.USid == user.USid,
             UserSalesVolume.isdelete == False,
         )
@@ -1860,7 +1863,8 @@ class CUser(SUser, BASEAPPROVAL):
             # 月度销售额 + 月度代理商直销总额 + 下级粉丝总额
             user_total = user_agent_amount + user_fens_total + user_agent_total
         else:
-            gennerc_log('user_agent_amount {} + user_fens_amount {} + user_fens_total {}+ user_agent_total {}'.format(user_agent_amount , user_fens_amount , user_fens_total , user_agent_total))
+            gennerc_log('user_agent_amount {} + user_fens_amount {} + user_fens_total {}+ user_agent_total {}'.format(
+                user_agent_amount, user_fens_amount, user_fens_total, user_agent_total))
             # 月度销售额 + 月度代理商直销总额 + 下级粉丝总额 + 下级代理商直销总额
             user_total = user_agent_amount + user_fens_amount + user_fens_total + user_agent_total
 
@@ -1868,7 +1872,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('fens', fens_list)
         user.fill('subs', sub_agent_list)
         setattr(user, 'invited_num', len(fens_list + sub_agent_list))  # 邀请人数
-        setattr(user, 'personal_total', kwargs.get('personal_total'))   # 个人销售额
+        setattr(user, 'personal_total', kwargs.get('personal_total'))  # 个人销售额
         return user
 
     @token_required
@@ -1950,7 +1954,7 @@ class CUser(SUser, BASEAPPROVAL):
 
     @admin_required
     def list_fans(self):
-        data = parameter_required(('usid', ))
+        data = parameter_required(('usid',))
         usid = data.get('usid')
         users = User.query.filter(
             User.isdelete == False,
@@ -1959,12 +1963,12 @@ class CUser(SUser, BASEAPPROVAL):
         for user in users:
             user.fields = self.USER_FIELDS[:]
             # 从该下级获得的佣金
-            total = UserCommission.query.with_entities(func.sum(UserCommission.UCcommission)).\
+            total = UserCommission.query.with_entities(func.sum(UserCommission.UCcommission)). \
                 filter(
-                    UserCommission.isdelete == False,
-                    UserCommission.USid == usid,
-                    UserCommission.FromUsid == user.USid,
-                    UserCommission.UCstatus >= 0
+                UserCommission.isdelete == False,
+                UserCommission.USid == usid,
+                UserCommission.FromUsid == user.USid,
+                UserCommission.UCstatus >= 0
             ).all()
             total = total[0][0] or 0
             user.fill('commision_from', total)
@@ -1998,7 +2002,8 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_cash_notes(self):
-        cash_notes = CashNotes.query.filter_by_(USid=request.user.id).order_by(CashNotes.createtime.desc()).all_with_page()
+        cash_notes = CashNotes.query.filter_by_(USid=request.user.id).order_by(
+            CashNotes.createtime.desc()).all_with_page()
 
         for cash_note in cash_notes:
             cash_note.fields = [
@@ -2014,21 +2019,32 @@ class CUser(SUser, BASEAPPROVAL):
             ]
             cash_note.fill('cnstatus', ApprovalAction(cash_note.CNstatus).zh_value)
 
-        return Success('获取提现记录成功' ,data=cash_notes)
+        return Success('获取提现记录成功', data=cash_notes)
 
     @token_required
     def set_signin_default(self):
         if not is_admin():
             raise AuthorityError()
         data = request.json
-        default_integral = str(data.get('integral'))
-        if not re.match(r'^\d+$', default_integral):
-            raise ParamsError('默认积分无效')
+        default_integral_sign = str(data.get('integral'))
+        default_integral_favorite = data.get('integral_favorite')
+        default_integral_commit = data.get('integral_commit')
+        default_trade_percent = data.get('trade_percent')
+        if not re.match(r'^\d+$', str(default_integral_sign)):
+            raise ParamsError('默认签到积分无效')
+        if not re.match(r'^\d+$', str(default_integral_commit)):
+            raise ParamsError('默认评论积分无效')
+        if not re.match(r'^\d+$', str(default_integral_favorite)):
+            raise ParamsError('默认点赞积分无效')
+        if not re.match(r'^\d+$', str(default_trade_percent)):
+            raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
-        cfg.set_item('integralbase', 'integral', default_integral)
         cfg.set_item('integralrule', 'rule', default_rule)
-
+        cfg.set_item('integralbase', 'integral', default_integral_sign)
+        cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
+        cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
+        cfg.set_item('integralrule', 'trade_percent', default_trade_percent)
         return Success('修改成功')
 
     def get_signin_default(self):
@@ -2039,7 +2055,13 @@ class CUser(SUser, BASEAPPROVAL):
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
         del_rule = cfg.get_item('integralrule', 'rule')
         del_integral = cfg.get_item('integralbase', 'integral')
-        return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral})
+        del_integral_favorite = cfg.get_item('integralbase', 'integral_favorite')
+        del_integral_commit = cfg.get_item('integralbase', 'integral_commit')
+        del_trade_percent = cfg.get_item('integralbase', 'trade_percent')
+        return Success('获取默认设置成功', data={'rule': del_rule, 'integral': del_integral,
+                                           'integral_favorite': del_integral_favorite,
+                                           'integral_commit': del_integral_commit,
+                                           'trade_percent': del_trade_percent})
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
@@ -2061,7 +2083,8 @@ class CUser(SUser, BASEAPPROVAL):
         need_personal_total = commision.PesonalSale * ((commision.GroupSaleScale / 100) ** level)
         need_invite_num = commision.InviteNum * ((commision.InviteNumScale / 100) ** level)
         current_app.logger.info('用户当前佣金等级是{}; 团队销售额{}, 所需{}; 个人销售额{}, 所需{}; 邀请人数{},所需{}'.format(
-            level, user.team_sales, need_group_total, user.personal_total, need_personal_total, user.invited_num, need_invite_num
+            level, user.team_sales, need_group_total, user.personal_total, need_personal_total, user.invited_num,
+            need_invite_num
         ))
         if user.invited_num > need_invite_num and user.personal_total > need_personal_total and user.team_sales > need_group_total:
             user.CommisionLevel = level + 1
@@ -2136,7 +2159,7 @@ class CUser(SUser, BASEAPPROVAL):
         ss = SupplizerSettlement.create({
             'SSid': str(uuid.uuid1()),
             'SUid': request.user.id,
-            'SSdealamount': float('%.2f' %float(ss_total)),
+            'SSdealamount': float('%.2f' % float(ss_total)),
             'SSstatus': SupplizerSettementStatus.settlementing.value
         })
         db.session.add(ss)
@@ -2158,3 +2181,40 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('suname', su.SUname)
             ss.add('createtime')
         return Success('获取结算记录成功', data=ss_list)
+
+    @token_required
+    def transmit(self):
+        """转发"""
+        user = self.get_user_by_id(request.user.id)
+        current_app.logger.info('User {0} transmit '.format(user.USname))  # 在服务器打印日志
+        data = parameter_required(('contentid', 'uttype'))
+        contentid = data.get('contentid')
+        uttype = data.get('uttype')  # {1:资讯，2：商品，3：活动}
+        with db.auto_commit():
+            content_transmit = UserTransmit.create({
+                'UTid': str(uuid.uuid1()),
+                'Contentid': contentid,
+                'USid': user.USid,
+                'UTtype': uttype
+            })
+            db.session.add(content_transmit)
+            now_time = datetime.datetime.now()
+            count = UserTransmit.query.filter(
+                extract('month', UserTransmit.createtime) == now_time.month,
+                extract('year', UserTransmit.createtime) == now_time.year,
+                extract('day', UserTransmit.createtime) == now_time.day,
+                UserTransmit.USid == user.USid).count()
+            if count < 5:
+                # integral = '5'
+                integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
+                ui = UserIntegral.create({
+                    'UIid': str(uuid.uuid1()),
+                    'USid': user.USid,
+                    'UIintegral': integral,
+                    'UIaction': UserIntegralAction.transmit.value,
+                    'UItype': UserIntegralType.income.value
+                })
+                db.session.add(ui)
+                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                db.session.add(user)
+        return Success('转发成功')
