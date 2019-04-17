@@ -48,7 +48,7 @@ from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.qiniu.storage import QiniuStorage
-from datetime import datetime
+
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -2031,13 +2031,13 @@ class CUser(SUser, BASEAPPROVAL):
         default_integral_commit = data.get('integral_commit')
         default_trade_percent = data.get('trade_percent')
         if not re.match(r'^\d+$', str(default_integral_sign)):
-            raise ParamsError('默认积分无效')
+            raise ParamsError('默认签到积分无效')
         if not re.match(r'^\d+$', str(default_integral_commit)):
-            raise ParamsError('默认积分无效')
+            raise ParamsError('默认评论积分无效')
         if not re.match(r'^\d+$', str(default_integral_favorite)):
-            raise ParamsError('默认积分无效')
+            raise ParamsError('默认点赞积分无效')
         if not re.match(r'^\d+$', str(default_trade_percent)):
-            raise ParamsError('默认积分无效')
+            raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
         cfg.set_item('integralrule', 'rule', default_rule)
@@ -2198,14 +2198,14 @@ class CUser(SUser, BASEAPPROVAL):
                 'UTtype': uttype
             })
             db.session.add(content_transmit)
-            now_time = datetime.now()
+            now_time = datetime.datetime.now()
             count = UserTransmit.query.filter(
                 extract('month', UserTransmit.createtime) == now_time.month,
                 extract('year', UserTransmit.createtime) == now_time.year,
                 extract('day', UserTransmit.createtime) == now_time.day,
                 UserTransmit.USid == user.USid).count()
-            if count <= 5:
-                # integral = '5'
+            if count < 5:
+                #integral = '5'
                 integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
                 ui = UserIntegral.create({
                     'UIid': str(uuid.uuid1()),
@@ -2215,5 +2215,6 @@ class CUser(SUser, BASEAPPROVAL):
                     'UItype': UserIntegralType.income.value
                 })
                 db.session.add(ui)
-                user.USintegral += int(ui.UIintegral)
+                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                db.session.add(user)
         return Success('转发成功')

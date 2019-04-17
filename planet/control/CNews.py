@@ -565,9 +565,9 @@ class CNews(BASEAPPROVAL):
                         extract('year', NewsFavorite.createtime) == now_time.year,
                         extract('day', NewsFavorite.createtime) == now_time.day,
                         NewsFavorite.USid == usid).count()
-                    if count <= 5:
+                    if count < 5:
                         integral = ConfigSettings().get_item('integralbase', 'integral_favorite')
-                        # integral = '3'  # 引用签到配置文件
+                        #integral = '3'  # 引用签到配置文件
                         ui = UserIntegral.create({
                             'UIid': str(uuid.uuid1()),
                             'USid': usid,
@@ -683,7 +683,8 @@ class CNews(BASEAPPROVAL):
         return news_comment
 
     @token_required
-    def create_comment(self):  # 进行评论
+    def create_comment(self):
+        """进行评论"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
         usname, usheader = user.USname, user.USheader
@@ -715,8 +716,8 @@ class CNews(BASEAPPROVAL):
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count <= 5:
-                    # integral = '3'
+                if count < 5:
+                    #integral = '3'
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
@@ -758,8 +759,8 @@ class CNews(BASEAPPROVAL):
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count <= 5:
-                    # integral = '3'
+                if count < 5:
+                    #integral = '3'
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),

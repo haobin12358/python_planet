@@ -117,7 +117,7 @@ class CPay():
                 # 添加佣金记录
                 current_app.logger.info('支付宝付款成功')
                 self._insert_usercommision(order_main)
-
+        return 'success'
 
     def wechat_notify(self):
         """微信支付回调"""
@@ -125,8 +125,6 @@ class CPay():
         if not self.wx_pay.check(data):
             return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
-        usid = request.user.id
-        user = User.query.filter_by_({'USid': usid}).first()
         with db.auto_commit():
             # 更改付款流水
             order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
@@ -148,8 +146,10 @@ class CPay():
             # percent = 0.2
             percent = ConfigSettings().get_item('integralbase', 'trade_percent')
             add_point = int(percent * OMtrueMount)
-            user.USintegral += int(add_point)
-
+            usid = order_mains.USid
+            user = User.query.filter_by_({'USid': usid}).first()
+            user.update({'USintegral': user.USintegral + int(add_point)})
+            db.session.add(user)
         return self.wx_pay.reply("OK", True).decode()
 
     def _insert_usercommision(self, order_main):
