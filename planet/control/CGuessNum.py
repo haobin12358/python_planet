@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 
 from flask import request, current_app
 from sqlalchemy import cast, Date, extract
-from planet.extensions.register_ext import alipay, wx_pay
+
 from planet.common.error_response import StatusError, ParamsError, NotFound, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
