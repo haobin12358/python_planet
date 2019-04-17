@@ -2179,9 +2179,6 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
             ss.fill('suname', su.SUname)
             ss.add('createtime')
-<<<<<<< HEAD
-        return Success('获取结算记录成功', data=ss_list)
-=======
         return Success('获取结算记录成功', data=ss_list)
 
     @token_required
@@ -2220,4 +2217,4 @@ class CUser(SUser, BASEAPPROVAL):
                 user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
                 db.session.add(user)
         return Success('转发成功')
->>>>>>> upstream/master
+
