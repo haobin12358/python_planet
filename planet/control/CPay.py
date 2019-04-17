@@ -34,7 +34,7 @@ class CPay():
     def __init__(self):
         self.strade = STrade()
         self.suser = SUser()
-        # self.alipay = alipay
+        self.alipay = alipay
         self.wx_pay = wx_pay
 
     @token_required
