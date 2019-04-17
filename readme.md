@@ -1,4 +1,6 @@
 
+## 1.0版本已经封库 除了bug 不做新需求开发，master 做2.0版本库  
+
 ##  环境
 
 - python3.6
@@ -73,7 +75,6 @@ alembic downgrade 上个版本号 # 可在本次迁移文件头部中找到'Revi
 ```bash
 /tmp/planet/log*
 ```
-
 ## 错误码
 ```
 405001 参数错误
