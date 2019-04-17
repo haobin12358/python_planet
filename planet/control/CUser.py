@@ -2205,7 +2205,7 @@ class CUser(SUser, BASEAPPROVAL):
                 extract('day', UserTransmit.createtime) == now_time.day,
                 UserTransmit.USid == user.USid).count()
             if count < 5:
-                #integral = '5'
+                # integral = '5'
                 integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
                 ui = UserIntegral.create({
                     'UIid': str(uuid.uuid1()),
