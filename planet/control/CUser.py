@@ -1325,7 +1325,11 @@ class CUser(SUser, BASEAPPROVAL):
 
     def wx_callback(self):
         def _get_redirect(state_res, code=None):
-            url, state = state_res.split('@@@')
+            url_list = state_res.split('@@@')
+            if len(url_list) == 1:
+                url, state = url_list[0], None
+            else:
+                url, state = url_list[0], url_list[1]
             if not code:
                 return url
             # if '?' in url:
