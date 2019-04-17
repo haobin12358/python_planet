@@ -3,7 +3,7 @@ import os
 from contextlib import contextmanager
 
 import redis
-# from alipay import AliPay
+from alipay import AliPay
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
@@ -32,7 +32,7 @@ class SQLAlchemy(_SQLAlchemy):
             db.session.rollback()
             raise e
 
-"""
+
 alipay = AliPay(
     appid=alipay_appid,
     app_notify_url=alipay_notify,  # 默认回调url
@@ -41,7 +41,7 @@ alipay = AliPay(
     debug=True
     # sign_type="RSA2",  # RSA 或者 RSA2
      )
-    """
+
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 

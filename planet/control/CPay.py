@@ -19,7 +19,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import wx_pay, db
+from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
@@ -89,7 +89,7 @@ class CPay():
             'args': pay_args
         }
         return Success('生成付款参数成功', response)
-    '''
+
     def alipay_notify(self):
         """异步通知, 文档 https://docs.open.alipay.com/203/105286/"""
         # 待测试
@@ -117,8 +117,7 @@ class CPay():
                 # 添加佣金记录
                 current_app.logger.info('支付宝付款成功')
                 self._insert_usercommision(order_main)
-        return 'success'
-        '''
+
 
     def wechat_notify(self):
         """微信支付回调"""
