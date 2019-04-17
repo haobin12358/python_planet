@@ -1304,6 +1304,52 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("get wx config %s" % data)
         return Success('获取微信参数成功', data=data)
 
+    def wx_auth(self):
+        data = parameter_required(('url', ))
+        url = data.get('url')
+
+        state = data.get('state')
+        if state:
+            url = '{}@@@{}'.format(url, state)
+        scope = data.get('scope', 'snsapi_base')
+        fromdict = self.analysis_app_from(None)
+        APP_ID = fromdict.get('appid')
+        APP_SECRET_KEY = fromdict.get('appsecret')
+
+        wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
+        api_call_back = '{}/api/v1/user/wx_callback'.format(API_HOST)
+        redirect_url = wxlogin.authorize(api_call_back, scope=scope, state=url)
+        from flask import redirect
+        current_app.logger.info('get redirect_url = {}'.format(redirect_url))
+        return redirect(redirect_url)
+
+    def wx_callback(self):
+        def _get_redirect(state_res, code=None):
+            url, state = state_res.split('@@@')
+            if not code:
+                return url
+            # if '?' in url:
+            connector = '&' if '?' in url else '?'
+            if state:
+                return '{}{}code={}&{}'.format(url, connector, code, state)
+
+            return '{}{}code={}'.format(url, connector, code)
+
+        data = parameter_required()
+        current_app.logger.info('get redirect data {}'.format(data))
+        code = data.get('code')
+
+        state_res = data.get('state')
+        # if code:
+        redirect_url = _get_redirect(state_res, code)
+        # else:
+        #     redirect_url = _
+        from flask import redirect
+        current_app.logger.info('get redirect url = {}'.format(redirect_url))
+
+        return redirect(redirect_url)
+
+
     @get_session
     def wx_login(self):
         """微信登录"""
