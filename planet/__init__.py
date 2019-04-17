@@ -8,39 +8,39 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
-from planet.api.v1.AActivationcode import AActivationCode
-from planet.api.v1.AActivity import AActivity
-from planet.api.v1.AAuth import AAuth
-from planet.api.v1.ACommision import ACommission
-from planet.api.v1.AExcel import AExcel
-from planet.api.v1.AFreshManFirstOrder import AFreshManFirstOrder
-from planet.api.v1.AMagicBox import AMagicBox
-from planet.api.v1.ASupplizer import ASupplizer
-from planet.api.v1.ATimeLimited import ATimelimited
-from planet.api.v1.ATrialCommodity import ATrialCommodity
-from planet.api.v1.ABrands import ABrands
-from planet.api.v1.ACart import ACart
-from planet.api.v1.ACategory import ACategory
-from planet.api.v1.ACoupon import ACoupon
-from planet.api.v1.AGuessNum import AGuessNum
-from planet.api.v1.AIndex import AIndex
-from planet.api.v1.AItems import AItems
-from planet.api.v1.AFile import AFile
-from planet.api.v1.ALogistic import ALogistic
-from planet.api.v1.AOrder import AOrder
-from planet.api.v1.AProduct import AProduct
-from planet.api.v1.ARefund import ARefund
-from planet.api.v1.AScene import AScene
-from planet.api.v1.ASku import ASku
-from planet.api.v1.AUser import AUser
-from planet.api.v1.ANews import ANews
-from planet.api.v1.AAddress import AAddress
-from planet.api.v1.AApproval import Aapproval
-from planet.api.v1.AQuestanswer import AQuestanswer
-from planet.api.v1.AWechatShareParams import AWechatShareParams
-from planet.api.v1.ASigninSetting import ASigninSetting
-from planet.api.v1.AClub import AClub
-from planet.api.v1.ATest import ATest
+from planet.api.v2.AActivationcode import AActivationCode
+from planet.api.v2.AActivity import AActivity
+from planet.api.v2.AAuth import AAuth
+from planet.api.v2.ACommision import ACommission
+from planet.api.v2.AExcel import AExcel
+from planet.api.v2.AFreshManFirstOrder import AFreshManFirstOrder
+from planet.api.v2.AMagicBox import AMagicBox
+from planet.api.v2.ASupplizer import ASupplizer
+from planet.api.v2.ATimeLimited import ATimelimited
+from planet.api.v2.ATrialCommodity import ATrialCommodity
+from planet.api.v2.ABrands import ABrands
+from planet.api.v2.ACart import ACart
+from planet.api.v2.ACategory import ACategory
+from planet.api.v2.ACoupon import ACoupon
+from planet.api.v2.AGuessNum import AGuessNum
+from planet.api.v2.AIndex import AIndex
+from planet.api.v2.AItems import AItems
+from planet.api.v2.AFile import AFile
+from planet.api.v2.ALogistic import ALogistic
+from planet.api.v2.AOrder import AOrder
+from planet.api.v2.AProduct import AProduct
+from planet.api.v2.ARefund import ARefund
+from planet.api.v2.AScene import AScene
+from planet.api.v2.ASku import ASku
+from planet.api.v2.AUser import AUser
+from planet.api.v2.ANews import ANews
+from planet.api.v2.AAddress import AAddress
+from planet.api.v2.AApproval import Aapproval
+from planet.api.v2.AQuestanswer import AQuestanswer
+from planet.api.v2.AWechatShareParams import AWechatShareParams
+from planet.api.v2.ASigninSetting import ASigninSetting
+from planet.api.v2.AClub import AClub
+from planet.api.v2.ATest import ATest
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
@@ -123,51 +123,51 @@ class Flask(_Flask):
     request_class = Request
 
 
-def register_v1(app):
-    v1 = Blueprint(__name__, 'v1', url_prefix='/api/v1')
-    v1.add_url_rule('/product/<string:product>', view_func=AProduct.as_view('product'))
-    v1.add_url_rule('/file/<string:file>', view_func=AFile.as_view('file'))
-    v1.add_url_rule('/category/<string:category>', view_func=ACategory.as_view('category'))
-    v1.add_url_rule('/cart/<string:cart>', view_func=ACart.as_view('cart'))
-    v1.add_url_rule('/order/<string:order>', view_func=AOrder.as_view('order'))
-    v1.add_url_rule('/sku/<string:sku>', view_func=ASku.as_view('sku'))
-    v1.add_url_rule('/user/<string:user>', view_func=AUser.as_view('user'))
-    v1.add_url_rule('/refund/<string:refund>', view_func=ARefund.as_view('refund'))
-    v1.add_url_rule('/brand/<string:brand>', view_func=ABrands.as_view('brand'))
-    v1.add_url_rule('/address/<string:address>', view_func=AAddress.as_view('address'))
-    v1.add_url_rule('/items/<string:items>', view_func=AItems.as_view('items'))
-    v1.add_url_rule('/scene/<string:scene>', view_func=AScene.as_view('scene'))
-    v1.add_url_rule('/index/<string:index>', view_func=AIndex.as_view('index'))
-    v1.add_url_rule('/news/<string:news>', view_func=ANews.as_view('news'))
-    v1.add_url_rule('/logistic/<string:logistic>', view_func=ALogistic.as_view('logistic'))
-    v1.add_url_rule('/coupon/<string:coupon>', view_func=ACoupon.as_view('coupon'))
-    v1.add_url_rule('/approval/<string:approval>', view_func=Aapproval.as_view('approval'))
-    v1.add_url_rule('/guess_num/<string:guess_num>', view_func=AGuessNum.as_view('guess_num'))
-    v1.add_url_rule('/commodity/<string:commodity>', view_func=ATrialCommodity.as_view('commodity'))
-    v1.add_url_rule('/activity/<string:activity>', view_func=AActivity.as_view('activity'))
-    v1.add_url_rule('/qa/<string:qa>', view_func=AQuestanswer.as_view('qa'))
-    v1.add_url_rule('/supplizer/<string:supplizer>', view_func=ASupplizer.as_view('supplizer'))
-    v1.add_url_rule('/magicbox/<string:magicbox>', view_func=AMagicBox.as_view('magicbox'))
-    v1.add_url_rule('/fresh_man/<string:fresh_man>', view_func=AFreshManFirstOrder.as_view('fresh_man'))
-    v1.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
-    v1.add_url_rule('/auth/<string:auth>', view_func=AAuth.as_view('auth'))
-    v1.add_url_rule('/act_code/<string:act_code>', view_func=AActivationCode.as_view('act_code'))  # 激活码
-    v1.add_url_rule('/commision/<string:comm>', view_func=ACommission.as_view('comm'))  # 佣金设置
-    v1.add_url_rule('/siginsetting/<string:siginsetting>', view_func=ASigninSetting.as_view('siginsetting'))  # 签到设置
-    v1.add_url_rule('/excel/<string:excel>', view_func=AExcel.as_view('excel'))  # 签到设置
-    v1.add_url_rule('/club/<string:club>', view_func=AClub.as_view('club'))  # 官网相关
-    v1.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
-    v1.add_url_rule('/timelimited/<string:timelimited>', view_func=ATimelimited.as_view('timelimited'))  # 测试
+def register(app):
+    v2 = Blueprint(__name__, 'v2', url_prefix='/api/v2')
+    v2.add_url_rule('/product/<string:product>', view_func=AProduct.as_view('product'))
+    v2.add_url_rule('/file/<string:file>', view_func=AFile.as_view('file'))
+    v2.add_url_rule('/category/<string:category>', view_func=ACategory.as_view('category'))
+    v2.add_url_rule('/cart/<string:cart>', view_func=ACart.as_view('cart'))
+    v2.add_url_rule('/order/<string:order>', view_func=AOrder.as_view('order'))
+    v2.add_url_rule('/sku/<string:sku>', view_func=ASku.as_view('sku'))
+    v2.add_url_rule('/user/<string:user>', view_func=AUser.as_view('user'))
+    v2.add_url_rule('/refund/<string:refund>', view_func=ARefund.as_view('refund'))
+    v2.add_url_rule('/brand/<string:brand>', view_func=ABrands.as_view('brand'))
+    v2.add_url_rule('/address/<string:address>', view_func=AAddress.as_view('address'))
+    v2.add_url_rule('/items/<string:items>', view_func=AItems.as_view('items'))
+    v2.add_url_rule('/scene/<string:scene>', view_func=AScene.as_view('scene'))
+    v2.add_url_rule('/index/<string:index>', view_func=AIndex.as_view('index'))
+    v2.add_url_rule('/news/<string:news>', view_func=ANews.as_view('news'))
+    v2.add_url_rule('/logistic/<string:logistic>', view_func=ALogistic.as_view('logistic'))
+    v2.add_url_rule('/coupon/<string:coupon>', view_func=ACoupon.as_view('coupon'))
+    v2.add_url_rule('/approval/<string:approval>', view_func=Aapproval.as_view('approval'))
+    v2.add_url_rule('/guess_num/<string:guess_num>', view_func=AGuessNum.as_view('guess_num'))
+    v2.add_url_rule('/commodity/<string:commodity>', view_func=ATrialCommodity.as_view('commodity'))
+    v2.add_url_rule('/activity/<string:activity>', view_func=AActivity.as_view('activity'))
+    v2.add_url_rule('/qa/<string:qa>', view_func=AQuestanswer.as_view('qa'))
+    v2.add_url_rule('/supplizer/<string:supplizer>', view_func=ASupplizer.as_view('supplizer'))
+    v2.add_url_rule('/magicbox/<string:magicbox>', view_func=AMagicBox.as_view('magicbox'))
+    v2.add_url_rule('/fresh_man/<string:fresh_man>', view_func=AFreshManFirstOrder.as_view('fresh_man'))
+    v2.add_url_rule('/shareparams/<string:shareparams>', view_func=AWechatShareParams.as_view('shareparams'))
+    v2.add_url_rule('/auth/<string:auth>', view_func=AAuth.as_view('auth'))
+    v2.add_url_rule('/act_code/<string:act_code>', view_func=AActivationCode.as_view('act_code'))  # 激活码
+    v2.add_url_rule('/commision/<string:comm>', view_func=ACommission.as_view('comm'))  # 佣金设置
+    v2.add_url_rule('/siginsetting/<string:siginsetting>', view_func=ASigninSetting.as_view('siginsetting'))  # 签到设置
+    v2.add_url_rule('/excel/<string:excel>', view_func=AExcel.as_view('excel'))  # 签到设置
+    v2.add_url_rule('/club/<string:club>', view_func=AClub.as_view('club'))  # 官网相关
+    v2.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
+    v2.add_url_rule('/timelimited/<string:timelimited>', view_func=ATimelimited.as_view('timelimited'))  # 测试
 
-    # v1.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
-    # v1.add_url_rule.....
-    app.register_blueprint(v1)
+    # v2.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
+    # v2.add_url_rule.....
+    app.register_blueprint(v2)
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(DefaltSettig)
-    register_v1(app)
+    register(app)
     CORS(app, supports_credentials=True)
     request_first_handler(app)
     register_ext(app)

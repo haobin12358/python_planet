@@ -60,6 +60,6 @@ cache = Cache(config=cache_redis)
 def register_ext(app):
     db.init_app(app)
     cache.init_app(app)
-    LoggerHandler(app, file='/tmp/planet/').error_handler()
+    LoggerHandler(app, file='/tmp/planet_version2/').error_handler()
     from planet.extensions.tasks import celery
     celery.init_app(app)

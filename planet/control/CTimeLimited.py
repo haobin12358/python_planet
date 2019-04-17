@@ -1,27 +1,21 @@
 import json
 import math
 import uuid
-from datetime import datetime, date, timedelta
-from operator import or_, and_
+from datetime import datetime, timedelta
 
 from flask import request, current_app
 
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin, admin_required, \
+from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, \
     common_user
-from planet.config.enums import ApplyStatus, OrderMainStatus, OrderFrom, Client, ActivityType, PayType, ProductStatus, \
-    ApplyFrom, TimeLimitedStatus
+from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
-from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import end_timelimited, start_timelimited
-from planet.extensions.validates.activty import ListFreshmanFirstOrderApply, ShelfFreshManfirstOrder
-from planet.models import FreshManFirstApply, Products, FreshManFirstProduct, FreshManFirstSku, ProductSku, \
-    ProductSkuValue, OrderMain, Activity, UserAddress, AddressArea, AddressCity, AddressProvince, OrderPart, OrderPay, \
-    FreshManJoinFlow, ProductMonthSaleValue, ProductImage, ProductBrand, Supplizer, Admin, Approval, ProductCategory, \
-    ProductItems, Items, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
+from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
 from .CUser import CUser
 
 
@@ -41,7 +35,7 @@ class CTimeLimited(COrder, CUser):
             TimeLimitedActivity.isdelete == False,
         }
         order_by_args = []
-        if not(is_admin() or is_supplizer()):
+        if not (is_admin() or is_supplizer()):
             filter_args.add(TimeLimitedActivity.TLAendTime >= time_now)
             filter_args.add(TimeLimitedActivity.TLAstatus.in_([
                 TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value]))
@@ -86,7 +80,6 @@ class CTimeLimited(COrder, CUser):
         else:
             current_app.logger.info('本次是管理员进行查询')
 
-
         if tlaid:
             filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
         if tlastatus:
@@ -95,7 +88,8 @@ class CTimeLimited(COrder, CUser):
             filter_args.add(Products.PRtitle.ilike('%{}%'.format(prtitle)))
 
         filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
-        tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(*filter_args).order_by(
+        tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(
+            *filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
         product_list = list()
         for tlp in tlp_list:
@@ -112,7 +106,7 @@ class CTimeLimited(COrder, CUser):
                 tla = TimeLimitedActivity.query.filter(
                     TimeLimitedActivity.isdelete == False,
                     TimeLimitedActivity.TLAid == tlaid,
-                    ).first_('没有此活动')
+                ).first_('没有此活动')
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
@@ -357,7 +351,8 @@ class CTimeLimited(COrder, CUser):
 
             db.session.add_all(instance_list)
 
-        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid, applyfrom=tlp_from)
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid,
+                                                  applyfrom=tlp_from)
         return Success('修改成功')
 
     @admin_required
@@ -442,7 +437,7 @@ class CTimeLimited(COrder, CUser):
 
             if apply_info.TLAstatus != ApplyStatus.wait_check.value:
                 raise StatusError('只有在审核状态的申请可以撤销')
-            if apply_info.SUid !=suid:
+            if apply_info.SUid != suid:
                 raise AuthorityError('仅可撤销自己提交的申请')
             apply_info.TLAstatus = ApplyStatus.cancle.value
 
@@ -492,7 +487,8 @@ class CTimeLimited(COrder, CUser):
             #     assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
             if apply_info.SUid != suid:
                 raise ParamsError('只能删除自己提交的申请')
-            if apply_info.TLAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value, ApplyStatus.shelves.value]:
+            if apply_info.TLAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value,
+                                            ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
 
