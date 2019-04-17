@@ -1006,10 +1006,20 @@ class COrder(CPay, CCoupon):
 
                     if oca:
                         tlp = TimeLimitedProduct.query.filter_by(TLPid=oca.OCAcontentid, isdelete=False).first()
-                        tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, SKUid=skuid, isdelete=False).first()
-                        current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
-                            tlp.TLPid, skuid, tls))
-                        tls.TLSstock = int(tls.TLSstock) + int(opnum)
+                        if not tlp:
+                            continue
+                        tla = TimeLimitedActivity.query.filter_by(TLAid=tlp.TLAid, isdelete=False).first()
+                        if not tla:
+                            continue
+                        if tla.TLAstatus == TimeLimitedStatus.end.value:
+                            current_app.logger.info('开始退还 已结束的限时特惠 tlpid 为 {}的库存  skuid 是 {} '.format(
+                                tlp.TLPid, skuid))
+                            self._update_stock(int(opnum), skuid=skuid)
+                        else:
+                            tls = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, SKUid=skuid, isdelete=False).first()
+                            current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
+                                tlp.TLPid, skuid, tls))
+                            tls.TLSstock = int(tls.TLSstock) + int(opnum)
 
                 # 商品销量修改
                 product.update({'PRsalesValue': product.PRsalesValue - opnum})
