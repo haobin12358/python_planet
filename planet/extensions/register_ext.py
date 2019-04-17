@@ -41,6 +41,7 @@ alipay = AliPay(
     debug=True
     # sign_type="RSA2",  # RSA 或者 RSA2
      )
+
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 

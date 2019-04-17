@@ -10,16 +10,21 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
     is_admin, is_supplizer
+from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
     Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval
-from planet.models import NewsComment, NewsCommentFavorite
+from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
 from sqlalchemy import or_, and_
+from sqlalchemy import extract
+from planet.models import UserIntegral
+from planet.config.enums import UserIntegralAction, UserIntegralType
+
 
 
 class CNews(BASEAPPROVAL):
@@ -527,10 +532,10 @@ class CNews(BASEAPPROVAL):
         usid = request.user.id
         if usid:
             user = self.snews.get_user_by_id(usid)
-            current_app.logger.info('User {0} is favorite/trample news'.format(user.USname))
+            current_app.logger.info('User {0} is favorite/trample news'.format(user.USname))  # 在服务器打印日志
         data = parameter_required(('neid', 'tftype'))
         neid = data.get('neid')
-        news = self.snews.get_news_content({'NEid': neid})
+        news = self.snews.get_news_content({'NEid': neid})  # 获取资讯详情 判断数据库里文章是否存在
         if news.NEstatus != NewsStatus.usual.value:
             raise StatusError('该资讯当前状态不允许点赞')
         tftype = data.get('tftype')  # {1:点赞, 0:点踩}
@@ -552,6 +557,27 @@ class CNews(BASEAPPROVAL):
                         'USid': usid
                     })
                     s.add(news_favorite)
+
+                    # 点赞加星币，一天最多加五次，一次加三个
+                    now_time = datetime.now()
+                    count = s.query(NewsFavorite).filter(
+                        extract('month', NewsFavorite.createtime) == now_time.month,
+                        extract('year', NewsFavorite.createtime) == now_time.year,
+                        extract('day', NewsFavorite.createtime) == now_time.day,
+                        NewsFavorite.USid == usid).count()
+                    if count < 5:
+                        integral = ConfigSettings().get_item('integralbase', 'integral_favorite')
+                        #integral = '3'  # 引用签到配置文件
+                        ui = UserIntegral.create({
+                            'UIid': str(uuid.uuid1()),
+                            'USid': usid,
+                            'UIintegral': integral,
+                            'UIaction': UserIntegralAction.favorite.value,
+                            'UItype': UserIntegralType.income.value
+                        })
+                        s.add(ui)
+                        user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                        s.add(user)
                 msg = '已赞同'
             else:
                 cancel_favorite = self.snews.cancel_favorite(neid, usid)
@@ -574,6 +600,7 @@ class CNews(BASEAPPROVAL):
                 cancel_trample = self.snews.cancel_trample(neid, usid)
                 if not cancel_trample:
                     raise SystemError('服务器繁忙')
+
         favorite = self.snews.news_is_favorite(neid, usid)
         favorite = 1 if favorite else 0
         favorite_count = self.snews.get_news_favorite_count(neid)
@@ -657,6 +684,7 @@ class CNews(BASEAPPROVAL):
 
     @token_required
     def create_comment(self):
+        """进行评论"""
         usid = request.user.id
         user = self.snews.get_user_by_id(usid)
         usname, usheader = user.USname, user.USheader
@@ -681,6 +709,26 @@ class CNews(BASEAPPROVAL):
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
+                # 评论加星币，一天最多加五次，一次加三个
+                now_time = datetime.now()
+                count = nc.query(NewsComment).filter(
+                    extract('month', NewsComment.createtime) == now_time.month,
+                    extract('year', NewsComment.createtime) == now_time.year,
+                    extract('day', NewsComment.createtime) == now_time.day,
+                    NewsComment.USid == usid).count()
+                if count < 5:
+                    #integral = '3'
+                    integral = ConfigSettings().get_item('integralbase', 'integral_commit')
+                    ui = UserIntegral.create({
+                        'UIid': str(uuid.uuid1()),
+                        'USid': usid,
+                        'UIintegral': integral,
+                        'UIaction': UserIntegralAction.commit.value,
+                        'UItype': UserIntegralType.income.value
+                    })
+                    nc.add(ui)
+                    user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                    nc.add(user)
             # 评论后返回刷新结果
             news_comment = NewsComment.query.filter_by_(NCid=comment_ncid).first()
             self._get_one_comment(news_comment, neid, usid)
@@ -704,6 +752,26 @@ class CNews(BASEAPPROVAL):
                     'NCrootid': ncrootid,
                 })
                 r.add(reply)
+                # 回复评论加星币，一天最多加五次，一次加三个
+                now_time = datetime.now()
+                count = r.query(NewsComment).filter(
+                    extract('month', NewsComment.createtime) == now_time.month,
+                    extract('year', NewsComment.createtime) == now_time.year,
+                    extract('day', NewsComment.createtime) == now_time.day,
+                    NewsComment.USid == usid).count()
+                if count < 5:
+                    #integral = '3'
+                    integral = ConfigSettings().get_item('integralbase', 'integral_commit')
+                    ui = UserIntegral.create({
+                        'UIid': str(uuid.uuid1()),
+                        'USid': usid,
+                        'UIintegral': integral,
+                        'UIaction': UserIntegralAction.commit.value,
+                        'UItype': UserIntegralType.income.value
+                    })
+                    r.add(ui)
+                    user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                    r.add(user)
             # 评论后返回刷新结果
             news_comment = NewsComment.query.filter_by_(NCid=ncrootid).first()
             self._get_one_comment(news_comment, neid, usid)

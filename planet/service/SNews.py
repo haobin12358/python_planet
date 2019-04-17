@@ -56,7 +56,7 @@ class SNews(SBase):
         return self.session.query(Items).outerjoin(NewsTag, Items.ITid == NewsTag.ITid).filter_(
             Items.isdelete == False,
             NewsTag.isdelete == False,
-            * args
+            *args
         ).order_by(Items.ITsort.asc(), Items.createtime.desc()).all()
 
     @close_session
@@ -112,4 +112,3 @@ class SNews(SBase):
     @close_session
     def get_user_by_id(self, usid):
         return self.session.query(User).filter(User.USid == usid).first_('用户不存在')
-

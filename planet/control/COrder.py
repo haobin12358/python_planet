@@ -473,7 +473,7 @@ class COrder(CPay, CCoupon):
                 area, "AAname", '')
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
-            opayno = self.wx_pay.nonce_str
+            opayno = self.wx_pay.nonce_str  # 生成流水号
             mount_price = Decimal()  # 总价
             omids = []
             # 采用激活码购买跳过支付参数
@@ -526,7 +526,7 @@ class COrder(CPay, CCoupon):
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
                 freight_list = []  # 快递费
-                for sku in skus:
+                for sku in skus:  # 品牌里具体的几个商品
                     # 订单副单
                     cafrom = sku.get('cafrom', 10)
                     try:
