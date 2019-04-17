@@ -463,7 +463,7 @@ class COrder(CPay, CCoupon):
                 area, "AAname", '')
             omrecvaddress = address + user_address_instance.UAtext
             omrecvname = user_address_instance.UAname
-            opayno = self.wx_pay.nonce_str
+            opayno = self.wx_pay.nonce_str  # 生成流水号
             mount_price = Decimal()  # 总价
             omids = []
             # 采用激活码购买跳过支付参数
@@ -495,7 +495,7 @@ class COrder(CPay, CCoupon):
                 return Success('购买商品大礼包成功', data=res)
             # 分订单
             # todo 是否按照供应商拆分订单
-            for info in infos:
+            for info in infos:  # 每个品牌
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
                 omid = str(uuid.uuid1())  # 主单id
@@ -510,7 +510,7 @@ class COrder(CPay, CCoupon):
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
                 freight_list = []  # 快递费
-                for sku in skus:
+                for sku in skus:  # 品牌里具体的几个商品
                     # 订单副单
                     opid = str(uuid.uuid1())
                     skuid = sku.get('skuid')

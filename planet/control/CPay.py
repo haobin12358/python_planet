@@ -19,7 +19,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import alipay, wx_pay, db
+from planet.extensions.register_ext import wx_pay, db
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
@@ -38,7 +38,7 @@ class CPay():
     def __init__(self):
         self.strade = STrade()
         self.suser = SUser()
-        self.alipay = alipay
+        # self.alipay = alipay
         self.wx_pay = wx_pay
 
     @token_required
@@ -93,7 +93,7 @@ class CPay():
             'args': pay_args
         }
         return Success('生成付款参数成功', response)
-
+    '''
     def alipay_notify(self):
         """异步通知, 文档 https://docs.open.alipay.com/203/105286/"""
         # 待测试
@@ -122,6 +122,7 @@ class CPay():
                 current_app.logger.info('支付宝付款成功')
                 self._insert_usercommision(order_main)
         return 'success'
+        '''
 
     def wechat_notify(self):
         """微信支付回调"""
@@ -129,6 +130,8 @@ class CPay():
         if not self.wx_pay.check(data):
             return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
+        usid = request.user.id
+        user = User.query.filter_by_({'USid': usid}).first()
         with db.auto_commit():
             # 更改付款流水
             order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
@@ -137,13 +140,21 @@ class CPay():
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
+            OMtrueMount = 0
             for order_main in order_mains:
+                OMtrueMount += order_main.OMtrueMount  # 计算支付总价格
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
                 self._insert_usercommision(order_main)
+            #  购物加积分
+            # percent = 0.2
+            percent = ConfigSettings().get_item('integralbase', 'trade_percent')
+            add_point = int(percent * OMtrueMount)
+            user.USintegral += int(add_point)
+
         return self.wx_pay.reply("OK", True).decode()
 
     def _insert_usercommision(self, order_main):

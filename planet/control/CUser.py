@@ -2027,20 +2027,22 @@ class CUser(SUser, BASEAPPROVAL):
         default_integral_sign = str(data.get('integral'))
         default_integral_favorite = data.get('integral_favorite')
         default_integral_commit = data.get('integral_commit')
+        default_trade_percent = data.get('trade_percent')
         if not re.match(r'^\d+$', str(default_integral_sign)):
             raise ParamsError('默认积分无效')
         if not re.match(r'^\d+$', str(default_integral_commit)):
             raise ParamsError('默认积分无效')
         if not re.match(r'^\d+$', str(default_integral_favorite)):
             raise ParamsError('默认积分无效')
-
+        if not re.match(r'^\d+$', str(default_trade_percent)):
+            raise ParamsError('默认积分无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
         cfg.set_item('integralrule', 'rule', default_rule)
         cfg.set_item('integralbase', 'integral', default_integral_sign)
         cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
         cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
-
+        cfg.set_item('integralrule', 'trade_percent', default_trade_percent)
         return Success('修改成功')
 
     def get_signin_default(self):
@@ -2053,9 +2055,11 @@ class CUser(SUser, BASEAPPROVAL):
         del_integral = cfg.get_item('integralbase', 'integral')
         del_integral_favorite = cfg.get_item('integralbase', 'integral_favorite')
         del_integral_commit = cfg.get_item('integralbase', 'integral_commit')
-        return Success('获取默认签到设置成功', data={'rule': del_rule, 'integral': del_integral,
+        del_trade_percent = cfg.get_item('integralbase', 'trade_percent')
+        return Success('获取默认设置成功', data={'rule': del_rule, 'integral': del_integral,
                                            'integral_favorite': del_integral_favorite,
-                                           'integral_commit': del_integral_commit})
+                                           'integral_commit': del_integral_commit,
+                                           'trade_percent': del_trade_percent})
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
@@ -2199,8 +2203,8 @@ class CUser(SUser, BASEAPPROVAL):
                 extract('day', UserTransmit.createtime) == now_time.day,
                 UserTransmit.USid == user.USid).count()
             if count <= 5:
-                integral = '5'
-                # integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
+                # integral = '5'
+                integral = ConfigSettings().get_item('integralbase', 'integral_transmit')
                 ui = UserIntegral.create({
                     'UIid': str(uuid.uuid1()),
                     'USid': user.USid,
