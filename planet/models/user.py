@@ -234,7 +234,7 @@ class CashNotes(Base):
 class UserCollection(Base):
     """用户收藏记录"""
     __tablename__ = 'UserCollection'
-    UCid = Column(String(64),primary_key=True)
-    Collector = Column(String(64),comment='收藏者')
-    Collection = Column(String(64),comment='收藏品')
-    CoType = Column(String(64),comment='收藏品类型')
+    UCOid = Column(String(64),primary_key=True)
+    UCollector = Column(String(64),comment='收藏者')
+    UCollection = Column(String(64),comment='收藏品')
+    UCoType = Column(String(64),comment='收藏品类型')

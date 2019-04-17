@@ -10,6 +10,13 @@ class ACollection(Resource):
 
     def post(self, collection):
         apis ={
-            'collect':self.collection.collect
+            'collect':self.collection.collect,
+            'cancel':self.collection.cancel,
+        }
+        return apis
+
+    def get(self, collection):
+        apis = {
+            'show': self.collection.show
         }
         return apis

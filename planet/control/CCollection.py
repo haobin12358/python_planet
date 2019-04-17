@@ -12,8 +12,8 @@ class CCollection:
         crusid = data.get('collector')
         ctid = data.get('collection')
         c = data.get('cotype')
-        flag = UserCollection.query.filter(UserCollection.Collector == crusid,
-                                           UserCollection.Collection == ctid, UserCollection.isdelete == False).first()
+        flag = UserCollection.query.filter(UserCollection.UCollector == crusid,
+                                           UserCollection.UCollection == ctid, UserCollection.isdelete == False).first()
         if flag == None:
             uin = UserCollection.create({
                 'UCid': str(uuid.uuid1()), 'Collector': crusid, 'Collection': ctid, 'CoType': c})
@@ -26,8 +26,8 @@ class CCollection:
         crusid = data.get('collector')
         cancelid = data.get('cancelled')
         cancelid = cancelid.split()
-        flag = UserCollection.query.filter(UserCollection.Collector == crusid,
-                                           UserCollection.Collection == cancelid,
+        flag = UserCollection.query.filter(UserCollection.UCollector == crusid,
+                                           UserCollection.UCollection.in_(cancelid),
                                            UserCollection.isdelete == False).all()
         if flag != None:
             for i in flag:
@@ -36,3 +36,15 @@ class CCollection:
             return Success('修改成功')
         else:
             return Success('还未收藏这些商品')
+
+    def show(self):
+        data = parameter_required('collector')
+        collector = data.get('collector')
+        flag = UserCollection.query.filter(UserCollection.UCollector == collector,
+                                           UserCollection.isdelete == False).all()
+        if flag == None:
+            return Success('无收藏品')
+        else:
+            for i in range(len(flag)):
+                flag[i] = flag[i].UCollector
+            return Success(flag)

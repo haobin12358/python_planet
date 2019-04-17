@@ -8,7 +8,8 @@ from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
-from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, User,UserCollection,News
+from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, User, \
+    UserCollection, News
 
 
 # 添加一些默认的数据
@@ -115,7 +116,6 @@ def make_acvitity():
             'ACsort': 0
         })
 
-
         db.session.add(fresh)
         guess = Activity.create({
             'ACid': 1,
@@ -149,6 +149,7 @@ def make_acvitity():
             'ACsort': 3
         })
         db.session.add(free)
+
 
 def make_permissiontype():
     with db.auto_commit():
@@ -270,13 +271,14 @@ def check_abnormal_sale_volume():
             db.session.add(product)
             # 修正商品月销量
             ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
-                                                                 OrderMain.OMid == OrderPart.OMid
-                                                                 ).filter(OrderMain.isdelete == False,
-                                                                          OrderPart.isdelete == False,
-                                                                          OrderMain.OMstatus != -40,
-                                                                          OrderPart.PRid == product.PRid,
-                                                                          OrderPart.OPisinORA == False
-                                                                          ).group_by(
+                                                                                                      OrderMain.OMid == OrderPart.OMid
+                                                                                                      ).filter(
+                OrderMain.isdelete == False,
+                OrderPart.isdelete == False,
+                OrderMain.OMstatus != -40,
+                OrderPart.PRid == product.PRid,
+                OrderPart.OPisinORA == False
+                ).group_by(
                 extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
             for o in ops:
                 # print(o)
@@ -347,4 +349,3 @@ if __name__ == '__main__':
         # add_product_promotion()
         # check_abnormal_sale_volume()
         pass
-
