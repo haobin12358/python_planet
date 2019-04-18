@@ -1319,9 +1319,9 @@ class CUser(SUser, BASEAPPROVAL):
         wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
         api_call_back = '{}/api/v1/user/wx_callback'.format(API_HOST)
         redirect_url = wxlogin.authorize(api_call_back, scope=scope, state=url)
-        from flask import redirect
+        # from flask import redirect
         current_app.logger.info('get redirect_url = {}'.format(redirect_url))
-        return redirect(redirect_url)
+        return Success(data={'url': redirect_url})
 
     def wx_callback(self):
         def _get_redirect(state_res, code=None):
@@ -1334,6 +1334,10 @@ class CUser(SUser, BASEAPPROVAL):
                 return url
             # if '?' in url:
             connector = '&' if '?' in url else '?'
+            current_app.logger.info('get url = {}'.format(url))
+            url = url.split('#')[0]
+            current_app.logger.info('changed url = {}'.format(url))
+
             if state:
                 return '{}{}code={}&{}'.format(url, connector, code, state)
 
