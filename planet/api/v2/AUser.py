@@ -29,7 +29,9 @@ class AUser(Resource):
             'set_signin_default': self.user.set_signin_default,  # 设置默认签到规则
             'settlenment': self.user.settlenment,  # 供应商确认结算
             'create_settlenment': self.user.create_settlenment,  # 供应商确认结算创建
-            'transmit': self.user.transmit  # 用户转发
+            'transmit': self.user.transmit,  # 用户转发
+            'wx_auth': self.user.wx_auth,  # 微信登录转发接口
+            'wx_callback': self.user.wx_callback,  # 转发回调接口
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -62,5 +64,7 @@ class AUser(Resource):
             'get_cash_notes': self.user.get_cash_notes,  # 获取某人提现申请记录
             'get_signin_default': self.user.get_signin_default,  # 获取默认签到规则
             'get_settlenment': self.user.get_settlenment,  # 获取结算记录
+            'wx_auth': self.user.wx_auth,  # 微信登录转发接口
+            'wx_callback': self.user.wx_callback,  # 转发回调接口
         }
         return apis
