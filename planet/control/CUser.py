@@ -428,7 +428,6 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
-
     @get_session
     def get_inforcode(self):
         """发送/校验验证码"""
@@ -2218,3 +2217,4 @@ class CUser(SUser, BASEAPPROVAL):
                 user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
                 db.session.add(user)
         return Success('转发成功')
+

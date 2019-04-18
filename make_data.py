@@ -5,7 +5,7 @@ import uuid
 from decimal import Decimal
 
 from flask import current_app
-
+import uuid
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType, TimeLimitedStatus
 from planet.control.CExcel import CExcel
@@ -117,7 +117,6 @@ def make_acvitity():
             'ACname': '新人首单',
             'ACsort': 0
         })
-
 
         db.session.add(fresh)
         guess = Activity.create({
@@ -285,13 +284,14 @@ def check_abnormal_sale_volume():
             db.session.add(product)
             # 修正商品月销量
             ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
-                                                                 OrderMain.OMid == OrderPart.OMid
-                                                                 ).filter(OrderMain.isdelete == False,
-                                                                          OrderPart.isdelete == False,
-                                                                          OrderMain.OMstatus != -40,
-                                                                          OrderPart.PRid == product.PRid,
-                                                                          OrderPart.OPisinORA == False
-                                                                          ).group_by(
+                                                                                                      OrderMain.OMid == OrderPart.OMid
+                                                                                                      ).filter(
+                OrderMain.isdelete == False,
+                OrderPart.isdelete == False,
+                OrderMain.OMstatus != -40,
+                OrderPart.PRid == product.PRid,
+                OrderPart.OPisinORA == False
+                ).group_by(
                 extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
             for o in ops:
                 # print(o)
@@ -389,4 +389,3 @@ if __name__ == '__main__':
         # check_product_from()
         change_tla_status()
         pass
-

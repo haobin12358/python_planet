@@ -563,6 +563,12 @@ class TimeLimitedStatus(Enum):
     end = 10, '结束'
 
 
+class CollectionType(Enum):
+    product = 0, '商品'
+    news = 1, '圈子'
+    user = 2, '用户'
+
+
 class CartFrom(Enum):
     normal = 10, '普通商品'
     fresh_man = 0, '新人'
