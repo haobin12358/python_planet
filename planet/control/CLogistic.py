@@ -134,8 +134,8 @@ class CLogistic:
             else:
                 oldata_status = False
 
-            # 没有data信息或超过6小时 并且状态不是已签收
-            if ((not oldata_status or (time_now - order_logistics.updatetime).total_seconds() > 6 * 3600)
+            # 没有data信息或超过24小时 并且状态不是已签收
+            if ((not oldata_status or (time_now - order_logistics.updatetime).total_seconds() > 24 * 3600)
                     and order_logistics.OLsignStatus != LogisticsSignStatus.already_signed.value):
                 order_logistics = self._get_logistics(order_logistics)
             logistics_company = LogisticsCompnay.query.filter_by_({'LCcode': order_logistics.OLcompany}).first()
@@ -163,11 +163,26 @@ class CLogistic:
                 }
                 #
             elif code == '205':  # 205 暂时没有信息，可能在揽件过程中
-                OrderLogisticsDict = {
-                    'OLsignStatus': 0,  # 签收状态 0：快递收件(揽件) 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据'
-                    'OLdata': json.dumps(response),  # 整体结果原字符串
-                    'OLlastresult': '{}'
-                }
+                if (datetime.now() - order_logistics.createtime).total_seconds() > 48 * 3600:  # 超过两天依然返回暂无快递信息的打回待发货状态
+                    OrderLogisticsDict = {
+                        'OLsignStatus': -1,
+                        'OLdata': json.dumps(response),  # 结果原字符串
+                        'OLlastresult': '{}'
+                    }
+                    order_main = OrderMain.query.filter(
+                        OrderMain.OMid == order_logistics.OMid,
+                        OrderMain.isdelete == False
+                    ).first()
+                    order_main.update({'OMstatus': OrderMainStatus.wait_send.value})
+                    db.session.add(order_main)
+                    current_app.logger.info("物流OLid {} 超过48小时仍无信息,订单变回待发货".format(order_logistics.OLid))
+                else:
+                    OrderLogisticsDict = {
+                        'OLsignStatus': 0,  # 签收状态 0：快递收件(揽件) 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据'
+                        'OLdata': json.dumps(response),  # 整体结果原字符串
+                        'OLlastresult': '{}'
+                    }
+
             else:
                 OrderLogisticsDict = {
                     'OLsignStatus': -1,
