@@ -93,22 +93,25 @@ class CNews(BASEAPPROVAL):
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
                 news.fill('authername', '{} (管理员)'.format(auther))
-                news.fill('authergrade', UserGrade.diamonds.zh_value)
+                # news.fill('authergrade', UserGrade.diamonds.zh_value)
+                news.fill('authergrade',  ApplyFrom.platform.zh_value)
 
             elif news.NEfrom == ApplyFrom.supplizer.value:
 
                 news.fill('authername', '{} (供应商)'.format(auther))
                 auther_sup = self._check_supplizer(news.USid)
-                news.fill('authergrade', UserGrade(auther_sup.SUgrade).zh_value)
+                # news.fill('authergrade', UserGrade(auther_sup.SUgrade).zh_value)
+                news.fill('authergrade', ApplyFrom.platform.zh_value)
             else:
                 news.fill('authername', '{} (用户)'.format(auther))
                 auther_user = self.snews.get_user_by_id(news.USid)
-                news.fill('authergrade', UserGrade(auther_user.USgrade).zh_value)
+                news.fill('authergrade', UserGrade(auther_user.USlevel).zh_value)
+                # news.fill('authergrade', UserLevel(auther_user.USgrade).zh_value)
 
             news.fill('follow', bool(UserCollectionLog.query.filter(
                 UserCollectionLog.UCLcoType == CollectionType.user.value,
                 UserCollectionLog.isdelete == False,
-                UserCollectionLog.UCLcollector == userid,
+                UserCollectionLog.UCLcollector == usid,
                 UserCollectionLog.UCLcollection == news.USid).first()))
 
             if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):

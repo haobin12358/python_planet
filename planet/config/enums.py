@@ -579,11 +579,13 @@ class CartFrom(Enum):
 
 
 class UserGrade(Enum):
-    bronze = 0, '青铜会员'
-    silver = 1, '白银会员'
-    gold = 2, '黄金会员'
-    platinum = 3, '铂金会员'
-    diamonds = 4, '钻石会员'
+    # bronze = 0, '青铜会员'
+    # silver = 1, '白银会员'
+    # gold = 2, '黄金会员'
+    # platinum = 3, '铂金会员'
+    # diamonds = 4, '钻石会员'
+    normal = 1, '大行星会员'
+    agent = 2, '合作伙伴'
 
 
 if __name__ == '__main__':
