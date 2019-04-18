@@ -34,6 +34,7 @@ class User(Base):
     USpaycode = Column(Text, comment='支付密码')
     UScontinuous = Column(Integer, default=0, comment='连续签到天数')
     UStoAgentTime = Column(DateTime, comment='成为代理商时间')
+    USgrade = Column(Integer, default=0, comment='不知用处的等级')
 
 
 class UserLoginTime(Base):
@@ -238,6 +239,7 @@ class UserCollectionLog(Base):
     UCLcollector = Column(String(64), comment='收藏者')
     UCLcollection = Column(String(64), comment='收藏品')
     UCLcoType = Column(String(64), comment='收藏品类型')
+
 
 class UserTransmit(Base):
     """转发"""

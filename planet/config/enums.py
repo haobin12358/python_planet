@@ -578,7 +578,14 @@ class CartFrom(Enum):
     time_limited = 4, '限时活动'
 
 
-# class MagicBoxStatus()
+class UserGrade(Enum):
+    bronze = 0, '青铜会员'
+    silver = 1, '白银会员'
+    gold = 2, '黄金会员'
+    platinum = 3, '铂金会员'
+    diamonds = 4, '钻石会员'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
