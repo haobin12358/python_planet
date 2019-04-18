@@ -4,7 +4,7 @@ import uuid
 from planet.config.enums import CollectionType
 from planet.extensions.register_ext import db
 from planet.common.params_validates import parameter_required
-from planet.models import UserCollectionLog
+from planet.models import UserCollectionLog, News
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, usid_to_token, get_current_user
 from flask import request, current_app
@@ -45,11 +45,21 @@ class CCollection:
         # data = parameter_required('collector')  # token 获取当前操作用户
 
         # collector = data.get('collector')
-        flag = UserCollectionLog.query.filter(UserCollectionLog.UCLcollector == request.user.id,
-                                              UserCollectionLog.isdelete == False).all()
-        # 增加筛选条件 收藏类型
-        for i in flag:
-            i.fill('')
+        data = parameter_required(('uclcoType', 0))
+        user = get_current_user()
+        try:
+            cotype = CollectionType(data.get('uclcoType')).value
+        except:
+            current_app.logger.info('获取 cotype 失败 {}'.format(data.get('uclcoType')))
+            cotype = 0
+
+        ucl_list = UserCollectionLog.query.filter(
+            UserCollectionLog.UCLcollector == user.USid, UserCollectionLog.UCLcoType == cotype,
+            UserCollectionLog.isdelete == False).all()
+
+    def _fill_news(self, ucl_list):
+        for ucl in ucl_list:
+            news = News.query.filter_by(NEid=ucl.UCLcollection, isdelete=False).first()
 
 
 

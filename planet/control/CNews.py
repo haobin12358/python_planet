@@ -70,13 +70,17 @@ class CNews(BASEAPPROVAL):
         elif str(itid) == 'isrecommend':
             isrecommend = True
             itid = None
-        news_list = self.snews.get_news_list([
+
+        filter_args = [
             or_(and_(*[News.NEtitle.contains(x) for x in kw]), ),  # todo 暂更改为只匹配标题
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
             News.USid == userid,
             News.NEisrecommend == isrecommend,
-        ])
+        ]
+        collected = args.get('collected')
+
+        news_list = self.snews.get_news_list()
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
             # 添加发布者信息
