@@ -11,12 +11,12 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
     is_admin, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus
+from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog
 from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -99,6 +99,9 @@ class CNews(BASEAPPROVAL):
                 is_own = 0
             news.fill('is_favorite', favorite)
             news.fill('is_own', is_own)
+            news.fill('collected', bool(UserCollectionLog.query.filter_by(
+                UCLcollector=usid, UCLcollection=news.NEid,
+                UCLcoType=CollectionType.news.value, isdelete=False).first()))
             # 显示审核状态
             if userid or is_admin():
                 news.fill('zh_nestatus', NewsStatus(news.NEstatus).zh_value)
@@ -204,19 +207,25 @@ class CNews(BASEAPPROVAL):
                     pass
 
         # 点赞数量显示
+        # 2019-0418 增加收藏
         if usid:
             is_own = 1 if news.USid == usid else 0
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
             is_trample = self.snews.news_is_trample(neid, usid)
             trample = 1 if is_trample else 0
+            collected = bool(UserCollectionLog.query.filter_by(
+                UCLcollector=usid, UCLcollection=news.NEid,
+                UCLcoType=CollectionType.news.value, isdelete=False).first())
         else:
             is_own = 0
             favorite = 0
             trample = 0
+            collected = False
         news.fill('is_own', is_own)
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
+        news.fill('collected', collected)
 
         # 作者信息
         if news.USheader and news.USname:

@@ -231,13 +231,13 @@ class CashNotes(Base):
     CNrejectReason = Column(Text, comment='拒绝理由')
 
 
-class UserCollection(Base):
+class UserCollectionLog(Base):
     """用户收藏记录"""
     __tablename__ = 'UserCollection'
-    UCOid = Column(String(64),primary_key=True)
-    UCollector = Column(String(64),comment='收藏者')
-    UCollection = Column(String(64),comment='收藏品')
-    UCoType = Column(String(64),comment='收藏品类型')
+    UCLid = Column(String(64), primary_key=True)
+    UCLcollector = Column(String(64), comment='收藏者')
+    UCLcollection = Column(String(64), comment='收藏品')
+    UCLcoType = Column(String(64), comment='收藏品类型')
 
 class UserTransmit(Base):
     """转发"""
