@@ -1325,23 +1325,31 @@ class CUser(SUser, BASEAPPROVAL):
 
     def wx_callback(self):
         def _get_redirect(state_res, code=None):
-            url_list = state_res.split('@@@')
-            if len(url_list) == 1:
-                url, state = url_list[0], None
+            state_list = state_res.split('@@@')
+            if len(state_list) == 1:
+                url, state = state_list[0], None
             else:
-                url, state = url_list[0], url_list[1]
+                url, state = state_list[0], state_list[1]
             if not code:
                 return url
             # if '?' in url:
             connector = '&' if '?' in url else '?'
             current_app.logger.info('get url = {}'.format(url))
-            url = url.split('#')[0]
+            url_list = url.split(r'/#')
+            if len(url_list) == 1:
+                url, url_route = url_list[0], None
+            else:
+                url, url_route = url_list[0], url_list[1]
             current_app.logger.info('changed url = {}'.format(url))
 
             if state:
-                return '{}{}code={}&{}'.format(url, connector, code, state)
+                redirect_url = '{}{}code={}&{}'.format(url, connector, code, state)
+            else:
+                redirect_url = '{}{}code={}'.format(url, connector, code)
 
-            return '{}{}code={}'.format(url, connector, code)
+            if url_route:
+                return '{}#{}'.format(redirect_url, url_route)
+            return redirect_url
 
         data = parameter_required()
         current_app.logger.info('get redirect data {}'.format(data))
