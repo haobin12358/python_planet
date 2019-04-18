@@ -79,8 +79,15 @@ class CNews(BASEAPPROVAL):
             News.NEisrecommend == isrecommend,
         ]
         collected = args.get('collected')
+        if collected:
+            filter_args.extend([
+                UserCollectionLog.UCLcoType == CollectionType.news.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == userid,
+                UserCollectionLog.UCLcollection == News.NEid
+            ])
 
-        news_list = self.snews.get_news_list()
+        news_list = self.snews.get_news_list(filter_args)
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
             # 添加发布者信息

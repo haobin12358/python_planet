@@ -243,6 +243,13 @@ class CProducts(BaseController):
                         or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
                 else:
                     filter_args.append(Items.ITauthority == int(itauthority))
+            if data.get('collected'):
+                filter_args.extend([
+                    UserCollectionLog.UCLcoType == CollectionType.product.value,
+                    UserCollectionLog.isdelete == False,
+                    UserCollectionLog.UCLcollector == request.user.id,
+                    UserCollectionLog.UCLcollection == Products.PRid
+                ])
         # products = self.sproduct.get_product_list(filter_args, [by_order, ])
         query = Products.query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid
                                          ).outerjoin(ProductBrand, ProductBrand.PBid == Products.PBid

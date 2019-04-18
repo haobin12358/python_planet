@@ -41,25 +41,26 @@ class CCollection:
 
     @token_required
     def show(self):
-
+        # 该接口废弃
+        return
         # data = parameter_required('collector')  # token 获取当前操作用户
 
         # collector = data.get('collector')
-        data = parameter_required(('uclcoType', 0))
-        user = get_current_user()
-        try:
-            cotype = CollectionType(data.get('uclcoType')).value
-        except:
-            current_app.logger.info('获取 cotype 失败 {}'.format(data.get('uclcoType')))
-            cotype = 0
-
-        ucl_list = UserCollectionLog.query.filter(
-            UserCollectionLog.UCLcollector == user.USid, UserCollectionLog.UCLcoType == cotype,
-            UserCollectionLog.isdelete == False).all()
-
-    def _fill_news(self, ucl_list):
-        for ucl in ucl_list:
-            news = News.query.filter_by(NEid=ucl.UCLcollection, isdelete=False).first()
-
+    #     data = parameter_required(('uclcoType', 0))
+    #     user = get_current_user()
+    #     try:
+    #         cotype = CollectionType(data.get('uclcoType')).value
+    #     except:
+    #         current_app.logger.info('获取 cotype 失败 {}'.format(data.get('uclcoType')))
+    #         cotype = 0
+    #
+    #     ucl_list = UserCollectionLog.query.filter(
+    #         UserCollectionLog.UCLcollector == user.USid, UserCollectionLog.UCLcoType == cotype,
+    #         UserCollectionLog.isdelete == False).all()
+    #
+    # def _fill_news(self, ucl_list):
+    #     for ucl in ucl_list:
+    #         news = News.query.filter_by(NEid=ucl.UCLcollection, isdelete=False).first()
+    #
 
 
