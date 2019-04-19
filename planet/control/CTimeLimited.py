@@ -2,13 +2,10 @@ import json
 import math
 import uuid
 from datetime import datetime, timedelta
-
 from flask import request, current_app
-
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, \
-    common_user
+from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
 from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
 from planet.control.COrder import COrder
@@ -77,6 +74,10 @@ class CTimeLimited(COrder, CUser):
         if common_user():
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
             current_app.logger.info('本次是普通用户进行查询')
+        elif is_supplizer():
+            current_app.logger.info('本次是供应商进行查询')
+            filter_args.add(TimeLimitedProduct.SUid == request.user.id)
+
         else:
             current_app.logger.info('本次是管理员进行查询')
 
