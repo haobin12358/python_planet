@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import random
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -136,6 +137,16 @@ class CProducts(BaseController):
                                                               'index_recommend_product_for_you',
                                                               'upgrade_product']))
         items = self.sproduct.get_item_list(item_filter_args)
+        if is_admin() or is_supplizer():
+            for item in items:
+                pr_scene = ProductScene.query.outerjoin(SceneItem, SceneItem.PSid == ProductScene.PSid
+                                                        ).filter_(SceneItem.isdelete == False,
+                                                                  SceneItem.ITid == item.ITid,
+                                                                  ProductScene.isdelete == False).all()
+                if pr_scene:
+                    psname_list = str([ps.PSname for ps in pr_scene])
+                    psname_list = re.sub(r'[\[\]\'\,]+', '', psname_list)
+                    item.ITname = getattr(item, 'ITname', '') + ' / ' + str(psname_list)  # 后台要显示标签所属场景
         product.fill('items', items)
 
         # 月销量
