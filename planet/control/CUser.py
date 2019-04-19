@@ -2105,16 +2105,16 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError()
         data = request.json
         default_integral_sign = str(data.get('integral'))
-        default_integral_favorite = data.get('integral_favorite')
-        default_integral_commit = data.get('integral_commit')
-        default_trade_percent = data.get('trade_percent')
-        if not re.match(r'^\d+$', str(default_integral_sign)):
+        default_integral_favorite = str(data.get('integral_favorite'))
+        default_integral_commit = str(data.get('integral_commit'))
+        default_trade_percent = str(data.get('trade_percent'))
+        if not re.match(r'^\d+$', default_integral_sign):
             raise ParamsError('默认签到积分无效')
-        if not re.match(r'^\d+$', str(default_integral_commit)):
+        if not re.match(r'^\d+$', default_integral_commit):
             raise ParamsError('默认评论积分无效')
-        if not re.match(r'^\d+$', str(default_integral_favorite)):
+        if not re.match(r'^\d+$', default_integral_favorite):
             raise ParamsError('默认点赞积分无效')
-        if not re.match(r'^\d+(\.\d+)+$', str(default_trade_percent)):
+        if not re.match(r'^\d+(\.\d+)+$', default_trade_percent):
             raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
