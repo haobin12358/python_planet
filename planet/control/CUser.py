@@ -2126,7 +2126,7 @@ class CUser(SUser, BASEAPPROVAL):
         cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
         cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
         cfg.set_item('integralbase', 'integral_transmit', default_integral_transmit)
-        cfg.set_item('integralrule', 'trade_percent', default_trade_percent)
+        cfg.set_item('integralbase', 'trade_percent', default_trade_percent)
         return Success('修改成功')
 
     def get_signin_default(self):
