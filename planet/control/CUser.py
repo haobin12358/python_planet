@@ -925,16 +925,18 @@ class CUser(SUser, BASEAPPROVAL):
         update_params = ['USname', 'UStelphone', 'USgender', 'USheader', 'USpaycode']
 
         for k in update_params:
-            if data.get(k.lower()) or data.get(k.lower()) == 0:
+            value = data.get(k.lower())
+            if value or value == 0:
                 if k == 'UStelphone':
-                    user_check = self.get_user_by_tel(data.get(k.lower()))
+                    user_check = self.get_user_by_tel(value)
                     if user_check and user_check.USid != user.USid:
-                        gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
+                        gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(value, user.USid))
                         raise ParamsError("该手机号已经被绑定")
                     self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
                 if k == 'USpaycode':
                     self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
-                setattr(user, k, data.get(k.lower()))
+                    value = generate_password_hash(value)
+                setattr(user, k, value)
 
         if data.get('usbirthday'):
             gennerc_log('get usbirthday = {0}'.format(data.get("usbirthday")))
@@ -2315,5 +2317,24 @@ class CUser(SUser, BASEAPPROVAL):
         return Success(data=user)
 
     @token_required
-    def set_password(self):
-        pass
+    def set_paycode(self):
+        user = get_current_user()
+        data = parameter_required(('uspaycode',))
+        uspaycode = data.get('uspaycode')
+
+        # if user.USpaycode:
+        #     if not check_password_hash(user.USpaycode, uspaycode):
+        #         return ParamsError('密码有误')
+        with db.auto_commit():
+            user.USpaycode = generate_password_hash(uspaycode)
+
+        return Success('密码修改成功')
+
+    @token_required
+    def check_code(self):
+        data = parameter_required(('ustelphone', 'identifyingcode'))
+
+        if self.__check_identifyingcode(data.get('ustelphone'), data.get('identifyingcode')):
+            return Success('验证码无误')
+
+        raise ParamsError('验证码已过期')
