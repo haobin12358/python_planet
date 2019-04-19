@@ -71,10 +71,10 @@ class CCollection:
                 # 监测自己是否关注自己的粉丝
                 ucl.fill('mutual_concern', bool(UserCollectionLog.query.filter_by(
                     UCLcollector=user.USid, isdelete=False,
-                    UCLcollection=ucl.UCLcollection, UCLcoType=CollectionType.user.value).first()))
+                    UCLcollection=ucl.UCLcollector, UCLcoType=CollectionType.user.value).first()))
 
                 ucl.fill('fens_count', UserCollectionLog.query.filter_by(
-                    UCLcollection=ucl.UCLcollection, isdelete=False, UCLcoType=CollectionType.user.value).count())
+                    UCLcollection=ucl.UCLcollector, isdelete=False, UCLcoType=CollectionType.user.value).count())
                 self._fill_user_info(ucl, ucl.UCLcollector)
         return Success(data=ucl_list)
 
