@@ -2,9 +2,7 @@ import json
 import math
 import uuid
 from datetime import datetime, timedelta
-
 from flask import request, current_app
-
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
