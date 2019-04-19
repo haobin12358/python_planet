@@ -2114,7 +2114,7 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('默认评论积分无效')
         if not re.match(r'^\d+$', str(default_integral_favorite)):
             raise ParamsError('默认点赞积分无效')
-        if not re.match(r'^\d+$', str(default_trade_percent)):
+        if not re.match(r'^\d+(\.\d+)+$', str(default_trade_percent)):
             raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
