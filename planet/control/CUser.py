@@ -11,13 +11,13 @@ import requests
 from flask import request
 
 from flask import current_app
-from sqlalchemy import extract, or_, func
+from sqlalchemy import extract, or_, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
@@ -28,7 +28,7 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
-    admin_required, is_supplizer, common_user
+    admin_required, is_supplizer, common_user, get_current_user
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -42,7 +42,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit
+    Approval, UserTransmit, UserCollectionLog
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -501,6 +501,12 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', count[0] or 0)
+        today = datetime.date.today()
+        ui = UserIntegral.query.filter(
+            UserIntegral.USid == user.USid, UserIntegral.isdelete == False,
+            UserIntegral.UIaction == UserIntegralAction.signin.value,
+            cast(UserIntegral.createtime, Date) == today).first()
+        user.fill('signin', bool(ui))
         self.__user_fill_uw_total(user)
         return Success('获取首页用户信息成功', data=user)
 
@@ -919,16 +925,18 @@ class CUser(SUser, BASEAPPROVAL):
         update_params = ['USname', 'UStelphone', 'USgender', 'USheader', 'USpaycode']
 
         for k in update_params:
-            if data.get(k.lower()) or data.get(k.lower()) == 0:
+            value = data.get(k.lower())
+            if value or value == 0:
                 if k == 'UStelphone':
-                    user_check = self.get_user_by_tel(data.get(k.lower()))
+                    user_check = self.get_user_by_tel(value)
                     if user_check and user_check.USid != user.USid:
-                        gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(data.get(k.lower()), user.USid))
+                        gennerc_log('绑定已绑定手机 tel = {0}, usid = {1}'.format(value, user.USid))
                         raise ParamsError("该手机号已经被绑定")
                     self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
                 if k == 'USpaycode':
                     self.__check_identifyingcode(data.get("ustelphone"), data.get("identifyingcode"))
-                setattr(user, k, data.get(k.lower()))
+                    value = generate_password_hash(value)
+                setattr(user, k, value)
 
         if data.get('usbirthday'):
             gennerc_log('get usbirthday = {0}'.format(data.get("usbirthday")))
@@ -2063,7 +2071,16 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_cash_notes(self):
-        cash_notes = CashNotes.query.filter_by_(USid=request.user.id).order_by(
+        today = datetime.date.today()
+        data = parameter_required()
+
+        month = data.get('month') or today.month
+        year = data.get('year') or today.year
+
+        cash_notes = CashNotes.query.filter(
+            extract('month', UserSalesVolume.createtime) == month,
+            extract('year', UserSalesVolume.createtime) == year,
+            CashNotes.USid== request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
 
         for cash_note in cash_notes:
@@ -2088,16 +2105,16 @@ class CUser(SUser, BASEAPPROVAL):
             raise AuthorityError()
         data = request.json
         default_integral_sign = str(data.get('integral'))
-        default_integral_favorite = data.get('integral_favorite')
-        default_integral_commit = data.get('integral_commit')
-        default_trade_percent = data.get('trade_percent')
-        if not re.match(r'^\d+$', str(default_integral_sign)):
+        default_integral_favorite = str(data.get('integral_favorite'))
+        default_integral_commit = str(data.get('integral_commit'))
+        default_trade_percent = str(data.get('trade_percent'))
+        if not re.match(r'^\d+$', default_integral_sign):
             raise ParamsError('默认签到积分无效')
-        if not re.match(r'^\d+$', str(default_integral_commit)):
+        if not re.match(r'^\d+$', default_integral_commit):
             raise ParamsError('默认评论积分无效')
-        if not re.match(r'^\d+$', str(default_integral_favorite)):
+        if not re.match(r'^\d+$', default_integral_favorite):
             raise ParamsError('默认点赞积分无效')
-        if not re.match(r'^\d+(\.\d+)+$', str(default_trade_percent)):
+        if not re.match(r'^\d+(\.\d+)+$', default_trade_percent):
             raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
@@ -2280,3 +2297,68 @@ class CUser(SUser, BASEAPPROVAL):
                 db.session.add(user)
         return Success('转发成功')
 
+    @token_required
+    def get_home_top(self):
+        user = get_current_user()
+        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).all()
+        follow = collected = 0
+        for ucl in ucl_list:
+            if int(ucl.UCLcoType) == CollectionType.user.value:
+                follow += 1
+            else:
+                collected += 1
+        current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
+        user.fields = self.USER_FIELDS[:]
+        # 统计关注人数和收藏数
+        user.fill('follow', follow)
+        user.fill('collected', collected)
+        # 粉丝数
+        user.fill('fens_count', UserCollectionLog.query.filter_by(
+            UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
+        # 用户等级前台展示
+        user.fill('uslevel_zh', UserGrade(user.USlevel).zh_value)
+        user.fill('uslevel_eh', UserGrade(user.USlevel).name)
+        # 遮盖身份证
+        user.fill('usidentification', self.__conver_idcode(user.USidentification))
+        # 用户生日
+        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
+        current_app.logger.info('get user = {}'.format(user.__dict__))
+        return Success(data=user)
+
+    @token_required
+    def set_paycode(self):
+        user = get_current_user()
+        data = parameter_required(('uspaycode',))
+        uspaycode = data.get('uspaycode')
+
+        # if user.USpaycode:
+        #     if not check_password_hash(user.USpaycode, uspaycode):
+        #         return ParamsError('密码有误')
+        with db.auto_commit():
+            user.USpaycode = generate_password_hash(uspaycode)
+
+        return Success('密码修改成功')
+
+    @token_required
+    def check_code(self):
+        data = parameter_required(('ustelphone', 'identifyingcode'))
+
+        if self.__check_identifyingcode(data.get('ustelphone'), data.get('identifyingcode')):
+            return Success('验证码无误')
+
+        raise ParamsError('验证码已过期')
+
+    @token_required
+    def check_paycode(self):
+        data = parameter_required(('uspaycode',))
+        uspaycode = data.get('uspaycode')
+        user = get_current_user()
+        if not user:
+            raise AuthorityError
+
+        if user.USpaycode:
+            if not check_password_hash(user.USpaycode, uspaycode):
+                return ParamsError('密码有误')
+            return Success('密码无误')
+        else:
+            raise StatusError('未设置支付密码')
