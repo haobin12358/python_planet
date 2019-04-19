@@ -11,12 +11,12 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
     is_admin, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus
+from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog
 from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -24,7 +24,6 @@ from sqlalchemy import or_, and_
 from sqlalchemy import extract
 from planet.models import UserIntegral
 from planet.config.enums import UserIntegralAction, UserIntegralType
-
 
 
 class CNews(BASEAPPROVAL):
@@ -70,23 +69,51 @@ class CNews(BASEAPPROVAL):
         elif str(itid) == 'isrecommend':
             isrecommend = True
             itid = None
-        news_list = self.snews.get_news_list([
+
+        filter_args = [
             or_(and_(*[News.NEtitle.contains(x) for x in kw]), ),  # todo 暂更改为只匹配标题
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
             News.USid == userid,
             News.NEisrecommend == isrecommend,
-        ])
+        ]
+        collected = args.get('collected')
+        if collected:
+            filter_args.extend([
+                UserCollectionLog.UCLcoType == CollectionType.news.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == userid,
+                UserCollectionLog.UCLcollection == News.NEid
+            ])
+
+        news_list = self.snews.get_news_list(filter_args)
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
             # 添加发布者信息
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
                 news.fill('authername', '{} (管理员)'.format(auther))
+                # news.fill('authergrade', UserGrade.diamonds.zh_value)
+                news.fill('authergrade',  ApplyFrom.platform.zh_value)
+
             elif news.NEfrom == ApplyFrom.supplizer.value:
+
                 news.fill('authername', '{} (供应商)'.format(auther))
+                auther_sup = self._check_supplizer(news.USid)
+                # news.fill('authergrade', UserGrade(auther_sup.SUgrade).zh_value)
+                news.fill('authergrade', ApplyFrom.platform.zh_value)
             else:
                 news.fill('authername', '{} (用户)'.format(auther))
+                auther_user = self.snews.get_user_by_id(news.USid)
+                news.fill('authergrade', UserGrade(auther_user.USlevel).zh_value)
+                # news.fill('authergrade', UserLevel(auther_user.USgrade).zh_value)
+
+            news.fill('follow', bool(UserCollectionLog.query.filter(
+                UserCollectionLog.UCLcoType == CollectionType.user.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == usid,
+                UserCollectionLog.UCLcollection == news.USid).first()))
+
             if news.NEstatus == NewsStatus.usual.value and not (is_admin() or is_supplizer()):
                 self.snews.update_pageviews(news.NEid)  # 增加浏览量
             # 显示点赞状态
@@ -99,6 +126,9 @@ class CNews(BASEAPPROVAL):
                 is_own = 0
             news.fill('is_favorite', favorite)
             news.fill('is_own', is_own)
+            news.fill('collected', bool(UserCollectionLog.query.filter_by(
+                UCLcollector=usid, UCLcollection=news.NEid,
+                UCLcoType=CollectionType.news.value, isdelete=False).first()))
             # 显示审核状态
             if userid or is_admin():
                 news.fill('zh_nestatus', NewsStatus(news.NEstatus).zh_value)
@@ -204,19 +234,25 @@ class CNews(BASEAPPROVAL):
                     pass
 
         # 点赞数量显示
+        # 2019-0418 增加收藏
         if usid:
             is_own = 1 if news.USid == usid else 0
             is_favorite = self.snews.news_is_favorite(neid, usid)
             favorite = 1 if is_favorite else 0
             is_trample = self.snews.news_is_trample(neid, usid)
             trample = 1 if is_trample else 0
+            collected = bool(UserCollectionLog.query.filter_by(
+                UCLcollector=usid, UCLcollection=news.NEid,
+                UCLcoType=CollectionType.news.value, isdelete=False).first())
         else:
             is_own = 0
             favorite = 0
             trample = 0
+            collected = False
         news.fill('is_own', is_own)
         news.fill('is_favorite', favorite)
         news.fill('is_trample', trample)
+        news.fill('collected', collected)
 
         # 作者信息
         if news.USheader and news.USname:

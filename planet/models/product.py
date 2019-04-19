@@ -205,6 +205,8 @@ class Supplizer(Base):
     SUlegalPersonIDcardFront = Column(Text, url=True, comment='法人身份证正面')
     SUlegalPersonIDcardBack = Column(Text, url=True, comment='法人身份证正面')
 
+    SUgrade = Column(Integer, default=0, comment='供应商不知用处等级')
+
 
 class SupplizerProduct(Base):
     """供应商商品表"""
