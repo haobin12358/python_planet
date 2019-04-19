@@ -2071,7 +2071,16 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_cash_notes(self):
-        cash_notes = CashNotes.query.filter_by_(USid=request.user.id).order_by(
+        today = datetime.date.today()
+        data = parameter_required()
+
+        month = data.get('month') or today.month
+        year = data.get('year') or today.year
+
+        cash_notes = CashNotes.query.filter(
+            extract('month', UserSalesVolume.createtime) == month,
+            extract('year', UserSalesVolume.createtime) == year,
+            CashNotes.USid== request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
 
         for cash_note in cash_notes:

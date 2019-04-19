@@ -64,6 +64,14 @@ class ItemUpdateForm(ItemCreateForm):
     itrecommend = BooleanField(default=False)
     ittype = IntegerField(validators=[InputRequired('缺少参数ittype')])
 
+    def validate_itname(self, raw):
+        if raw.data:
+            try:
+                name = str(raw.data).split('/')[0]
+                self.itname = name.replace(' ', '')
+            except Exception as e:
+                raise ParamsError('请重新输入标签名')
+
 
 
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 import uuid
 
 from planet.common.error_response import StatusError, DumpliError
@@ -7,7 +8,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_supplizer, admin_required
+from planet.common.token_handler import token_required, is_supplizer, admin_required, is_admin
 from planet.models import ProductScene, Items, SceneItem, Products, ProductItems
 
 
@@ -50,7 +51,7 @@ class CItems:
                 items_query = items_query.filter(Items.ITid != 'planet_featured')  # 如果该场景下没有精选商品，不显示“大行星精选”标签
 
         if is_supplizer():
-
+            # 供应商下不显示被限时场景关联着的标签
             time_limit_itids = [it.ITid for it in
                                 Items.query.join(SceneItem, SceneItem.ITid == Items.ITid
                                                  ).join(ProductScene, ProductScene.PSid == SceneItem.PSid
@@ -62,8 +63,11 @@ class CItems:
                                              Items.ITposition.in_([ItemPostion.scene.value,
                                                                    ItemPostion.news_bind.value]
                                                                   ),
-                                             Items.ITid.notin_(time_limit_itids)
+                                             Items.ITid.notin_(time_limit_itids),
+                                             Items.ITid != 'planet_featured'
                                              )
+        if is_admin():
+            items_query = items_query.filter(Items.ITid != 'planet_featured')
 
         if kw:
             items_query = items_query.filter(
@@ -78,6 +82,11 @@ class CItems:
                                                         ).filter_(SceneItem.isdelete == False,
                                                                   SceneItem.ITid == item.ITid,
                                                                   ProductScene.isdelete == False).all()
+                if (is_supplizer() or is_admin()) and pr_scene:
+                    psname_list = str([ps.PSname for ps in pr_scene])
+                    psname_list = re.sub(r'[\[\]\'\,]+', '', psname_list)
+                    item.ITname = getattr(item, 'ITname', '') + ' / ' + str(psname_list)  # 后台要显示标签所属场景
+
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
 
@@ -126,18 +135,19 @@ class CItems:
         form = ItemUpdateForm().valid_data()
         psid = form.psid.data
         itid = form.itid.data
+        itname = form.itname  # 这里不要在后面加data
         isdelete = form.isdelete.data
         if itid in ['planet_featured', 'index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand',
                     'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
             raise StatusError('系统默认标签不能被删除')
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
-        if not isdelete and Items.query.filter(Items.ITid != itid, Items.ITname == form.itname.data,
+        if not isdelete and Items.query.filter(Items.ITid != itid, Items.ITname == itname,
                                                Items.ITtype == form.ittype.data, Items.isdelete == False).first():
             raise DumpliError("您输入的标签名已存在")
         with db.auto_commit():
             itsort = self._check_itsort(form.itsort.data, form.ittype.data)
-            item_dict = {'ITname': form.itname.data,
+            item_dict = {'ITname': itname,
                          'ITsort': itsort,
                          'ITdesc': form.itdesc.data,
                          'ITtype': form.ittype.data,
