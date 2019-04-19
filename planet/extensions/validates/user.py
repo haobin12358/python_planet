@@ -101,10 +101,19 @@ class SupplizerUpdateForm(BaseForm):
     subusinesslicense = StringField('营业执照')
     suregisteredfund = StringField('注册资金',)
     sumaincategory = StringField('主营类目', )
-    suregisteredtime = DateTimeField('注册时间',)
+    suregisteredtime = StringField('注册时间',)
     sulegalperson = StringField('法人',)
     sulegalpersonidcardfront = StringField('法人身份证正面', )
     sulegalpersonidcardback = StringField('法人身份证反面', )
+
+    def valid_suregisteredtime(self, raw):
+        try:
+            if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', raw):
+                self.suregisteredtime.date = datetime.datetime.strptime(raw, '%Y-%m-%d')
+            elif re.match(r'^\d{4}-\d{1,2}-\d{1,2}\s\d{1,2}:\d{1,2}:\d{1,2}$', raw):
+                self.suregisteredtime.date = datetime.datetime.strptime(raw, '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            raise ParamsError('注册时间格式错误')
 
     def validate_sustatus(self, raw):
         from planet.config.enums import UserStatus
@@ -125,7 +134,6 @@ class SupplizerUpdateForm(BaseForm):
             if not re.match('^1\d{10}$', raw.data):
                 raise ParamsError('联系人手机号格'
                                   '式错误')
-
 
 
 class SupplizerSendCodeForm(BaseForm):
