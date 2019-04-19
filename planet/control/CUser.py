@@ -2338,3 +2338,18 @@ class CUser(SUser, BASEAPPROVAL):
             return Success('验证码无误')
 
         raise ParamsError('验证码已过期')
+
+    @token_required
+    def check_paycode(self):
+        data = parameter_required(('uspaycode',))
+        uspaycode = data.get('uspaycode')
+        user = get_current_user()
+        if not user:
+            raise AuthorityError
+
+        if user.USpaycode:
+            if not check_password_hash(user.USpaycode, uspaycode):
+                return ParamsError('密码有误')
+            return Success('密码无误')
+        else:
+            raise StatusError('未设置支付密码')

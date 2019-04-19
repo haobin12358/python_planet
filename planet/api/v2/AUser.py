@@ -34,6 +34,7 @@ class AUser(Resource):
             'wx_callback': self.user.wx_callback,  # 转发回调接口
             'set_paycode': self.user.set_paycode,  # 修改支付密码
             'check_code': self.user.check_code,  # 验证手机
+            'check_paycode': self.user.check_paycode,  # 验证手机
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
