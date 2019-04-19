@@ -2313,3 +2313,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         current_app.logger.info('get user = {}'.format(user.__dict__))
         return Success(data=user)
+
+    @token_required
+    def set_password(self):
+        pass

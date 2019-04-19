@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 import uuid
 
+from planet.common.error_response import ParamsError
 from planet.config.enums import CollectionType, UserGrade
 from planet.extensions.register_ext import db
 from planet.common.params_validates import parameter_required
 from planet.models import UserCollectionLog, News, User, Admin, Supplizer, Products
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, usid_to_token, get_current_user
-from flask import request, current_app
+from planet.common.token_handler import token_required, get_current_user
+from flask import current_app
 
 
 class CCollection:
@@ -25,7 +26,7 @@ class CCollection:
             current_app.logger.info('get colletcion type {} error '.format(c))
             c = 0
 
-        self._check_type_id(c, ctid)
+        ctid = self._check_type_id(c, ctid)
         flag = UserCollectionLog.query.filter(
             UserCollectionLog.UCLcollector == user.USid, UserCollectionLog.UCLcoType == c,
             UserCollectionLog.UCLcollection == ctid, UserCollectionLog.isdelete == False).first()
@@ -104,8 +105,16 @@ class CCollection:
 
     def _check_type_id(self, cotype, ctid):
         if cotype == CollectionType.product.value:
-            return Products.query.filter_by(PRid=ctid, isdelete=False).first_('关注失败, 商品已下架')
+            product = Products.query.filter_by(PRid=ctid, isdelete=False).first_('关注失败, 商品已下架')
+            ctid = product.PRid
         if cotype == CollectionType.news.value:
-            return News.query.filter_by(NEid=ctid, isdelete=False).first_('关注失败，圈子已被删除')
+            news = News.query.filter_by(NEid=ctid, isdelete=False).first_('关注失败，圈子已被删除')
+            ctid = news.NEid
         if cotype == CollectionType.user.value:
-            return User.query.filter_by(USid=ctid, isdelete=False).first_('关注失败，用户已删除')
+            news = News.query.filter_by(NEid=ctid, isdelete=False).first()
+            user = User.query.filter_by(USid=ctid, isdelete=False).first()
+            if not (news and user):
+                current_app.logger.info('get cotype is {} ctid is {}'.format(cotype, ctid))
+                raise ParamsError('关注失败，用户已删除')
+            ctid = news.USid if news else user.USid
+        return ctid
