@@ -9,9 +9,9 @@ class ACollection(Resource):
         self.collection = CCollection()
 
     def post(self, collection):
-        apis ={
-            'collect':self.collection.collect,
-            'cancel':self.collection.cancel,
+        apis = {
+            'collect': self.collection.collect,
+            # 'cancel': self.collection.cancel,
         }
         return apis
 

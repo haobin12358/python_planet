@@ -14,15 +14,15 @@ from planet.common.error_response import NotFound, ParamsError, AuthorityError, 
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
-    admin_required
+    admin_required, common_user, get_current_user
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
-    PermissionType, ApprovalType, ProductBrandStatus
+    PermissionType, ApprovalType, ProductBrandStatus, CollectionType
 from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
-    ProductMonthSaleValue
+    ProductMonthSaleValue, UserCollectionLog
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -183,6 +183,13 @@ class CProducts(BaseController):
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
         product.fill('month_sale_value', month_sale_value)
+        # 是否收藏
+        if common_user():
+            user = get_current_user()
+            ucl = UserCollectionLog.query.filter_by(
+                UCLcollector=user.USid, UCLcollection=product.PRid,
+                UCLcoType=CollectionType.product.value, isdelete=False).first()
+            product.fill('collected', bool(ucl))
 
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
@@ -247,6 +254,13 @@ class CProducts(BaseController):
                         or_(Items.ITauthority == ItemAuthrity.no_limit.value, Items.ITauthority.is_(None)))
                 else:
                     filter_args.append(Items.ITauthority == int(itauthority))
+            if data.get('collected'):
+                filter_args.extend([
+                    UserCollectionLog.UCLcoType == CollectionType.product.value,
+                    UserCollectionLog.isdelete == False,
+                    UserCollectionLog.UCLcollector == request.user.id,
+                    UserCollectionLog.UCLcollection == Products.PRid
+                ])
         # products = self.sproduct.get_product_list(filter_args, [by_order, ])
         query = Products.query.outerjoin(ProductItems, ProductItems.PRid == Products.PRid
                                          ).outerjoin(ProductBrand, ProductBrand.PBid == Products.PBid

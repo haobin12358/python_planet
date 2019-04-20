@@ -32,6 +32,9 @@ class AUser(Resource):
             'transmit': self.user.transmit,  # 用户转发
             'wx_auth': self.user.wx_auth,  # 微信登录转发接口
             'wx_callback': self.user.wx_callback,  # 转发回调接口
+            'set_paycode': self.user.set_paycode,  # 修改支付密码
+            'check_code': self.user.check_code,  # 验证手机
+            'check_paycode': self.user.check_paycode,  # 验证手机
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -66,5 +69,6 @@ class AUser(Resource):
             'get_settlenment': self.user.get_settlenment,  # 获取结算记录
             'wx_auth': self.user.wx_auth,  # 微信登录转发接口
             'wx_callback': self.user.wx_callback,  # 转发回调接口
+            'get_home_top': self.user.get_home_top,  # 转发回调接口
         }
         return apis
