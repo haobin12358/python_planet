@@ -1110,6 +1110,14 @@ class CUser(SUser, BASEAPPROVAL):
         for ui in ui_list:
             ui.fields = ['UIintegral', 'createtime']
             ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
+            # 星币消费显示订单商品信息
+            if ui.UIaction == UserIntegralAction.consumption.value and ui.UItype == UserIntegralType.expenditure.value:
+                order_part = OrderPart.query.outerjoin(OrderMain,
+                                                       OrderMain.OMid == OrderPart.OMid
+                                                       ).filter(OrderMain.OPayno == ui.OPayno
+                                                                ).first()
+                ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
+                ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
 
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})
 

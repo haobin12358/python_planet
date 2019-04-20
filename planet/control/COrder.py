@@ -38,7 +38,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
-    OrderPartContentActivity
+    OrderPartContentActivity, IntegralProduct, IntegralProductSku
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
@@ -919,7 +919,20 @@ class COrder(CPay, CCoupon):
                 product = Products.query.filter(Products.PRid == prid).first()
                 # 库存修改
                 if omfrom <= OrderFrom.product_info.value:
+                    # 返还库存
                     self._update_stock(opnum, product, sku_instance)
+                    # 商品销量修改
+                    product.update({'PRsalesValue': product.PRsalesValue - opnum})
+                    db.session.add(product)
+                    # 月销量修改
+                    ProductMonthSaleValue.query.filter(
+                        ProductMonthSaleValue.PRid == prid,
+                        ProductMonthSaleValue.isdelete == False,
+                        extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
+                        extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
+                    ).update({
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
+                    }, synchronize_session=False)
                 elif omfrom == OrderFrom.guess_num_award.value:
                     gn = GuessNum.query.filter(
                         GuessNum.USid == order_main.USid,
@@ -1020,19 +1033,25 @@ class COrder(CPay, CCoupon):
                             current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
                                 tlp.TLPid, skuid, tls))
                             tls.TLSstock = int(tls.TLSstock) + int(opnum)
-
-                # 商品销量修改
-                product.update({'PRsalesValue': product.PRsalesValue - opnum})
-                db.session.add(product)
-                # 月销量修改
-                ProductMonthSaleValue.query.filter(
-                    ProductMonthSaleValue.PRid == prid,
-                    ProductMonthSaleValue.isdelete == False,
-                    extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
-                    extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
-                ).update({
-                    'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
-                }, synchronize_session=False)
+                elif omfrom == OrderFrom.integral_store.value:
+                    current_app.logger.info('正在取消一个星币商品订单')
+                    ips = IntegralProductSku.query.join(IntegralProduct,
+                                                        IntegralProduct.IPid == IntegralProductSku.IPid
+                                                        ).filter(IntegralProductSku.SKUid == skuid,
+                                                                 IntegralProductSku.isdelete == False,
+                                                                 IntegralProduct.isdelete == False,
+                                                                 IntegralProduct.IPstatus == ApplyStatus.agree.value
+                                                                 ).first()
+                    ip = IntegralProduct.query.filter_by_(IPid=order_main.PRid).first()
+                    if not ips or not ip:
+                        current_app.logger.info('星币商品或sku不在上架状态, ipid:{}'.format(ip.IPid))
+                        if product and sku_instance:
+                            current_app.logger.info('原商品存在，返还库存到原商品sku')
+                            self._update_stock(int(opnum), skuid=skuid)
+                        else:
+                            continue
+                    current_app.logger.info('星币商品状态正常，返还库存ipsid:{}'.format(ips.IPSid))
+                    ips.IPSstock += opnum
 
     @token_required
     def delete(self):

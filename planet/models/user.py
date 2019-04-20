@@ -154,7 +154,7 @@ class IDCheck(Base):
     IDCreason = Column(Text, comment='查询结果')
 
 
-class UserIntegral (Base):
+class UserIntegral(Base):
     """用户积分表  ps 表名与类名不同"""
     __tablename__ = 'UserSignIn'
     UIid = Column(String(64), primary_key=True)
@@ -162,6 +162,7 @@ class UserIntegral (Base):
     UIintegral = Column(Integer, comment='该动作产生的积分变化数')
     UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费 3 点赞 4 评论 5 转发')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
+    OPayno = Column(String(64), comment='与orderpay对应，主要作用于钱/币组合支付时')
 
 
 class AddressProvince(Base):
