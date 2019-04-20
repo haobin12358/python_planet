@@ -2107,6 +2107,7 @@ class CUser(SUser, BASEAPPROVAL):
         default_integral_sign = str(data.get('integral'))
         default_integral_favorite = str(data.get('integral_favorite'))
         default_integral_commit = str(data.get('integral_commit'))
+        default_integral_transmit = str(data.get('integral_transmit'))
         default_trade_percent = str(data.get('trade_percent'))
         if not re.match(r'^\d+$', default_integral_sign):
             raise ParamsError('默认签到积分无效')
@@ -2114,6 +2115,8 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('默认评论积分无效')
         if not re.match(r'^\d+$', default_integral_favorite):
             raise ParamsError('默认点赞积分无效')
+        if not re.match(r'^\d+$', default_integral_transmit):
+            raise ParamsError('默认转发积分无效')
         if not re.match(r'^\d+(\.\d+)+$', default_trade_percent):
             raise ParamsError('默认购物参数无效')
         default_rule = str(data.get('rule'))
@@ -2122,7 +2125,8 @@ class CUser(SUser, BASEAPPROVAL):
         cfg.set_item('integralbase', 'integral', default_integral_sign)
         cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
         cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
-        cfg.set_item('integralrule', 'trade_percent', default_trade_percent)
+        cfg.set_item('integralbase', 'integral_transmit', default_integral_transmit)
+        cfg.set_item('integralbase', 'trade_percent', default_trade_percent)
         return Success('修改成功')
 
     def get_signin_default(self):
@@ -2135,11 +2139,14 @@ class CUser(SUser, BASEAPPROVAL):
         del_integral = cfg.get_item('integralbase', 'integral')
         del_integral_favorite = cfg.get_item('integralbase', 'integral_favorite')
         del_integral_commit = cfg.get_item('integralbase', 'integral_commit')
+        del_integral_transmit = cfg.get_item('integralbase', 'integral_transmit')
         del_trade_percent = cfg.get_item('integralbase', 'trade_percent')
-        return Success('获取默认设置成功', data={'rule': del_rule, 'integral': del_integral,
-                                           'integral_favorite': del_integral_favorite,
-                                           'integral_commit': del_integral_commit,
-                                           'trade_percent': del_trade_percent})
+        return Success('获取默认设置成功', data={'rule': del_rule,
+                                                'integral': del_integral,
+                                                'integral_favorite': del_integral_favorite,
+                                                'integral_commit': del_integral_commit,
+                                                'integral_transmit': del_integral_transmit,
+                                                'trade_percent': del_trade_percent})
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""
