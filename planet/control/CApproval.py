@@ -20,7 +20,7 @@ from planet.common.token_handler import token_required, is_admin, is_hign_level_
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
-    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
+    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -829,6 +829,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_activationcode(approval_model)
         elif approval_model.PTid == 'tosettlenment':
             self.agree_settlenment(approval_model)
+        elif approval_model.PTid == 'tointegral':
+            self.agree_tointegral(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -861,6 +863,8 @@ class CApproval(BASEAPPROVAL):
             pass
         elif approval_model.PTid == 'tosettlenment':
             self.refuse_settlenment(approval_model, refuse_abo)
+        elif approval_model.PTid == 'tointegral':
+            self.refuse_tointegral(approval_model, refuse_abo)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -1144,6 +1148,32 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(
                 isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
             COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+
+    def agree_tointegral(self, approval_model):
+        ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first_('星币商品申请数据异常')
+        ip.IPstatus = ApplyStatus.agree.value
+
+    def refuse_tointegral(self, approval_model, refuse_abo):
+        ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first()
+        if not ip:
+            return
+        ip.IPstatus = ApplyStatus.reject.value
+        ip.IPrejectReason = refuse_abo
+        # 获取原商品属性
+        product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first()
+        # 获取原sku属性
+        ips_old = IntegralProductSku.query.filter(
+            IntegralProductSku.IPid == ip.IPid,
+            IntegralProductSku.isdelete == False,
+            IntegralProduct.isdelete == False,
+        ).all()
+        from planet.control.COrder import COrder
+        co = COrder()
+        # 遍历原sku 将库存退出去
+        for sku in ips_old:
+            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+            co._update_stock(int(sku.IPSstock), product, sku_instance)
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}
