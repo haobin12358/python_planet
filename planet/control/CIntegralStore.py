@@ -165,13 +165,10 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         ipstatus = args.get('status', 'agree')
         ipstatus = getattr(ApplyStatus, ipstatus).value
         integral_balance = 0
-        rule = None
         if common_user():
             ipstatus = ApplyStatus.agree.value
             user = User.query.filter_by_(USid=request.user.id).first()
             integral_balance = getattr(user, 'USintegral', 0)
-            cfg = ConfigSettings()
-            rule = cfg.get_item('integralrule', 'rule')
         elif is_tourist():
             ipstatus = ApplyStatus.agree.value
 
@@ -190,15 +187,19 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             pr = Products.query.filter(Products.PRid == ip.PRid).first()
             pb = ProductBrand.query.filter(ProductBrand.PBid == pr.PBid).first()
             ip.fill('prtitle', pr.PRtitle)
-            ip.fill('prmainpic', pr.PRmainpic)
+            ip.fill('prmainpic', pr['PRmainpic'])
             ip.fill('ipstatus_zh', ApplyStatus(ip.IPstatus).zh_value)
             ip.fill('ipstatus_en', ApplyStatus(ip.IPstatus).name)
             ip.fill('pbname', pb.PBname)
+            ip.hide('PRid')
 
-        integral = dict(balance=integral_balance, rule=rule)
-        return Success(data={'product': ips,
-                             'integral': integral
-                             })
+        res = dict(product=ips)
+        if common_user() or is_tourist():
+            cfg = ConfigSettings()
+            rule = cfg.get_item('integralrule', 'rule')
+            integral = dict(balance=integral_balance, rule=rule)
+            res['integral'] = integral
+        return Success(data=res)
 
     def _fill_ip(self, ip):
         product = Products.query.filter(
