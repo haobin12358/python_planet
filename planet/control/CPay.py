@@ -56,7 +56,7 @@ class CPay():
         from planet.control.CUser import CUser
         cuser = CUser()
         if opaytype == PayType.integralpay.value:
-            return self._integralpay(data)
+            return self._integralpay(data, usid)
         with db.auto_commit():
             opayno = self.wx_pay.nonce_str
             order_main = OrderMain.query.filter_by_({
@@ -609,11 +609,11 @@ class CPay():
         current_app.logger.info('pay response is {}'.format(raw))
         return raw
 
-    def _integralpay(self, data):
+    def _integralpay(self, data, usid):
         """星币支付"""
         with db.auto_commit():
             model_bean = list()
-            omid, usid, omtruemount = data.get('omid'), data.get('usid'), data.get('omtruemount')
+            omid, omtruemount = data.get('omid'), data.get('omtruemount')
             uspaycode = data.get('uspaycode')
             order_main = OrderMain.query.filter_by_({
                 'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value,
