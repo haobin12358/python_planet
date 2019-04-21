@@ -26,7 +26,7 @@ class User(Base):
     USCommission1 = Column(DECIMAL(scale=2), comment='当用户作为一级时, 佣金分成')       # 一级佣金分成比例
     USCommission2 = Column(DECIMAL(scale=2), comment='佣金分成')       # 二级佣金分成比例
     USCommission3 = Column(DECIMAL(scale=2), comment='佣金分成')       # 三级佣金分成比例
-    USintegral = Column(Integer, comment='星币')
+    USintegral = Column(Integer, default=0, comment='星币')
     CommisionLevel = Column(Integer, default=1)
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')

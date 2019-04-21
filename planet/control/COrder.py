@@ -18,7 +18,8 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required, common_user
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required, common_user, \
+    get_current_user
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -124,6 +125,8 @@ class COrder(CPay, CCoupon):
             if order_main.OMstatus == OrderMainStatus.wait_pay.value:
                 duration = order_main.createtime + timedelta(minutes=30) - now
                 order_main.fill('duration', str(duration))
+                if common_user():
+                    order_main.fill('usintegral', getattr(get_current_user(), 'USintegral', 0))
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             if form.export_xls.data and order_parts:
                 headers, part_rows = self._part_to_row(order_main=order_main, order_parts=order_parts)

@@ -469,19 +469,6 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             }
             order_pay_instance = OrderPay.create(order_pay_dict)
             model_bean.append(order_pay_instance)
-            # 增加星币消费记录
-            userintegral_dict = UserIntegral.create({
-                'UIid': str(uuid.uuid1()),
-                'USid': user.USid,
-                'UIintegral': small_total,
-                'UIaction': UserIntegralAction.consumption.value,
-                'UItype': UserIntegralType.expenditure.value,
-                'OPayno': opayno
-            })
-            model_bean.append(userintegral_dict)
-            # 扣除用户积分
-            user.update({'USintegral': user.USintegral - small_total})
-            model_bean.append(user)
             db.session.add_all(model_bean)
         from planet.extensions.tasks import auto_cancle_order
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
@@ -492,6 +479,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
+            'usintegral': getattr(user, 'USintegral', 0)
             # 'args': pay_args
         }
         return Success('创建成功', data=response)

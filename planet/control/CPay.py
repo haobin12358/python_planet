@@ -10,6 +10,7 @@ from functools import reduce
 from operator import mul
 
 from flask import request, current_app
+from werkzeug.security import check_password_hash
 
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, ApiError, StatusError
@@ -17,13 +18,13 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
+    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralAction, UserIntegralType
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
-    ProductSku
+    ProductSku, UserIntegral
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -54,6 +55,8 @@ class CPay():
             raise ParamsError('客户端或支付方式类型错误')
         from planet.control.CUser import CUser
         cuser = CUser()
+        if opaytype == PayType.integralpay.value:
+            return self._integralpay(data)
         with db.auto_commit():
             opayno = self.wx_pay.nonce_str
             order_main = OrderMain.query.filter_by_({
@@ -605,6 +608,42 @@ class CPay():
             raise SystemError('请选用其他支付方式')
         current_app.logger.info('pay response is {}'.format(raw))
         return raw
+
+    def _integralpay(self, data):
+        """星币支付"""
+        with db.auto_commit():
+            model_bean = list()
+            omid, usid, omtruemount = data.get('omid'), data.get('usid'), data.get('omtruemount')
+            uspaycode = data.get('uspaycode')
+            order_main = OrderMain.query.filter_by_({
+                'OMid': omid, 'USid': usid, 'OMstatus': OrderMainStatus.wait_pay.value,
+                'OMfrom': OrderFrom.integral_store.value, 'OMtrueMount': omtruemount
+            }).first_('订单信息错误')
+            user = User.query.filter(User.USid == usid, User.isdelete == False).first_("请重新登录")
+            if not user.USpaycode:
+                raise ParamsError('请设置支付密码后重试')
+            if not (uspaycode and check_password_hash(user.USpaycode, uspaycode)):
+                raise ParamsError('请输入正确的支付密码')
+            # 增加星币消费记录
+            userintegral_dict = UserIntegral.create({
+                'UIid': str(uuid.uuid1()),
+                'USid': user.USid,
+                'UIintegral': order_main.OMtrueMount,
+                'UIaction': UserIntegralAction.consumption.value,
+                'UItype': UserIntegralType.expenditure.value,
+                'OPayno': order_main.OPayno
+            })
+            model_bean.append(userintegral_dict)
+            # 扣除用户积分
+            if user.USintegral < omtruemount:
+                raise ParamsError('用户星币余额不足')
+            user.update({'USintegral': int(user.USintegral) - int(order_main.OMtrueMount)})
+            model_bean.append(user)
+            # 更改订单状态
+            order_main.update({'OMstatus': OrderMainStatus.wait_send.value})
+            model_bean.append(order_main)
+            db.session.add_all(model_bean)
+        return Success('支付成功', dict(omid=omid))
 
     def _pay_to_user(self, opaytype):
         """
