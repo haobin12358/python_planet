@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku
+    TimeLimitedSku, IntegralProduct, IntegralProductSku
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -405,6 +405,69 @@ class BASEAPPROVAL():
         # content.fill('product', content)
         return start_model, content
 
+    def __fill_integral(self, startid, contentid):
+        start_model = Supplizer.query.filter_by_(SUid=startid).first() or Admin.query.filter_by_(ADid=startid).first()
+        ip = IntegralProduct.query.filter_by(IPid=contentid, isdelete=False).first()
+
+        product = Products.query.filter(
+            Products.PRid == ip.PRid, Products.isdelete == False).first()
+        if not product:
+            current_app.logger.info('·商品已删除 prid = {}'.format(ip.PRid))
+        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription']
+        if isinstance(product.PRattribute, str):
+            product.PRattribute = json.loads(product.PRattribute)
+        if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
+            product.PRremarks = json.loads(getattr(product, 'PRremarks', None) or '{}')
+
+        pb = ProductBrand.query.filter_by(PBid=product.PBid, isdelete=False).first()
+        pb.fields = ['PBname', 'PBid']
+
+        images = ProductImage.query.filter(
+            ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
+            ProductImage.PIsort).all()
+        [img.hide('PRid') for img in images]
+        product.fill('images', images)
+        product.fill('brand', pb)
+        ips_list = IntegralProductSku.query.filter_by(IPid=ip.IPid, isdelete=False).all()
+        skus = list()
+        sku_value_item = list()
+        for ips in ips_list:
+            sku = ProductSku.query.filter_by(SKUid=ips.SKUid, isdelete=False).first()
+            if not sku:
+                current_app.logger.info('该sku已删除 skuid = {0}'.format(ips.SKUid))
+                continue
+            sku.hide('SKUstock', 'SkudevideRate', 'PRid', 'SKUid')
+            sku.fill('skuprice', ips.SKUprice)
+            sku.fill('ipsstock', ips.IPSstock)
+            sku.fill('ipsid', ips.IPSid)
+
+            if isinstance(sku.SKUattriteDetail, str):
+                sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
+            sku_value_item.append(sku.SKUattriteDetail)
+            skus.append(sku)
+        if not skus:
+            current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
+            return
+        product.fill('skus', skus)
+        sku_value_item_reverse = []
+        for index, name in enumerate(product.PRattribute):
+            value = list(set([attribute[index] for attribute in sku_value_item]))
+            value = sorted(value)
+            temp = {
+                'name': name,
+                'value': value
+            }
+            sku_value_item_reverse.append(temp)
+        product.fill('skuvalue', sku_value_item_reverse)
+        product.fill('ipstatus_zh', ApplyStatus(ip.IPstatus).zh_value)
+        product.fill('ipstatus_en', ApplyStatus(ip.IPstatus).name)
+        product.fill('ipstatus', ip.IPstatus)
+        product.fill('ipprice', ip.IPprice)
+        product.fill('iprejectreason', ip.IPrejectReason)
+        product.fill('ipsaleVolume', ip.IPsaleVolume)
+        product.fill('ipid', ip.IPid)
+
+        return start_model, product
 
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
@@ -432,6 +495,8 @@ class BASEAPPROVAL():
             return self.__fill_settlenment(start, content)
         elif pt.PTid == 'totimelimited':
             return self.__fill_timelimited(start, content)
+        elif pt.PTid == 'tointegral':
+            return self.__fill_integral(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 

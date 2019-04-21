@@ -62,7 +62,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             instance_list.append(ip_instance)
             for sku in skus:
                 parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
-                skuid, skuprice, ipsstock = sku.get('skuid'), data.get('skuprice'), data.get('ipsstock')
+                skuid, skuprice, ipsstock = sku.get('skuid'), sku.get('skuprice'), sku.get('ipsstock')
                 skuprice = self._check_price(skuprice)
                 ipsstock = self._check_price(ipsstock)
                 sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
@@ -127,7 +127,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             # 接收新sku并重新扣除库存
             for sku in skus:
                 parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
-                skuid, skuprice, ipsstock = sku.get('skuid'), data.get('skuprice'), data.get('ipsstock')
+                skuid, skuprice, ipsstock = sku.get('skuid'), sku.get('skuprice'), sku.get('ipsstock')
                 skuprice = self._check_price(skuprice)
                 ipsstock = self._check_price(ipsstock)
                 sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=ip.PRid,
@@ -205,6 +205,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             Products.PRid == ip.PRid, Products.isdelete == False).first()
         if not product:
             current_app.logger.info('·商品已删除 prid = {}'.format(ip.PRid))
+        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription']
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -216,6 +217,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         images = ProductImage.query.filter(
             ProductImage.PRid == product.PRid, ProductImage.isdelete == False).order_by(
             ProductImage.PIsort).all()
+        [img.hide('PRid') for img in images]
         product.fill('images', images)
         product.fill('brand', pb)
         ips_list = IntegralProductSku.query.filter_by(IPid=ip.IPid, isdelete=False).all()
@@ -226,9 +228,10 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             if not sku:
                 current_app.logger.info('该sku已删除 skuid = {0}'.format(ips.SKUid))
                 continue
-            sku.hide('SKUstock')
+            sku.hide('SKUstock', 'SkudevideRate', 'PRid', 'SKUid')
             sku.fill('skuprice', ips.SKUprice)
             sku.fill('ipsstock', ips.IPSstock)
+            sku.fill('ipsid', ips.IPSid)
 
             if isinstance(sku.SKUattriteDetail, str):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
@@ -254,6 +257,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         product.fill('ipprice', ip.IPprice)
         product.fill('iprejectreason', ip.IPrejectReason)
         product.fill('ipsaleVolume', ip.IPsaleVolume)
+        product.fill('ipid', ip.IPid)
 
         return product
 
