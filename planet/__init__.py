@@ -4,6 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
+from flask_socketio import SocketIO
 from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
@@ -171,11 +172,12 @@ def register(app):
 
 def create_app():
     app = Flask(__name__)
+    socket = SocketIO(app)
     app.config.from_object(DefaltSettig)
     register(app)
     CORS(app, supports_credentials=True)
     request_first_handler(app)
     register_ext(app)
     error_handler(app)
-    return app
+    return app, socket
 
