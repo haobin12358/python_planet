@@ -13,7 +13,7 @@ from flask import request, current_app
 from werkzeug.security import check_password_hash
 
 from planet.common.params_validates import parameter_required
-from planet.common.error_response import ParamsError, SystemError, ApiError, StatusError
+from planet.common.error_response import ParamsError, SystemError, ApiError, StatusError, PoorScore
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
@@ -636,7 +636,7 @@ class CPay():
             model_bean.append(userintegral_dict)
             # 扣除用户积分
             if user.USintegral < omtruemount:
-                raise ParamsError('用户星币余额不足')
+                raise PoorScore('用户星币余额不足')
             user.update({'USintegral': int(user.USintegral) - int(order_main.OMtrueMount)})
             model_bean.append(user)
             # 更改订单状态

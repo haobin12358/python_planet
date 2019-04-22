@@ -261,6 +261,18 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         product.fill('ipid', ip.IPid)
         product.fill('ipfreight', 0)  # 运费目前默认为0
 
+        # 获取商品评价平均分（五颗星：0-10）
+        averagescore = ip.IPaverageScore or 10
+        if float(averagescore) > 10:
+            averagescore = 10
+        elif float(averagescore) < 0:
+            averagescore = 0
+        else:
+            averagescore = round(averagescore)
+        product.PRaverageScore = averagescore
+        product.fill('fiveaveragescore', averagescore / 2)
+        product.fill('ipaveragescore', averagescore)
+
         return product
 
     def cancel_apply(self):
@@ -399,8 +411,8 @@ class CIntegralStore(COrder, BASEAPPROVAL):
 
             opid = str(uuid.uuid1())
             skuid = data.get('ipsid')
-            # opnum = int(data.get('nums', 1))
-            opnum = 1  # 购买数量暂时只支持一件
+            opnum = int(data.get('nums', 1))
+            # opnum = 1  # 购买数量暂时只支持一件
             # assert opnum > 0, 'nums <= 0, 参数错误'
             sku_instance = IntegralProductSku.query.filter_by_(IPSid=skuid).first_(
                 'ipsid: {}不存在'.format(skuid))
@@ -486,7 +498,9 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
-            'usintegral': getattr(user, 'USintegral', 0)
+            'usintegral': getattr(user, 'USintegral', 0),
+            'omid': omid,
+            'omtruemount': small_total
             # 'args': pay_args
         }
         return Success('创建成功', data=response)

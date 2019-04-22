@@ -282,6 +282,7 @@ class IntegralProduct(Base):
     IPstatus = Column(Integer, default=0, comment='申请状态, -10: 拒绝 0: 待审核, 10: 通过')
     IPprice = Column(BIGINT, comment='商品星币价格')
     IPsaleVolume = Column(BIGINT, default=0, comment='销量')
+    IPaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
 
 
 class IntegralProductSku(Base):

@@ -68,7 +68,7 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
-        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value, OrderFrom.integral_store.value])
         filter_args = set()
         if omfrom is None:
             # 默认获取非活动订单
@@ -1126,15 +1126,18 @@ class COrder(CPay, CCoupon):
                 })
                 evaluation_instance_list.append(evaluation_dict)
                 # 商品总体评分变化
-                try:
-                    product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
-                    scores = [oe.OEscore for oe in
-                              OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
-                                                           OrderEvaluation.isdelete == False).all()]
-                    average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
-                    Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
-                except Exception as e:
-                    gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
+                if om.OMfrom == OrderFrom.integral_store.value:  # 星币商品的评分变化
+                    self._update_integral_product_score(order_part_info.PRid, oescore)
+                else:
+                    try:
+                        product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
+                        scores = [oe.OEscore for oe in
+                                  OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
+                                                               OrderEvaluation.isdelete == False).all()]
+                        average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
+                        Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
+                    except Exception as e:
+                        gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
                 # 评价中的图片
                 image_list = evaluation.get('image')
                 if image_list:
@@ -1161,9 +1164,14 @@ class COrder(CPay, CCoupon):
                 oeid_list.append(oeid)
 
             # 更改订单主单中待评价状态为已评价
+            final_status = OrderMainStatus.complete_comment.value
+            if om.OMfrom == OrderFrom.integral_store.value:
+                final_status = OrderMainStatus.ready.value
+
             update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
                                                    OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                                   ).update({'OMstatus': OrderMainStatus.complete_comment.value})
+                                                   ).update({'OMstatus': final_status})
+
             if not update_status:
                 current_app.logger.info("Order Evaluation Update Main Status Error, OMid is >>> {}".format(omid))
 
@@ -1205,6 +1213,21 @@ class COrder(CPay, CCoupon):
                                     "ERROR >>> {1}".format(order_part_id, e))
             db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    def _update_integral_product_score(self, prid, score):
+        """更新星币商品分数"""
+        try:
+            ip = IntegralProduct.query.filter_by_(IPid=prid).first()
+            scores = [oe.OEscore for oe in
+                      OrderEvaluation.query.filter(OrderEvaluation.PRid == ip.IPid,
+                                                   OrderEvaluation.isdelete == False).all()]
+            average_score = round(((float(sum(scores)) + float(score)) / (len(scores) + 1)) * 2)
+            ip.update({'IPaverageScore': average_score})
+            db.session.add(ip)
+        except Exception as e:
+            gennerc_log("Evaluation ERROR: Update IntegralProduct Score IPid >>> {0}, "
+                        "ERROR >>> {1}".format(prid, e))
+        return
 
     @admin_required
     def set_autoevaluation_time(self):
