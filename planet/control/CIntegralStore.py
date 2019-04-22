@@ -101,8 +101,8 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                                           IntegralProduct.IPstatus.in_([ApplyStatus.cancle.value,
                                                                         ApplyStatus.reject.value,
                                                                         ApplyStatus.shelves.value])
-                                          ).first("当前状态不可进行编辑")
-        if is_supplizer() and ip.SUid != uid:
+                                          ).first_("当前状态不可进行编辑")
+        if ip.SUid != uid:
             raise AuthorityError('仅可编辑自己的商品申请')
         filter_args = [Products.PRid == ip.PRid,
                        Products.isdelete == False,
@@ -113,17 +113,17 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         instance_list = list()
         with db.auto_commit():
             ip_dict = {
-                'IPstatus': None,
+                'IPstatus': ApplyStatus.wait_check.value,
                 'IPprice': ipprice
             }
             ip.update(ip_dict)
             instance_list.append(ip)
 
-            # 原sku全部删除并返还库存
-            old_ips = IntegralProductSku.query.filter_by_(IPid=ip.ipid).all()
+            # 原sku全部删除
+            old_ips = IntegralProductSku.query.filter_by_(IPid=ip.IPid).all()
             for old_ipsku in old_ips:
                 old_ipsku.isdelete = True
-                super(CIntegralStore, self)._update_stock(int(old_ipsku.IPSstock), skuid=old_ipsku.SKUid)
+                # super(CIntegralStore, self)._update_stock(int(old_ipsku.IPSstock), skuid=old_ipsku.SKUid)
             # 接收新sku并重新扣除库存
             for sku in skus:
                 parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
@@ -263,7 +263,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
 
         return product
 
-    def cancel(self):
+    def cancel_apply(self):
         """取消申请"""
         if is_admin():
             Admin.query.filter_by_(ADid=request.user.id).first_("账号状态错误")
@@ -323,6 +323,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                                            ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已下架或已撤销状态下的申请')
             apply_info.isdelete = True
+            IntegralProductSku.query.filter(IntegralProductSku.IPid == apply_info.IPid).delete_()
         return Success('删除成功', {'ipid': ipid})
 
     def shelf(self):

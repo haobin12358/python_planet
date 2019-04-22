@@ -1128,7 +1128,7 @@ class CUser(SUser, BASEAPPROVAL):
         for ui in ui_list:
             ui.fields = ['createtime']
             uiintegral = ui.UIintegral
-            ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
+            uiaction = UserIntegralAction(ui.UIaction).zh_value
             # 星币消费显示订单商品信息
             if ui.UIaction == UserIntegralAction.consumption.value and ui.UItype == UserIntegralType.expenditure.value:
                 uiintegral = ~ uiintegral + 1
@@ -1138,9 +1138,11 @@ class CUser(SUser, BASEAPPROVAL):
                                                            OrderMain.OMid == OrderPart.OMid
                                                            ).filter(OrderMain.OPayno == ui.OPayno
                                                                     ).first()
-                ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
+                uiaction = getattr(order_part, 'PRtitle', '购买星币商品')
+                # ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
                 ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
             ui.fill('uiintegral', uiintegral)
+            ui.fill('uiaction', uiaction)
             month_total += uiintegral
 
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})

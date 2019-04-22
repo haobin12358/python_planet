@@ -18,7 +18,7 @@ class AIntegral(Resource):
         apis = {
             'apply': self.cintegral.apply,
             'update': self.cintegral.update,
-            'cancel': self.cintegral.cancle,
+            'cancel': self.cintegral.cancel_apply,
             'delete': self.cintegral.delete,
             'shelf': self.cintegral.shelf,
             'order': self.cintegral.order,
