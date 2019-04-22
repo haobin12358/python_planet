@@ -161,7 +161,7 @@ class UserIntegral (Base):
     UIid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户id')
     UIintegral = Column(Integer, comment='该动作产生的积分变化数')
-    UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费 3 点赞 4 评论 5 转发')
+    UIaction = Column(Integer, default=1, comment='积分变动原因 1 签到 2 积分商城消费 3 点赞 4 评论 5 转发 6 购物')
     UItype = Column(Integer, default=1, comment='积分变动类型 1 收入 2 支出')
 
 
