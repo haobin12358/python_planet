@@ -1040,12 +1040,12 @@ class COrder(CPay, CCoupon):
                     current_app.logger.info('正在取消一个星币商品订单')
                     ips = IntegralProductSku.query.join(IntegralProduct,
                                                         IntegralProduct.IPid == IntegralProductSku.IPid
-                                                        ).filter(IntegralProductSku.SKUid == skuid,
+                                                        ).filter(IntegralProductSku.IPSid == skuid,
                                                                  IntegralProductSku.isdelete == False,
                                                                  IntegralProduct.isdelete == False,
                                                                  IntegralProduct.IPstatus == ApplyStatus.agree.value
                                                                  ).first()
-                    ip = IntegralProduct.query.filter_by_(IPid=order_main.PRid).first()
+                    ip = IntegralProduct.query.filter_by_(IPid=order_part.PRid).first()
                     if not ips or not ip:
                         current_app.logger.info('星币商品或sku不在上架状态, ipid:{}'.format(ip.IPid))
                         if product and sku_instance:
@@ -1055,6 +1055,7 @@ class COrder(CPay, CCoupon):
                             continue
                     current_app.logger.info('星币商品状态正常，返还库存ipsid:{}'.format(ips.IPSid))
                     ips.IPSstock += opnum
+                    ip.IPsaleVolume -= opnum
 
     @token_required
     def delete(self):

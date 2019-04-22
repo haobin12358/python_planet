@@ -182,7 +182,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             filter_args.append(Products.PRtitle.ilike('%{}%'.format(prtitle)))
         ips = IntegralProduct.query.outerjoin(Products, Products.PRid == IntegralProduct.PRid
                                               ).filter_(*filter_args
-                                                        ).order_by(IntegralProduct.createtime.desc()).all()
+                                                        ).order_by(IntegralProduct.createtime.desc()).all_with_page()
         for ip in ips:
             pr = Products.query.filter(Products.PRid == ip.PRid).first()
             pb = ProductBrand.query.filter(ProductBrand.PBid == pr.PBid).first()
@@ -206,7 +206,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             Products.PRid == ip.PRid, Products.isdelete == False).first()
         if not product:
             current_app.logger.info('·商品已删除 prid = {}'.format(ip.PRid))
-        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription']
+        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription', 'PRlinePrice']
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -259,6 +259,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         product.fill('iprejectreason', ip.IPrejectReason)
         product.fill('ipsaleVolume', ip.IPsaleVolume)
         product.fill('ipid', ip.IPid)
+        product.fill('ipfreight', 0)  # 运费目前默认为0
 
         return product
 
@@ -361,9 +362,9 @@ class CIntegralStore(COrder, BASEAPPROVAL):
     @token_required
     def order(self):
         """下单"""
-        data = parameter_required(('ipid', 'pbid', 'skuid', 'omclient', 'uaid'))
+        data = parameter_required(('ipid', 'pbid', 'ipsid', 'omclient', 'uaid'))
         usid = request.user.id
-        user = User.query.filter_by_(USid=usid).first("请重新登录")
+        user = User.query.filter_by_(USid=usid).first_("请重新登录")
         current_app.logger.info('User {} is buying a Integral Product'.format(user.USname))
         uaid = data.get('uaid')
         ipid = data.get('ipid')
@@ -396,13 +397,13 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 '品牌id: {}不存在'.format(pbid))
 
             opid = str(uuid.uuid1())
-            skuid = data.get('skuid')
+            skuid = data.get('ipsid')
             # opnum = int(data.get('nums', 1))
             opnum = 1  # 购买数量暂时只支持一件
             # assert opnum > 0, 'nums <= 0, 参数错误'
-            sku_instance = IntegralProductSku.query.filter_by_(SKUid=skuid).first_(
-                'skuid: {}不存在'.format(skuid))
-            product_sku = ProductSku.query.filter_by_(skuid=sku_instance.SKUid).first_("商品sku不存在")
+            sku_instance = IntegralProductSku.query.filter_by_(IPSid=skuid).first_(
+                'ipsid: {}不存在'.format(skuid))
+            product_sku = ProductSku.query.filter_by_(SKUid=sku_instance.SKUid).first_("商品sku不存在")
             if sku_instance.IPid != ipid:
                 raise ParamsError('skuid 与 ipid 商品不对应')
             if int(sku_instance.IPSstock) - int(opnum) < 0:
@@ -413,7 +414,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                                                             ).first_("ipid: {}对应的星币商品不存在")
             product_instance = Products.query.filter(Products.isdelete == False,
                                                      Products.PRid == integral_product.PRid,
-                                                     Products.PRstatus == ApplyStatus.agree.value
+                                                     Products.PRstatus == ProductStatus.usual.value
                                                      ).first_('ipid: {}对应的商品不存在'.format(skuid))
             if product_instance.PBid != pbid:
                 raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
@@ -438,7 +439,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             # 对应商品销量 + num sku库存 -num
             db.session.query(IntegralProduct).filter_by_(IPid=ipid).update({
                 'IPsaleVolume': IntegralProduct.IPsaleVolume + opnum})
-            db.session.query(IntegralProductSku).filter_by_(SKUid=skuid).update({
+            db.session.query(IntegralProductSku).filter_by_(IPSid=skuid).update({
                 'IPSstock': IntegralProductSku.IPSstock - opnum})
 
             # 主单

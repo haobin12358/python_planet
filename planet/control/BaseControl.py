@@ -413,7 +413,7 @@ class BASEAPPROVAL():
             Products.PRid == ip.PRid, Products.isdelete == False).first()
         if not product:
             current_app.logger.info('·商品已删除 prid = {}'.format(ip.PRid))
-        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription']
+        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription','PRlinePrice']
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):
@@ -466,6 +466,7 @@ class BASEAPPROVAL():
         product.fill('iprejectreason', ip.IPrejectReason)
         product.fill('ipsaleVolume', ip.IPsaleVolume)
         product.fill('ipid', ip.IPid)
+        product.fill('ipfreight', 0)  # 运费目前默认为0
 
         return start_model, product
 
