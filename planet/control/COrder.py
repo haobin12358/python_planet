@@ -203,7 +203,7 @@ class COrder(CPay, CCoupon):
             f.write(book.xls)
         # return Success(data=HTTP_HOST + '/' + aletive_file)
         current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
-        return send_from_directory(abs_dir, xls_name, as_attachment=False)
+        return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
     def _list_part(self, form, *args, **kwargs):
         omstatus = form.omstatus.data  # 过滤参数
