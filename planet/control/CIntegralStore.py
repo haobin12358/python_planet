@@ -162,8 +162,12 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         """商品列表"""
         args = parameter_required()
         prtitle = args.get('prtitle')
-        ipstatus = args.get('status', 'agree')
-        ipstatus = getattr(ApplyStatus, ipstatus).value
+        ipstatus = args.get('status')
+        try:
+            ipstatus = getattr(ApplyStatus, ipstatus).value
+        except Exception as e:
+            current_app.logger.error('integral list status error : {}'.format(e))
+            ipstatus = None
         integral_balance = 0
         if common_user():
             ipstatus = ApplyStatus.agree.value
@@ -191,7 +195,6 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             ip.fill('ipstatus_zh', ApplyStatus(ip.IPstatus).zh_value)
             ip.fill('ipstatus_en', ApplyStatus(ip.IPstatus).name)
             ip.fill('pbname', pb.PBname)
-            ip.hide('PRid')
 
         res = dict(product=ips)
         if common_user() or is_tourist():
@@ -506,7 +509,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         return Success('创建成功', data=response)
 
     def _check_price(self, price):
-        if not str(price).isdigit() or price <= 0:
+        if not str(price).isdigit() or int(price) <= 0:
             raise ParamsError("数字'{}'错误， 只能输入大于0的整数".format(price))
         return price
 

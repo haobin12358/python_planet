@@ -440,7 +440,19 @@ class CApproval(BASEAPPROVAL):
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
-            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
+            if pt.PTid == 'tointegral':
+                ap_list = Approval.query.outerjoin(IntegralProduct,
+                                                   IntegralProduct.IPid == Approval.AVcontent
+                                                   ).outerjoin(Products,
+                                                             Products.PRid == IntegralProduct.PRid
+                                                             ).filter_(IntegralProduct.isdelete == False,
+                                                                       Approval.isdelete == False,
+                                                                       Products.isdelete == False,
+                                                                       Products.CreaterId == sup.SUid,
+                                                                       Approval.AVstatus == getattr(ApplyStatus, data.get('avstatus', 'all'), 'all').value
+                                                                       ).all_with_page()
+            else:
+                ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         res = []
         for ap in ap_list:
             if not ap.AVstartdetail:
@@ -491,6 +503,8 @@ class CApproval(BASEAPPROVAL):
             ap.fill('content', content)
             ap.fill('start', json.loads(start))
             ap.add('createtime')
+            ap.fill('avstatus_en', ApplyStatus(ap.AVstatus).name)
+            ap.fill('avstatus_zh', ApplyStatus(ap.AVstatus).zh_value)
             res.append(ap)
 
         return Success('获取待审批列表成功', data=res)
@@ -499,25 +513,34 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def deal_approval(self):
         """管理员处理审批流"""
-        if not is_admin():
+        if is_admin():
+            admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
+        elif is_supplizer():
+            sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误，请重新登录")
+        else:
             raise AuthorityError('权限不足')
         data = parameter_required(('avid', 'anaction', 'anabo'))
-        admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
-        approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_(
-            '审批已处理')
-        Permission.query.filter(
-            Permission.isdelete == False, AdminPermission.isdelete == False,
-            Permission.PIid == AdminPermission.PIid,
-            AdminPermission.ADid == request.user.id,
-            Permission.PTid == approval_model.PTid,
-            Permission.PELevel == approval_model.AVlevel
-        ).first_('权限不足')
+        approval_model = Approval.query.filter_by_(AVid=data.get('avid'),
+                                                   AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
+        if is_admin():
+            Permission.query.filter(
+                Permission.isdelete == False, AdminPermission.isdelete == False,
+                Permission.PIid == AdminPermission.PIid,
+                AdminPermission.ADid == request.user.id,
+                Permission.PTid == approval_model.PTid,
+                Permission.PELevel == approval_model.AVlevel
+            ).first_('权限不足')
+            avadname = admin.ADname
+            adid = admin.ADid
+        else:
+            avadname = sup.SUname
+            adid = sup.SUid
         # 审批流水记录
         approvalnote_dict = {
             "ANid": str(uuid.uuid1()),
             "AVid": data.get("avid"),
-            "AVadname": admin.ADname,
-            "ADid": admin.ADid,
+            "AVadname": avadname,
+            "ADid": adid,
             "ANaction": data.get('anaction'),
             "ANabo": data.get("anabo")
         }
