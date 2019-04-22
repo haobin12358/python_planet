@@ -2108,8 +2108,10 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserSalesVolume.createtime) == year,
             CashNotes.USid== request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
-
+        cn_total = Decimal(0)
         for cash_note in cash_notes:
+            if cash_note.CNstatus == ApprovalAction.agree.value:
+                cn_total += Decimal(str(cash_note.CNcashNum))
             cash_note.fields = [
                 'CNid',
                 'createtime',
@@ -2123,7 +2125,7 @@ class CUser(SUser, BASEAPPROVAL):
             ]
             cash_note.fill('cnstatus', ApprovalAction(cash_note.CNstatus).zh_value)
 
-        return Success('获取提现记录成功', data=cash_notes)
+        return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
 
     @token_required
     def set_signin_default(self):
@@ -2234,6 +2236,17 @@ class CUser(SUser, BASEAPPROVAL):
             uw = UserWallet.query.filter(
                 UserWallet.USid == su.SUid, UserWallet.isdelete == False,
                 UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
+            if not uw:
+                uw = UserWallet.create({
+                    'UWid': str(uuid.uuid1()),
+                    'USid': su.SUid,
+                    'UWexpect': 0,
+                    'UWbalance': 0,
+                    'UWtotal': 0,
+                    'UWcash': 0,
+                    'CommisionFor': ApplyFrom.supplizer.value
+                })
+
             uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal((ss.SSdealamount))
             uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(ss.SSdealamount))
             uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(ss.SSdealamount))

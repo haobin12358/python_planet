@@ -241,6 +241,7 @@ class UserIntegralAction(Enum):
     favorite = 3, '点赞'
     commit = 4, '评论'
     transmit = 5, '转发'
+    trade = 6, '购物'
 
 
 class AdminAction(Enum):

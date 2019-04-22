@@ -148,10 +148,18 @@ class CPay():
             #  购物加积分
             # percent = 0.2
             percent = ConfigSettings().get_item('integralbase', 'trade_percent')
-            add_point = int(percent * OMtrueMount)
+            intergral = int(percent * OMtrueMount)
             usid = order_mains.USid
             user = User.query.filter_by_({'USid': usid}).first()
-            user.update({'USintegral': user.USintegral + int(add_point)})
+            ui = UserIntegral.create({
+                'UIid': str(uuid.uuid1()),
+                'USid': usid,
+                'UIintegral': intergral,
+                'UIaction': UserIntegralAction.trade.value,
+                'UItype': UserIntegralType.income.value
+            })
+            db.session.add(ui)
+            user.update({'USintegral': user.USintegral + int(intergral)})
             db.session.add(user)
         return self.wx_pay.reply("OK", True).decode()
 
