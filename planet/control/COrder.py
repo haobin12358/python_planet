@@ -182,6 +182,7 @@ class COrder(CPay, CCoupon):
         if not is_supplizer() and not is_admin():
             raise AuthorityError()
         now = datetime.now()
+        current_app.logger.info('开始创建供应商结算表')
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)
         pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
@@ -201,6 +202,7 @@ class COrder(CPay, CCoupon):
         with open(abs_file, 'wb') as f:
             f.write(book.xls)
         # return Success(data=HTTP_HOST + '/' + aletive_file)
+        current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
         return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
     def _list_part(self, form, *args, **kwargs):
@@ -222,6 +224,7 @@ class COrder(CPay, CCoupon):
             OrderPart.isdelete == False,
             OrderMain.isdelete == False,
             OrderPay.isdelete == False,
+            OrderLogistics.isdelete == False,
         )
         if is_supplizer():
             query = query.filter(

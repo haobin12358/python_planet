@@ -2210,6 +2210,17 @@ class CUser(SUser, BASEAPPROVAL):
             uw = UserWallet.query.filter(
                 UserWallet.USid == su.SUid, UserWallet.isdelete == False,
                 UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
+            if not uw:
+                uw = UserWallet.create({
+                    'UWid': str(uuid.uuid1()),
+                    'USid': su.SUid,
+                    'UWexpect': 0,
+                    'UWbalance': 0,
+                    'UWtotal': 0,
+                    'UWcash': 0,
+                    'CommisionFor': ApplyFrom.supplizer.value
+                })
+
             uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal((ss.SSdealamount))
             uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(ss.SSdealamount))
             uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(ss.SSdealamount))
