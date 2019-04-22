@@ -17,13 +17,13 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom
+    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralType, UserIntegralAction
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
-    ProductSku
+    ProductSku, UserIntegral
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -145,10 +145,18 @@ class CPay():
             #  购物加积分
             # percent = 0.2
             percent = ConfigSettings().get_item('integralbase', 'trade_percent')
-            add_point = int(percent * OMtrueMount)
+            intergral = int(percent * OMtrueMount)
             usid = order_mains.USid
             user = User.query.filter_by_({'USid': usid}).first()
-            user.update({'USintegral': user.USintegral + int(add_point)})
+            ui = UserIntegral.create({
+                'UIid': str(uuid.uuid1()),
+                'USid': usid,
+                'UIintegral': intergral,
+                'UIaction': UserIntegralAction.trade.value,
+                'UItype': UserIntegralType.income.value
+            })
+            db.session.add(ui)
+            user.update({'USintegral': user.USintegral + int(intergral)})
             db.session.add(user)
         return self.wx_pay.reply("OK", True).decode()
 
