@@ -418,25 +418,27 @@ class CPay():
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
             current_app.logger.info('get supplizer {}'.format(su))
             if su:
+                if desposit:
+                    current_app.logger.info('get change {}'.format(desposit))
+                    desposit = Decimal(str(desposit))
+                    sudeposit = Decimal(str(su.SUdeposit or 0))
+                    after_deposit = sudeposit + desposit
+                    current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
+                        sudeposit, desposit, after_deposit
+                    ))
 
-                current_app.logger.info('get change {}'.format(desposit))
-                desposit = Decimal(str(desposit))
-                sudeposit = Decimal(str(su.SUdeposit or 0))
-                after_deposit = sudeposit + desposit
-                current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
-                    sudeposit, desposit, after_deposit
-                ))
-                sdl = SupplizerDepositLog.create({
-                    'SDLid': str(uuid.uuid1()),
-                    'SUid': su.SUid,
-                    'SDLnum': desposit,
-                    'SDafter': after_deposit,
-                    'SDbefore': sudeposit,
-                    'SDLacid': 'system',
-                    'SDLcontentid': order_part.OPid,
-                })
-                su.SUdeposit = after_deposit
-                db.session.add(sdl)
+                    sdl = SupplizerDepositLog.create({
+                        'SDLid': str(uuid.uuid1()),
+                        'SUid': su.SUid,
+                        'SDLnum': desposit,
+                        'SDafter': after_deposit,
+                        'SDbefore': sudeposit,
+                        'SDLacid': 'system',
+                        'SDLcontentid': order_part.OPid,
+                    })
+                    su.SUdeposit = after_deposit
+                    db.session.add(sdl)
+
                 commision_account = UserCommission.create({
                     'UCid': str(uuid.uuid1()),
                     'OMid': order_part.OMid,
