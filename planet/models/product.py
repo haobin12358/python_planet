@@ -269,6 +269,7 @@ class SupplizerDepositLog(Base):
     SDbefore = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改前金额')
     # SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
     SDLacid = Column(String(64), comment='操作人id')
+    SDLcontentid = Column(String(64), comment='关联订单id')
 
 
 class IntegralProduct(Base):
