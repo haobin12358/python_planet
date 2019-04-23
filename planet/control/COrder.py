@@ -39,7 +39,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
-    OrderPartContentActivity, IntegralProduct, IntegralProductSku
+    OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
@@ -263,12 +263,18 @@ class COrder(CPay, CCoupon):
         elif omstatus:
             query = query.filter(*omstatus)
         results = query.all()
+        # headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
+        #            '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
+        #            '商品编码', '商品名称', '购买件数',
+        #            '销售单价', '销售总价',
+        #            '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
+        #            '代理商佣金', '平台费用', '供应商剩余',)
         headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
                    '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
                    '商品编码', '商品名称', '购买件数',
                    '销售单价', '销售总价',
                    '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
-                   '代理商佣金', '平台费用', '供应商剩余',)
+                   '让利', '押金', '供应商实收',)
         items = []
         for result in results:
             order_part, order_pay, order_logistic, order_main = result
@@ -303,10 +309,18 @@ class COrder(CPay, CCoupon):
                 planet_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 0])
                 supplizer_remain = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 10])
             activity_name = OrderFrom(order_main.OMfrom).zh_value
-
+            sdl = SupplizerDepositLog.query.filter(
+                SupplizerDepositLog.isdelete == False, SupplizerDepositLog.SDLcontentid == order_part.OPid).first()
+            desposit = 0
+            if sdl:
+                desposit = sdl.SDLnum
+            # item.extend([
+            #     sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
+            #     agent_commision, planet_commision, supplizer_remain
+            # ])
             item.extend([
                 sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
-                agent_commision, planet_commision, supplizer_remain
+                agent_commision + planet_commision, desposit, supplizer_remain
             ])
             for itd in item:
                 if isinstance(itd, datetime):
