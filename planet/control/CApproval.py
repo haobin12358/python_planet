@@ -20,7 +20,7 @@ from planet.common.token_handler import token_required, is_admin, is_hign_level_
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
-    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
+    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -440,7 +440,19 @@ class CApproval(BASEAPPROVAL):
         else:
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
-            ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
+            if pt.PTid == 'tointegral':
+                ap_list = Approval.query.outerjoin(IntegralProduct,
+                                                   IntegralProduct.IPid == Approval.AVcontent
+                                                   ).outerjoin(Products,
+                                                             Products.PRid == IntegralProduct.PRid
+                                                             ).filter_(IntegralProduct.isdelete == False,
+                                                                       Approval.isdelete == False,
+                                                                       Products.isdelete == False,
+                                                                       Products.CreaterId == sup.SUid,
+                                                                       Approval.AVstatus == getattr(ApplyStatus, data.get('avstatus', 'all'), 'all').value
+                                                                       ).all_with_page()
+            else:
+                ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         res = []
         for ap in ap_list:
             if not ap.AVstartdetail:
@@ -491,6 +503,8 @@ class CApproval(BASEAPPROVAL):
             ap.fill('content', content)
             ap.fill('start', json.loads(start))
             ap.add('createtime')
+            ap.fill('avstatus_en', ApplyStatus(ap.AVstatus).name)
+            ap.fill('avstatus_zh', ApplyStatus(ap.AVstatus).zh_value)
             res.append(ap)
 
         return Success('获取待审批列表成功', data=res)
@@ -499,25 +513,34 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def deal_approval(self):
         """管理员处理审批流"""
-        if not is_admin():
+        if is_admin():
+            admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
+        elif is_supplizer():
+            sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误，请重新登录")
+        else:
             raise AuthorityError('权限不足')
         data = parameter_required(('avid', 'anaction', 'anabo'))
-        admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
-        approval_model = Approval.query.filter_by_(AVid=data.get('avid'), AVstatus=ApplyStatus.wait_check.value).first_(
-            '审批已处理')
-        Permission.query.filter(
-            Permission.isdelete == False, AdminPermission.isdelete == False,
-            Permission.PIid == AdminPermission.PIid,
-            AdminPermission.ADid == request.user.id,
-            Permission.PTid == approval_model.PTid,
-            Permission.PELevel == approval_model.AVlevel
-        ).first_('权限不足')
+        approval_model = Approval.query.filter_by_(AVid=data.get('avid'),
+                                                   AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
+        if is_admin():
+            Permission.query.filter(
+                Permission.isdelete == False, AdminPermission.isdelete == False,
+                Permission.PIid == AdminPermission.PIid,
+                AdminPermission.ADid == request.user.id,
+                Permission.PTid == approval_model.PTid,
+                Permission.PELevel == approval_model.AVlevel
+            ).first_('权限不足')
+            avadname = admin.ADname
+            adid = admin.ADid
+        else:
+            avadname = sup.SUname
+            adid = sup.SUid
         # 审批流水记录
         approvalnote_dict = {
             "ANid": str(uuid.uuid1()),
             "AVid": data.get("avid"),
-            "AVadname": admin.ADname,
-            "ADid": admin.ADid,
+            "AVadname": avadname,
+            "ADid": adid,
             "ANaction": data.get('anaction'),
             "ANabo": data.get("anabo")
         }
@@ -829,6 +852,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_activationcode(approval_model)
         elif approval_model.PTid == 'tosettlenment':
             self.agree_settlenment(approval_model)
+        elif approval_model.PTid == 'tointegral':
+            self.agree_tointegral(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -861,6 +886,8 @@ class CApproval(BASEAPPROVAL):
             pass
         elif approval_model.PTid == 'tosettlenment':
             self.refuse_settlenment(approval_model, refuse_abo)
+        elif approval_model.PTid == 'tointegral':
+            self.refuse_tointegral(approval_model, refuse_abo)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -1144,6 +1171,32 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(
                 isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
             COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+
+    def agree_tointegral(self, approval_model):
+        ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first_('星币商品申请数据异常')
+        ip.IPstatus = ApplyStatus.agree.value
+
+    def refuse_tointegral(self, approval_model, refuse_abo):
+        ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first()
+        if not ip:
+            return
+        ip.IPstatus = ApplyStatus.reject.value
+        ip.IPrejectReason = refuse_abo
+        # 获取原商品属性
+        product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first()
+        # 获取原sku属性
+        ips_old = IntegralProductSku.query.filter(
+            IntegralProductSku.IPid == ip.IPid,
+            IntegralProductSku.isdelete == False,
+            IntegralProduct.isdelete == False,
+        ).all()
+        from planet.control.COrder import COrder
+        co = COrder()
+        # 遍历原sku 将库存退出去
+        for sku in ips_old:
+            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+            co._update_stock(int(sku.IPSstock), product, sku_instance)
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

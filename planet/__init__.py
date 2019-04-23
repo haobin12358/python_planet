@@ -9,6 +9,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v2.AIntegral import AIntegral
 from planet.api.v2.ACollection import ACollection
 from planet.api.v2.ASetSupper import ASetSupper
 from planet.api.v2.AActivationcode import AActivationCode
@@ -161,9 +162,10 @@ def register(app):
     v2.add_url_rule('/excel/<string:excel>', view_func=AExcel.as_view('excel'))  # 签到设置
     v2.add_url_rule('/club/<string:club>', view_func=AClub.as_view('club'))  # 官网相关
     v2.add_url_rule('/test/<string:test>', view_func=ATest.as_view('test'))  # 测试
-    v2.add_url_rule('/timelimited/<string:timelimited>', view_func=ATimelimited.as_view('timelimited'))  # 测试
-    v2.add_url_rule('/setsupper/<string:setsupper>',view_func=ASetSupper.as_view('setsupper'))  # 设置邀请人
-    v2.add_url_rule('/collection/<string:collection>',view_func=ACollection.as_view('collection')) # 设置收藏
+    v2.add_url_rule('/timelimited/<string:timelimited>', view_func=ATimelimited.as_view('timelimited'))  # 限时活动
+    v2.add_url_rule('/integral/<string:integral>', view_func=AIntegral.as_view('integral'))  # 星币商城
+    v2.add_url_rule('/setsupper/<string:setsupper>', view_func=ASetSupper.as_view('setsupper'))  # 设置邀请人
+    v2.add_url_rule('/collection/<string:collection>', view_func=ACollection.as_view('collection'))  # 设置收藏
 
     # v2.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v2.add_url_rule.....

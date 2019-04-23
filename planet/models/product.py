@@ -260,6 +260,7 @@ class ProductUrl(Base):
 
 
 class SupplizerDepositLog(Base):
+    """供应商押金变化记录"""
     __tablename__ = 'SupplizerDepositLog'
     SDLid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商id')
@@ -268,6 +269,30 @@ class SupplizerDepositLog(Base):
     SDbefore = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改前金额')
     # SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
     SDLacid = Column(String(64), comment='操作人id')
+
+
+class IntegralProduct(Base):
+    """星币商品"""
+    __tablename__ = 'IntegralProduct'
+    IPid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), nullable=False, comment='发布者id')
+    IPfrom = Column(Integer, comment='来源 0:平台管理员 10: 供应商')
+    PRid = Column(String(64), comment='商品id')
+    IPrejectReason = Column(String(255), comment='拒绝理由')
+    IPstatus = Column(Integer, default=0, comment='申请状态, -10: 拒绝 0: 待审核, 10: 通过')
+    IPprice = Column(BIGINT, comment='商品星币价格')
+    IPsaleVolume = Column(BIGINT, default=0, comment='销量')
+    IPaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
+
+
+class IntegralProductSku(Base):
+    """星币商品sku"""
+    __tablename__ = 'IntegralProductSku'
+    IPSid = Column(String(64), primary_key=True)
+    IPid = Column(String(64), nullable=False, comment='星币商品id')
+    IPSstock = Column(BIGINT, comment='库存')
+    SKUid = Column(String(64), comment='商品skuid')
+    SKUprice = Column(BIGINT,  nullable=False, comment='sku星币价格')
 
 
 # class SupplizerBrand(Base):

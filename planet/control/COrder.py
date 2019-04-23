@@ -18,7 +18,8 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Sta
     AuthorityError, NotFound
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required, common_user
+from planet.common.token_handler import token_required, is_admin, is_tourist, is_supplizer, admin_required, common_user, \
+    get_current_user
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
@@ -38,7 +39,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
-    OrderPartContentActivity
+    OrderPartContentActivity, IntegralProduct, IntegralProductSku
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
@@ -67,7 +68,7 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
-        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value, OrderFrom.integral_store.value])
         filter_args = set()
         if omfrom is None:
             # 默认获取非活动订单
@@ -124,6 +125,8 @@ class COrder(CPay, CCoupon):
             if order_main.OMstatus == OrderMainStatus.wait_pay.value:
                 duration = order_main.createtime + timedelta(minutes=30) - now
                 order_main.fill('duration', str(duration))
+                if common_user():
+                    order_main.fill('usintegral', getattr(get_current_user(), 'USintegral', 0))
             order_parts = self.strade.get_orderpart_list({'OMid': order_main.OMid})
             if form.export_xls.data and order_parts:
                 headers, part_rows = self._part_to_row(order_main=order_main, order_parts=order_parts)
@@ -922,7 +925,20 @@ class COrder(CPay, CCoupon):
                 product = Products.query.filter(Products.PRid == prid).first()
                 # 库存修改
                 if omfrom <= OrderFrom.product_info.value:
+                    # 返还库存
                     self._update_stock(opnum, product, sku_instance)
+                    # 商品销量修改
+                    product.update({'PRsalesValue': product.PRsalesValue - opnum})
+                    db.session.add(product)
+                    # 月销量修改
+                    ProductMonthSaleValue.query.filter(
+                        ProductMonthSaleValue.PRid == prid,
+                        ProductMonthSaleValue.isdelete == False,
+                        extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
+                        extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
+                    ).update({
+                        'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
+                    }, synchronize_session=False)
                 elif omfrom == OrderFrom.guess_num_award.value:
                     gn = GuessNum.query.filter(
                         GuessNum.USid == order_main.USid,
@@ -1023,19 +1039,26 @@ class COrder(CPay, CCoupon):
                             current_app.logger.info('开始退还 限时特惠 tlpid 为 {}的库存 skuid 是 {} tls 是 {}'.format(
                                 tlp.TLPid, skuid, tls))
                             tls.TLSstock = int(tls.TLSstock) + int(opnum)
-
-                # 商品销量修改
-                product.update({'PRsalesValue': product.PRsalesValue - opnum})
-                db.session.add(product)
-                # 月销量修改
-                ProductMonthSaleValue.query.filter(
-                    ProductMonthSaleValue.PRid == prid,
-                    ProductMonthSaleValue.isdelete == False,
-                    extract('year', ProductMonthSaleValue.createtime) == order_part.createtime.year,
-                    extract('month', ProductMonthSaleValue.createtime) == order_part.createtime.month,
-                ).update({
-                    'PMSVnum': ProductMonthSaleValue.PMSVnum - opnum,
-                }, synchronize_session=False)
+                elif omfrom == OrderFrom.integral_store.value:
+                    current_app.logger.info('正在取消一个星币商品订单')
+                    ips = IntegralProductSku.query.join(IntegralProduct,
+                                                        IntegralProduct.IPid == IntegralProductSku.IPid
+                                                        ).filter(IntegralProductSku.IPSid == skuid,
+                                                                 IntegralProductSku.isdelete == False,
+                                                                 IntegralProduct.isdelete == False,
+                                                                 IntegralProduct.IPstatus == ApplyStatus.agree.value
+                                                                 ).first()
+                    ip = IntegralProduct.query.filter_by_(IPid=order_part.PRid).first()
+                    if not ips or not ip:
+                        current_app.logger.info('星币商品或sku不在上架状态, ipid:{}'.format(ip.IPid))
+                        if product and sku_instance:
+                            current_app.logger.info('原商品存在，返还库存到原商品sku')
+                            self._update_stock(int(opnum), skuid=skuid)
+                        else:
+                            continue
+                    current_app.logger.info('星币商品状态正常，返还库存ipsid:{}'.format(ips.IPSid))
+                    ips.IPSstock += opnum
+                    ip.IPsaleVolume -= opnum
 
     @token_required
     def delete(self):
@@ -1106,15 +1129,18 @@ class COrder(CPay, CCoupon):
                 })
                 evaluation_instance_list.append(evaluation_dict)
                 # 商品总体评分变化
-                try:
-                    product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
-                    scores = [oe.OEscore for oe in
-                              OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
-                                                           OrderEvaluation.isdelete == False).all()]
-                    average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
-                    Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
-                except Exception as e:
-                    gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
+                if om.OMfrom == OrderFrom.integral_store.value:  # 星币商品的评分变化
+                    self._update_integral_product_score(order_part_info.PRid, oescore)
+                else:
+                    try:
+                        product_info = Products.query.filter_by_(PRid=order_part_info.PRid).first()
+                        scores = [oe.OEscore for oe in
+                                  OrderEvaluation.query.filter(OrderEvaluation.PRid == product_info.PRid,
+                                                               OrderEvaluation.isdelete == False).all()]
+                        average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
+                        Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
+                    except Exception as e:
+                        gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
                 # 评价中的图片
                 image_list = evaluation.get('image')
                 if image_list:
@@ -1141,9 +1167,14 @@ class COrder(CPay, CCoupon):
                 oeid_list.append(oeid)
 
             # 更改订单主单中待评价状态为已评价
+            final_status = OrderMainStatus.complete_comment.value
+            if om.OMfrom == OrderFrom.integral_store.value:
+                final_status = OrderMainStatus.ready.value
+
             update_status = OrderMain.query.filter(OrderMain.OMid == omid, OrderMain.isdelete == False,
                                                    OrderMain.OMstatus == OrderMainStatus.wait_comment.value
-                                                   ).update({'OMstatus': OrderMainStatus.complete_comment.value})
+                                                   ).update({'OMstatus': final_status})
+
             if not update_status:
                 current_app.logger.info("Order Evaluation Update Main Status Error, OMid is >>> {}".format(omid))
 
@@ -1185,6 +1216,21 @@ class COrder(CPay, CCoupon):
                                     "ERROR >>> {1}".format(order_part_id, e))
             db.session.add_all(evaluation_instance_list)
         return Success('评价成功', data={'oeid': oeid_list})
+
+    def _update_integral_product_score(self, prid, score):
+        """更新星币商品分数"""
+        try:
+            ip = IntegralProduct.query.filter_by_(IPid=prid).first()
+            scores = [oe.OEscore for oe in
+                      OrderEvaluation.query.filter(OrderEvaluation.PRid == ip.IPid,
+                                                   OrderEvaluation.isdelete == False).all()]
+            average_score = round(((float(sum(scores)) + float(score)) / (len(scores) + 1)) * 2)
+            ip.update({'IPaverageScore': average_score})
+            db.session.add(ip)
+        except Exception as e:
+            gennerc_log("Evaluation ERROR: Update IntegralProduct Score IPid >>> {0}, "
+                        "ERROR >>> {1}".format(prid, e))
+        return
 
     @admin_required
     def set_autoevaluation_time(self):

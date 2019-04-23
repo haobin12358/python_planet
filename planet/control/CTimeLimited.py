@@ -471,11 +471,11 @@ class CTimeLimited(COrder, CUser):
             usid = request.user.id
             sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
             suid = sup.SUid
-            current_app.logger.info('Supplizer {} delete guessnum apply'.format(sup.SUname))
+            current_app.logger.info('Supplizer {} delete timelimit apply'.format(sup.SUname))
         elif is_admin():
             usid = request.user.id
             admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
-            current_app.logger.info('Admin {} guessnum apply'.format(admin.ADname))
+            current_app.logger.info('Admin {} timelimit apply'.format(admin.ADname))
             sup = None
             suid = None
         else:
