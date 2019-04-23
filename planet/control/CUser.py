@@ -1105,21 +1105,47 @@ class CUser(SUser, BASEAPPROVAL):
     def get_user_integral(self):
         """获取积分列表"""
         user = self.get_user_by_id(request.user.id)
-        uifilter = request.args.to_dict().get("uifilter", "all")
+        args = request.args.to_dict()
+        uifilter = args.get("uifilter", "all")
         gennerc_log('get uifilter ={0}'.format(uifilter))
         uifilter = getattr(UserIntegralType, uifilter, None).value
         gennerc_log('get user is {0}'.format(user))
-        if not user:
-            raise ParamsError('token error')
-
+        time = args.get('time')
+        if time and re.match(r'^\d{4}-[01]\d{1}$', time):
+            mon = time.split('-')[-1]
+            year = time.split('-')[0]
+        else:
+            today = datetime.datetime.now()
+            mon = today.month
+            year = today.year
         ui_list = UserIntegral.query.filter_(
-            UserIntegral.USid == request.user.id, UserIntegral.UItype == uifilter
+            UserIntegral.USid == request.user.id,
+            UserIntegral.UItype == uifilter,
+            extract('year', UserIntegral.createtime) == year,
+            extract('month', UserIntegral.createtime) == mon
         ).order_by(UserIntegral.createtime.desc()).all_with_page()
+        month_total = 0
         for ui in ui_list:
-            ui.fields = ['UIintegral', 'createtime']
-            ui.fill('uiaction', UserIntegralAction(ui.UIaction).zh_value)
+            ui.fields = ['createtime']
+            uiintegral = ui.UIintegral
+            uiaction = UserIntegralAction(ui.UIaction).zh_value
+            # 星币消费显示订单商品信息
+            if ui.UIaction == UserIntegralAction.consumption.value and ui.UItype == UserIntegralType.expenditure.value:
+                uiintegral = ~ uiintegral + 1
+                order_part = None
+                if ui.OPayno:
+                    order_part = OrderPart.query.outerjoin(OrderMain,
+                                                           OrderMain.OMid == OrderPart.OMid
+                                                           ).filter(OrderMain.OPayno == ui.OPayno
+                                                                    ).first()
+                uiaction = getattr(order_part, 'PRtitle', '购买星币商品')
+                # ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
+                ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
+            ui.fill('uiintegral', uiintegral)
+            ui.fill('uiaction', uiaction)
+            month_total += uiintegral
 
-        return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'uilist': ui_list})
+        return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
 
     @get_session
     def admin_login(self):
@@ -2210,6 +2236,17 @@ class CUser(SUser, BASEAPPROVAL):
             uw = UserWallet.query.filter(
                 UserWallet.USid == su.SUid, UserWallet.isdelete == False,
                 UserWallet.CommisionFor == ApplyFrom.supplizer.value).first()
+            if not uw:
+                uw = UserWallet.create({
+                    'UWid': str(uuid.uuid1()),
+                    'USid': su.SUid,
+                    'UWexpect': 0,
+                    'UWbalance': 0,
+                    'UWtotal': 0,
+                    'UWcash': 0,
+                    'CommisionFor': ApplyFrom.supplizer.value
+                })
+
             uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal((ss.SSdealamount))
             uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(ss.SSdealamount))
             uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(ss.SSdealamount))

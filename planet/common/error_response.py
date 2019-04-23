@@ -97,7 +97,7 @@ class TimeError(BaseError):
 class PoorScore(BaseError):
     status = 405
     status_code = 405010
-    message = '积分不足'
+    message = '星币余额不足'
 
 
 class StatusError(BaseError):
