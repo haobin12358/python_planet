@@ -19,7 +19,19 @@ class CCategory(CProducts):
         up = data.get('up') or None
         deep = data.get('deep', 0)  # 深度
         pctype = 1 if not up else None
-        categorys = self.sproduct.get_categorys({'ParentPCid': up, 'PCtype': pctype})
+        kw = data.get('kw')
+        # categorys = self.sproduct.get_categorys({'ParentPCid': up, 'PCtype': pctype})
+        filter_args = {
+            ProductCategory.isdelete == False
+            }
+        if kw:
+            filter_args.add(ProductCategory.PCname.ilike('%{}%'.format(kw)))
+        if up:
+            filter_args.add(ProductCategory.ParentPCid == up)
+        if pctype:
+            filter_args.add(ProductCategory.PCtype == pctype)
+        categorys = ProductCategory.query.filter(*filter_args).order_by(
+            ProductCategory.PCsort, ProductCategory.createtime).all()
         for category in categorys:
             self._sub_category(category, deep)
         return Success(data=categorys)
