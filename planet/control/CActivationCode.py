@@ -2,6 +2,8 @@ import random
 import re
 import string
 import uuid
+import math
+
 
 from flask import request
 
@@ -160,6 +162,7 @@ class CActivationCode(BASEAPPROVAL):
         year = data.get('year')
         usid = request.user.id
         from sqlalchemy import extract
+        actlist = list()
         user_act_codes = UserActivationCode.query.filter(
             UserActivationCode.isdelete == False,
             UserActivationCode.USid == usid,
@@ -172,7 +175,25 @@ class CActivationCode(BASEAPPROVAL):
         for user_act_code in user_act_codes:
             user_act_code.hide('USid')
             user_act_code.fill('createtime',user_act_code.createtime)
-        return Success(data=user_act_codes)
+            act = user_act_code
+            if act:
+                actlist.append(act)
+        page = int(data.get('page_num', 1)) or 1
+        count = int(data.get('page_size', 15)) or 15
+        total_count = len(actlist)
+        if page < 1:
+            page = 1
+        total_page = math.ceil(total_count / int(count)) or 1
+        start = (page - 1) * count
+        if start > total_count:
+            start = 0
+        if total_count / (page * count) < 0:
+            act_return_list = actlist[start:]
+        else:
+            act_return_list = actlist[start: (page * count)]
+        request.page_all = total_page
+        request.mount = total_count
+        return Success(data=act_return_list)
 
     @token_required
     def get_actcode_detail(self):
