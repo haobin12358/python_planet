@@ -1142,7 +1142,7 @@ class CProducts(BaseController):
                 if cf.PBid and product.PBid != cf.PBid:
                     continue
             if common_user():
-                ccoupon._coupon(cou, request.user.id)
+                ccoupon._coupon(cou, usid=request.user.id)
             else:
                 ccoupon._coupon(cou)
             valid_conpons.append(cou)
