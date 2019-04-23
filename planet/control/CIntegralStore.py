@@ -27,10 +27,10 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             admin = Admin.query.filter_by_(ADid=request.user.id).first_("账号状态错误")
             ipfrom = ApplyFrom.platform.value
             uid = admin.ADid
-        elif is_supplizer():
-            sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
-            ipfrom = ApplyFrom.supplizer.value
-            uid = sup.SUid
+        # elif is_supplizer():
+        #     sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
+        #     ipfrom = ApplyFrom.supplizer.value
+        #     uid = sup.SUid
         else:
             raise AuthorityError()
         data = parameter_required(('prid', 'ipprice', 'skus'))
@@ -87,10 +87,10 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             admin = Admin.query.filter_by_(ADid=request.user.id).first_("账号状态错误")
             ipfrom = ApplyFrom.platform.value
             uid = admin.ADid
-        elif is_supplizer():
-            sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
-            ipfrom = ApplyFrom.supplizer.value
-            uid = sup.SUid
+        # elif is_supplizer():
+        #     sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
+        #     ipfrom = ApplyFrom.supplizer.value
+        #     uid = sup.SUid
         else:
             raise AuthorityError()
         data = parameter_required(('ipid', 'ipprice', 'skus'))
@@ -178,10 +178,11 @@ class CIntegralStore(COrder, BASEAPPROVAL):
 
         filter_args = [IntegralProduct.isdelete == False,
                        IntegralProduct.IPstatus == ipstatus,
-                       Products.isdelete == False
+                       Products.isdelete == False,
+                       Products.PRstatus == ProductStatus.usual.value
                        ]
         if is_supplizer():
-            filter_args.append(IntegralProduct.SUid == request.user.id),
+            filter_args.append(Products.CreaterId == request.user.id),
         if prtitle:
             filter_args.append(Products.PRtitle.ilike('%{}%'.format(prtitle)))
         ips = IntegralProduct.query.outerjoin(Products, Products.PRid == IntegralProduct.PRid
@@ -282,8 +283,8 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         """取消申请"""
         if is_admin():
             Admin.query.filter_by_(ADid=request.user.id).first_("账号状态错误")
-        elif is_supplizer():
-            Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
+        # elif is_supplizer():
+        #     Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误")
         else:
             raise AuthorityError()
         data = parameter_required(('ipid',))
@@ -315,12 +316,12 @@ class CIntegralStore(COrder, BASEAPPROVAL):
 
     def delete(self):
         """删除申请"""
-        if is_supplizer():
-            usid = request.user.id
-            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
-            suid = sup.SUid
-            current_app.logger.info('Supplizer {} delete integral apply'.format(sup.SUname))
-        elif is_admin():
+        # if is_supplizer():
+        #     usid = request.user.id
+        #     sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+        #     suid = sup.SUid
+        #     current_app.logger.info('Supplizer {} delete integral apply'.format(sup.SUname))
+        if is_admin():
             usid = request.user.id
             admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
             current_app.logger.info('Admin {} delete integral apply'.format(admin.ADname))
@@ -343,11 +344,11 @@ class CIntegralStore(COrder, BASEAPPROVAL):
 
     def shelf(self):
         """下架"""
-        if is_supplizer():
-            usid = request.user.id
-            sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
-            current_app.logger.info('Supplizer {} shelf integral apply'.format(sup.SUname))
-        elif is_admin():
+        # if is_supplizer():
+        #     usid = request.user.id
+        #     sup = Supplizer.query.filter_by_(SUid=usid).first_('供应商信息错误')
+        #     current_app.logger.info('Supplizer {} shelf integral apply'.format(sup.SUname))
+        if is_admin():
             usid = request.user.id
             admin = Admin.query.filter_by_(ADid=usid).first_('管理员信息错误')
             current_app.logger.info('Admin {} shelf integral apply'.format(admin.ADname))
