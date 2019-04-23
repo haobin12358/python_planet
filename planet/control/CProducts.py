@@ -22,7 +22,7 @@ from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
-    ProductMonthSaleValue, UserCollectionLog
+    ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -194,6 +194,9 @@ class CProducts(BaseController):
         if is_admin() or is_supplizer():
             if product.PCid and product.PCid != 'null':
                 product.fill('pcids', self._up_category_id(product.PCid))
+        # 可用优惠券
+        self._fill_coupons(product)
+
         return Success(data=product)
 
     def get_produt_list(self):
@@ -1109,3 +1112,38 @@ class CProducts(BaseController):
                 return comm
         return 0
 
+    def _fill_coupons(self, product):
+        coupons = Coupon.query.filter(Coupon.isdelete == False).all()
+        now = datetime.now()
+        valid_conpons = list()
+        from planet.control.CCoupon import CCoupon
+        ccoupon = CCoupon()
+        for cou in coupons:
+            if not cou.COisAvailable:
+                continue
+            if not cou.COcanCollect:
+                continue
+            if cou.COsendStarttime and cou.COsendStarttime > now:
+                continue
+            if cou.COsendEndtime and cou.COsendEndtime < now:
+                continue
+            if cou.COvalidStartTime and cou.COvalidStartTime > now:
+                continue
+            if cou.COvalidEndTime and cou.COvalidEndTime < now:
+                continue
+            if cou.COlimitNum and cou.COremainNum < 1:
+                continue
+            cf = CouponFor.query.filter(CouponFor.COid == cou.COid).first()
+            if cf:
+                if cf.PCid and product.PCid != cf.PCid:
+                    continue
+                if cf.PRid and product.PRid != cf.PRid:
+                    continue
+                if cf.PBid and product.PBid != cf.PBid:
+                    continue
+            if common_user():
+                ccoupon._coupon(cou, request.user.id)
+            else:
+                ccoupon._coupon(cou)
+            valid_conpons.append(cou)
+        product.fill('coupons', valid_conpons)
