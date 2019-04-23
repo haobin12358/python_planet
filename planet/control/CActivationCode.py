@@ -171,13 +171,14 @@ class CActivationCode(BASEAPPROVAL):
         ).order_by(
             UserActivationCode.UACuseFor.asc(),
             UserActivationCode.createtime.desc()
-        ).all_with_page()
+        ).all()
         for user_act_code in user_act_codes:
             user_act_code.hide('USid')
             user_act_code.fill('createtime',user_act_code.createtime)
             act = user_act_code
             if act:
                 actlist.append(act)
+
         page = int(data.get('page_num', 1)) or 1
         count = int(data.get('page_size', 15)) or 15
         total_count = len(actlist)
