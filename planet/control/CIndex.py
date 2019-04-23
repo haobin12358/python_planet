@@ -3,13 +3,15 @@ import uuid
 
 from flask import request, current_app
 
-from planet.common.error_response import SystemError
+from planet.common.error_response import SystemError, ParamsError
+from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, admin_required
+from planet.common.token_handler import token_required, admin_required, is_admin
 from planet.config.enums import ProductStatus, ProductBrandStatus
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
-from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner
+from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
+    HypermarketIndexBanner
 from planet.service.SIndex import SIndex
 
 
@@ -111,9 +113,68 @@ class CIndex:
     def set_hot(self):
         pass
 
+    def list_hypermarket_banner(self):
+        filter_args = {
+            HypermarketIndexBanner.isdelete == False
+        }
+        if is_admin():
+            data = parameter_required()
+            hibshow = data.get('hibshow', None)
 
+            if hibshow is not None:
+                filter_args.add(HypermarketIndexBanner.HIBshow == bool(hibshow))
+        else:
+            filter_args.add(HypermarketIndexBanner.HIBshow == True)
 
+        index_banners = HypermarketIndexBanner.query.filter(*filter_args).order_by(
+            HypermarketIndexBanner.HIBsort.asc(), HypermarketIndexBanner.createtime.desc()).all()
 
+        return Success(data=index_banners)
+
+    @admin_required
+    def set_hypermarket_banner(self):
+        current_app.logger.info("Admin {} set index banner".format(request.user.username))
+        data = parameter_required(('contentlink', 'hibpic', 'hibshow'))
+        ibid = data.get('hibid') or str(uuid.uuid1())
+
+        with db.auto_commit():
+            hib = HypermarketIndexBanner.query.filter(
+                HypermarketIndexBanner.isdelete == False, HypermarketIndexBanner.HIBid == ibid).first()
+            if data.get('delete'):
+                if not hib:
+                    raise ParamsError('banner 已删除')
+                hib.update({'isdelete': True})
+                db.session.add(hib)
+                return Success('删除成功', {'hibid': ibid})
+
+            hibsort = self._check_sort(data.get('hibsort'))
+            hib_dict = {
+                'contentlink': data.get('contentlink'),
+                'HIBpic': data.get('hibpic'),
+                'HIBsort': hibsort,
+                'HIBshow': bool(data.get('hibshow'))
+            }
+            if not hib:
+                hib_dict.setdefault('HIBid', ibid)
+                hib = HypermarketIndexBanner.create(hib_dict)
+                msg = '添加成功'
+            else:
+                hib.update(hib_dict)
+                msg = '修改成功'
+            db.session.add(hib)
+
+        return Success(msg, {'hibid': ibid})
+
+    def _check_sort(self, sort_num):
+        if not sort_num:
+            return 1
+        sort_num = int(sort_num)
+        count_pc = HypermarketIndexBanner.query.count()
+        if sort_num < 1:
+            return 1
+        if sort_num > count_pc:
+            return count_pc
+        return sort_num
 
 
 

@@ -13,6 +13,7 @@ class AIndex(Resource):
             'list_banner': self.cindex.list_banner,
             'list_product': self.cindex.list_product,
             'brand_recommend': self.cindex.brand_recommend,
+            'list_hypermarket_banner': self.cindex.list_hypermarket_banner,
         }
         return apis
 
@@ -20,6 +21,7 @@ class AIndex(Resource):
         apis = {
             'set_banner': self.cindex.set_banner,
             'update_banner': self.cindex.update_banner,
+            'set_hypermarket_banner': self.cindex.set_hypermarket_banner,
         }
         return apis
 
