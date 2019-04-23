@@ -11,7 +11,7 @@ from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityTyp
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
-    TimeLimitedActivity
+    TimeLimitedActivity, UserActivationCode, ActivationCodeApply
 
 
 # 添加一些默认的数据
@@ -374,8 +374,35 @@ def change_tla_status():
                 tla.TLAstatus = TimeLimitedStatus.starting.value
 
 
+def add_uac_acaid():
+    user_act_codes = UserActivationCode.query.filter(
+        UserActivationCode.isdelete == False,
+    ).all()
+    # print(user_act_codes)
+    with db.auto_commit():
+        cratetime_list = []
+        for user_act_code in user_act_codes:
+
+            if user_act_code.ACAid == None:
+                createtime=user_act_code.createtime
+                # print(createtime)
+                cratetime_list.append(createtime)
+                createtime1 = createtime+datetime.timedelta(hours=5)
+                createtime2 = createtime-datetime.timedelta(hours=5)
+                aca = ActivationCodeApply.query.filter(
+                    ActivationCodeApply.USid == user_act_code.USid,
+                    ActivationCodeApply.updatetime <= createtime1,
+                    ActivationCodeApply.updatetime >= createtime2,
+                    ActivationCodeApply.isdelete == False
+                ).first()
+                # print(aca)
+                if aca:
+                    user_act_code.update({'ACAid': aca.ACAid})
+                    db.session.add(user_act_code)
+        print({}.fromkeys(cratetime_list).keys())
+
 if __name__ == '__main__':
-    app = create_app()
+    app,_ = create_app()
     with app.app_context():
         # admin = PermissionType.query.first_()
         # admin_str = json.dumps(admin, cls=JSONEncoder)
@@ -393,5 +420,6 @@ if __name__ == '__main__':
         # add_product_promotion()
         # check_abnormal_sale_volume()
         # check_product_from()
-        change_tla_status()
+        # change_tla_status()
+        add_uac_acaid()
         pass

@@ -5,6 +5,7 @@ import uuid
 
 from flask import request
 
+
 from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
@@ -148,6 +149,39 @@ class CActivationCode(BASEAPPROVAL):
                 if not reason:
                     continue
                 aca.fill('acareason', reason.ANabo)
+
+        return Success('获取申请列表成功', data=aca_list)
+
+    @token_required
+    def get_actcode_list(self):
+        """获取激活码的列表"""
+        data = parameter_required()
+        month = data.get('month')
+        year = data.get('year')
+        usid = request.user.id
+        from sqlalchemy import extract
+        user_act_codes = UserActivationCode.query.filter(
+            UserActivationCode.isdelete == False,
+            UserActivationCode.USid == usid,
+            extract('month', UserActivationCode.createtime) == int(month),
+            extract('year', UserActivationCode.createtime) == int(year),
+        ).order_by(
+            UserActivationCode.UACuseFor.asc(),
+            UserActivationCode.createtime.desc()
+        ).all_with_page()
+        for user_act_code in user_act_codes:
+            user_act_code.hide('USid')
+            user_act_code.fill('createtime',user_act_code.createtime)
+        return Success(data=user_act_codes)
+
+    @token_required
+    def get_actcode_detail(self):
+        """获取用激活码申请详情"""
+        data = parameter_required(('acaid',))
+        acaid = data.get('acaid')
+        aca_list = ActivationCodeApply.query.filter(
+            ActivationCodeApply.ACAid == acaid,
+            ActivationCodeApply.isdelete == False).first()
 
         return Success('获取申请列表成功', data=aca_list)
 
