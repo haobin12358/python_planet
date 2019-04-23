@@ -233,6 +233,12 @@ def make_permissiontype():
             'PTmodelName': 'SettlenmentApply'
         })
         db.session.add(tosettlenment)
+        tointegral = PermissionType.create({
+            'PTid': 'tointegral',
+            'PTname': '星币商品申请',
+            'PTmodelName': 'IntegralProduct'
+        })
+        db.session.add(tointegral)
 
 
 def make_admin():

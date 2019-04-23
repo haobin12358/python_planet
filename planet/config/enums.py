@@ -39,10 +39,11 @@ class ProductBrandStatus(Enum):
 
 
 class PayType(Enum):
-    """{0: '微信支付', 10: 支付宝}"""
     wechat_pay = 0, '微信支付'
     alipay = 10, '支付宝'
     codepay = 20, '激活码支付'
+    integralpay = 30, '星币支付'
+    mixedpay = 40, '组合支付'
     test_pay = 10086, '测试支付'
 
 
@@ -61,7 +62,8 @@ class OrderFrom(Enum):
     fresh_man = 40, '新人商品'
     magic_box = 50, '帮拆礼盒'
     trial_commodity = 60, '试用商品'
-    time_limited = 70, '限时特惠'
+    time_limited = 70, '限时特惠',
+    integral_store = 80, '星币商城'
 
 
 class OrderMainStatus(Enum):
@@ -217,8 +219,8 @@ class UserSearchHistoryType(Enum):
 
 class UserIntegralType(Enum):
     all = None
-    income = 1
-    expenditure = 2
+    income = 1, '收入'
+    expenditure = 2, '消费'
 
 
 class AdminLevel(Enum):
