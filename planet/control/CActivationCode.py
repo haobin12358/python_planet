@@ -204,6 +204,8 @@ class CActivationCode(BASEAPPROVAL):
         aca_list = ActivationCodeApply.query.filter(
             ActivationCodeApply.ACAid == acaid,
             ActivationCodeApply.isdelete == False).first()
+        aca_list.hide('USid')
+        aca_list.hide('ACAid')
 
         return Success('获取申请列表成功', data=aca_list)
 
