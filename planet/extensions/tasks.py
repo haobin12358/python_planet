@@ -713,7 +713,6 @@ def end_timelimited(tlaid):
         TimeLimitedProduct.isdelete == False, TimeLimitedProduct.TLAid == tlaid).all()
     with db.auto_commit():
         # 获取原sku属性
-
         corder = COrder()
         for tlp in tlps:
             tls_old = TimeLimitedSku.query.filter(
@@ -733,6 +732,12 @@ def end_timelimited(tlaid):
                 corder._update_stock(int(sku.TLSstock), product, sku_instance)
                 Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
         tla.TLAstatus = TimeLimitedStatus.end.value
+        # 删除轮播图
+        IndexBanner.query.filter(
+            TimeLimitedSku.TLPid == tlp.TLPid,
+            TimeLimitedSku.isdelete == False,
+            TimeLimitedProduct.isdelete == False,
+        ).update({IndexBanner.isdelete == False)
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
 
 
