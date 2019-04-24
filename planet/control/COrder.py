@@ -779,9 +779,7 @@ class COrder(CPay, CCoupon):
                         s.add(order_coupon_instance)
                 if opaytype == PayType.mixedpay.value:  # 如果是组合支付的话，更改实际支付金额
                     dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance, order_price)
-                    dev_mount += dev_mount
-                    dev_integral += dev_integral
-                    order_price -= dev_mount
+                order_price -= dev_mount
                 # 快递费选最大
                 freight = max(freight_list)
                 # 主单
@@ -856,6 +854,9 @@ class COrder(CPay, CCoupon):
         infos = data.get('info')
         user = User.query.filter_by_(USid=request.user.id).first_("用户信息错误")
         usintegral = int(user.USintegral)
+        mount_price = Decimal()  # 总价
+        mount_integral = 0  # 需要支付的星币总数
+        mount_dev_price = Decimal()  # 需要减去的总价
         with db.auto_commit():
             for info in infos:
                 info = parameter_required(('pbid', 'skus',), datafrom=info)
@@ -882,22 +883,24 @@ class COrder(CPay, CCoupon):
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
 
                     small_total = Decimal(str(sku_instance.SKUprice)) * opnum
-                    current_app.logger.info('商品sku 价格为 {}'.format(small_total))
+                    current_app.logger.info('商品sku 价格为 {}, skuid: {}'.format(small_total, skuid))
                     # 订单价格计算
                     order_price += small_total
+                    current_app.logger.info('本次计算后支付价格为: {}'.format(order_price))
                     # 临时记录单品价格
                 dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand, order_price)
-                dev_mount += dev_mount
-                dev_integral += dev_integral
+                mount_dev_price += dev_mount
+                mount_integral += dev_integral
+                mount_price += order_price
         can_reduce = False
-        if dev_integral > 0 and dev_mount > 0:
+        if mount_integral > 0 and mount_dev_price > 0:
             can_reduce = True
 
         return Success(data=dict(can_reduce=can_reduce,
-                                 reduce_mount=dev_mount,
-                                 reduce_integral=dev_integral,
-                                 old_proce=order_price,
-                                 reduced_price=order_price - dev_mount,
+                                 reduce_mount=mount_dev_price,
+                                 reduce_integral=mount_integral,
+                                 old_proce=mount_price,
+                                 reduced_price=mount_price - mount_dev_price,
                                  usintegral=usintegral))
 
     def _calculate_integral_pay_part(self, user, pb, mount):
@@ -979,6 +982,7 @@ class COrder(CPay, CCoupon):
         if order_main.OMstatus == OrderMainStatus.wait_pay.value:
             duration = order_main.createtime + timedelta(minutes=30) - now
             order_main.fill('duration', str(duration))
+            order_main.fill('usintegral', getattr(get_current_user(), 'USintegral', 0))
         # 付款时间
         if order_main.OMstatus > OrderMainStatus.wait_pay.value:
             order_pay = OrderPay.query.filter_by_({'OPayno': order_main.OPayno}).first()
