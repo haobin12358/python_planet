@@ -404,7 +404,7 @@ class CCoupon(object):
             coupon = s.query(Coupon).filter_by_({'COid': coid, 'COcanCollect': True}).first_('优惠券不存在或不可领取')
             coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
             # 领取过多
-            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+            if coupon.COcollectNum and coupon_user_count >= coupon.COcollectNum:
                 raise StatusError('已经领取过')
             # 发放完毕或抢空
             if coupon.COlimitNum:
@@ -443,7 +443,7 @@ class CCoupon(object):
             # 优惠券状态是否可领取
             coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
             # 领取过多
-            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+            if coupon.COcollectNum and coupon_user_count >= coupon.COcollectNum:
                 raise StatusError('已经领取过')
             # 发放完毕或抢空
             if coupon.COlimitNum:
