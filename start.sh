@@ -1,5 +1,5 @@
 #!/bin/bash
-P=6003
+P=6001
 worker=4
 host="0.0.0.0"
 case "$@" in

@@ -734,15 +734,14 @@ def end_timelimited(tlaid):
         tla.TLAstatus = TimeLimitedStatus.end.value
         # 删除轮播图
         IndexBanner.query.filter(
-            TimeLimitedSku.TLPid == tlp.TLPid,
-            TimeLimitedSku.isdelete == False,
-            TimeLimitedProduct.isdelete == False,
-        ).update({IndexBanner.isdelete == False)
+            IndexBanner.IBpic == tla.TLAtopPic,
+            IndexBanner.isdelete == False,
+        ).delete_()
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
 
 
 @celery.task()
-def start_timelimited(tlaid,tlatoppic):
+def start_timelimited(tlaid):
     current_app.logger.info('开始修改限时活动为开始')
     tla = TimeLimitedActivity.query.filter(
         TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
