@@ -11,7 +11,7 @@ from planet.config.enums import ProductStatus, ProductBrandStatus
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner
+    HypermarketIndexBanner, Entry, Admin
 from planet.service.SIndex import SIndex
 
 
@@ -176,5 +176,52 @@ class CIndex:
             return count_pc
         return sort_num
 
+    def get_entry(self):
+        filter_args = {Entry.isdelete == False}
+        if not is_admin():
+            filter_args.add(Entry.ENshow == True)
 
+        en = Entry.query.filter(*filter_args).order_by(Entry.ENshow.desc(), Entry.createtime).all()
+        for e in en:
+            e.hide('ACid')
+            if is_admin():
+                admin = Admin.query.filter(Admin.ADid == e.ACid, Admin.isdelete == False).first()
+                adname = admin.ADname if admin else '平台'
+                e.fill('ADname', adname)
 
+        return Success(data=en)
+
+    @admin_required
+    def set_entry(self):
+        current_app.logger.info("Admin {} set entry banner".format(request.user.username))
+        data = parameter_required(('contentlink', 'enpic', 'enshow'))
+        enid = data.get('enid') or str(uuid.uuid1())
+
+        with db.auto_commit():
+            en = Entry.query.filter(
+                Entry.isdelete == False, Entry.ENid == enid).first()
+            if data.get('delete'):
+                if not en:
+                    raise ParamsError('banner 已删除')
+                en.update({'isdelete': True})
+                db.session.add(en)
+                return Success('删除成功', {'enid': enid})
+
+            endict = {
+                'contentlink': data.get('contentlink'),
+                'ENpic': data.get('enpic'),
+                'ENshow': bool(data.get('enshow'))
+            }
+            if not en:
+                endict.setdefault('ENid', enid)
+                endict.setdefault('ACid', request.user.id)
+                en = Entry.create(endict)
+                msg = '添加成功'
+            else:
+                en.update(endict)
+                msg = '修改成功'
+            db.session.add(en)
+
+            if en.ENshow:
+                Entry.query.filter(Entry.ENid != enid, Entry.isdelete == False).update({'ENshow': False})
+        return Success(msg, {'enid': enid})
