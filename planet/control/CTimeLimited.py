@@ -188,6 +188,8 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
+        current_app.logger.info(tlastatus)
+        current_app.logger.info(TimeLimitedStatus.starting.value)
         if tlastatus == TimeLimitedStatus.starting.value:
             API_HOST = 'https://test.bigxingxing.com'
             tlb = IndexBanner.create({
@@ -198,7 +200,9 @@ class CTimeLimited(COrder, CUser):
             })
             with db.auto_commit():
                 db.session.add(tlb)
-
+            current_app.logger.info('增加轮播图成功')
+        else:
+            current_app.logger.info('没有增加轮播图')
         self._crete_celery_task(tlastatus=tlastatus, tlatoppic=data.get('tlatoppic'),tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
 
         with db.auto_commit():
