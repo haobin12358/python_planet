@@ -733,9 +733,16 @@ def end_timelimited(tlaid):
                 Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
         tla.TLAstatus = TimeLimitedStatus.end.value
         # 删除轮播图
-        IndexBanner.query.filter_by(
+        ib = IndexBanner.query.filter_by(
             IBpic = tla.TLAtopPic,
-            isdelete = False,).delete_()
+            isdelete = False
+        ).first_('000')
+        current_app.logger.info(ib)
+        ib.update({
+            'isdelete':False
+        })
+        db.session.add(ib)
+
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
 
 
