@@ -21,5 +21,6 @@ class ACoupon(Resource):
             'update': self.ccoupon.update,
             'delete': self.ccoupon.delete,
             'fetch': self.ccoupon.fetch,
+            'code': self.ccoupon.code,
         }
         return apis

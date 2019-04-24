@@ -21,7 +21,7 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner
 
 celery = Celery()
 
@@ -713,7 +713,6 @@ def end_timelimited(tlaid):
         TimeLimitedProduct.isdelete == False, TimeLimitedProduct.TLAid == tlaid).all()
     with db.auto_commit():
         # 获取原sku属性
-
         corder = COrder()
         for tlp in tlps:
             tls_old = TimeLimitedSku.query.filter(
@@ -733,8 +732,13 @@ def end_timelimited(tlaid):
                 corder._update_stock(int(sku.TLSstock), product, sku_instance)
                 Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
         tla.TLAstatus = TimeLimitedStatus.end.value
+        # 删除轮播图
+        current_app.logger.info(ib)
+        IndexBanner.query.filter_by(
+            IBpic = tla.TLAtopPic,
+            isdelete = False
+        ).delete_()
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
-
 
 @celery.task()
 def start_timelimited(tlaid):
