@@ -750,8 +750,6 @@ def start_timelimited(tlaid,tlatoppic):
 
     with db.auto_commit():
         tla.TLAstatus = TimeLimitedStatus.starting.value
-
-        API_HOST = 'https://test.bigxingxing.com'
     current_app.logger.info('修改限时活动为开始 结束')
 
 
