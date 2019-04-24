@@ -12,7 +12,7 @@ from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import end_timelimited, start_timelimited
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner
 from .CUser import CUser
 
 
@@ -162,8 +162,6 @@ class CTimeLimited(COrder, CUser):
         end_time = datetime.strptime(data.get('tlaendtime'), '%Y-%m-%d %H:%M:%S')
         if start_time > time_now:
             tlastatus = TimeLimitedStatus.waiting.value
-            # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid, start_time=start_time,
-            #                         end_time=end_time)
         elif end_time < time_now:
             tlastatus = TimeLimitedStatus.end.value
         else:
@@ -179,7 +177,19 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
-        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
+        if tlastatus == TimeLimitedStatus.starting.value:
+            API_HOST = 'https://test.bigxingxing.com'
+            tlb = IndexBanner.create({
+                'IBpic': data.get('tlatoppic'),
+                'IBsort': 1,
+                'IBshow': False,
+                'contentlink': API_HOST + "/?tlaid=" + tla.TLAid + "&secret_usid="
+            })
+            with db.auto_commit():
+                db.session.add(tlb)
+
+        self._crete_celery_task(tlastatus=tlastatus, tlatoppic=data.get('tlatoppic'),tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
+
         with db.auto_commit():
             db.session.add(tla)
         return Success('创建活动成功', data={'tlaid': tla.TLAid})
@@ -246,12 +256,14 @@ class CTimeLimited(COrder, CUser):
                     'SKUid': skuid,
                     'SKUprice': skuprice
                 })
+
                 instance_list.append(tls)
                 # prstock += skustock
             db.session.add_all(instance_list)
 
         # todo  添加到审批流
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid, applyfrom=tlp_from)
+
         return Success('申请成功', {'tlpid': tlp.TLPid})
 
     def update_award(self):
@@ -589,11 +601,11 @@ class CTimeLimited(COrder, CUser):
             return count_pc
         return sort
 
-    def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
+    def _crete_celery_task(self, tlastatus, tlatoppic,tlaid, start_time, end_time):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
-            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+            start_timelimited.apply_async(args=(tlaid,tlatoppic), eta=start_time - timedelta(hours=8))
         if tlastatus < TimeLimitedStatus.end.value:
             current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
             end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
