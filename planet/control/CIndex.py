@@ -181,13 +181,15 @@ class CIndex:
         if not is_admin():
             filter_args.add(Entry.ENshow == True)
 
-        en = Entry.query.filter(*filter_args).order_by(Entry.ENshow.desc(), Entry.createtime).all()
+        en = Entry.query.filter(*filter_args).order_by(Entry.ENshow.asc(), Entry.createtime).all()
         for e in en:
             e.hide('ACid')
             if is_admin():
                 admin = Admin.query.filter(Admin.ADid == e.ACid, Admin.isdelete == False).first()
                 adname = admin.ADname if admin else '平台'
                 e.fill('ADname', adname)
+            else:
+                return Success(data=e)
 
         return Success(data=en)
 
