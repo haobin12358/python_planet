@@ -188,7 +188,7 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
-        if tlastatus == TimeLimitedStatus.starting.value:
+        if tlastatus >= TimeLimitedStatus.waiting.value and tlastatus < TimeLimitedStatus.end.value:
             from planet.config.http_config import API_HOST
             tlb = IndexBanner.create({
                 'IBid': str(uuid.uuid1()),
@@ -202,7 +202,7 @@ class CTimeLimited(COrder, CUser):
             current_app.logger.info('增加轮播图成功')
         else:
             current_app.logger.info('没有增加轮播图')
-        self._crete_celery_task(tlastatus=tlastatus, tlatoppic=data.get('tlatoppic'),tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
+        self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid, start_time=start_time, end_time=end_time)
 
         with db.auto_commit():
             db.session.add(tla)
@@ -615,11 +615,11 @@ class CTimeLimited(COrder, CUser):
             return count_pc
         return sort
 
-    def _crete_celery_task(self, tlastatus, tlatoppic,tlaid, start_time, end_time):
+    def _crete_celery_task(self, tlastatus,tlaid, start_time, end_time):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
-            start_timelimited.apply_async(args=(tlaid,tlatoppic), eta=start_time - timedelta(hours=8))
+            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
         if tlastatus < TimeLimitedStatus.end.value:
             current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
             end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))

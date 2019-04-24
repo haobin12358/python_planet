@@ -163,6 +163,7 @@ class CActivationCode(BASEAPPROVAL):
         usid = request.user.id
         from sqlalchemy import extract
         actlist = list()
+
         user_act_codes = UserActivationCode.query.filter(
             UserActivationCode.isdelete == False,
             UserActivationCode.USid == usid,
@@ -201,11 +202,17 @@ class CActivationCode(BASEAPPROVAL):
         """获取用激活码申请详情"""
         data = parameter_required(('acaid',))
         acaid = data.get('acaid')
+        code = UserActivationCode.query.filter(
+            UserActivationCode.isdelete == False,
+            UserActivationCode.ACAid == acaid
+        ).first()
         aca_list = ActivationCodeApply.query.filter(
             ActivationCodeApply.ACAid == acaid,
             ActivationCodeApply.isdelete == False).first()
         aca_list.hide('USid')
         aca_list.hide('ACAid')
+        aca_list.fill('code',code.UACcode)
+        aca_list.fill('time', code.createtime)
 
         return Success('获取申请列表成功', data=aca_list)
 
