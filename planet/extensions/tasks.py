@@ -752,13 +752,6 @@ def start_timelimited(tlaid,tlatoppic):
         tla.TLAstatus = TimeLimitedStatus.starting.value
 
         API_HOST = 'https://test.bigxingxing.com'
-        tlb = IndexBanner.create({
-            'IBpic': tlatoppic,
-            'IBsort': 1,
-            'IBshow': False,
-            'contentlink':API_HOST+"/?tlaid="+tlaid+"&secret_usid="
-        })
-        db.session.add(tlb)
     current_app.logger.info('修改限时活动为开始 结束')
 
 

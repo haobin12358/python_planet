@@ -188,11 +188,10 @@ class CTimeLimited(COrder, CUser):
             'ADid': request.user.id,
             'TLAstatus': tlastatus,
         })
-        current_app.logger.info(tlastatus)
-        current_app.logger.info(TimeLimitedStatus.starting.value)
         if tlastatus == TimeLimitedStatus.starting.value:
             API_HOST = 'https://test.bigxingxing.com'
             tlb = IndexBanner.create({
+                'IBid': str(uuid.uuid1()),
                 'IBpic': data.get('tlatoppic'),
                 'IBsort': 1,
                 'IBshow': False,
