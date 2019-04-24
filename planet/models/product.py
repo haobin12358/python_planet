@@ -103,6 +103,7 @@ class ProductBrand(Base):
     PBbackgroud = Column(String(255), comment='背景图', url=True)
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
     SUid = Column(String(64), comment='品牌供应商, 为空则为平台')
+    PBintegralPayRate = Column(Integer, comment='该品牌下商品可用星币抵扣百分比的分子，为空则说明支付时不能用星币抵扣')
 
 
 class BrandWithItems(Base):
@@ -269,6 +270,7 @@ class SupplizerDepositLog(Base):
     SDbefore = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='修改前金额')
     # SDLtype = Column(Integer, default=10, comment='10 出账 20 入账')
     SDLacid = Column(String(64), comment='操作人id')
+    SDLcontentid = Column(String(64), comment='关联订单id')
 
 
 class IntegralProduct(Base):

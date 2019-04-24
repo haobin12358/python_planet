@@ -438,6 +438,11 @@ class CApproval(BASEAPPROVAL):
                 # ipdb.set_trace()
                 ap_list = ap_querry.order_by(Approval.AVstatus.desc(), Approval.createtime.desc()).all_with_page()
         else:
+            try:
+                status = getattr(ApplyStatus, data.get('avstatus', 'wait_check'), 'wait_check').value
+            except Exception as e:
+                current_app.logger.error("sup approval list status error :{}".format(e))
+                status = None
             pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('审批类型不存在')
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_('供应商不存在')
             if pt.PTid == 'tointegral':
@@ -449,7 +454,7 @@ class CApproval(BASEAPPROVAL):
                                                                        Approval.isdelete == False,
                                                                        Products.isdelete == False,
                                                                        Products.CreaterId == sup.SUid,
-                                                                       Approval.AVstatus == getattr(ApplyStatus, data.get('avstatus', 'all'), 'all').value
+                                                                       Approval.AVstatus == status
                                                                        ).all_with_page()
             else:
                 ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
@@ -586,7 +591,7 @@ class CApproval(BASEAPPROVAL):
     @token_required
     def get_approvalnotes(self):
         """查看审批的所有流程"""
-        if not is_admin():
+        if not (is_admin() or is_supplizer()):
             raise AuthorityError('权限不足')
         data = parameter_required(('avid',))
         an_list = ApprovalNotes.query.filter_by_(AVid=data.get('avid')).order_by(ApprovalNotes.createtime).all()

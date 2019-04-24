@@ -45,6 +45,7 @@ class OrderMain(Base):
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
     PRcreateId = Column(String(64), comment='发布者id')  # 为品牌所属供应商id, 无表示平台
     OMlogisticType = Column(Integer, default=0, comment='发货类型 0 正常发货, 10线上发货(无物流)')
+    OMintegralpayed = Column(Integer, comment='选择组合支付时，实际支付的星币')
 
 
 class OrderPay(Base):
@@ -277,7 +278,7 @@ class Coupon(Base):
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
     SUid = Column(String(64), comment='来源供应商, 如为空则为平台')
     ADid = Column(String(64), comment='创建人')
-
+    COcode = Column(Integer, default=0, comment='是否需要兑换码，0 不需要 1 需要')
 
 class CouponItem(Base):
     """优惠券标签中间表"""
@@ -363,3 +364,10 @@ class OrderPartContentActivity(Base):
     CAfrom = Column(Integer, comment='商品来源')
     OPid = Column(String(64), comment='订单id')
     OCAcontentid = Column(String(64), comment='关联活动id')
+
+
+class CouponCode(Base):
+    __tablename__ = 'CouponCode'
+    CCid = Column(String(64), primary_key=True)
+    COid = Column(String(64), nullable=False, comment='优惠券id')
+    CCcode = Column(String(12), comment='优惠劵兑换码')

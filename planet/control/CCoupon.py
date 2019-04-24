@@ -17,8 +17,10 @@ from planet.extensions.validates.trade import CouponUserListForm, CouponListForm
     CouponUpdateForm
 from planet.models import Items, User, ProductCategory, ProductBrand, CouponFor, Products, Supplizer, \
     SupplizerDepositLog
-from planet.models.trade import Coupon, CouponUser, CouponItem
+from planet.models.trade import Coupon, CouponUser, CouponItem, CouponCode
 from planet.service.STrade import STrade
+import string
+import random
 
 
 class CCoupon(object):
@@ -141,6 +143,32 @@ class CCoupon(object):
             user_coupon.fill('item', item)
         return Success(data=user_coupons)
 
+    def coupen_code(self):
+        """生成兑换码"""
+        lowercase = string.ascii_lowercase
+        uppercase = string.ascii_uppercase
+        digits = string.digits
+        up_num = random.randint(0, 6)
+        low_num = 6 - up_num
+        code_list = []
+        for i in range(low_num):
+            code_list.append(random.choice(lowercase))
+        for i in range(6):
+            code_list.append(random.choice(uppercase))
+        for i in range(up_num):
+            code_list.append(random.choice(digits))
+
+        code = random.sample(code_list, len(code_list))
+        is_exists = CouponCode.query.filter_by_({
+            'CCcode': code,
+            'isdelete': False,
+        }).first()
+        if not is_exists:
+            pass
+        else:
+            code = self.coupen_code()
+        return code
+
     @token_required
     def create(self):
         form = CouponCreateForm().valid_data()
@@ -182,9 +210,20 @@ class CCoupon(object):
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
                 'ADid': adid,
-                'SUid': suid
+                'SUid': suid,
+                'COcode': form.cocode.data
             })
             s_list.append(coupon_instance)
+            # 是否要兑换码
+            if form.cocode.data == 1:
+                ccid = str(uuid.uuid1())
+                cccode = self.coupen_code()
+                coupon_code = CouponCode.create({
+                    'CCid': ccid,
+                    'COid': coid,
+                    'CCcode': cccode
+                })
+                s_list.append(coupon_code)
             for itid in itids:
                 s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
                 # 优惠券标签中间表
@@ -388,6 +427,44 @@ class CCoupon(object):
             s_list.append(coupon_user_instance)
             s.add_all(s_list)
         return Success('领取成功')
+
+    @token_required
+    def code(self):
+        """兑换码领优惠劵"""
+        usid = request.user.id
+        data = parameter_required(('cccode',))
+        CCcode = data.get('cccode')
+        with self.strade.auto_commit() as s:
+            s_list = []
+            couponcode = s.query(CouponCode).filter_by_({'CCcode': CCcode}).first_('兑换码不存在')
+            coid = couponcode.COid
+            coupon = s.query(Coupon).filter_by_({'COid': coid, 'isdelete': False})
+            # 优惠券状态是否可领取
+            coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
+            # 领取过多
+            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+                raise StatusError('已经领取过')
+            # 发放完毕或抢空
+            if coupon.COlimitNum:
+                # 共领取的数量
+                if not coupon.COremainNum:
+                    raise StatusError('已发放完毕')
+                coupon.COremainNum = coupon.COremainNum - 1  # 剩余数量减1
+                s_list.append(coupon)
+            if coupon.COsendStarttime and coupon.COsendStarttime > datetime.now():
+                raise StatusError('未开抢')
+            if coupon.COsendEndtime and coupon.COsendEndtime < datetime.now():
+                raise StatusError('来晚了')
+            # 写入couponuser
+            coupon_user_dict = {
+                'UCid': str(uuid.uuid4()),
+                'COid': coid,
+                'USid': usid,
+            }
+            coupon_user_instance = CouponUser.create(coupon_user_dict)
+            # 优惠券减1
+            s_list.append(coupon_user_instance)
+            s.add_all(s_list)
 
     @staticmethod
     def _title_subtitle(coupon):

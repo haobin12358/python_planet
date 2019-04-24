@@ -25,6 +25,7 @@ class AOrder(Resource):
             'test_to_pay': self.corder.test_to_pay,   # 测试接口 注意删除
             'test_to_send': self.corder.test_to_send,   # 测试接口 注意删除
             'get_preview_commision': self.corder.get_preview_commision,
+            'integral_pay_preview': self.corder.integral_pay_preview,
         }
         return apis
 

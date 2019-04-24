@@ -73,6 +73,13 @@ class CPay():
                 cuser._check_gift_order('重复购买开店大礼包')
             db.session.add(order_main)
             # 新建支付流水
+            if order_main.OMintegralpayed and order_main.OMintegralpayed > 0:
+                db.session.add(OrderPay.create({
+                    'OPayid': str(uuid.uuid1()),
+                    'OPayno': opayno,
+                    'OPayType': PayType.mixedpay.value,
+                    'OPayMount': order_main.OMtrueMount
+                }))
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
@@ -136,32 +143,51 @@ class CPay():
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
-            OMtrueMount = 0
             for order_main in order_mains:
-                OMtrueMount += order_main.OMtrueMount  # 计算支付总价格
+                user = User.query.filter_by_({'USid': order_mains.USid}).first()
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
                 self._insert_usercommision(order_main)
-            #  购物加积分
-            # percent = 0.2
-            percent = ConfigSettings().get_item('integralbase', 'trade_percent')
-            intergral = int(percent * OMtrueMount)
-            usid = order_mains.USid
-            user = User.query.filter_by_({'USid': usid}).first()
+                if user:
+                    self._notify_payed_integral(order_main, user, out_trade_no)  # 组合支付的类型，扣除相应星币
+                    self._trade_add_integral(order_main, user)  # 购物加星币
+
+        return self.wx_pay.reply("OK", True).decode()
+
+    def _notify_payed_integral(self, om, user, opayno):
+        """扣除组合支付时的星币"""
+        if om.OMintegralpayed and om.OMintegralpayed > 0:
             ui = UserIntegral.create({
                 'UIid': str(uuid.uuid1()),
-                'USid': usid,
-                'UIintegral': intergral,
-                'UIaction': UserIntegralAction.trade.value,
-                'UItype': UserIntegralType.income.value
+                'USid': user.USid,
+                'UIintegral': om.OMintegralpayed,
+                'UIaction': UserIntegralAction.consumption.value,
+                'UItype': UserIntegralType.expenditure.value,
+                'OPayno': opayno
             })
             db.session.add(ui)
-            user.update({'USintegral': user.USintegral + int(intergral)})
+            user.update({'USintegral': user.USintegral - int(om.OMintegralpayed)})
             db.session.add(user)
-        return self.wx_pay.reply("OK", True).decode()
+
+    def _trade_add_integral(self, order_main, user):
+        """购物加星币"""
+        #  购物加积分
+        # percent = 0.2
+        percent = ConfigSettings().get_item('integralbase', 'trade_percent')
+        intergral = int(Decimal(percent) * Decimal(order_main.OMtrueMount))
+        ui = UserIntegral.create({
+            'UIid': str(uuid.uuid1()),
+            'USid': user.USid,
+            'UIintegral': intergral,
+            'UIaction': UserIntegralAction.trade.value,
+            'UItype': UserIntegralType.income.value
+        })
+        db.session.add(ui)
+        user.update({'USintegral': user.USintegral + int(intergral)})
+        db.session.add(user)
 
     def _insert_usercommision(self, order_main):
         """写入佣金流水表"""
@@ -349,7 +375,7 @@ class CPay():
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
 
-        desposit = commision_for_supplizer
+        desposit = 0
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
@@ -429,6 +455,7 @@ class CPay():
                     desposit = commision_sub
                     commision_for_supplizer -= commision_sub
                 else:
+                    desposit = commision_for_supplizer
                     commision_for_supplizer = 0
             else:
                 planet_remain -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
@@ -438,24 +465,27 @@ class CPay():
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
             current_app.logger.info('get supplizer {}'.format(su))
             if su:
+                if desposit:
+                    current_app.logger.info('get change {}'.format(desposit))
+                    desposit = Decimal(str(desposit))
+                    sudeposit = Decimal(str(su.SUdeposit or 0))
+                    after_deposit = sudeposit + desposit
+                    current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
+                        sudeposit, desposit, after_deposit
+                    ))
 
-                current_app.logger.info('get change {}'.format(desposit))
-                desposit = Decimal(str(desposit))
-                sudeposit = Decimal(str(su.SUdeposit or 0))
-                after_deposit = sudeposit + desposit
-                current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
-                    sudeposit, desposit, after_deposit
-                ))
-                sdl = SupplizerDepositLog.create({
-                    'SDLid': str(uuid.uuid1()),
-                    'SUid': su.SUid,
-                    'SDLnum': desposit,
-                    'SDafter': after_deposit,
-                    'SDbefore': sudeposit,
-                    'SDLacid': 'system'
-                })
-                su.SUdeposit = after_deposit
-                db.session.add(sdl)
+                    sdl = SupplizerDepositLog.create({
+                        'SDLid': str(uuid.uuid1()),
+                        'SUid': su.SUid,
+                        'SDLnum': desposit,
+                        'SDafter': after_deposit,
+                        'SDbefore': sudeposit,
+                        'SDLacid': 'system',
+                        'SDLcontentid': order_part.OPid,
+                    })
+                    su.SUdeposit = after_deposit
+                    db.session.add(sdl)
+
                 commision_account = UserCommission.create({
                     'UCid': str(uuid.uuid1()),
                     'OMid': order_part.OMid,
