@@ -2130,52 +2130,54 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def set_signin_default(self):
+        """设置获得星币的默认数量"""
         if not is_admin():
             raise AuthorityError()
         data = request.json
-        default_integral_sign = str(data.get('integral'))
-        default_integral_favorite = str(data.get('integral_favorite'))
-        default_integral_commit = str(data.get('integral_commit'))
-        default_integral_transmit = str(data.get('integral_transmit'))
-        default_trade_percent = str(data.get('trade_percent'))
-        if not re.match(r'^\d+$', default_integral_sign):
-            raise ParamsError('默认签到积分无效')
-        if not re.match(r'^\d+$', default_integral_commit):
-            raise ParamsError('默认评论积分无效')
-        if not re.match(r'^\d+$', default_integral_favorite):
-            raise ParamsError('默认点赞积分无效')
-        if not re.match(r'^\d+$', default_integral_transmit):
-            raise ParamsError('默认转发积分无效')
-        if not re.match(r'^\d+(\.\d+)+$', default_trade_percent):
-            raise ParamsError('默认购物参数无效')
-        default_rule = str(data.get('rule'))
         cfg = ConfigSettings()
-        cfg.set_item('integralrule', 'rule', default_rule)
-        cfg.set_item('integralbase', 'integral', default_integral_sign)
-        cfg.set_item('integralbase', 'integral_commit', default_integral_commit)
-        cfg.set_item('integralbase', 'integral_favorite', default_integral_favorite)
-        cfg.set_item('integralbase', 'integral_transmit', default_integral_transmit)
-        cfg.set_item('integralbase', 'trade_percent', default_trade_percent)
+        param_dict = dict(
+            integral=data.get('integral'),
+            integral_favorite=data.get('integral_favorite'),
+            integral_commit=data.get('integral_commit'),
+            integral_transmit=data.get('integral_transmit'),
+            exchange_rate=data.get('exchange_rate')
+        )
+        for key in param_dict.keys():
+            if param_dict[key]:
+                if re.match(r'^\d+$', str(param_dict[key])):
+                    cfg.set_item('integralbase', key, str(param_dict[key]))
+                else:
+                    raise ParamsError('参数{}无效'.format(key))
+
+        trade_percent = data.get('trade_percent')
+        if trade_percent:
+            if not re.match(r'^\d+(\.\d+)+$', str(trade_percent)):
+                raise ParamsError('默认购物参数无效')
+            cfg.set_item('integralbase', 'trade_percent', str(trade_percent))
+
+        default_rule = data.get('rule')
+        if default_rule:
+            cfg.set_item('integralrule', 'rule', str(default_rule))
         return Success('修改成功')
 
     def get_signin_default(self):
+        """获取星币的默认数"""
         if not is_admin():
             raise AuthorityError
         cfg = ConfigSettings()
+        res = dict(integral=None,
+                   integral_favorite=None,
+                   integral_commit=None,
+                   integral_transmit=None,
+                   trade_percent=None,
+                   exchange_rate=None
+                   )
         # sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
-        del_rule = cfg.get_item('integralrule', 'rule')
-        del_integral = cfg.get_item('integralbase', 'integral')
-        del_integral_favorite = cfg.get_item('integralbase', 'integral_favorite')
-        del_integral_commit = cfg.get_item('integralbase', 'integral_commit')
-        del_integral_transmit = cfg.get_item('integralbase', 'integral_transmit')
-        del_trade_percent = cfg.get_item('integralbase', 'trade_percent')
-        return Success('获取默认设置成功', data={'rule': del_rule,
-                                                'integral': del_integral,
-                                                'integral_favorite': del_integral_favorite,
-                                                'integral_commit': del_integral_commit,
-                                                'integral_transmit': del_integral_transmit,
-                                                'trade_percent': del_trade_percent})
+        for key in res.keys():
+            res[key] = cfg.get_item('integralbase', key)
+        res['rule'] = cfg.get_item('integralrule', 'rule')
+        return Success('获取默认设置成功', data=res)
 
     def _check_for_update(self, **kwargs):
         """代理商是否可以升级"""

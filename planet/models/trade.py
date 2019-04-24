@@ -45,6 +45,7 @@ class OrderMain(Base):
     OMrecvAddress = Column(String(255), nullable=False, comment='地址')
     PRcreateId = Column(String(64), comment='发布者id')  # 为品牌所属供应商id, 无表示平台
     OMlogisticType = Column(Integer, default=0, comment='发货类型 0 正常发货, 10线上发货(无物流)')
+    OMintegralpayed = Column(Integer, comment='选择组合支付时，实际支付的星币')
 
 
 class OrderPay(Base):
