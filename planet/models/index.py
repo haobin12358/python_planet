@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Integer, String, Boolean
+from sqlalchemy import Integer, String, Boolean, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
@@ -38,6 +38,29 @@ class IndexBanner(Base):
     contentlink = Column(LONGTEXT, comment='跳转链接')
 
 
+class HypermarketIndexBanner(Base):
+    """
+    商品页的轮播图
+    """
+    __tablename__ = 'HypermarketIndexBanner'
+    HIBid = Column(String(64), primary_key=True)
+    # PRid = Column(String(64), nullable=False, comment='跳转商品')
+    HIBpic = Column(String(255), nullable=False, comment='图片', url=True)
+    HIBsort = Column(Integer, comment='顺序')
+    HIBshow = Column(Boolean, default=True, comment='是否展示')
+    contentlink = Column(LONGTEXT, comment='跳转链接')
+
+
+class Entry(Base):
+    """
+    活动入口
+    """
+    __tablename__ = 'Entry'
+    ENid = Column(String(64), primary_key=True)
+    ENpic = Column(Text, url=True, comment='活动入口图')
+    ENshow = Column(Boolean, default=False, comment='是否展示')
+    contentlink = Column(LONGTEXT, comment='跳转链接')
+    ACid = Column(String(64), comment='创建人id')
 #
 # class IndexHotProduct(Base):
 #     """首页显示的热卖商品"""
@@ -46,5 +69,3 @@ class IndexBanner(Base):
 #     PRid = Column(String(64), nullable=False, comment='商品id')
 #     IHPsort = Column(Integer, comment='顺序标志')
 #
-
-

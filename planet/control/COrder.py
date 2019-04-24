@@ -24,7 +24,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus
+    TimeLimitedStatus, ProductBrandStatus
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -39,7 +39,7 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
-    OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog
+    OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog, UserIntegral
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
@@ -495,6 +495,7 @@ class COrder(CPay, CCoupon):
             omrecvname = user_address_instance.UAname
             opayno = self.wx_pay.nonce_str  # 生成流水号
             mount_price = Decimal()  # 总价
+            mount_integral = 0  # 需要支付的星币总数
             omids = []
             # 采用激活码购买跳过支付参数
             if opaytype == PayType.codepay.value:
@@ -534,6 +535,8 @@ class COrder(CPay, CCoupon):
                 part_omfrom = omfrom
                 order_price = Decimal()  # 订单实际价格
                 order_old_price = Decimal()  # 原价格
+                dev_integral = 0  # 需要支付的星币数
+                dev_mount = Decimal()  # 允许星币抵扣的钱数
                 omid = str(uuid.uuid1())  # 主单id
                 omids.append(omid)
                 info = parameter_required(('pbid', 'skus',), datafrom=info)
@@ -541,8 +544,9 @@ class COrder(CPay, CCoupon):
                 skus = info.get('skus')
                 coupons = info.get('coupons')
                 ommessage = info.get('ommessage')
-                product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid}).first_(
-                    '品牌id: {}不存在'.format(pbid))
+                product_brand_instance = s.query(ProductBrand).filter_by_({'PBid': pbid,
+                                                                           'PBstatus': ProductBrandStatus.upper.value}
+                                                                          ).first_('该品牌已下架: {}'.format(pbid))
                 prid_dict = {}  # 一个临时的prid字典
                 order_part_list = []
                 freight_list = []  # 快递费
@@ -773,6 +777,11 @@ class COrder(CPay, CCoupon):
                         }
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
+                if opaytype == PayType.mixedpay.value:  # 如果是组合支付的话，更改实际支付金额
+                    dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance, order_price)
+                    dev_mount += dev_mount
+                    dev_integral += dev_integral
+                    order_price -= dev_mount
                 # 快递费选最大
                 freight = max(freight_list)
                 # 主单
@@ -797,12 +806,26 @@ class COrder(CPay, CCoupon):
                     'OMlogisticType': OMlogisticType,  # 发货类型, 如果为10 则 付款后直接完成
                     'PRcreateId': product_instance.CreaterId,
                 }
+                if opaytype == PayType.mixedpay.value:
+                    order_main_dict['OMintegralpayed'] = dev_integral
                 order_main_instance = OrderMain.create(order_main_dict)
                 s.add(order_main_instance)
                 # 总价格累加
                 mount_price += order_price
+                mount_integral += dev_integral
 
             # 支付数据表
+            if opaytype == PayType.mixedpay.value:  # 如果是组合支付的话，建两个流水记录
+                order_pay_integral_dict = {
+                    'OPayid': str(uuid.uuid1()),
+                    'OPayno': opayno,
+                    'OPayType': opaytype,
+                    'OPayMount': mount_integral,
+                }  # 这个记录星币扣款数据
+                s.add(OrderPay.create(order_pay_integral_dict))
+                if omclient == Client.wechat.value:
+                    opaytype = PayType.wechat_pay.value
+            # 正常的微信支付数据表
             order_pay_dict = {
                 'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
@@ -825,6 +848,80 @@ class COrder(CPay, CCoupon):
             'args': pay_args
         }
         return Success('创建成功', data=response)
+
+    @token_required
+    def integral_pay_preview(self):
+        """下单前获取可用星币支付的钱数"""
+        data = parameter_required(('info',))
+        infos = data.get('info')
+        user = User.query.filter_by_(USid=request.user.id).first_("用户信息错误")
+        usintegral = int(user.USintegral)
+        with db.auto_commit():
+            for info in infos:
+                info = parameter_required(('pbid', 'skus',), datafrom=info)
+                order_price = Decimal()  # 订单实际价格
+                dev_integral = 0  # 允许扣除的星币数
+                dev_mount = Decimal()  # 允许星币抵扣的钱数
+                pbid = info.get('pbid')
+                skus = info.get('skus')
+                product_brand = ProductBrand.query.filter_by_({'PBid': pbid,
+                                                               'PBstatus': ProductBrandStatus.upper.value}
+                                                              ).first_('该品牌已下架: {}'.format(pbid))
+                for sku in skus:
+                    skuid = sku.get('skuid')
+                    opnum = int(sku.get('nums', 1))
+                    # 订单副单
+                    cafrom = sku.get('cafrom', 10)
+                    if cafrom != CartFrom.normal.value:
+                        continue
+                    assert opnum > 0
+                    sku_instance = ProductSku.query.filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+                    prid = sku_instance.PRid
+                    product_instance = Products.query.filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+                    if product_instance.PBid != pbid:
+                        raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
+
+                    small_total = Decimal(str(sku_instance.SKUprice)) * opnum
+                    current_app.logger.info('商品sku 价格为 {}'.format(small_total))
+                    # 订单价格计算
+                    order_price += small_total
+                    # 临时记录单品价格
+                dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand, order_price)
+                dev_mount += dev_mount
+                dev_integral += dev_integral
+        can_reduce = False
+        if dev_integral > 0 and dev_mount > 0:
+            can_reduce = True
+
+        return Success(data=dict(can_reduce=can_reduce,
+                                 reduce_mount=dev_mount,
+                                 reduce_integral=dev_integral,
+                                 old_proce=order_price,
+                                 reduced_price=order_price - dev_mount,
+                                 usintegral=usintegral))
+
+    def _calculate_integral_pay_part(self, user, pb, mount):
+        """计算可用星币支付的钱数"""
+        if not user.USintegral or user.USintegral <= 0:
+            return Decimal(), 0
+        if pb.PBintegralPayRate:
+            usintegral = int(user.USintegral)
+            rate = Decimal(pb.PBintegralPayRate / 100)
+            cfg = ConfigSettings()
+            exchange_rate = cfg.get_item('integralbase', 'exchange_rate')  # 1元 = x 个星币
+            can_integral_part = mount * rate  # 本次金额中该品牌允许的最大可抵扣的钱数
+            can_integral_pay_part = Decimal(usintegral / int(exchange_rate))  # 当前星币余额可抵扣的钱数
+            if can_integral_pay_part >= can_integral_part:  # 星币充足，完全可以抵扣掉
+                dev_integral = int(can_integral_part * Decimal(exchange_rate))  # 需要扣除的星币
+                dev_mount = can_integral_part  # 本次支付所持星币可以抵扣的钱
+            else:
+                dev_integral = usintegral
+                dev_mount = can_integral_pay_part
+        else:
+            dev_mount, dev_integral = Decimal(), 0
+        if dev_mount > mount:
+            dev_mount = mount - Decimal(0.01)
+        return dev_mount, dev_integral
 
     def get_order_feight(self):
         """获取获取快递费"""

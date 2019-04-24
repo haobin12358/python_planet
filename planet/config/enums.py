@@ -513,10 +513,10 @@ class OMlogisticTypeEnum(Enum):
 
 
 class ApprovalAction(Enum):
-    agree = 1, '同意'
-    refuse = -1, '拒绝'
-    submit = 0, '提交'
-    cancle = -10, '取消'
+    agree = 1, '已通过'
+    refuse = -1, '未通过'
+    submit = 0, '审批中'
+    cancle = -10, '已取消'
 
 
 class PermissionNotesType(Enum):
