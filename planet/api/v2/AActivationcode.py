@@ -11,6 +11,9 @@ class AActivationCode(Resource):
             'list_act_code': self.cact_code.get_user_activationcode,
             'get_rule': self.cact_code.get_rule,
             'get_list': self.cact_code.get_list,
+            'get_actcode_list': self.cact_code.get_actcode_list,
+            'get_actcode_detail':self.cact_code.get_actcode_detail
+
         }
         return apis
 

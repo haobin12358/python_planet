@@ -2123,7 +2123,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
-            cash_note.fill('cnstatus', ApprovalAction(cash_note.CNstatus).zh_value)
+            cash_note.fill('cnstatus_zh', ApprovalAction(cash_note.CNstatus).zh_value)
+            cash_note.fill('cnstatus_en', ApprovalAction(cash_note.CNstatus).name)
 
         return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
 

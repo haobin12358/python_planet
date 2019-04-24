@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.5/socket.io.min.js"></script>
+</head>
+<body>
+<h1 id="t"></h1>
+<script type="text/javascript">
+    $(document).ready(function() {
+        namespace = '/change_num';
+        var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + namespace);
+        socket.on('server_response', function(res) {
+            console.log(res.data);
+            $('#t').text(res.data);
+        });
+    });
+</script>
+</body>
+</html>
