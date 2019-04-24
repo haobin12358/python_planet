@@ -233,7 +233,10 @@ class COrder(CPay, CCoupon):
             )
         if createtime_start:
             query = query.filter(
-                OrderMain.createtime >= createtime_start,
+                or_(OrderMain.createtime >= createtime_start,
+                    OrderMain.updatetime >= createtime_start
+                    )
+
             )
         if createtime_end:
             query = query.filter(
