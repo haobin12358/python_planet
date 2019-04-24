@@ -59,7 +59,18 @@ class CTimeLimited(COrder, CUser):
                 TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value
             ).count()
             time_limited.fill('prcount', tlp_count)
-
+            if time_limited.TLAstatus == TimeLimitedStatus.waiting.value:
+                if isinstance(time_limited.TLAstartTime, datetime):
+                    starttime = time_limited.TLAstartTime
+                else:
+                    starttime = datetime.strptime(str(time_limited.TLAstartTime), '%Y-%m-%d %H:%M:%S')
+                time_limited.fill('duration_start', str(starttime - time_now))
+            if time_limited.TLAstatus == TimeLimitedStatus.starting.value:
+                if isinstance(time_limited.TLAendTime, datetime):
+                    end_time = time_limited.TLAendTime
+                else:
+                    end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
+                time_limited.fill('duration_end', str(end_time - time_now))
         return Success(data=time_limited_list)
 
     def list_product(self):
