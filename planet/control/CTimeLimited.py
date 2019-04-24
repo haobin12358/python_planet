@@ -189,7 +189,7 @@ class CTimeLimited(COrder, CUser):
             'TLAstatus': tlastatus,
         })
         if tlastatus == TimeLimitedStatus.starting.value:
-            API_HOST = 'https://test.bigxingxing.com'
+            from planet.config.http_config import API_HOST
             tlb = IndexBanner.create({
                 'IBid': str(uuid.uuid1()),
                 'IBpic': data.get('tlatoppic'),
