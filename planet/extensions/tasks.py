@@ -21,7 +21,7 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner
 
 celery = Celery()
 
@@ -737,7 +737,7 @@ def end_timelimited(tlaid):
 
 
 @celery.task()
-def start_timelimited(tlaid):
+def start_timelimited(tlaid,tlatoppic):
     current_app.logger.info('开始修改限时活动为开始')
     tla = TimeLimitedActivity.query.filter(
         TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAid == tlaid).first()
