@@ -2,8 +2,11 @@ import random
 import re
 import string
 import uuid
+import math
+
 
 from flask import request
+
 
 from planet.common.error_response import ParamsError, SystemError
 from planet.common.params_validates import parameter_required
@@ -148,6 +151,61 @@ class CActivationCode(BASEAPPROVAL):
                 if not reason:
                     continue
                 aca.fill('acareason', reason.ANabo)
+
+        return Success('获取申请列表成功', data=aca_list)
+
+    @token_required
+    def get_actcode_list(self):
+        """获取激活码的列表"""
+        data = parameter_required()
+        month = data.get('month')
+        year = data.get('year')
+        usid = request.user.id
+        from sqlalchemy import extract
+        actlist = list()
+        user_act_codes = UserActivationCode.query.filter(
+            UserActivationCode.isdelete == False,
+            UserActivationCode.USid == usid,
+            extract('month', UserActivationCode.createtime) == int(month),
+            extract('year', UserActivationCode.createtime) == int(year),
+        ).order_by(
+            UserActivationCode.UACuseFor.asc(),
+            UserActivationCode.createtime.desc()
+        ).all()
+        for user_act_code in user_act_codes:
+            user_act_code.hide('USid')
+            user_act_code.fill('createtime',user_act_code.createtime)
+            act = user_act_code
+            if act:
+                actlist.append(act)
+
+        page = int(data.get('page_num', 1)) or 1
+        count = int(data.get('page_size', 15)) or 15
+        total_count = len(actlist)
+        if page < 1:
+            page = 1
+        total_page = math.ceil(total_count / int(count)) or 1
+        start = (page - 1) * count
+        if start > total_count:
+            start = 0
+        if total_count / (page * count) < 0:
+            act_return_list = actlist[start:]
+        else:
+            act_return_list = actlist[start: (page * count)]
+        request.page_all = total_page
+        request.mount = total_count
+        return Success(data=act_return_list)
+
+    @token_required
+    def get_actcode_detail(self):
+        """获取用激活码申请详情"""
+        data = parameter_required(('acaid',))
+        acaid = data.get('acaid')
+        aca_list = ActivationCodeApply.query.filter(
+            ActivationCodeApply.ACAid == acaid,
+            ActivationCodeApply.isdelete == False).first()
+        aca_list.hide('USid')
+        aca_list.hide('ACAid')
 
         return Success('获取申请列表成功', data=aca_list)
 

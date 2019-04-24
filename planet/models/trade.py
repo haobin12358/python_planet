@@ -332,6 +332,7 @@ class ActivationCodeApply(Base):
 class UserActivationCode(Base):
     """用户拥有的激活码"""
     __tablename__ = 'UserActivationCode'
+    ACAid =  Column(String(64))
     UACid = Column(String(64), primary_key=True)
     USid = Column(String(64), index=True, nullable=False, comment='拥有者')
     UACcode = Column(String(16), nullable=False, index=True, comment='激活码, 两个小写字母加5个数字')
