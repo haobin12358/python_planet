@@ -39,7 +39,8 @@ class CBrands(object):
                 'PBdesc': pbdesc,
                 'PBlinks': pblinks,
                 'PBbackgroud': pbbackgroud,
-                'SUid': suid
+                'SUid': suid,
+                'PBintegralPayRate': data.pbintegralpayrate.data
             }
             pb_instance = ProductBrand.create(pb_dict)
             s_list.append(pb_instance)
@@ -203,7 +204,8 @@ class CBrands(object):
                 'PBdesc': pbdesc,
                 'PBlinks': pblinks,
                 'PBbackgroud': pbbackgroud,
-                'SUid': suid
+                'SUid': suid,
+                'PBintegralPayRate': data.pbintegralpayrate.data
             })
             s_list.append(product_brand_instance)
             # 品牌已经关联的中间
