@@ -165,7 +165,7 @@ class CPay():
                 'USid': user.USid,
                 'UIintegral': om.OMintegralpayed,
                 'UIaction': UserIntegralAction.consumption.value,
-                'UItype': UserIntegralType.expenditure.value
+                'UItype': UserIntegralType.expenditure.value,
                 'OPayno': opayno
             })
             db.session.add(ui)
@@ -375,7 +375,7 @@ class CPay():
         commision_for_supplizer = order_part.OPsubTotal * (Decimal('1') - planet_and_user_rate)   #  给供应商的钱   总价 * ( 1 - 让利 )
         commision_for_supplizer = self.get_two_float(commision_for_supplizer)
 
-        desposit = commision_for_supplizer
+        desposit = 0
         # 正常应该获得佣金
         up1_base = up2_base = up3_base = 0
         if up1 and up1.USlevel > 1:
@@ -455,6 +455,7 @@ class CPay():
                     desposit = commision_sub
                     commision_for_supplizer -= commision_sub
                 else:
+                    desposit = commision_for_supplizer
                     commision_for_supplizer = 0
             else:
                 planet_remain -= (Decimal(order_part.OPsubTotal) - Decimal(order_part.OPsubTrueTotal))
@@ -464,24 +465,27 @@ class CPay():
             su = Supplizer.query.filter(Supplizer.isdelete == False, Supplizer.SUid == suid).first()
             current_app.logger.info('get supplizer {}'.format(su))
             if su:
+                if desposit:
+                    current_app.logger.info('get change {}'.format(desposit))
+                    desposit = Decimal(str(desposit))
+                    sudeposit = Decimal(str(su.SUdeposit or 0))
+                    after_deposit = sudeposit + desposit
+                    current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
+                        sudeposit, desposit, after_deposit
+                    ))
 
-                current_app.logger.info('get change {}'.format(desposit))
-                desposit = Decimal(str(desposit))
-                sudeposit = Decimal(str(su.SUdeposit or 0))
-                after_deposit = sudeposit + desposit
-                current_app.logger.info('start add supplizer deposit before {} change {} after {}'.format(
-                    sudeposit, desposit, after_deposit
-                ))
-                sdl = SupplizerDepositLog.create({
-                    'SDLid': str(uuid.uuid1()),
-                    'SUid': su.SUid,
-                    'SDLnum': desposit,
-                    'SDafter': after_deposit,
-                    'SDbefore': sudeposit,
-                    'SDLacid': 'system'
-                })
-                su.SUdeposit = after_deposit
-                db.session.add(sdl)
+                    sdl = SupplizerDepositLog.create({
+                        'SDLid': str(uuid.uuid1()),
+                        'SUid': su.SUid,
+                        'SDLnum': desposit,
+                        'SDafter': after_deposit,
+                        'SDbefore': sudeposit,
+                        'SDLacid': 'system',
+                        'SDLcontentid': order_part.OPid,
+                    })
+                    su.SUdeposit = after_deposit
+                    db.session.add(sdl)
+
                 commision_account = UserCommission.create({
                     'UCid': str(uuid.uuid1()),
                     'OMid': order_part.OMid,
