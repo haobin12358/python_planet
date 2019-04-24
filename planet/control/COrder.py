@@ -887,7 +887,6 @@ class COrder(CPay, CCoupon):
                     # 订单价格计算
                     order_price += small_total
                     current_app.logger.info('本次计算后支付价格为: {}'.format(order_price))
-                    # 临时记录单品价格
                 dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand, order_price)
                 mount_dev_price += dev_mount
                 mount_integral += dev_integral
@@ -907,7 +906,7 @@ class COrder(CPay, CCoupon):
         """计算可用星币支付的钱数"""
         if not user.USintegral or user.USintegral <= 0:
             return Decimal(), 0
-        if pb.PBintegralPayRate:
+        if pb.PBintegralPayRate and 0 < int(pb.PBintegralPayRate) <= 100:
             usintegral = int(user.USintegral)
             rate = Decimal(pb.PBintegralPayRate / 100)
             cfg = ConfigSettings()

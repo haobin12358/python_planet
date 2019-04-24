@@ -181,7 +181,9 @@ class CPay():
         # percent = 0.2
         current_app.logger.info("wechat_notify, trade add integral")
         percent = ConfigSettings().get_item('integralbase', 'trade_percent')
-        intergral = int(Decimal(percent) * Decimal(order_main.OMtrueMount))
+        if not (0 < int(percent) <= 100):
+            return
+        intergral = int(Decimal(percent / 100) * Decimal(order_main.OMtrueMount))
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': user.USid,
