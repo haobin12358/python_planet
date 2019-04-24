@@ -277,7 +277,7 @@ class Coupon(Base):
     COremainNum = Column(Integer, default=COlimitNum, comment='剩余数量, 有COlimitNum时才会生效')
     SUid = Column(String(64), comment='来源供应商, 如为空则为平台')
     ADid = Column(String(64), comment='创建人')
-
+    COcode = Column(Integer, default=0, comment='是否需要兑换码，0 不需要 1 需要')
 
 class CouponItem(Base):
     """优惠券标签中间表"""
@@ -363,3 +363,10 @@ class OrderPartContentActivity(Base):
     CAfrom = Column(Integer, comment='商品来源')
     OPid = Column(String(64), comment='订单id')
     OCAcontentid = Column(String(64), comment='关联活动id')
+
+
+class CouponCode(Base):
+    __tablename__ = 'CouponCode'
+    CCid = Column(String(64), primary_key=True)
+    COid = Column(String(64), nullable=False, comment='优惠券id')
+    CCcode = Column(String(12), comment='优惠劵兑换码')
