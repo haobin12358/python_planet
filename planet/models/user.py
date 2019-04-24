@@ -250,3 +250,11 @@ class UserTransmit(Base):
     USid = Column(String(64), nullable=False, comment='用户id')
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
+
+class UserNewsCategory(Base):
+    __tablename__ = 'UserNewsCategory'
+    UNC = Column(String(64), primary_key=True)
+    NSCid = Column(String(64), comment='圈子系统内置分类id')
+    USid = Column(String(64), comment='用户id')
+    UNCsort = Column(String(64), comment='用户自定义排序')
+

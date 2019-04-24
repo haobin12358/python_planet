@@ -16,7 +16,8 @@ from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog, \
+    NewsSystemCategory
 from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -124,6 +125,13 @@ class CNews(BASEAPPROVAL):
             else:
                 favorite = 0
                 is_own = 0
+            # 作者信息
+            if news.USheader:
+                usheader = news['USheader']
+            else:
+                usinfo = self.fill_user_info(news.USid)
+                usheader = usinfo['USheader']
+            news.fill('usheader', usheader)
             news.fill('is_favorite', favorite)
             news.fill('is_own', is_own)
             news.fill('collected', bool(UserCollectionLog.query.filter_by(
@@ -179,14 +187,13 @@ class CNews(BASEAPPROVAL):
                 showtype = 'text'
                 news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
             news.fill('showtype', showtype)
+            # 增加 分类信息
+            nsc = NewsSystemCategory.query.filter_by(NSCid=news.NSCid, isdelete=False).first()
+            nscname = nsc.NSCname if nsc else ""
+            news.fill('nscname', nscname)
+            # 增加 话题信息
+            toc = Top
 
-            # 作者信息
-            if news.USheader:
-                usheader = news['USheader']
-            else:
-                usinfo = self.fill_user_info(news.USid)
-                usheader = usinfo['USheader']
-            news.fill('usheader', usheader)
         # 增加搜索记录
         if kw not in self.empty and usid:
             with self.snews.auto_commit() as s:
@@ -944,6 +951,14 @@ class CNews(BASEAPPROVAL):
             else:
                 res.append(url)
         return res
+
+    def _get_location(self, lon, lat):
+
+        url = "http://api.map.baidu.com/geocoder/v2/?callback={0}&location={1},{2}&output={3}&pois={4}&ak={5}" \
+            .format("renderReverse", lat, lon, "xml", 0, "1bdd475a06ffdb9a4f3ee021da7ae847")
+
+        
+
 
 
 # if __name__ == '__main__':
