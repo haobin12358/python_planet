@@ -593,8 +593,8 @@ class UserGrade(Enum):
 
 class PlanetMessageStatus(Enum):
     draft = 0, '草稿'
-    publish = 1, '已发布'
-
+    publish = 1, '已发布',
+    hide = 1, '隐藏'
 
 
 if __name__ == '__main__':
