@@ -34,7 +34,7 @@ class CTimeLimited(COrder, CUser):
         for time_limited in time_limited_list:
             time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
             time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
-            tlp_query = TimeLimitedProduct.join(Products, Products.PRid == TimeLimitedProduct.PRid).query.filter(
+            tlp_query = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(
                 TimeLimitedProduct.TLAid == time_limited.TLAid,
                 TimeLimitedProduct.isdelete == False,
                 Products.isdelete == False,
