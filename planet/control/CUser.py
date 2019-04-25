@@ -508,6 +508,10 @@ class CUser(SUser, BASEAPPROVAL):
             cast(UserIntegral.createtime, Date) == today).first()
         user.fill('signin', bool(ui))
         self.__user_fill_uw_total(user)
+
+        # 增加订单数
+        # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
+        user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
         return Success('获取首页用户信息成功', data=user)
 
     @get_session
