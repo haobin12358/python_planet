@@ -231,15 +231,20 @@ class COrder(CPay, CCoupon):
         )
         if is_supplizer():
             query = query.filter(
-                OrderMain.PRcreateId == request.user.id
+                OrderMain.PRcreateId == request.user.id,
+                OrderMain.OMstatus == OrderMainStatus.ready.value
             )
         if createtime_start:
             query = query.filter(
-                OrderMain.createtime >= createtime_start
+                or_(OrderMain.createtime >= createtime_start,
+                    OrderMain.updatetime >= createtime_start
+                    )
+
             )
         if createtime_end:
             query = query.filter(
-                OrderMain.createtime <= createtime_end
+                OrderMain.createtime <= createtime_end,
+                OrderMain.updatetime <= createtime_end
             )
         if paytime_start:
             query = query.filter(
