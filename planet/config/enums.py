@@ -472,6 +472,11 @@ class BankName(Enum):
     HBRCU = 164, "河北省农村信用社"
 
 
+class WexinBankCode(Enum):
+    """微信提现允许的银行"""
+    pass
+
+
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
@@ -570,6 +575,7 @@ class CollectionType(Enum):
     product = 0, '商品'
     news = 1, '圈子'
     user = 2, '用户'
+    news_tag = 3, '圈子分类'
 
 
 class CartFrom(Enum):

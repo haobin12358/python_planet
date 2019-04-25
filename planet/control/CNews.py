@@ -9,8 +9,8 @@ from planet.common.error_response import ParamsError, SystemError, NotFound, Aut
 from planet.common.get_location import GetLocation
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
-    is_admin, is_supplizer
+from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, \
+    get_current_admin, is_admin, is_supplizer, common_user
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade
 from planet.control.BaseControl import BASEAPPROVAL
@@ -18,11 +18,11 @@ from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
     Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog, \
-    NewsSystemCategory, TopicOfConversations, UserLocation
-from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
+    TopicOfConversations, UserLocation
+from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 from sqlalchemy import extract
 from planet.models import UserIntegral
 from planet.config.enums import UserIntegralAction, UserIntegralType
@@ -90,25 +90,23 @@ class CNews(BASEAPPROVAL):
 
         news_list = self.snews.get_news_list(filter_args)
         for news in news_list:
-            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime', 'NElocation', 'TOCid', 'NSCid']
+            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime', 'NElocation', 'TOCid', 'NElocation']
             # 添加发布者信息
-            auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
-                news.fill('authername', '{} (管理员)'.format(auther))
-                # news.fill('authergrade', UserGrade.diamonds.zh_value)
-                news.fill('authergrade',  ApplyFrom.platform.zh_value)
+                author_info = dict(usname=news.USname or '',
+                                   usgrade=ApplyFrom.platform.zh_value,
+                                   usheader=news['USheader'] or '')
 
             elif news.NEfrom == ApplyFrom.supplizer.value:
-
-                news.fill('authername', '{} (供应商)'.format(auther))
-                auther_sup = self._check_supplizer(news.USid)
-                # news.fill('authergrade', UserGrade(auther_sup.SUgrade).zh_value)
-                news.fill('authergrade', ApplyFrom.platform.zh_value)
+                author_info = dict(usname=news.USname or '',
+                                   usgrade=ApplyFrom.platform.zh_value,
+                                   usheader=news['USheader'] or '')
             else:
-                news.fill('authername', '{} (用户)'.format(auther))
-                auther_user = self.snews.get_user_by_id(news.USid)
-                news.fill('authergrade', UserGrade(auther_user.USlevel).zh_value)
-                # news.fill('authergrade', UserLevel(auther_user.USgrade).zh_value)
+                auther_user = self.fill_user_info(news.USid)
+                author_info = dict(usname=news.USname or auther_user['USname'],
+                                   usgrade=UserGrade(auther_user['USlevel']).zh_value,
+                                   usheader=news['USheader'] or auther_user['USheader'])
+            news.fill('author', author_info)
 
             news.fill('follow', bool(UserCollectionLog.query.filter(
                 UserCollectionLog.UCLcoType == CollectionType.user.value,
@@ -126,13 +124,7 @@ class CNews(BASEAPPROVAL):
             else:
                 favorite = 0
                 is_own = 0
-            # 作者信息
-            if news.USheader:
-                usheader = news['USheader']
-            else:
-                usinfo = self.fill_user_info(news.USid)
-                usheader = usinfo['USheader']
-            news.fill('usheader', usheader)
+
             news.fill('is_favorite', favorite)
             news.fill('is_own', is_own)
             news.fill('collected', bool(UserCollectionLog.query.filter_by(
@@ -151,6 +143,14 @@ class CNews(BASEAPPROVAL):
             favoritnumber = self.snews.get_news_favorite_count(news.NEid)
             news.fill('favoritnumber', favoritnumber)
 
+            # 单个标签
+            items = Items.query.outerjoin(NewsTag, Items.ITid == NewsTag.ITid
+                                          ).filter(Items.isdelete == False,
+                                                   NewsTag.isdelete == False,
+                                                   NewsTag.NEid == news.NEid
+                                                   ).order_by(NewsTag.createtime.desc()).first()  # 列表页只取第一个
+            news.fill('item', getattr(items, 'ITname', '') or '')
+
             # 获取内容
             new_content = news.NEtext
             try:
@@ -166,29 +166,48 @@ class CNews(BASEAPPROVAL):
                     image_index.append(index)
                 elif item.get('type') == 'text':
                     text_index.append(index)
-
+            # if news.NEmainpic:
+            #     showtype = 'picture'
+            #     news.fill('mainpic', news['NEmainpic'])
+            # elif len(video_index):
+            #     showtype = 'video'
+            #     video_url = new_content[video_index[0]].get('content')['video']
+            #     video_url = self.__verify_get_url([video_url, ])[0]
+            #     news.fill('video', video_url)
+            #     thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
+            #     thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
+            #     news.fill('videothumbnail', thumbnail_url)
+            #     news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
+            # elif len(image_index):
+            #     showtype = 'picture'
+            #     pic_url = new_content[image_index[0]].get('content')[0]
+            #     pic_url = self.__verify_get_url([pic_url, ])[0]
+            #     news.fill('mainpic', pic_url)
+            # else:
+            #     showtype = 'text'
+            #     news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
+            # news.fill('showtype', showtype)
+            netext = list()
             if news.NEmainpic:
-                showtype = 'picture'
-                news.fill('mainpic', news['NEmainpic'])
-            elif len(video_index):
-                showtype = 'video'
-                video_url = new_content[video_index[0]].get('content')['video']
-                video_url = self.__verify_get_url([video_url, ])[0]
-                news.fill('video', video_url)
-                thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
-                thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
-                news.fill('videothumbnail', thumbnail_url)
-                news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
+                netext.append(dict(type='image', content=[news['NEmainpic'], ]))
             elif len(image_index):
-                showtype = 'picture'
-                pic_url = new_content[image_index[0]].get('content')[0]
-                pic_url = self.__verify_get_url([pic_url, ])[0]
-                news.fill('mainpic', pic_url)
-            else:
-                showtype = 'text'
-                news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
-            news.fill('showtype', showtype)
-            self._fill_news(news)
+                tmp_list = list()
+                for index in image_index:
+                    tmp_list.extend(new_content[index].get('content'))
+                tmp_list = self.__verify_get_url(tmp_list)
+                netext.append(dict(type='image', content=tmp_list))
+            elif len(video_index):
+                video_url = new_content[video_index[0]].get('content')['thumbnail']
+                video_url = self.__verify_get_url([video_url, ])[0]
+                netext.append(dict(type='image', content=list(video_url)))
+            try:
+                text = new_content[text_index[0]].get('content')[:100] + ' ...'
+            except Exception as e:
+                current_app.logger.error("neid {}, not text content, error is{}".format(news.NEid, e))
+                text = ''
+            netext.append(dict(type='text', content=text))
+            news.fill('netext', netext)
+            self._fill_news(news)  # 增加话题
 
         # 增加搜索记录
         if kw not in self.empty and usid:
@@ -225,7 +244,7 @@ class CNews(BASEAPPROVAL):
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
-        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEmainpic', 'NEisrecommend', 'NElocation', 'TOCid', 'NSCid']
+        news.fields = ['NEid', 'NEtitle', 'createtime', 'NEpageviews', 'NEmainpic', 'NEisrecommend', 'NElocation']
 
         if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
             if news.NEstatus == NewsStatus.usual.value:
@@ -258,16 +277,22 @@ class CNews(BASEAPPROVAL):
         news.fill('collected', collected)
 
         # 作者信息
-        if news.USheader and news.USname:
-            news_author = {'usname': news.USname, 'usheader': news['USheader']}
+        if news.NEfrom == ApplyFrom.platform.value:
+            author_info = dict(usname=news.USname or '',
+                               usgrade=ApplyFrom.platform.zh_value,
+                               usheader=news['USheader'] or '')
+
+        elif news.NEfrom == ApplyFrom.supplizer.value:
+            author_info = dict(usname=news.USname or '',
+                               usgrade=ApplyFrom.platform.zh_value,
+                               usheader=news['USheader'] or '')
         else:
-            news_author = User.query.filter_by(USid=news.USid).first()
-            if news_author:
-                news_author.fields = ['USname', 'USheader']
-            else:
-                news_author = {'usname': '神秘的客官', 'usheader': ''}
-        news.fill('author', news_author)
-        news.fill('createtime', news.createtime)
+            auther_user = self.fill_user_info(news.USid)
+            news.fill('authergrade', UserGrade(auther_user['USlevel']).zh_value)
+            author_info = dict(usname=news.USname or auther_user['USname'],
+                               usgrade=UserGrade(auther_user['USlevel']).zh_value,
+                               usheader=news['USheader'] or auther_user['USheader'])
+        news.fill('author', author_info)
         commentnumber = self.snews.get_news_comment_count(neid)
         news.fill('commentnumber', commentnumber)
         favoritnumber = self.snews.get_news_favorite_count(neid)
@@ -290,7 +315,7 @@ class CNews(BASEAPPROVAL):
         # 关联标签
         tags = self.snews.get_item_list((NewsTag.NEid == neid,))
         if tags:
-            [tag.hide('PSid') for tag in tags]
+            [tag.hide('ITsort', 'ITdesc', 'ITrecommend', 'ITauthority', 'ITposition') for tag in tags]
             news.fill('items', tags)
 
         # 关联的优惠券
@@ -373,6 +398,8 @@ class CNews(BASEAPPROVAL):
         isrecommend = data.get('neisrecommend', 0)
         isrecommend = True if str(isrecommend) == '1' else False
 
+        TopicOfConversations.query.filter_by_(TOCid=data.get('tocid')).first_("选择的话题不存在")
+
         text_list = list()
         if isinstance(netext, list):
             for text in netext:
@@ -417,8 +444,7 @@ class CNews(BASEAPPROVAL):
                 'USheader': usheader,
                 'NEfrom': nefrom,
                 'TOCid': data.get('tocid'),
-                'NSCid': data.get('nscid'),
-                'NElocation': data.get('nelocation'),
+                'NElocation': data.get('nelocation')
             })
             session_list.append(news_info)
             if items not in self.empty:
@@ -875,6 +901,78 @@ class CNews(BASEAPPROVAL):
             raise AuthorityError('只能删除自己发布的评论')
         return Success('删除成功', {'ncid': ncid})
 
+    def create_topic(self):
+        """创建话题"""
+        if not (common_user() or is_admin()):
+            raise AuthorityError()
+        uid = request.user.id
+        if common_user():
+            self.snews.get_user_by_id(uid)
+            tocfrom = ApplyFrom.user.value
+        else:
+            self._check_admin(uid)
+            tocfrom = ApplyFrom.platform.value
+        data = parameter_required(('toctitle',))
+        totile = data.get('toctitle')
+        toc = TopicOfConversations.query.filter(TopicOfConversations.isdelete == False,
+                                                TopicOfConversations.TOCtitle == totile
+                                                ).first()
+        if toc:
+            raise ParamsError('您要创建的话题已存在，请直接进行选择')
+        with db.auto_commit():
+            topic_instance = TopicOfConversations.create({'TOCid': str(uuid.uuid1()),
+                                                          'TOCcreate': uid,
+                                                          'TOCtitle': totile,
+                                                          'TOCfrom': tocfrom})
+            db.session.add(topic_instance)
+        return Success('创建成功', data=dict(tocid=topic_instance.TOCid, toctitle=topic_instance.TOCtitle))
+
+    def get_topic(self):
+        """获取话题"""
+        # qu = db.session.query(TopicOfConversations, func.count(News.TOCid)
+        #                       ).outerjoin(News, News.TOCid == TopicOfConversations.TOCid
+        #                                   ).filter(News.isdelete == False,
+        #                                            TopicOfConversations.isdelete == False,
+        #                                            ).group_by(News.TOCid
+        #                                                       ).order_by(func.count(News.TOCid).desc(),
+        #                                                                  TopicOfConversations.createtime.desc())
+        # print(qu)
+        # tocs = qu.all()
+        # todo 按话题被关联的次数排序
+        tocs = db.session.query(TopicOfConversations).filter_by_().order_by(TopicOfConversations.createtime.desc()).all()
+        [toc.hide('TOCcreate', 'TOCfrom') for toc in tocs]
+        return Success(data=tocs)
+
+    @admin_required
+    def del_topic(self):
+        """删除话题"""
+        tocid = parameter_required(('tocid',)).get('tocid')
+        TopicOfConversations.query.filter_by(TOCid=tocid).delete_()
+        return Success('删除成功')
+
+    def choose_category(self):
+        """选择我的分类"""
+        if not common_user():
+            raise AuthorityError()
+        user = self.snews.get_user_by_id(request.user.id)
+        itids = parameter_required(('itids',)).get('itids')
+        if not isinstance(itids, list):
+            raise ParamsError('参数格式错误')
+        my_choose = UserCollectionLog.query.filter_by_(UCLcollector=user.USid,
+                                                       UCLcoType=CollectionType.news_tag.value).first()
+        itids = json.dumps(itids)
+        with db.auto_commit():
+            if not my_choose:
+                db.session.add(UserCollectionLog.create({'UCLid': str(uuid.uuid1()),
+                                                         'UCLcollector': user.USid,
+                                                         'UCLcollection': itids,
+                                                         'UCLcoType': CollectionType.news_tag.value}
+                                                        ))
+            else:
+                my_choose.update({'UCLcollection': itids})
+                db.session.add(my_choose)
+        return Success('修改成功')
+
     @staticmethod
     def _check_admin(usid):
         return Admin.query.filter_by_(ADid=usid).first_('管理员账号状态异常')
@@ -887,10 +985,11 @@ class CNews(BASEAPPROVAL):
     def fill_user_info(usid):
         try:
             usinfo = User.query.filter_by(USid=usid).first()
-            usinfo.fields = ['USname', 'USheader']
+            usinfo.fields = ['USname', 'USheader', 'USlevel']
         except Exception as e:
-            current_app.logger.info("This error is not real, User has been Deleted, USid is {0}, {1}".format(usid, e))
-            usinfo = {"USname": "神秘的客官", "USheader": ""}
+            current_app.logger.info("This error is not real, Just a so bad data, User has been Deleted, "
+                                    "USid is {0}, msg is  {1}".format(usid, e))
+            usinfo = {"USname": "神秘的客官", "USheader": "", "USlevel": 1}
         return usinfo
 
     @admin_required
@@ -909,9 +1008,10 @@ class CNews(BASEAPPROVAL):
 
     @token_required
     def get_location(self):
+        """获取定位"""
         user = get_current_user()
-        data = parameter_required(('lng', 'lat'))
-        current_location = self._get_location(data.get('lat'), data.get('lng'), user.USid)
+        data = parameter_required(('longitude', 'latitude'))
+        current_location = self._get_location(data.get('latitude'), data.get('longitude'), user.USid)
         return Success(data={'nelocation': current_location})
 
     def convert_test(self):
@@ -960,10 +1060,6 @@ class CNews(BASEAPPROVAL):
         return res
 
     def _fill_news(self, news):
-        # 增加 分类信息
-        nsc = NewsSystemCategory.query.filter_by(NSCid=news.NSCid, isdelete=False).first()
-        nscname = nsc.NSCname if nsc else ""
-        news.fill('nscname', nscname)
         # 增加 话题信息
         toc = TopicOfConversations.query.filter_by(TOCid=news.TOCid, isdelete=False).first()
         toctitle = toc.TOCtitle if toc else ""
@@ -972,19 +1068,20 @@ class CNews(BASEAPPROVAL):
     def _get_location(self, lat, lng, usid):
         gl = GetLocation(lat, lng)
         result = gl.result
-        ul = UserLocation.create({
-            'ULid': str(uuid.uuid1()),
-            'ULformattedAddress': result.get('formatted_address'),
-            'ULcountry': result.get('addressComponent').get('country'),
-            'ULprovince': result.get('addressComponent').get('province'),
-            'ULcity': result.get('addressComponent').get('city'),
-            'ULdistrict': result.get('addressComponent').get('district'),
-            'ULresult': json.dumps(result),
-            'ULlng': result.get('location').get('lng'),
-            'ULlat': result.get('location').get('lat'),
-            'USid': usid,
-        })
-        db.session.add(ul)
+        with db.auto_commit():
+            ul = UserLocation.create({
+                'ULid': str(uuid.uuid1()),
+                'ULformattedAddress': result.get('formatted_address'),
+                'ULcountry': result.get('addressComponent').get('country'),
+                'ULprovince': result.get('addressComponent').get('province'),
+                'ULcity': result.get('addressComponent').get('city'),
+                'ULdistrict': result.get('addressComponent').get('district'),
+                'ULresult': json.dumps(result),
+                'ULlng': result.get('location').get('lng'),
+                'ULlat': result.get('location').get('lat'),
+                'USid': usid,
+            })
+            db.session.add(ul)
         return ul.ULformattedAddress
 
 
