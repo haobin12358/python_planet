@@ -66,23 +66,18 @@ class CTimeLimited(COrder, CUser):
 
             # 获取活动商品
             tlaid = time_limited.TLAid
-            prtitle = data.get('prtitle', '')
             filter_args = {
                 TimeLimitedProduct.isdelete == False,
             }
 
             filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
             if tlaid:
-                filter_args.add(TimeLimitedProduct.TLAid == data.get('tlaid'))
-            if prtitle:
-                filter_args.add(Products.PRtitle.ilike('%{}%'.format(prtitle)))
-
-            filter_args.add(TimeLimitedProduct.TLAstatus >= ApplyStatus.shelves.value)
+                filter_args.add(TimeLimitedProduct.TLAid == tlaid)
             tlp_list = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(
                 *filter_args).order_by(
                 TimeLimitedProduct.createtime.desc()).all()
-            product_list = list()
 
+            product_list = list()
             for tlp in tlp_list:
                 current_app.logger.info(tlp)
                 tlaid = tlp.TLAid
@@ -95,28 +90,10 @@ class CTimeLimited(COrder, CUser):
                 product = self._fill_tlp(tlp, tla)
                 if product:
                     product_list.append(product)
-
-            # 筛选后重新分页
-            page = int(data.get('page_num', 1)) or 1
-            count = int(data.get('page_size', 15)) or 15
-            total_count = len(product_list)
-            if page < 1:
-                page = 1
-            total_page = math.ceil(total_count / int(count)) or 1
-            start = (page - 1) * count
-            if start > total_count:
-                start = 0
-            if total_count / (page * count) < 0:
-                ad_return_list = product_list[start:]
-            else:
-                ad_return_list = product_list[start: (page * count)]
-            request.page_all = total_page
-            request.mount = total_count
-            time_limited.fill('product_list',ad_return_list)
+            ad_return_list = product_list[:8]
+            time_limited.fill('product_list', ad_return_list)
 
         return Success(data=time_limited_list)
-
-
 
     def list_activity(self):
         """获取活动列表"""
@@ -715,7 +692,7 @@ class CTimeLimited(COrder, CUser):
             return count_pc
         return sort
 
-    def _crete_celery_task(self, tlastatus,tlaid, start_time, end_time):
+    def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
