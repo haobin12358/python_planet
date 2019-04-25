@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from flask import current_app
+
 from planet.config.enums import ProductStatus, ItemType
 from planet.models import ProductBrand, Supplizer
 from .base_form import *
@@ -25,6 +27,7 @@ class BrandsCreateForm(BaseForm):
     itids = FieldList(StringField(), validators=[DataRequired('需指定标签')])
     suid = StringField()
     pbbackgroud = StringField(validators=[Length(1, 255)])
+    pbintegralpayrate = IntegerField('允许星币抵扣的百分数的分子')
 
     def validate_suid(self, raw):
         if raw.data:
@@ -33,6 +36,12 @@ class BrandsCreateForm(BaseForm):
                 Supplizer.SUid == raw.data
             ).first_('不存在的供应商')
 
+    def validate_pbintegralpayrate(self, raw):
+        try:
+            self.pbintegralpayrate.data = int(raw.data) if raw.data and 0 < int(raw.data) <= 100 else 0
+        except Exception as e:
+            current_app.logger.error('pbintegralpayrate error {}'.format(e))
+            self.pbintegralpayrate.data = 0
 
 
 class BrandUpdateForm(BrandsCreateForm):

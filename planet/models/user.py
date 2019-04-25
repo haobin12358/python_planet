@@ -250,3 +250,24 @@ class UserTransmit(Base):
     USid = Column(String(64), nullable=False, comment='用户id')
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
+
+class UserNewsCategory(Base):
+    __tablename__ = 'UserNewsCategory'
+    UNC = Column(String(64), primary_key=True)
+    NSCid = Column(String(64), comment='圈子系统内置分类id')
+    USid = Column(String(64), comment='用户id')
+    UNCsort = Column(String(64), comment='用户自定义排序')
+
+
+class UserLocation(Base):
+    __tablename__ = 'UserLocation'
+    ULid = Column(String(64), primary_key=True)
+    ULformattedAddress = Column(Text, comment='预测地址')
+    ULcountry = Column(Text, comment='国家')
+    ULprovince = Column(Text, comment='身份')
+    ULcity = Column(Text, comment='城市')
+    ULdistrict = Column(Text, comment='区县')
+    ULresult = Column(Text, comment='查询结果')
+    ULlng = Column(Text, comment='维度')
+    ULlat = Column(Text, comment='经度')
+    USid = Column(String(64), comment='用户id')

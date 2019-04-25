@@ -2151,20 +2151,17 @@ class CUser(SUser, BASEAPPROVAL):
             integral_favorite=data.get('integral_favorite'),
             integral_commit=data.get('integral_commit'),
             integral_transmit=data.get('integral_transmit'),
+            trade_percent=data.get('trade_percent'),
             exchange_rate=data.get('exchange_rate')
         )
         for key in param_dict.keys():
-            if param_dict[key]:
+            if param_dict[key] or str(param_dict[key]) == '0':
                 if re.match(r'^\d+$', str(param_dict[key])):
+                    if key == 'trade_percent' and not (0 <= int(param_dict[key]) <= 100):
+                        raise ParamsError('购物返点参数错误, 允许范围(0~100)'.format(key))
                     cfg.set_item('integralbase', key, str(param_dict[key]))
                 else:
                     raise ParamsError('参数{}无效'.format(key))
-
-        trade_percent = data.get('trade_percent')
-        if trade_percent:
-            if not re.match(r'^\d+(\.\d+)+$', str(trade_percent)):
-                raise ParamsError('默认购物参数无效')
-            cfg.set_item('integralbase', 'trade_percent', str(trade_percent))
 
         default_rule = data.get('rule')
         if default_rule:

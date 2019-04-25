@@ -154,14 +154,15 @@ class CCoupon(object):
         for i in range(low_num):
             code_list.append(random.choice(lowercase))
         for i in range(6):
-            code_list.append(random.choice(uppercase))
-        for i in range(up_num):
             code_list.append(random.choice(digits))
-
-        code = random.sample(code_list, len(code_list))
+        for i in range(up_num):
+            code_list.append(random.choice(uppercase))
+        code = ''
+        code_list = random.sample(code_list, len(code_list))
+        for i in range(len(code_list)):
+            code += code_list[i]
         is_exists = CouponCode.query.filter_by_({
             'CCcode': code,
-            'isdelete': False,
         }).first()
         if not is_exists:
             pass
@@ -403,7 +404,7 @@ class CCoupon(object):
             coupon = s.query(Coupon).filter_by_({'COid': coid, 'COcanCollect': True}).first_('优惠券不存在或不可领取')
             coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
             # 领取过多
-            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+            if coupon.COcollectNum and coupon_user_count >= coupon.COcollectNum:
                 raise StatusError('已经领取过')
             # 发放完毕或抢空
             if coupon.COlimitNum:
@@ -438,11 +439,11 @@ class CCoupon(object):
             s_list = []
             couponcode = s.query(CouponCode).filter_by_({'CCcode': CCcode}).first_('兑换码不存在')
             coid = couponcode.COid
-            coupon = s.query(Coupon).filter_by_({'COid': coid, 'isdelete': False})
+            coupon = s.query(Coupon).filter_by_({'COid': coid}).first_()
             # 优惠券状态是否可领取
             coupon_user_count = s.query(CouponUser).filter_by_({'COid': coid, 'USid': usid}).count()
             # 领取过多
-            if coupon.COcollectNum and coupon_user_count > coupon.COcollectNum:
+            if coupon.COcollectNum and coupon_user_count >= coupon.COcollectNum:
                 raise StatusError('已经领取过')
             # 发放完毕或抢空
             if coupon.COlimitNum:
@@ -465,6 +466,8 @@ class CCoupon(object):
             # 优惠券减1
             s_list.append(coupon_user_instance)
             s.add_all(s_list)
+        return Success('领取成功')
+
 
     @staticmethod
     def _title_subtitle(coupon):

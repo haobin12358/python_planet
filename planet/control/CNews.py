@@ -6,6 +6,7 @@ from datetime import datetime
 
 from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError, TokenError
+from planet.common.get_location import GetLocation
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, get_current_admin, \
@@ -16,7 +17,8 @@ from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
-    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog
+    Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog, \
+    NewsSystemCategory, TopicOfConversations, UserLocation
 from planet.models import NewsComment, NewsCommentFavorite, UserTransmit
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -88,7 +90,7 @@ class CNews(BASEAPPROVAL):
 
         news_list = self.snews.get_news_list(filter_args)
         for news in news_list:
-            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime']
+            news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime', 'NElocation', 'TOCid', 'NSCid']
             # 添加发布者信息
             auther = news.USname or ''
             if news.NEfrom == ApplyFrom.platform.value:
@@ -124,6 +126,13 @@ class CNews(BASEAPPROVAL):
             else:
                 favorite = 0
                 is_own = 0
+            # 作者信息
+            if news.USheader:
+                usheader = news['USheader']
+            else:
+                usinfo = self.fill_user_info(news.USid)
+                usheader = usinfo['USheader']
+            news.fill('usheader', usheader)
             news.fill('is_favorite', favorite)
             news.fill('is_own', is_own)
             news.fill('collected', bool(UserCollectionLog.query.filter_by(
@@ -179,14 +188,8 @@ class CNews(BASEAPPROVAL):
                 showtype = 'text'
                 news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
             news.fill('showtype', showtype)
+            self._fill_news(news)
 
-            # 作者信息
-            if news.USheader:
-                usheader = news['USheader']
-            else:
-                usinfo = self.fill_user_info(news.USid)
-                usheader = usinfo['USheader']
-            news.fill('usheader', usheader)
         # 增加搜索记录
         if kw not in self.empty and usid:
             with self.snews.auto_commit() as s:
@@ -222,7 +225,7 @@ class CNews(BASEAPPROVAL):
         args = parameter_required(('neid',))
         neid = args.get('neid')
         news = self.snews.get_news_content({'NEid': neid})
-        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEmainpic', 'NEisrecommend']
+        news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'NEmainpic', 'NEisrecommend', 'NElocation', 'TOCid', 'NSCid']
 
         if re.match(r'^[01]$', str(tourist)):  # 是普通用户或游客
             if news.NEstatus == NewsStatus.usual.value:
@@ -321,6 +324,7 @@ class CNews(BASEAPPROVAL):
                 prid_info.append(product)
             news.fill('product', prid_info)
 
+        self._fill_news(news)
         return Success(data=news).get_body(istourist=tourist)
 
     def get_news_banner(self):
@@ -411,7 +415,10 @@ class CNews(BASEAPPROVAL):
                 'PRid': product,
                 'USname': usname,
                 'USheader': usheader,
-                'NEfrom': nefrom
+                'NEfrom': nefrom,
+                'TOCid': data.get('tocid'),
+                'NSCid': data.get('nscid'),
+                'NElocation': data.get('nelocation'),
             })
             session_list.append(news_info)
             if items not in self.empty:
@@ -900,6 +907,13 @@ class CNews(BASEAPPROVAL):
                 news.NEstatus = NewsStatus.refuse.value
         return Success('下架成功', {'neid': neids})
 
+    @token_required
+    def get_location(self):
+        user = get_current_user()
+        data = parameter_required(('lng', 'lat'))
+        current_location = self._get_location(data.get('lat'), data.get('lng'), user.USid)
+        return Success(data={'nelocation': current_location})
+
     def convert_test(self):
         """仅测试用，转换原圈子格式数据的"""
         with db.auto_commit():
@@ -944,6 +958,34 @@ class CNews(BASEAPPROVAL):
             else:
                 res.append(url)
         return res
+
+    def _fill_news(self, news):
+        # 增加 分类信息
+        nsc = NewsSystemCategory.query.filter_by(NSCid=news.NSCid, isdelete=False).first()
+        nscname = nsc.NSCname if nsc else ""
+        news.fill('nscname', nscname)
+        # 增加 话题信息
+        toc = TopicOfConversations.query.filter_by(TOCid=news.TOCid, isdelete=False).first()
+        toctitle = toc.TOCtitle if toc else ""
+        news.fill('toctitle', toctitle)
+
+    def _get_location(self, lat, lng, usid):
+        gl = GetLocation(lat, lng)
+        result = gl.result
+        ul = UserLocation.create({
+            'ULid': str(uuid.uuid1()),
+            'ULformattedAddress': result.get('formatted_address'),
+            'ULcountry': result.get('addressComponent').get('country'),
+            'ULprovince': result.get('addressComponent').get('province'),
+            'ULcity': result.get('addressComponent').get('city'),
+            'ULdistrict': result.get('addressComponent').get('district'),
+            'ULresult': json.dumps(result),
+            'ULlng': result.get('location').get('lng'),
+            'ULlat': result.get('location').get('lat'),
+            'USid': usid,
+        })
+        db.session.add(ul)
+        return ul.ULformattedAddress
 
 
 # if __name__ == '__main__':
