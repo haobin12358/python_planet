@@ -18,6 +18,56 @@ from .CUser import CUser
 
 class CTimeLimited(COrder, CUser):
 
+    def list_activity_product(self):
+        """获取活动列表"""
+        # 根据分类查询
+        time_now = datetime.now()
+        filter_args = {
+            TimeLimitedActivity.isdelete == False,
+            TimeLimitedActivity.TLAstatus.in_([
+                TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
+        }
+
+        time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(
+            TimeLimitedActivity.TLAstartTime.asc()).all()
+
+        for time_limited in time_limited_list:
+            time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
+            time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
+            tlp_query = TimeLimitedProduct.query.join(Products, Products.PRid == TimeLimitedProduct.PRid).filter(
+                TimeLimitedProduct.TLAid == time_limited.TLAid,
+                TimeLimitedProduct.isdelete == False,
+                Products.isdelete == False,
+                Products.PRstatus == ProductStatus.usual.value,
+                TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value
+            )
+            tlp_count = tlp_query.count()
+            time_limited.fill('prcount', tlp_count)
+            if time_limited.TLAstatus == TimeLimitedStatus.waiting.value:
+                if isinstance(time_limited.TLAstartTime, datetime):
+                    starttime = time_limited.TLAstartTime
+                else:
+                    starttime = datetime.strptime(str(time_limited.TLAstartTime), '%Y-%m-%d %H:%M:%S')
+                time_limited.fill('duration_start', str(starttime - time_now))
+            if time_limited.TLAstatus == TimeLimitedStatus.starting.value:
+                if isinstance(time_limited.TLAendTime, datetime):
+                    end_time = time_limited.TLAendTime
+                else:
+                    end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
+                time_limited.fill('duration_end', str(end_time - time_now))
+
+            tlp_list = tlp_query.order_by(TimeLimitedProduct.createtime.desc()).all()
+
+            product_list = list()
+            for tlp in tlp_list:
+                product = self._fill_tlp(tlp, time_limited)
+                if product:
+                    product_list.append(product)
+            ad_return_list = product_list[:8]
+            time_limited.fill('product_list', ad_return_list)
+
+        return Success(data=time_limited_list)
+
     def list_activity(self):
         """获取活动列表"""
         # 根据分类查询
@@ -615,7 +665,7 @@ class CTimeLimited(COrder, CUser):
             return count_pc
         return sort
 
-    def _crete_celery_task(self, tlastatus,tlaid, start_time, end_time):
+    def _crete_celery_task(self, tlastatus, tlaid, start_time, end_time):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))

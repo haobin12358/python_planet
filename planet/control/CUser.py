@@ -50,7 +50,6 @@ from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.qiniu.storage import QiniuStorage
 
 
-
 class CUser(SUser, BASEAPPROVAL):
     APPROVAL_TYPE = 'toagent'
 
@@ -428,6 +427,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
+
     @get_session
     def get_inforcode(self):
         """发送/校验验证码"""
@@ -1341,7 +1341,7 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取微信参数成功', data=data)
 
     def wx_auth(self):
-        data = parameter_required(('url', ))
+        data = parameter_required(('url',))
         url = data.get('url')
 
         state = data.get('state')
@@ -1400,7 +1400,6 @@ class CUser(SUser, BASEAPPROVAL):
         current_app.logger.info('get redirect url = {}'.format(redirect_url))
 
         return redirect(redirect_url)
-
 
     @get_session
     def wx_login(self):
@@ -1945,10 +1944,22 @@ class CUser(SUser, BASEAPPROVAL):
                     extract('month', UserSalesVolume.createtime) == month,
                     extract('year', UserSalesVolume.createtime) == year,
                 )
+            fen_login = UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == fens.USid
+            ).order_by(
+                UserLoginTime.createtime.desc()
+            ).first()
+            if not fen_login:
+                time = datetime.datetime.now()
+                current_app.logger.info('{} 找不到此用户的上次登陆时间'.format(fens.USid))
+            else:
+                time = fen_login.creatime
             usv = usv_query.first()
             fens_amount = Decimal(str(usv[0] or 0))  # 月度总额
             user_fens_total += fens_amount
             fens.fill('fens_amount', fens_amount)
+            fens.fill('fens_time', time)
 
         for sub_agent in sub_agent_list:
             self._get_salesvolume(sub_agent, month, year, position, deeplen, **kwargs)
@@ -2106,7 +2117,7 @@ class CUser(SUser, BASEAPPROVAL):
         cash_notes = CashNotes.query.filter(
             extract('month', UserSalesVolume.createtime) == month,
             extract('year', UserSalesVolume.createtime) == year,
-            CashNotes.USid== request.user.id).order_by(
+            CashNotes.USid == request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
         cn_total = Decimal(0)
         for cash_note in cash_notes:
