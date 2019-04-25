@@ -1,10 +1,11 @@
-from sqlalchemy import String, Text, Integer, Boolean
+from sqlalchemy import String, Text, Integer, Boolean, DateTime
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
 
 
 class PlatformMessage(Base):
+    """站内信"""
     PMid = Column(String(64), primary_key=True)
     PMtext = Column(LONGTEXT, comment='站内信内容')
     PMcreate = Column(String(64), comment='创建人')
@@ -13,7 +14,15 @@ class PlatformMessage(Base):
 
 
 class UserPlatfromMessage(Base):
+    """个人站内信"""
     UPMid = Column(String(64), primary_key=True)
     PMid = Column(String(64), comment='站内信id')
     USid = Column(String(64), comment='用户id')
     UPMstatus = Column(Integer, default=0, comment='0 未读 1 已读')
+
+
+class UserPlatfromMessageLog(Base):
+    """个人站内信阅读记录"""
+    UPMLid = Column(String(64), primary_key=True)
+    UPMid = Column(String(64), comment='站内信id')
+    USid = Column(String(64), comment='用户id')
