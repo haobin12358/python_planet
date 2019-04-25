@@ -1826,6 +1826,8 @@ class CUser(SUser, BASEAPPROVAL):
         if float(data.get('cncashnum')) > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
             raise ParamsError('提现金额超出余额')
+        elif not (1 <= float(data.get('cncashnum') <= 5000)):
+            raise ParamsError('提现金额超出单次可提现范围(1 ~ 5000元)')
         uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(str(data.get('cncashnum')))
         kw = {}
         if commision_for == ApplyFrom.supplizer.value:
@@ -1851,12 +1853,8 @@ class CUser(SUser, BASEAPPROVAL):
 
             cn = CashNotes.create({
                 'CNid': str(uuid.uuid1()),
-                'USid': request.user.id,
-                'CNbankName': data.get('cnbankname'),
-                'CNbankDetail': data.get('cnbankdetail'),
-                'CNcardNo': data.get('cncardno'),
+                'USid': user.USid,
                 'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
-                'CNcardName': user.USrealname,
                 'CommisionFor': commision_for
             })
         db.session.add(cn)

@@ -688,12 +688,33 @@ class CPay():
             db.session.add_all(model_bean)
         return Success('支付成功', dict(omid=omid))
 
-    def _pay_to_user(self, opaytype):
+    def _pay_to_user(self, cn):
         """
-        向用户提现
+        付款到用户微信零钱
+        :return:
+        """
+        user = User.query.filter_by_(USid=cn.USid).first_("提现用户状态异常，请检查后重试")
+        try:
+            result = self.wx_pay.pay_individual(
+                partner_trade_no=wx_pay.nonce_str,
+                openid=user.USopenid2,
+                amount=Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100,
+                desc="withdrawal",
+                spbill_create_ip=self.wx_pay.remote_addr
+            )
+        except Exception as e:
+            current_app.logger.error('微信提现返回错误：{}'.format(e))
+            raise StatusError(e)
+        return result  # todo 不知道返回的是什么
+
+    def _pay_to_bankcard(self, cn):
+        """
+        付款到银行卡号
+        :param cn:
         :return:
         """
         pass
+
 
     @staticmethod
     def _generic_omno():

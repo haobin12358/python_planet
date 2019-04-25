@@ -929,14 +929,17 @@ class CApproval(BASEAPPROVAL):
                 pe_fix.PELevel = level - 1
 
     def agree_cash(self, approval_model):
+        from planet.control.CPay import CPay
         if not approval_model:
             return
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         uw = UserWallet.query.filter_by_(USid=approval_model.AVstartid).first()
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
+        res = CPay()._pay_to_user(cn)
         cn.CNstatus = ApprovalAction.agree.value
         uw.UWbalance = Decimal(str(uw.UWbalance)) - Decimal(str(cn.CNcashNum))
+
 
     def refuse_cash(self, approval_model, refuse_abo):
         if not approval_model:
