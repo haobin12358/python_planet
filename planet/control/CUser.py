@@ -1945,10 +1945,17 @@ class CUser(SUser, BASEAPPROVAL):
                     extract('month', UserSalesVolume.createtime) == month,
                     extract('year', UserSalesVolume.createtime) == year,
                 )
+            fen_login = UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == fens.USid
+            ).order_by(
+                UserLoginTime.createtime.desc()
+            ).first_('未找到该用户的登陆记录')
             usv = usv_query.first()
             fens_amount = Decimal(str(usv[0] or 0))  # 月度总额
             user_fens_total += fens_amount
             fens.fill('fens_amount', fens_amount)
+            fens.fill('fens_time', fen_login.creatime)
 
         for sub_agent in sub_agent_list:
             self._get_salesvolume(sub_agent, month, year, position, deeplen, **kwargs)
