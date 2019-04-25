@@ -23,6 +23,9 @@ class News(Base):
     NEfrom = Column(Integer, comment='作者角色')
     NEisrecommend = Column(Boolean, default=False, comment='是否推荐到圈子首页轮播')
     NErefusereason = Column(String(125), comment='审批拒绝理由')
+    TOCid = Column(String(64), comment='关联话题id')
+    NSCid = Column(String(64), comment='关联分类id')
+    NElocation = Column(Text, comment='定位')
 
 
 class NewsImage(Base):
@@ -108,3 +111,21 @@ class ManagerSystemNotes(Base):
     MNstatus = Column(Integer, default=0, comment='通告状态 0 草稿 1 发布')
     MNcreateid = Column(String(64), comment='创建人')
     MNupdateid = Column(String(64), comment='修改人')
+
+
+class TopicOfConversations(Base):
+    """话题"""
+    __tablename__ = 'TopicConversation'
+    TOCid = Column(String(64), primary_key=True)
+    TOCcreate = Column(String(64), comment='创建人id')
+    TOCtitle = Column(Text, comment='话题标题')
+
+
+class NewsSystemCategory(Base):
+    """圈子系统内置分类"""
+    __tablename__ = 'NewsCategory'
+    NSCid = Column(String(64), primary_key=True)
+    NSCcreate = Column(String(64), comment='创建人id')
+    NSCname = Column(Text, comment='分类名')
+    # NSCstatus = Column(Integer, default=1 , comment='分类状态 1 正常 2 ')
+    NSCsort = Column(Integer, comment='排序')

@@ -78,7 +78,7 @@ class CPay():
                     'OPayid': str(uuid.uuid1()),
                     'OPayno': opayno,
                     'OPayType': PayType.mixedpay.value,
-                    'OPayMount': order_main.OMtrueMount
+                    'OPayMount': order_main.OMintegralpayed
                 }))
             order_pay_instance = OrderPay.create({
                 'OPayid': str(uuid.uuid1()),
@@ -135,16 +135,18 @@ class CPay():
         if not self.wx_pay.check(data):
             return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
+        current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
         with db.auto_commit():
             # 更改付款流水
-            order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no}).first_()
+            order_pay_instance = OrderPay.query.filter_by_({'OPayno': out_trade_no,
+                                                            'OPayType': PayType.wechat_pay.value}).first_()
             order_pay_instance.OPaytime = data.get('time_end')
             order_pay_instance.OPaysn = data.get('transaction_id')  # 微信支付订单号
             order_pay_instance.OPayJson = json.dumps(data)
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
-                user = User.query.filter_by_({'USid': order_mains.USid}).first()
+                user = User.query.filter_by_({'USid': order_main.USid}).first()
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
@@ -160,6 +162,7 @@ class CPay():
     def _notify_payed_integral(self, om, user, opayno):
         """扣除组合支付时的星币"""
         if om.OMintegralpayed and om.OMintegralpayed > 0:
+            current_app.logger.info("wechat_notify, reduce integral")
             ui = UserIntegral.create({
                 'UIid': str(uuid.uuid1()),
                 'USid': user.USid,
@@ -176,8 +179,11 @@ class CPay():
         """购物加星币"""
         #  购物加积分
         # percent = 0.2
+        current_app.logger.info("wechat_notify, trade add integral")
         percent = ConfigSettings().get_item('integralbase', 'trade_percent')
-        intergral = int(Decimal(percent) * Decimal(order_main.OMtrueMount))
+        if not (0 < int(percent) <= 100):
+            return
+        intergral = int(Decimal(percent / 100) * Decimal(order_main.OMtrueMount))
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': user.USid,
@@ -589,8 +595,7 @@ class CPay():
         opaytype = int(opaytype)
         omclient = int(omclient)
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
-        if API_HOST == 'https://test.bigxingxing.com':
-            mount_price = 0.01
+        mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
         current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
         if opaytype == PayType.wechat_pay.value:

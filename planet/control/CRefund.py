@@ -138,7 +138,8 @@ class CRefund(object):
                     # 退款流水表
                     order_pay_instance = s.query(OrderPay).filter(
                         OrderPay.isdelete == False,
-                        OrderPay.OPayno == order_main_instance.OPayno
+                        OrderPay.OPayno == order_main_instance.OPayno,
+                        OrderPay.OPayType.notin_([PayType.mixedpay.value, PayType.integralpay.value])
                     ).first()
                     refund_flow_instance = OrderRefundFlow.create({
                         'ORFid': str(uuid.uuid1()),
@@ -150,7 +151,7 @@ class CRefund(object):
                     s_list.append(refund_flow_instance)
                     mount = refund_apply_instance.ORAmount  # todo 退款金额需要改正
                     old_total_fee = order_pay_instance.OPayMount
-                    if API_HOST == 'https://test.bigxingxing.com':
+                    if API_HOST != 'https://www.bigxingxing.com':
                         mount = 0.01
                         old_total_fee = 0.01
                     current_app.logger.info('正在退款中 {} '.format(refund_apply_instance.ORAmount))
@@ -275,7 +276,8 @@ class CRefund(object):
             if agree is True:
                 order_pay_instance = OrderPay.query.filter(
                     OrderPay.isdelete == False,
-                    OrderPay.OPayno == order_main_instance.OPayno
+                    OrderPay.OPayno == order_main_instance.OPayno,
+                    OrderPay.OPayType.notin_([PayType.integralpay.value, PayType.mixedpay.value])
                 ).first()
                 order_refund.ORstatus = OrderRefundOrstatus.ready_refund.value
                 db.session.add(order_refund)
@@ -290,7 +292,7 @@ class CRefund(object):
                     'OPayType': order_pay_instance.OPayType,
                 })
                 db.session.add(refund_flow_instance)
-                if API_HOST == 'https://test.bigxingxing.com':
+                if API_HOST != 'https://www.bigxingxing.com':
                     mount = 0.01
                     old_total_fee = 0.01
                 self._refund_to_user(  # 执行退款, 待测试
