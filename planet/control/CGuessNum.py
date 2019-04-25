@@ -94,6 +94,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
             # product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
             # product.fields = ['PRid', 'PRmainpic', 'PRtitle']
             # join_history.fill('product', product)
+            join_history.fill('correct_count', self._compare_str(correct_num.CNnum, join_history.GNnum))
+
         return Success(data=join_history)
 
     @token_required
