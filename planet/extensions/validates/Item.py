@@ -10,6 +10,7 @@ class ItemListForm(BaseForm):
     itauthority = IntegerField(default=ItemAuthrity.no_limit.value)  # 查看权限
     itposition = IntegerField(default=ItemPostion.scene.value)  # 标签位置
     kw = StringField(default='')
+    option = IntegerField()
 
     def validate_psid(self, raw):
         if raw.data and self.ittype.data is not None:

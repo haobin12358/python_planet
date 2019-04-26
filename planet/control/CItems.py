@@ -80,11 +80,9 @@ class CItems:
 
         # 普通用户默认获取已经自选过的圈子标签
         if str(ittype) == str(ItemType.news.value) and common_user():
-            items = self._filter_new_items(request.user.id)
-            if not items:
-                items = items_query.all()
-        else:
-            items = items_query.all()
+            items = self._filter_new_items(request.user.id, option=form.option.data)
+            return Success(data=items)
+        items = items_query.all()
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
             if item.ITtype == ItemType.product.value:
@@ -100,19 +98,29 @@ class CItems:
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
 
-    def _filter_new_items(self, uid):
+    def _filter_new_items(self, uid, option=None):
         """筛选出用户自选的圈子标签"""
         ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
                                                  UCLcoType=CollectionType.news_tag.value).first()
-        if ucs:
-            itids = json.loads(ucs.UCLcollection)
-            items = Items.query.filter(Items.isdelete == False,
-                                       Items.ITtype == ItemType.news.value,
-                                       Items.ITid.in_(itids)).order_by(Items.ITsort.asc(),
-                                                                       Items.createtime.desc()
-                                                                       ).all()
+        item_query = Items.query.filter(Items.isdelete == False,
+                                        Items.ITtype == ItemType.news.value).order_by(Items.ITsort.asc(),
+                                                                                      Items.createtime.desc()
+                                                                                      )
+        if option:
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                my_item = item_query.filter(Items.ITid.in_(itids)).all()
+                candidate_item = item_query.filter(Items.ITid.notin_(itids)).all()
+            else:
+                my_item = []
+                candidate_item = item_query.all()
+            items = dict(my_item=my_item, candidate_item=candidate_item)
         else:
-            items = None
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                items = item_query.filter(Items.ITid.in_(itids)).all()
+            else:
+                items = item_query.all()
         return items
 
     @admin_required
