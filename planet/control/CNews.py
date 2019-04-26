@@ -12,7 +12,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, \
     get_current_admin, is_admin, is_supplizer, common_user
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade
+from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade, \
+    UserSearchHistoryType
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
@@ -57,10 +58,25 @@ class CNews(BASEAPPROVAL):
         itid = args.get('itid')
         kw = args.get('kw', '').split() or ['']  # 关键词
         nestatus = args.get('nestatus') or 'usual'
-        nestatus = getattr(NewsStatus, nestatus).value
-        userid = None
-        isrecommend = None
-        if str(itid) == 'mynews':
+        try:
+            nestatus = getattr(NewsStatus, nestatus).value
+        except Exception as e:
+            current_app.logger.error("nestatus error, not a enum value, {}".format(e))
+            nestatus = None
+
+        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, None
+        filter_args = list()
+        if usid:
+            ucs = UserCollectionLog.query.filter_by_(UCLcollector=usid,
+                                                     UCLcoType=CollectionType.news_tag.value).first()
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                itids_filter = NewsTag.ITid.in_(itids)
+                filter_args.append(itids_filter)
+
+        if str(itid) == 'index':
+            itid = None
+        elif str(itid) == 'mynews':
             if not usid:
                 raise TokenError('未登录')
             userid = usid
@@ -72,13 +88,18 @@ class CNews(BASEAPPROVAL):
             isrecommend = True
             itid = None
 
-        filter_args = [
-            or_(and_(*[News.NEtitle.contains(x) for x in kw]), ),  # todo 暂更改为只匹配标题
+        if kw not in self.empty:
+            if filter_args and itids_filter in filter_args:
+                filter_args.remove(itids_filter)
+            # filter_args.append((or_(and_(*[News.NEtitle.contains(x) for x in kw]), )))
+            filter_args.append(or_(*[News.NEtitle.contains(x) for x in kw]))
+
+        filter_args.extend([
             NewsTag.ITid == itid,
             News.NEstatus == nestatus,
             News.USid == userid,
             News.NEisrecommend == isrecommend,
-        ]
+        ])
         collected = args.get('collected')
         if collected:
             filter_args.extend([
@@ -89,6 +110,22 @@ class CNews(BASEAPPROVAL):
             ])
 
         news_list = self.snews.get_news_list(filter_args)
+        self._fill_news_list(news_list, usid, userid)
+
+        # 增加搜索记录
+        if kw not in self.empty and usid:
+            with self.snews.auto_commit() as s:
+                instance = UserSearchHistory.create({
+                    'USHid': str(uuid.uuid1()),
+                    'USid': request.user.id,
+                    'USHname': ' '.join(kw),
+                    'USHtype': UserSearchHistoryType.news.value
+                })
+                s.add(instance)
+        return Success(data=news_list).get_body(istourst=tourist)
+
+    def _fill_news_list(self, news_list, usid, userid):
+        """圈子列表内的填充"""
         for news in news_list:
             news.fields = ['NEid', 'NEtitle', 'NEpageviews', 'createtime', 'NElocation', 'TOCid', 'NElocation']
             # 添加发布者信息
@@ -166,60 +203,122 @@ class CNews(BASEAPPROVAL):
                     image_index.append(index)
                 elif item.get('type') == 'text':
                     text_index.append(index)
-            # if news.NEmainpic:
-            #     showtype = 'picture'
-            #     news.fill('mainpic', news['NEmainpic'])
-            # elif len(video_index):
-            #     showtype = 'video'
-            #     video_url = new_content[video_index[0]].get('content')['video']
-            #     video_url = self.__verify_get_url([video_url, ])[0]
-            #     news.fill('video', video_url)
-            #     thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
-            #     thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
-            #     news.fill('videothumbnail', thumbnail_url)
-            #     news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
-            # elif len(image_index):
-            #     showtype = 'picture'
-            #     pic_url = new_content[image_index[0]].get('content')[0]
-            #     pic_url = self.__verify_get_url([pic_url, ])[0]
-            #     news.fill('mainpic', pic_url)
-            # else:
-            #     showtype = 'text'
-            #     news.fill('netext', new_content[text_index[0]].get('content')[:100] + ' ...')
-            # news.fill('showtype', showtype)
-            netext = list()
             if news.NEmainpic:
-                netext.append(dict(type='image', content=[news['NEmainpic'], ]))
-            elif len(image_index):
-                tmp_list = list()
-                for index in image_index:
-                    tmp_list.extend(new_content[index].get('content'))
-                tmp_list = self.__verify_get_url(tmp_list)
-                netext.append(dict(type='image', content=tmp_list))
+                showtype = 'picture'
+                news.fill('mainpic', news['NEmainpic'])
             elif len(video_index):
-                video_url = new_content[video_index[0]].get('content')['thumbnail']
+                showtype = 'video'
+                video_url = new_content[video_index[0]].get('content')['video']
                 video_url = self.__verify_get_url([video_url, ])[0]
-                netext.append(dict(type='image', content=list(video_url)))
+                news.fill('video', video_url)
+                thumbnail_url = new_content[video_index[0]].get('content')['thumbnail']
+                thumbnail_url = self.__verify_get_url([thumbnail_url, ])[0]
+                news.fill('videothumbnail', thumbnail_url)
+                news.fill('videoduration', new_content[video_index[0]].get('content')['duration'])
+            elif len(image_index):
+                showtype = 'picture'
+                pic_url = new_content[image_index[0]].get('content')[0]
+                pic_url = self.__verify_get_url([pic_url, ])[0]
+                news.fill('mainpic', pic_url)
+            else:
+                showtype = 'text'
             try:
                 text = new_content[text_index[0]].get('content')[:100] + ' ...'
             except Exception as e:
-                current_app.logger.error("neid {}, not text content, error is{}".format(news.NEid, e))
-                text = ''
-            netext.append(dict(type='text', content=text))
-            news.fill('netext', netext)
+                current_app.logger.error('convert text content error, neid {}, error: {}'.format(news.NEid, e))
+                text = ' ...'
+
+            news.fill('netext', text)
+            news.fill('showtype', showtype)
+
+            # 以下是多图的板式，勿删
+            # netext = list()
+            # if news.NEmainpic:
+            #     netext.append(dict(type='image', content=[news['NEmainpic'], ]))
+            # elif len(image_index):
+            #     tmp_list = list()
+            #     for index in image_index:
+            #         tmp_list.extend(new_content[index].get('content'))
+            #     tmp_list = self.__verify_get_url(tmp_list)
+            #     netext.append(dict(type='image', content=tmp_list))
+            # elif len(video_index):
+            #     video_url = new_content[video_index[0]].get('content')['thumbnail']
+            #     video_url = self.__verify_get_url([video_url, ])[0]
+            #     netext.append(dict(type='image', content=list(video_url)))
+            # try:
+            #     text = new_content[text_index[0]].get('content')[:100] + ' ...'
+            # except Exception as e:
+            #     current_app.logger.error("neid {}, not text content, error is{}".format(news.NEid, e))
+            #     text = ''
+            # netext.append(dict(type='text', content=text))
+            # news.fill('netext', netext)
             self._fill_news(news)  # 增加话题
+
+    def search(self):
+        """发现页的搜索"""
+        args = request.args.to_dict()
+        kw = args.get('kw', '').split() or ['']  # 关键词
+        itid = args.get('itid')
+        if kw in self.empty:
+            return Success(data=list())
+        usid = None
+        if not is_tourist():
+            usid = request.user.id
+
+        if not itid:
+            users = User.query.filter(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw])
+                                      ).all_with_page()
+            for user in users:
+                user.fields = ['USid', 'USname', 'USlevel', 'USheader']
+                try:
+                    usgrade = UserGrade(user.USlevel).zh_value
+                except Exception as e:
+                    current_app.logger.error('get usgrade error, usid: {}, error : {}'.format(user.USid, e))
+                    usgrade = UserGrade(1).zh_value
+                user.fill('usgrade', usgrade)
+                if not usid:
+                    ucl_query, followed, be_followed = False, False, False
+                else:
+                    ucl_query = UserCollectionLog.query.filter(UserCollectionLog.UCLcoType == CollectionType.user.value,
+                                                               UserCollectionLog.isdelete == False)
+                    followed = ucl_query.filter(UserCollectionLog.UCLcollector == usid,
+                                                UserCollectionLog.UCLcollection == user.USid).first()
+                    be_followed = ucl_query.filter(UserCollectionLog.UCLcollector == user.USid,
+                                                   UserCollectionLog.UCLcollection == usid).first()
+                status = dict(unfollowed='未关注', followed='已关注', mutualfollowed='互相关注')
+                follow_status = 'unfollowed'
+                if followed and be_followed:
+                    follow_status = 'mutualfollowed'
+                elif followed:
+                    follow_status = 'followed'
+                user.fill('follow_status', follow_status)
+                user.fill('follow_status_zh', status[follow_status])
+            ushtype = UserSearchHistoryType.user.value
+            res = users
+        else:
+            news = News.query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                        ).filter(News.isdelete == False, NewsTag.isdelete == False,
+                                                 News.NEstatus == NewsStatus.usual.value,
+                                                 or_(*[News.NEtitle.ilike('%{}%'.format(x)) for x in kw]),
+                                                 NewsTag.ITid == itid
+                                                 ).order_by(News.createtime.desc()).all_with_page()
+            self._fill_news_list(news, usid=usid, userid=None)
+
+            ushtype = UserSearchHistoryType.news.value
+            res = news
 
         # 增加搜索记录
         if kw not in self.empty and usid:
-            with self.snews.auto_commit() as s:
+            with db.auto_commit():
                 instance = UserSearchHistory.create({
-                    'USHid': str(uuid.uuid4()),
+                    'USHid': str(uuid.uuid1()),
                     'USid': request.user.id,
                     'USHname': ' '.join(kw),
-                    'USHtype': 10
+                    'USHtype': ushtype
                 })
-                s.add(instance)
-        return Success(data=news_list).get_body(istourst=tourist)
+                db.session.add(instance)
+
+        return Success(data=res)
 
     def get_news_content(self):
         """资讯详情"""
@@ -299,6 +398,13 @@ class CNews(BASEAPPROVAL):
         news.fill('favoritnumber', favoritnumber)
         tramplenumber = self.snews.get_news_trample_count(neid)
         news.fill('tramplenumber', tramplenumber)
+
+        # 是否关注作者
+        news.fill('follow', bool(UserCollectionLog.query.filter(
+            UserCollectionLog.UCLcoType == CollectionType.user.value,
+            UserCollectionLog.isdelete == False,
+            UserCollectionLog.UCLcollector == usid,
+            UserCollectionLog.UCLcollection == news.USid).first()))
 
         # 内容填充
         news_content = json.loads(news.NEtext)
@@ -939,7 +1045,24 @@ class CNews(BASEAPPROVAL):
         # print(qu)
         # tocs = qu.all()
         # todo 按话题被关联的次数排序
-        tocs = db.session.query(TopicOfConversations).filter_by_().order_by(TopicOfConversations.createtime.desc()).all()
+        usid = None
+        if common_user():
+            usid = request.user.id
+        kw = request.args.to_dict().get('kw')
+        tocs_query = db.session.query(TopicOfConversations).filter_by_()
+        if kw not in self.empty:
+            tocs_query = tocs_query.filter(TopicOfConversations.TOCtitle.ilike('%{}%'.format(kw)))
+            # 增加搜索记录
+            if usid:
+                with db.auto_commit():
+                    instance = UserSearchHistory.create({
+                        'USHid': str(uuid.uuid1()),
+                        'USid': request.user.id,
+                        'USHname': kw,
+                        'USHtype': UserSearchHistoryType.topic.value
+                    })
+                    db.session.add(instance)
+        tocs = tocs_query.order_by(TopicOfConversations.createtime.desc()).all()
         [toc.hide('TOCcreate', 'TOCfrom') for toc in tocs]
         return Success(data=tocs)
 
@@ -963,14 +1086,15 @@ class CNews(BASEAPPROVAL):
         itids = json.dumps(itids)
         with db.auto_commit():
             if not my_choose:
-                db.session.add(UserCollectionLog.create({'UCLid': str(uuid.uuid1()),
-                                                         'UCLcollector': user.USid,
-                                                         'UCLcollection': itids,
-                                                         'UCLcoType': CollectionType.news_tag.value}
-                                                        ))
+                my_choose = (UserCollectionLog.create({'UCLid': str(uuid.uuid1()),
+                                                       'UCLcollector': user.USid,
+                                                       'UCLcollection': itids,
+                                                       'UCLcoType': CollectionType.news_tag.value}
+                                                      ))
             else:
                 my_choose.update({'UCLcollection': itids})
-                db.session.add(my_choose)
+            db.session.add(my_choose)
+
         return Success('修改成功')
 
     @staticmethod

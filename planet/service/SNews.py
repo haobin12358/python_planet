@@ -10,7 +10,7 @@ class SNews(SBase):
     def get_news_list(self, args):
         """获取资讯列表"""
         return self.session.query(News).filter(News.isdelete == False).outerjoin(
-            NewsTag, NewsTag.NEid == News.NEid).filter_(*args).order_by(
+            NewsTag, NewsTag.NEid == News.NEid).filter_(NewsTag.isdelete == False, *args).order_by(
             News.createtime.desc()).all_with_page()
 
     @close_session

@@ -213,8 +213,10 @@ class NewsStatus(Enum):
 # user
 class UserSearchHistoryType(Enum):
     """搜索记录类型 0 商品, 10 圈子"""
-    product = 0
-    news = 10
+    product = 0, '商品'
+    news = 10, '圈子'
+    topic = 20, '话题'
+    user = 30, '用户'
 
 
 class UserIntegralType(Enum):
