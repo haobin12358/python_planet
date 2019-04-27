@@ -696,16 +696,17 @@ class CPay():
         user = User.query.filter_by_(USid=cn.USid).first_("提现用户状态异常，请检查后重试")
         try:
             result = self.wx_pay.pay_individual(
-                partner_trade_no=wx_pay.nonce_str,
+                partner_trade_no=self.wx_pay.nonce_str,
                 openid=user.USopenid2,
                 amount=Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100,
-                desc="withdrawal",
+                desc="大行星零钱转出",
                 spbill_create_ip=self.wx_pay.remote_addr
             )
+            current_app.logger.info('微信提现到零钱, response: {}'.format(request))
         except Exception as e:
             current_app.logger.error('微信提现返回错误：{}'.format(e))
-            raise StatusError(e)
-        return result  # todo 不知道返回的是什么
+            raise StatusError('微信商户平台: {}'.format(e))
+        return result
 
     def _pay_to_bankcard(self, cn):
         """
@@ -713,6 +714,13 @@ class CPay():
         :param cn:
         :return:
         """
+        result = self.wx_pay.pay_individual_to_card(
+            partner_trade_no=self.wx_pay.nonce_str,
+            enc_bank_no=cn.CNcardNo,  # todo 银行卡号rsa加密有问题
+            enc_true_name=cn.CNcardName,
+            bank_code='开户行代码',
+            amount=Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100
+        )
         pass
 
 
