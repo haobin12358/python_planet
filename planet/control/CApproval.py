@@ -12,7 +12,8 @@ from planet.common.base_service import get_session
 from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
     GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
+from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
+    StatusError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
@@ -936,7 +937,13 @@ class CApproval(BASEAPPROVAL):
         uw = UserWallet.query.filter_by_(USid=approval_model.AVstartid).first()
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
-        res = CPay()._pay_to_user(cn)
+        if cn.CommisionFor == ApplyFrom.user.value:
+            res = CPay()._pay_to_user(cn)
+        else:  # todo 银行卡
+            pass
+        if res.return_code != 'SUCCESS':
+            current_app.logger.info('提现response: {}'.format(res))
+            raise StatusError('微信服务器繁忙，请稍后再试')
         cn.CNstatus = ApprovalAction.agree.value
         uw.UWbalance = Decimal(str(uw.UWbalance)) - Decimal(str(cn.CNcashNum))
 

@@ -293,6 +293,8 @@ class CNews(BASEAPPROVAL):
                     follow_status = 'followed'
                 user.fill('follow_status', follow_status)
                 user.fill('follow_status_zh', status[follow_status])
+                user.fill('fens_count', UserCollectionLog.query.filter_by(
+                    UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
             ushtype = UserSearchHistoryType.user.value
             res = users
         else:
@@ -540,7 +542,7 @@ class CNews(BASEAPPROVAL):
                 'USid': usid,
                 'NEtitle': data.get('netitle'),
                 'NEtext': netext,
-                'NEstatus': NewsStatus.auditing.value,
+                'NEstatus': NewsStatus.usual.value,  # 0427 去掉审批
                 'NEsource': data.get('source'),
                 'NEmainpic': mainpic,
                 'NEisrecommend': isrecommend,
@@ -565,7 +567,7 @@ class CNews(BASEAPPROVAL):
             s.add_all(session_list)
 
         # 添加到审批流
-        super(CNews, self).create_approval('topublish', usid, neid, nefrom)
+        # super(CNews, self).create_approval('topublish', usid, neid, nefrom)
         return Success('添加成功', {'neid': neid})
 
     @admin_required
@@ -618,7 +620,7 @@ class CNews(BASEAPPROVAL):
             news_info = {
                 'NEtitle': data.get('netitle'),
                 'NEtext': netext,
-                'NEstatus': NewsStatus.auditing.value,
+                'NEstatus': NewsStatus.usual.value,  # 0427 去掉审批
                 'COid': coupon,
                 'PRid': product,
                 'NEmainpic': data.get('nemainpic'),
@@ -655,7 +657,7 @@ class CNews(BASEAPPROVAL):
             session_list.append(changelog)
             db.session.add_all(session_list)
             # 添加到审批流
-        super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
+        # super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
 
     def del_news(self):

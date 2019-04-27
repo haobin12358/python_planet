@@ -1820,18 +1820,23 @@ class CUser(SUser, BASEAPPROVAL):
         # user = self.get_user_by_id(reqbuest.user.id)
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
+        try:
+            cncashnum = float(data.get('cncashnum'))
+        except Exception as e:
+            current_app.logger.error('cncashnum value error: {}'.format(e))
+            raise ParamsError('提现金额格式错误')
         uw = UserWallet.query.filter(
             UserWallet.USid == request.user.id,
             UserWallet.isdelete == False,
             UserWallet.CommisionFor == commision_for
         ).first()
         balance = uw.UWcash if uw else 0
-        if float(data.get('cncashnum')) > float(balance):
-            gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(data.get('cncashnum'), balance))
+        if cncashnum > float(balance):
+            gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(cncashnum, balance))
             raise ParamsError('提现金额超出余额')
-        elif not (1 <= float(data.get('cncashnum') <= 5000)):
-            raise ParamsError('提现金额超出单次可提现范围(1 ~ 5000元)')
-        uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(str(data.get('cncashnum')))
+        elif not (10 <= cncashnum <= 5000):
+            raise ParamsError('提现金额超出单次可提现范围(10 ~ 5000元)')
+        uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(cncashnum)
         kw = {}
         if commision_for == ApplyFrom.supplizer.value:
             sa = SupplizerAccount.query.filter(
@@ -1841,8 +1846,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'USid': request.user.id,
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
-                'CNcardNo': sa.SAcardNo,
-                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
+                'CNcardNo': sa.SAcardNo,  # todo 待校验 微信支持的银行
+                'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for
             })
@@ -1857,7 +1862,7 @@ class CUser(SUser, BASEAPPROVAL):
             cn = CashNotes.create({
                 'CNid': str(uuid.uuid1()),
                 'USid': user.USid,
-                'CNcashNum': Decimal(str(data.get('cncashnum'))).quantize(Decimal('0.00')),
+                'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CommisionFor': commision_for
             })
         db.session.add(cn)
@@ -2368,7 +2373,7 @@ class CUser(SUser, BASEAPPROVAL):
                 su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
                 if user_fens or admin or su:
                     follow += 1
-            else:
+            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
                 collected += 1
         current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
         user.fields = self.USER_FIELDS[:]
