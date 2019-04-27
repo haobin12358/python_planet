@@ -2363,7 +2363,11 @@ class CUser(SUser, BASEAPPROVAL):
         follow = collected = 0
         for ucl in ucl_list:
             if int(ucl.UCLcoType) == CollectionType.user.value:
-                follow += 1
+                user_fens = User.query.filter_by(USid=ucl.UCLcollection).first()
+                admin = Admin.query.filter_by(ADid=ucl.UCLcollection).first()
+                su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
+                if user_fens or admin or su:
+                    follow += 1
             else:
                 collected += 1
         current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
