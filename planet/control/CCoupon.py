@@ -315,6 +315,7 @@ class CCoupon(object):
                 'COsubtration': form.cosubtration.data,
                 'COdesc': form.codesc.data,
                 'COuseNum': form.cousenum.data,
+                'COcode': form.cocode.data,
             }
             if form.colimitnum.data:
                 coupon_dict.setdefault('COremainNum', form.colimitnum.data)
