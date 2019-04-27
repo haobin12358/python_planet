@@ -89,10 +89,21 @@ class CNews(BASEAPPROVAL):
             itid = None
 
         if kw not in self.empty:
-            if filter_args and itids_filter in filter_args:
+            if filter_args and (itids_filter in filter_args):
                 filter_args.remove(itids_filter)
             # filter_args.append((or_(and_(*[News.NEtitle.contains(x) for x in kw]), )))
             filter_args.append(or_(*[News.NEtitle.contains(x) for x in kw]))
+
+        collected = args.get('collected')
+        if collected:
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
+            filter_args.extend([
+                UserCollectionLog.UCLcoType == CollectionType.news.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == usid,
+                UserCollectionLog.UCLcollection == News.NEid,
+            ])
 
         filter_args.extend([
             NewsTag.ITid == itid,
@@ -100,14 +111,6 @@ class CNews(BASEAPPROVAL):
             News.USid == userid,
             News.NEisrecommend == isrecommend,
         ])
-        collected = args.get('collected')
-        if collected:
-            filter_args.extend([
-                UserCollectionLog.UCLcoType == CollectionType.news.value,
-                UserCollectionLog.isdelete == False,
-                UserCollectionLog.UCLcollector == userid,
-                UserCollectionLog.UCLcollection == News.NEid
-            ])
 
         news_list = self.snews.get_news_list(filter_args)
         self._fill_news_list(news_list, usid, userid)
