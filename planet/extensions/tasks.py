@@ -733,7 +733,6 @@ def end_timelimited(tlaid):
                 Carts.query.filter_by(SKUid=sku.SKUid, CAfrom=CartFrom.time_limited.value).delete_()
         tla.TLAstatus = TimeLimitedStatus.end.value
         # 删除轮播图
-        current_app.logger.info(ib)
         IndexBanner.query.filter_by(
             IBpic = tla.TLAtopPic,
             isdelete = False
