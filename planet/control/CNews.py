@@ -293,6 +293,8 @@ class CNews(BASEAPPROVAL):
                     follow_status = 'followed'
                 user.fill('follow_status', follow_status)
                 user.fill('follow_status_zh', status[follow_status])
+                user.fill('fens_count', UserCollectionLog.query.filter_by(
+                    UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
             ushtype = UserSearchHistoryType.user.value
             res = users
         else:
