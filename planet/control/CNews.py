@@ -1078,13 +1078,18 @@ class CNews(BASEAPPROVAL):
         if not common_user():
             raise AuthorityError()
         user = self.snews.get_user_by_id(request.user.id)
-        itids = parameter_required(('itids',)).get('itids')
-        if not isinstance(itids, list):
-            raise ParamsError('参数格式错误')
-        my_choose = UserCollectionLog.query.filter_by_(UCLcollector=user.USid,
-                                                       UCLcoType=CollectionType.news_tag.value).first()
-        itids = json.dumps(itids)
+        itids = parameter_required().get('itids')
         with db.auto_commit():
+            if itids in self.empty:
+                UserCollectionLog.query.filter_by(UCLcollector=user.USid,
+                                                  UCLcoType=CollectionType.news_tag.value).delete_()
+                return Success('更改成功')
+
+            if not isinstance(itids, list):
+                raise ParamsError('参数格式错误')
+            my_choose = UserCollectionLog.query.filter_by_(UCLcollector=user.USid,
+                                                           UCLcoType=CollectionType.news_tag.value).first()
+            itids = json.dumps(itids)
             if not my_choose:
                 my_choose = (UserCollectionLog.create({'UCLid': str(uuid.uuid1()),
                                                        'UCLcollector': user.USid,
