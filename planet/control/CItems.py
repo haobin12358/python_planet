@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
+import json
 import re
 import uuid
 
+from flask import request
+
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_supplizer, admin_required, is_admin
-from planet.models import ProductScene, Items, SceneItem, Products, ProductItems
+from planet.common.token_handler import token_required, is_supplizer, admin_required, is_admin, common_user
+from planet.models import ProductScene, Items, SceneItem, Products, ProductItems, UserCollectionLog
 
 
 class CItems:
@@ -73,7 +76,12 @@ class CItems:
             items_query = items_query.filter(
                 Items.ITname.contains(kw)
             )
-        items_query = items_query.order_by(Items.ITposition.desc(), Items.ITsort.asc(), Items.createtime.desc())
+        items_query = items_query.order_by(Items.ITsort.asc(), Items.createtime.desc())
+
+        # 普通用户默认获取已经自选过的圈子标签
+        if str(ittype) == str(ItemType.news.value) and common_user():
+            items = self._filter_new_items(request.user.id, option=form.option.data)
+            return Success(data=items)
         items = items_query.all()
         for item in items:
             item.fill('ITtype_zh', ItemType(item.ITtype).zh_value)
@@ -89,6 +97,31 @@ class CItems:
 
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
+
+    def _filter_new_items(self, uid, option=None):
+        """筛选出用户自选的圈子标签"""
+        ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
+                                                 UCLcoType=CollectionType.news_tag.value).first()
+        item_query = Items.query.filter(Items.isdelete == False,
+                                        Items.ITtype == ItemType.news.value).order_by(Items.ITsort.asc(),
+                                                                                      Items.createtime.desc()
+                                                                                      )
+        if option:
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                my_item = item_query.filter(Items.ITid.in_(itids)).all()
+                candidate_item = item_query.filter(Items.ITid.notin_(itids)).all()
+            else:
+                my_item = []
+                candidate_item = item_query.all()
+            items = dict(my_item=my_item, candidate_item=candidate_item)
+        else:
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                items = item_query.filter(Items.ITid.in_(itids)).all()
+            else:
+                items = item_query.all()
+        return items
 
     @admin_required
     def create(self):

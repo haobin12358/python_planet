@@ -238,7 +238,7 @@ class UserCollectionLog(Base):
     __tablename__ = 'UserCollection'
     UCLid = Column(String(64), primary_key=True)
     UCLcollector = Column(String(64), comment='收藏者')
-    UCLcollection = Column(String(64), comment='收藏品')
+    UCLcollection = Column(Text, comment='收藏品')
     UCLcoType = Column(String(64), comment='收藏品类型')
 
 
@@ -251,12 +251,12 @@ class UserTransmit(Base):
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
 
-class UserNewsCategory(Base):
-    __tablename__ = 'UserNewsCategory'
-    UNC = Column(String(64), primary_key=True)
-    NSCid = Column(String(64), comment='圈子系统内置分类id')
-    USid = Column(String(64), comment='用户id')
-    UNCsort = Column(String(64), comment='用户自定义排序')
+# class UserNewsCategory(Base):
+#     __tablename__ = 'UserNewsCategory'
+#     UNC = Column(String(64), primary_key=True)
+#     NSCid = Column(String(64), comment='圈子系统内置分类id')
+#     USid = Column(String(64), comment='用户id')
+#     UNCsort = Column(String(64), comment='用户自定义排序')
 
 
 class UserLocation(Base):

@@ -4,6 +4,9 @@ from planet.common.error_response import SystemError
 
 
 class GetLocation():
+    """
+    api文档 http://lbsyun.baidu.com/index.php?title=webapi/guide/webservice-geocoding-abroad
+    """
     api_url = "http://api.map.baidu.com/geocoder/v2/"
 
     def __init__(self, lat, lng):
