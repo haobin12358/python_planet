@@ -60,6 +60,7 @@ class Entry(Base):
     ENpic = Column(Text, url=True, comment='活动入口图')
     ENshow = Column(Boolean, default=False, comment='是否展示')
     contentlink = Column(LONGTEXT, comment='跳转链接')
+    ENtype = Column(Integer, default= 0, comment='位置 0 最上面 1 中间 2 最下面左边 3 最下面右边')
     ACid = Column(String(64), comment='创建人id')
 #
 # class IndexHotProduct(Base):

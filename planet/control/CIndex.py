@@ -177,19 +177,24 @@ class CIndex:
         return sort_num
 
     def get_entry(self):
+        data = parameter_required()
+        # entype = data.get('entype', 0)
+
         filter_args = {Entry.isdelete == False}
         if not is_admin():
             filter_args.add(Entry.ENshow == True)
+            # filter_args.add(Entry.ENtype == entype)
 
-        en = Entry.query.filter(*filter_args).order_by(Entry.ENshow.asc(), Entry.createtime).all()
+        en = Entry.query.filter(*filter_args).order_by(
+            Entry.ENshow.desc(), Entry.ENtype.asc(), Entry.createtime.desc()).all()
         for e in en:
             e.hide('ACid')
             if is_admin():
                 admin = Admin.query.filter(Admin.ADid == e.ACid, Admin.isdelete == False).first()
                 adname = admin.ADname if admin else '平台'
                 e.fill('ADname', adname)
-            else:
-                return Success(data=e)
+            # else:
+                # return Success(data=e)
 
         return Success(data=en)
 
@@ -212,7 +217,8 @@ class CIndex:
             endict = {
                 'contentlink': data.get('contentlink'),
                 'ENpic': data.get('enpic'),
-                'ENshow': bool(data.get('enshow'))
+                'ENshow': bool(data.get('enshow')),
+                'ENtype': data.get('entype')
             }
             if not en:
                 endict.setdefault('ENid', enid)
@@ -225,5 +231,6 @@ class CIndex:
             db.session.add(en)
 
             if en.ENshow:
-                Entry.query.filter(Entry.ENid != enid, Entry.isdelete == False).update({'ENshow': False})
+                Entry.query.filter(
+                    Entry.ENid != enid, Entry.isdelete == False, Entry.ENtype == en.ENtype).update({'ENshow': False})
         return Success(msg, {'enid': enid})
