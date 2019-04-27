@@ -371,3 +371,4 @@ class CouponCode(Base):
     CCid = Column(String(64), primary_key=True)
     COid = Column(String(64), nullable=False, comment='优惠券id')
     CCcode = Column(String(12), comment='优惠劵兑换码')
+    CCused = Column(Boolean, default=False, comment='是否已使用')

@@ -215,16 +215,16 @@ class CCoupon(object):
                 'COcode': form.cocode.data
             })
             s_list.append(coupon_instance)
-            # 是否要兑换码
-            if form.cocode.data == 1:
-                ccid = str(uuid.uuid1())
-                cccode = self.coupen_code()
-                coupon_code = CouponCode.create({
-                    'CCid': ccid,
-                    'COid': coid,
-                    'CCcode': cccode
-                })
-                s_list.append(coupon_code)
+            # # 是否要兑换码
+            # if form.cocode.data == 1:
+            #     ccid = str(uuid.uuid1())
+            #     cccode = self.coupen_code()
+            #     coupon_code = CouponCode.create({
+            #         'CCid': ccid,
+            #         'COid': coid,
+            #         'CCcode': cccode
+            #     })
+            #     s_list.append(coupon_code)
             for itid in itids:
                 s.query(Items).filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
                 # 优惠券标签中间表
@@ -438,6 +438,8 @@ class CCoupon(object):
         with self.strade.auto_commit() as s:
             s_list = []
             couponcode = s.query(CouponCode).filter_by_({'CCcode': CCcode}).first_('兑换码不存在')
+            if couponcode.CCused:
+                raise ParamsError('兑换码已被使用')
             coid = couponcode.COid
             coupon = s.query(Coupon).filter_by_({'COid': coid}).first_()
             # 优惠券状态是否可领取
@@ -446,12 +448,13 @@ class CCoupon(object):
             if coupon.COcollectNum and coupon_user_count >= coupon.COcollectNum:
                 raise StatusError('已经领取过')
             # 发放完毕或抢空
-            if coupon.COlimitNum:
-                # 共领取的数量
-                if not coupon.COremainNum:
-                    raise StatusError('已发放完毕')
-                coupon.COremainNum = coupon.COremainNum - 1  # 剩余数量减1
-                s_list.append(coupon)
+            # 2019-4-27 兑换码创建时保证库存
+            # if coupon.COlimitNum:
+            #     # 共领取的数量
+            #     if not coupon.COremainNum:
+            #         raise StatusError('已发放完毕')
+            #     coupon.COremainNum = coupon.COremainNum - 1  # 剩余数量减1
+            #     s_list.append(coupon)
             if coupon.COsendStarttime and coupon.COsendStarttime > datetime.now():
                 raise StatusError('未开抢')
             if coupon.COsendEndtime and coupon.COsendEndtime < datetime.now():
@@ -467,7 +470,6 @@ class CCoupon(object):
             s_list.append(coupon_user_instance)
             s.add_all(s_list)
         return Success('领取成功')
-
 
     @staticmethod
     def _title_subtitle(coupon):
@@ -572,3 +574,40 @@ class CCoupon(object):
         else:
             avalible = not (ended or not_start or not coupon.COisAvailable)
         return avalible
+
+    @admin_required
+    def create_code(self):
+        data = parameter_required(('coid', 'conum'))
+        coid = data.get('coid')
+        conum = data.get('conum')
+        with db.auto_commit():
+            coupon = Coupon.query.filter_by(COid=coid, isdelete=False, COcode=1).first_('该优惠券不能生成兑换码')
+            # 校验剩余数量
+            if coupon.COlimitNum:
+                if int(coupon.COremainNum) < int(conum):
+                    raise StatusError('兑换数量超过剩余数量')
+                coupon.update({'COremainNum': int(coupon.COremainNum) - int(conum)})
+            isinstance_list = [coupon]
+            for _ in range(int(data.get('conum'))):
+                ccid = str(uuid.uuid1())
+                cccode = self.coupen_code()
+                coupon_code = CouponCode.create({
+                    'CCid': ccid,
+                    'COid': coid,
+                    'CCcode': cccode
+                })
+                isinstance_list.append(coupon_code)
+
+                db.session.add_all(isinstance_list)
+
+        return Success('生成激活码成功', data={'coid': coid, 'conum': conum})
+
+    @admin_required
+    def get_code_list(self):
+        data = parameter_required(('coid',))
+        coid = data.get('coid')
+        cc_query = CouponCode.query.filter(CouponCode.COid == coid, CouponCode.isdelete == False)
+        cc_all_count = cc_query.count()
+        cc_used_count = cc_query.filter(CouponCode.CCused == True).count()
+        cc_list = cc_query.all_with_page()
+        return Success(data={'count': cc_all_count, 'used_count': cc_used_count, 'code': cc_list})
