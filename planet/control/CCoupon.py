@@ -588,7 +588,8 @@ class CCoupon(object):
                 if int(coupon.COremainNum) < int(conum):
                     raise StatusError('兑换数量超过剩余数量')
                 coupon.update({'COremainNum': int(coupon.COremainNum) - int(conum)})
-            isinstance_list = [coupon]
+            # isinstance_list = [coupon]
+            db.session.add(coupon)
             for _ in range(int(data.get('conum'))):
                 ccid = str(uuid.uuid1())
                 cccode = self.coupen_code()
@@ -597,9 +598,8 @@ class CCoupon(object):
                     'COid': coid,
                     'CCcode': cccode
                 })
-                isinstance_list.append(coupon_code)
-
-                db.session.add_all(isinstance_list)
+                db.session.add(coupon_code)
+                db.session.flush()
 
         return Success('生成激活码成功', data={'coid': coid, 'conum': conum})
 
