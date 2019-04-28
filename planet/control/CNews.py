@@ -115,13 +115,12 @@ class CNews(BASEAPPROVAL):
             itid = None
 
         if homepage:  # 个人主页
-            follow_usids = [follow_usid[0] for follow_usid in db.session.query(UserCollectionLog.UCLcollection).filter(
+            filter_args.extend([
                 UserCollectionLog.UCLcoType == CollectionType.user.value,
+                UserCollectionLog.isdelete == False,
                 UserCollectionLog.UCLcollector == usid,
-                UserCollectionLog.isdelete == False
-            ).all()]
-            follow_usids.append(usid)
-            filter_args.append(News.USid.in_(follow_usids))
+                or_(News.USid == UserCollectionLog.UCLcollection, News.USid == usid)
+            ])
 
         filter_args.extend([
             News.NEstatus == nestatus,
@@ -132,7 +131,7 @@ class CNews(BASEAPPROVAL):
         news_query = News.query.filter(News.isdelete == False)
 
         if itid:
-            if itids_filter in filter_args:
+            if filter_args and (itids_filter in filter_args):
                 filter_args.remove(itids_filter)
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
