@@ -75,6 +75,7 @@ class CCoupon(object):
         # 优惠券使用对象
         coupon.fill('items', items)
         coupon.fill('title_subtitle', self._title_subtitle(coupon))
+        coupon.fill('cocode', bool(coupon.COcode))
         usid = kwargs.get('usid')
         if usid:
             coupon_user = CouponUser.query.filter_by({'USid': usid, 'COid': coupon.COid}).first()
