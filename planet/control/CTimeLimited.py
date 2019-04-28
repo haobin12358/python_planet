@@ -101,27 +101,9 @@ class CTimeLimited(COrder, CUser):
 
         time_limited_list = TimeLimitedActivity.query.filter(*filter_args).order_by(*order_by_args).all()
         for time_limited in time_limited_list:
-            time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
-            time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
-            tlp_count = TimeLimitedProduct.query.filter(
-                TimeLimitedProduct.TLAid == time_limited.TLAid,
-                TimeLimitedProduct.isdelete == False,
-                TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value
-            ).count()
-            time_limited.fill('prcount', tlp_count)
-            if time_limited.TLAstatus == TimeLimitedStatus.waiting.value:
-                if isinstance(time_limited.TLAstartTime, datetime):
-                    starttime = time_limited.TLAstartTime
-                else:
-                    starttime = datetime.strptime(str(time_limited.TLAstartTime), '%Y-%m-%d %H:%M:%S')
-                time_limited.fill('duration_start', str(starttime - time_now))
-            if time_limited.TLAstatus == TimeLimitedStatus.starting.value:
-                if isinstance(time_limited.TLAendTime, datetime):
-                    end_time = time_limited.TLAendTime
-                else:
-                    end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
-                time_limited.fill('duration_end', str(end_time - time_now))
+            self._fill_tla(time_limited, time_now)
         return Success(data=time_limited_list)
+
 
     def list_product(self):
         """获取活动商品"""
@@ -154,21 +136,23 @@ class CTimeLimited(COrder, CUser):
             *filter_args).order_by(
             TimeLimitedProduct.createtime.desc()).all()
         product_list = list()
+        # tlaid = tlp.TLAid
+        if common_user():
+            tla = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAid == tlaid,
+                TimeLimitedActivity.TLAstatus.in_(
+                    [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
+            ).first_('活动已下架')
+        else:
+            tla = TimeLimitedActivity.query.filter(
+                TimeLimitedActivity.isdelete == False,
+                TimeLimitedActivity.TLAid == tlaid,
+            ).first_('没有此活动')
+
         for tlp in tlp_list:
             current_app.logger.info(tlp)
-            tlaid = tlp.TLAid
-            if common_user():
-                tla = TimeLimitedActivity.query.filter(
-                    TimeLimitedActivity.isdelete == False,
-                    TimeLimitedActivity.TLAid == tlaid,
-                    TimeLimitedActivity.TLAstatus.in_(
-                        [TimeLimitedStatus.waiting.value, TimeLimitedStatus.starting.value])
-                ).first_('活动已下架')
-            else:
-                tla = TimeLimitedActivity.query.filter(
-                    TimeLimitedActivity.isdelete == False,
-                    TimeLimitedActivity.TLAid == tlaid,
-                ).first_('没有此活动')
+
             product = self._fill_tlp(tlp, tla)
             if product:
                 product_list.append(product)
@@ -189,7 +173,9 @@ class CTimeLimited(COrder, CUser):
             ad_return_list = product_list[start: (page * count)]
         request.page_all = total_page
         request.mount = total_count
-        return Success(data=ad_return_list)
+        # tlakwargs = dict(tlaname=tla.TlAname)
+        self._fill_tla(tla)
+        return Success(data=ad_return_list).get_body(tla=tla)
 
     def get(self):
         """获取单个新人商品"""
@@ -673,3 +659,26 @@ class CTimeLimited(COrder, CUser):
         if tlastatus < TimeLimitedStatus.end.value:
             current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
             end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
+
+    def _fill_tla(self, time_limited, time_now=datetime.now()):
+
+        time_limited.fill('tlastatus_zh', TimeLimitedStatus(time_limited.TLAstatus).zh_value)
+        time_limited.fill('tlastatus_en', TimeLimitedStatus(time_limited.TLAstatus).name)
+        tlp_count = TimeLimitedProduct.query.filter(
+            TimeLimitedProduct.TLAid == time_limited.TLAid,
+            TimeLimitedProduct.isdelete == False,
+            TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value
+        ).count()
+        time_limited.fill('prcount', tlp_count)
+        if time_limited.TLAstatus == TimeLimitedStatus.waiting.value:
+            if isinstance(time_limited.TLAstartTime, datetime):
+                starttime = time_limited.TLAstartTime
+            else:
+                starttime = datetime.strptime(str(time_limited.TLAstartTime), '%Y-%m-%d %H:%M:%S')
+            time_limited.fill('duration_start', str(starttime - time_now))
+        if time_limited.TLAstatus == TimeLimitedStatus.starting.value:
+            if isinstance(time_limited.TLAendTime, datetime):
+                end_time = time_limited.TLAendTime
+            else:
+                end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
+            time_limited.fill('duration_end', str(end_time - time_now))
