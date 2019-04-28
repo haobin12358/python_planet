@@ -48,7 +48,7 @@ class CQuestanswer():
         else:
             user = User.query.filter_(User.USid == request.user.id).first_('用户不存在')
         data = parameter_required(('quid',))
-        answer_model = Answer.query.filter_(Answer.QUid == data.get('quid'), Answer.isdelete == False).first()
+        answer_model = Answer.query.filter_(Answer.QUid == data.get('quid'), Answer.isdelete == False).first_('问题不存在')
         answer_model.fields = self.AnswerFields[:]
         qu_model = Quest.query.filter_(Quest.QUid == data.get('quid'), Quest.isdelete == False).first()
         if not qu_model:
@@ -61,6 +61,10 @@ class CQuestanswer():
             'USid': user.USid
         })
         db.session.add(an_instance)
+        qo = QuestOutline.query.filter_by(QOid=qu_model.QOid, isdelete=False).first_('数据异常')
+        other_qu = Quest.query.filter(Quest.QOid == qo.QOid, Quest.QUid !=qu_model.QUid, Quest.isdelete == False).all()
+        qo.fill('other', [{'quid': qu.QUid, 'ququest': qu.QUquest} for qu in other_qu])
+        answer_model.fill('qo', qo)
         return Success('获取回答成功', data=answer_model)
 
     @get_session
