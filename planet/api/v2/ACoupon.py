@@ -24,5 +24,6 @@ class ACoupon(Resource):
             'fetch': self.ccoupon.fetch,
             'create_code': self.ccoupon.create_code,
             'code': self.ccoupon.code,
+            'update_code': self.ccoupon.update_code,
         }
         return apis

@@ -613,3 +613,13 @@ class CCoupon(object):
         cc_used_count = cc_query.filter(CouponCode.CCused == True).count()
         cc_list = cc_query.all_with_page()
         return Success(data={'count': cc_all_count, 'used_count': cc_used_count, 'code': cc_list})
+
+    @admin_required
+    def update_code(self):
+        data = parameter_required(('coid', 'cocode'))
+        coupon = Coupon.query.filter_by(COid=data.get('coid'), isdelete=False).first_('优惠券已删除')
+
+        with db.auto_commit():
+            coupon.update({'COcode': bool(data.get('cocode', False))})
+
+        return Success('修改成功', data={'coid': coupon.COid})
