@@ -664,7 +664,7 @@ class CPay():
             }).first_('订单信息错误')
             user = User.query.filter(User.USid == usid, User.isdelete == False).first_("请重新登录")
             if not user.USpaycode:
-                raise ParamsError('请设置支付密码后重试')
+                raise ParamsError('请在 “我的 - 安全中心” 设置支付密码后重试')
             if not (uspaycode and check_password_hash(user.USpaycode, uspaycode)):
                 raise ParamsError('请输入正确的支付密码')
             # 增加星币消费记录
