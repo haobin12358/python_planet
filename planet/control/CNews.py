@@ -652,6 +652,8 @@ class CNews(BASEAPPROVAL):
                 'PRid': product,
                 'NEmainpic': data.get('nemainpic'),
                 'NEisrecommend': isrecommend,
+                'TOCid': data.get('tocid'),
+                'NElocation': data.get('nelocation')
             }
             news_instance.update(news_info, null='no')
             session_list.append(news_instance)
@@ -839,7 +841,7 @@ class CNews(BASEAPPROVAL):
         reply_comments = NewsComment.query.filter(NewsComment.NEid == neid,
                                                   NewsComment.isdelete == False,
                                                   NewsComment.NCrootid == news_comment.NCid
-                                                  ).order_by(NewsComment.createtime.desc()).all()
+                                                  ).order_by(NewsComment.createtime.asc()).all()
         reply_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False,
                                                NewsComment.NCrootid == news_comment.NCid).count()
         favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
@@ -1091,7 +1093,7 @@ class CNews(BASEAPPROVAL):
                         'USHtype': UserSearchHistoryType.topic.value
                     })
                     db.session.add(instance)
-        tocs = tocs_query.order_by(TopicOfConversations.createtime.desc()).all()
+        tocs = tocs_query.order_by(TopicOfConversations.createtime.desc()).limit(10).all()  # 暂先限制前十条
         [toc.hide('TOCcreate', 'TOCfrom') for toc in tocs]
         return Success(data=tocs)
 
