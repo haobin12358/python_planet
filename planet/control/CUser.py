@@ -17,7 +17,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
+    WexinBankCode
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
@@ -354,6 +355,10 @@ class CUser(SUser, BASEAPPROVAL):
             if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
                               and sa.SACompanyName and sa.SAICIDcode and sa.SAaddress and sa.SAbankAccount):
                 raise InsufficientConditionsError('账户信息和开票不完整，请补全账户信息和开票信息')
+            try:
+                WexinBankCode(sa.SAbankName)
+            except Exception:
+                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
 
     @get_session
     def login(self):
