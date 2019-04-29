@@ -113,8 +113,14 @@ class CCollection:
         if cotype == CollectionType.user.value:
             news = News.query.filter_by(NEid=ctid, isdelete=False).first()
             user = User.query.filter_by(USid=ctid, isdelete=False).first()
-            if not news and not user:
+            admin = Admin.query.filter_by(ADid=ctid, isdelete=False).first()
+            if not (news or user or admin):
                 current_app.logger.info('get cotype is {} ctid is {}'.format(cotype, ctid))
                 raise ParamsError('关注失败，用户已删除')
-            ctid = news.USid if news else user.USid
+            if news:
+                ctid = news.USid
+            elif admin:
+                ctid = admin.ADid
+            else:
+                ctid = user.USid
         return ctid
