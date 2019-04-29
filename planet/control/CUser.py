@@ -267,6 +267,15 @@ class CUser(SUser, BASEAPPROVAL):
 
         return Success('获取银行信息成功', data={'cnbankname': bankname, 'validated': validated})
 
+    def _verify_chinese(self, name):
+        """
+        校验是否是纯汉字
+        :param name:
+        :return: 汉字, 如果有其他字符返回 []
+        """
+        RE_CHINESE = re.compile(r'^[\u4e00-\u9fa5]{1,8}$')
+        return RE_CHINESE.findall(name)
+
     def __check_card_num(self, num):
         """初步校验卡号"""
         if not num:
@@ -1843,7 +1852,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USid': request.user.id,
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
-                'CNcardNo': sa.SAcardNo,  # todo 待校验 微信支持的银行
+                'CNcardNo': sa.SAcardNo,
                 'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for

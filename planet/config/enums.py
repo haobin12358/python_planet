@@ -476,7 +476,29 @@ class BankName(Enum):
 
 class WexinBankCode(Enum):
     """微信提现允许的银行"""
-    pass
+    ICBC = '中国工商银行', 1002
+    ABC = '中国农业银行', 1005
+    BOC = '中国银行', 1026
+    CCB = '中国建设银行', 1003
+    CMB = '招商银行', 1001
+    PSBC = '中国邮政储蓄银行', 1066
+    COMM = '交通银行', 1020
+    SPDB = '上海浦东发展银行', 1004
+    CMBC = '中国民生银行', 1006
+    CIB = '兴业银行', 1009
+    SPABANK = '平安银行', 1010
+    CITIC = '中信银行', 1021
+    HXBANK = '华夏银行', 1025
+    GDB = '广东发展银行', 1027
+    CEB = "中国光大银行", 1022
+    BJBANK = "北京银行", 1032
+    NBBANK = "宁波银行", 1056
+
+
+class CashFor(Enum):
+    """提现渠道"""
+    wechat = 0, '微信零钱'
+    bankcard = 1, '银行卡'
 
 
 class UserCommissionType(Enum):
