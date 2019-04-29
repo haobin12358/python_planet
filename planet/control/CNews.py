@@ -65,7 +65,7 @@ class CNews(BASEAPPROVAL):
             current_app.logger.error("nestatus error, not a enum value, {}".format(e))
             nestatus = None
 
-        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, None
+        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, False
         filter_args = list()
         if usid:
             ucs = UserCollectionLog.query.filter_by_(UCLcollector=usid,
