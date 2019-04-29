@@ -1961,7 +1961,7 @@ class CUser(SUser, BASEAPPROVAL):
                 time = datetime.datetime.now()
                 current_app.logger.info('{} 找不到此用户的上次登陆时间'.format(fens.USid))
             else:
-                time = fen_login.creatime
+                time = fen_login.createtime
             usv = usv_query.first()
             fens_amount = Decimal(str(usv[0] or 0))  # 月度总额
             user_fens_total += fens_amount
