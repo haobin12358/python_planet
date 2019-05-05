@@ -293,7 +293,8 @@ class CNews(BASEAPPROVAL):
             usid = request.user.id
 
         if not itid:
-            users = User.query.filter(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw])
+            users = User.query.filter(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw]),
+                                      User.USname.notilike('%客官%')
                                       ).all_with_page()
             for user in users:
                 user.fields = ['USid', 'USname', 'USlevel', 'USheader']
