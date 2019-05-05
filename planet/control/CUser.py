@@ -1160,10 +1160,11 @@ class CUser(SUser, BASEAPPROVAL):
                 uiaction = getattr(order_part, 'PRtitle', '购买星币商品')
                 # ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
                 ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
-            ui.fill('uiintegral', uiintegral)
+            integral = f'+{uiintegral}' if uiintegral > 0 else uiintegral
+            ui.fill('uiintegral', integral)
             ui.fill('uiaction', uiaction)
             month_total += uiintegral
-
+        month_total = f'+{month_total}' if month_total > 0 else month_total
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
 
     @get_session
