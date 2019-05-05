@@ -2364,7 +2364,7 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_home_top(self):
         user = get_current_user()
-        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).all()
+        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).order_by(UserCollectionLog.createtime.desc()).all()
         follow = collected = 0
         for ucl in ucl_list:
             if int(ucl.UCLcoType) == CollectionType.user.value:
