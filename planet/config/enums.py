@@ -84,6 +84,7 @@ class ActivityOrderNavigation(Enum):
     magic_box = 50, '好友魔盒'
     trial_commodity = 60, '免费试用'
     time_limited = 70, '限时特惠'
+    integral_store = 80, '星币商城'
 
 
 class OrderEvaluationScore(Enum):

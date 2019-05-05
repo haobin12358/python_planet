@@ -58,8 +58,6 @@ class OrderListForm(BaseForm):
         if raw.data:
             raw.data = list(map(int, raw.data.split(',')))
 
-
-
     def validate_issaler(self, raw):
         """是否卖家"""
         if raw.data is True:
