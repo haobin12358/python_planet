@@ -17,7 +17,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
+    WexinBankCode
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
@@ -266,6 +267,15 @@ class CUser(SUser, BASEAPPROVAL):
 
         return Success('获取银行信息成功', data={'cnbankname': bankname, 'validated': validated})
 
+    def _verify_chinese(self, name):
+        """
+        校验是否是纯汉字
+        :param name:
+        :return: 汉字, 如果有其他字符返回 []
+        """
+        RE_CHINESE = re.compile(r'^[\u4e00-\u9fa5]{1,8}$')
+        return RE_CHINESE.findall(name)
+
     def __check_card_num(self, num):
         """初步校验卡号"""
         if not num:
@@ -344,6 +354,10 @@ class CUser(SUser, BASEAPPROVAL):
             if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
                               and sa.SACompanyName and sa.SAICIDcode and sa.SAaddress and sa.SAbankAccount):
                 raise InsufficientConditionsError('账户信息和开票不完整，请补全账户信息和开票信息')
+            try:
+                WexinBankCode(sa.SAbankName)
+            except Exception:
+                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
 
     @get_session
     def login(self):
@@ -434,8 +448,13 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel:
-            raise ParamsError('手机号不能为空')
+        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+            raise ParamsError('请输入正确的手机号码')
+        if common_user():
+            user = User.query.filter_by_(USid=request.user.id).first()
+            if (user and user.UStelphone) and str(Utel) != user.UStelphone:
+                raise ParamsError('请使用已绑定手机号 {} 获取验证码'
+                                  ''.format(str(user.UStelphone).replace(str(user.UStelphone)[3:7], '*' * 4)))
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
@@ -1846,7 +1865,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USid': request.user.id,
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
-                'CNcardNo': sa.SAcardNo,  # todo 待校验 微信支持的银行
+                'CNcardNo': sa.SAcardNo,
                 'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for

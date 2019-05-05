@@ -82,8 +82,9 @@ class WeixinPay(object):
             raw[child.tag] = child.text
         return raw
 
-    def _fetch(self, url, data, use_cert=False):
-        data.setdefault("appid", self.app_id)
+    def _fetch(self, url, data, use_cert=False, appid=True):
+        if appid:
+            data.setdefault("appid", self.app_id)
         data.setdefault("mch_id", self.mch_id)
         data.setdefault("nonce_str", self.nonce_str)
         data.setdefault("sign", self.sign(data))
@@ -272,7 +273,7 @@ class WeixinPay(object):
             raise WeixinPayError("企业付款接口中，缺少必填参数bank_code")
         if "amount" not in data:
             raise WeixinPayError("企业付款接口中，缺少必填参数amount")
-        return self._fetch(url, data, True)
+        return self._fetch(url, data, True, False)
 
     def pay_individual_bank_query(self, **data):
         """企业付款查询"""
@@ -281,7 +282,7 @@ class WeixinPay(object):
         url = "https://api.mch.weixin.qq.com/mmpaysptrans/query_bank"
         if "partner_trade_no" not in data:
             raise WeixinPayError("企业付款接口中, 缺少必要的参数partner_trade_no")
-        return self._fetch(url, data, True)
+        return self._fetch(url, data, True, False)
 
     def _fetch_pay(self, url, data, use_cert=False):
         data.setdefault("mch_appid", self.app_id)
