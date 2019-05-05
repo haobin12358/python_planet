@@ -184,7 +184,7 @@ class CPay():
         percent = ConfigSettings().get_item('integralbase', 'trade_percent')
         if not (0 < int(percent) <= 100):
             return
-        intergral = int(Decimal(percent / 100) * Decimal(order_main.OMtrueMount))
+        intergral = int(Decimal(int(percent) / 100) * Decimal(order_main.OMtrueMount))
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': user.USid,
