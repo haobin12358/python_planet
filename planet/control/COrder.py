@@ -1680,11 +1680,12 @@ class COrder(CPay, CCoupon):
         for day in days:
             data = {
                 'day_total': self._history_order('total', day=day,
-                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 status=(OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                         OrderMain.OMfrom != OrderFrom.integral_store.value),
                                                  suid=suid),
                 'day_count': self._history_order('count', day=day, suid=suid),
                 'wai_pay_count': self._history_order('count', day=day,
-                                                     status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
+                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value, ),
                                                      suid=suid),
                 'in_refund': self._inrefund(day=day, suid=suid),
                 'day': day
@@ -1694,7 +1695,8 @@ class COrder(CPay, CCoupon):
             # 获取系统全部
             data = {
                 'day_total': self._history_order('total',
-                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 status=(OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                         OrderMain.OMfrom != OrderFrom.integral_store.value),
                                                  suid=suid),
                 'day_count': self._history_order('count', suid=suid),
                 'wai_pay_count': 0,
@@ -1717,7 +1719,7 @@ class COrder(CPay, CCoupon):
                 return self._inrefund(*args, **kwargs)
             query = query.filter(OrderMain.isdelete == False)
             if status is not None:
-                query = query.filter(status)
+                query = query.filter(*status)
             if day is not None:
                 query = query.filter(
                     cast(OrderMain.createtime, Date) == day,
