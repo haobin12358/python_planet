@@ -30,11 +30,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
         # todo 修改具体内容
         """参与活动"""
         date_now = datetime.now()
+        current_app.logger.info('get week is  {}'.format(date_now.weekday()))
         if date_now.hour == 14 and date_now.minute > 50:
                 raise StatusError('15点以后不开放')
         if date_now.hour > 15:
             raise StatusError('15点以后不开放')
-        if date_now.weekday() in [0, 6]:
+        if date_now.weekday() in [5, 6]:
             raise StatusError('周六周日不开放')
         form = GuessNumCreateForm().valid_data()
         gnnum = form.gnnum.data
@@ -93,8 +94,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
             # product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
             # product.fields = ['PRid', 'PRmainpic', 'PRtitle']
+            correct_count = 0
             # join_history.fill('product', product)
-            join_history.fill('correct_count', self._compare_str(correct_num.CNnum, join_history.GNnum))
+            if correct_num and join_history:
+                correct_count = self._compare_str(correct_num.CNnum, join_history.GNnum)
+
+            join_history.fill('correct_count', correct_count)
 
         return Success(data=join_history)
 
