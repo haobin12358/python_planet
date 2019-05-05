@@ -293,9 +293,9 @@ class CNews(BASEAPPROVAL):
             usid = request.user.id
 
         if not itid:
-            users = User.query.filter(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw]),
-                                      User.USname.notilike('%客官%')
-                                      ).all_with_page()
+            users = User.query.filter_(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw]),
+                                       User.USname.notilike('%客官%'), User.USid != usid
+                                       ).all_with_page()
             for user in users:
                 user.fields = ['USid', 'USname', 'USlevel', 'USheader']
                 try:
@@ -1052,6 +1052,8 @@ class CNews(BASEAPPROVAL):
             tocfrom = ApplyFrom.platform.value
         data = parameter_required(('toctitle',))
         totile = data.get('toctitle')
+        if (not totile) or (not re.sub(r' ', '', totile)):
+            raise ParamsError('请输入要创建的话题')
         toc = TopicOfConversations.query.filter(TopicOfConversations.isdelete == False,
                                                 TopicOfConversations.TOCtitle == totile
                                                 ).first()
