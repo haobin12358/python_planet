@@ -448,8 +448,13 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel:
-            raise ParamsError('手机号不能为空')
+        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+            raise ParamsError('请输入正确的手机号码')
+        if common_user():
+            user = User.query.filter_by_(USid=request.user.id).first()
+            if (user and user.UStelphone) and str(Utel) != user.UStelphone:
+                raise ParamsError('请使用已绑定手机号 {} 获取验证码'
+                                  ''.format(str(user.UStelphone).replace(str(user.UStelphone)[3:7], '*' * 4)))
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
