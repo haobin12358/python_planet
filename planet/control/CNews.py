@@ -77,6 +77,8 @@ class CNews(BASEAPPROVAL):
 
         if str(itid) == 'index':
             itid = None
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
         elif str(itid) == 'mynews':
             if not usid:
                 raise TokenError('未登录')
@@ -84,6 +86,8 @@ class CNews(BASEAPPROVAL):
             itid = None
             nestatus = None
             homepage = False
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
         elif is_supplizer():
             userid = usid
         elif str(itid) == 'isrecommend':
@@ -129,13 +133,11 @@ class CNews(BASEAPPROVAL):
         ])
 
         news_query = News.query.filter(News.isdelete == False)
-
         if itid:
             if filter_args and (itids_filter in filter_args):
                 filter_args.remove(itids_filter)
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
-
         news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
         self._fill_news_list(news_list, usid, userid)
 
@@ -1115,9 +1117,10 @@ class CNews(BASEAPPROVAL):
         itids = parameter_required().get('itids')
         with db.auto_commit():
             if itids in self.empty:
-                UserCollectionLog.query.filter_by(UCLcollector=user.USid,
-                                                  UCLcoType=CollectionType.news_tag.value).delete_()
-                return Success('更改成功')
+                # UserCollectionLog.query.filter_by(UCLcollector=user.USid,
+                #                                   UCLcoType=CollectionType.news_tag.value).delete_()
+                # return Success('更改成功')
+                itids = ['mynews']
 
             if not isinstance(itids, list):
                 raise ParamsError('参数格式错误')
