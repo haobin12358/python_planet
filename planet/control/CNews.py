@@ -108,8 +108,9 @@ class CNews(BASEAPPROVAL):
                 UserCollectionLog.UCLcollector == userid,
                 UserCollectionLog.UCLcollection == News.NEid
             ])
-
-        news_list = self.snews.get_news_list(filter_args)
+            news_list = self.snews.get_collect_news_list(filter_args)
+        else:
+            news_list = self.snews.get_news_list(filter_args)
         self._fill_news_list(news_list, usid, userid)
 
         # 增加搜索记录
