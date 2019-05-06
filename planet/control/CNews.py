@@ -1247,6 +1247,30 @@ class CNews(BASEAPPROVAL):
             db.session.add(ul)
         return ul.ULformattedAddress
 
+    @token_required
+    def get_self_news(self):
+        if is_tourist():
+            tourist = True
+        else:
+            tourist = False
+        data = parameter_required()
+        neid = data.get('neid')
+        usid = data.get('usid')
+        if not (neid or usid):
+            raise ParamsError('参数缺失')
+
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('圈子不存在')
+            user = User.quer.filter_by(USid=news.USid).first()
+            admin = User.query.filter_by(ADid=news.USid).first()
+            su = Supplizer.query.filter_by(SUid=news.USid).first()
+            if not (user or admin or su):
+                raise ParamsError('用户不存在')
+            usid = news.USid
+        news_list = News.query.filter_by(USid=usid).order_by(News.createtime.desc()).all_with_page()
+        self._fill_news_list(news_list, request.user.id, userid=None)
+        return Success(data=news_list).get_body(istourst=tourist)
+
 
 # if __name__ == '__main__':
 #     from planet import create_app
