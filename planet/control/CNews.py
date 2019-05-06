@@ -1272,7 +1272,7 @@ class CNews(BASEAPPROVAL):
             if not (user or admin or su):
                 raise ParamsError('用户不存在')
             usid = news.USid
-        news_list = News.query.filter_by(USid=usid).order_by(News.createtime.desc()).all_with_page()
+        news_list = News.query.filter_by(USid=usid, isdelete=False).order_by(News.createtime.desc()).all_with_page()
         self._fill_news_list(news_list, request.user.id, userid=None)
         return Success(data=news_list).get_body(istourst=tourist)
 
