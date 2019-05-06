@@ -1377,7 +1377,7 @@ class CUser(SUser, BASEAPPROVAL):
         APP_SECRET_KEY = fromdict.get('appsecret')
 
         wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
-        api_call_back = '{}/api/v1/user/wx_callback'.format(API_HOST)
+        api_call_back = '{}/api/v2/user/wx_callback'.format(API_HOST)
         redirect_url = wxlogin.authorize(api_call_back, scope=scope, state=url)
         # from flask import redirect
         current_app.logger.info('get redirect_url = {}'.format(redirect_url))
