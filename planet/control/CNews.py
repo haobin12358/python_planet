@@ -125,7 +125,6 @@ class CNews(BASEAPPROVAL):
                 UserCollectionLog.UCLcollector == usid,
                 or_(News.USid == UserCollectionLog.UCLcollection, News.USid == usid)
             ])
-
         filter_args.extend([
             News.NEstatus == nestatus,
             News.USid == userid,
@@ -138,7 +137,12 @@ class CNews(BASEAPPROVAL):
                 filter_args.remove(itids_filter)
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
-        news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
+
+        if collected:
+            news_list = news_query.filter_(*filter_args).order_by(UserCollectionLog.createtime.desc()).all_with_page()
+        else:
+            news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
+
         self._fill_news_list(news_list, usid, userid)
 
         # 增加搜索记录

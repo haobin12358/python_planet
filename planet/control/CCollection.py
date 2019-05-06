@@ -69,7 +69,7 @@ class CCollection:
 
         else:
             ucl_list = UserCollectionLog.query.filter_by(
-                    UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).all_with_page()
+                    UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).order_by(UserCollectionLog.createtime.desc()).all_with_page()
             for ucl in ucl_list:
                 # 监测自己是否关注自己的粉丝
                 ucl.fill('mutual_concern', bool(UserCollectionLog.query.filter_by(
