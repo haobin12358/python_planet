@@ -140,7 +140,7 @@ class CNews(BASEAPPROVAL):
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, *itids_filter)
 
-        current_app.logger.info("NEWS_SQL: {}".format(news_query.filter_(*filter_args)))
+        # current_app.logger.info("NEWS_SQL: {}".format(news_query.filter_(*filter_args)))
         news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
         self._fill_news_list(news_list, usid, userid)
 
