@@ -433,6 +433,8 @@ class CRefund(object):
             ).first_('不存在的订单')
             if order_main.OMinRefund == True:
                 raise DumpliError('主订单已在售后中, 请勿重复申请')
+            if order_main.OMfrom == OrderFrom.integral_store.value:
+                raise StatusError('星币商城订单暂不支持退换货，如有问题请及时联系客服')
             apply = OrderRefundApply.query.filter(
                 OrderRefundApply.OPid == opid,
                 OrderRefundApply.isdelete == False,
@@ -505,6 +507,8 @@ class CRefund(object):
             ).first_('不存在的订单')
             if order_main.OMinRefund is True:
                 raise DumpliError('已经在售后中')
+            if order_main.OMfrom == OrderFrom.integral_store.value:
+                raise StatusError('星币商城订单暂不支持退换货，如有问题请及时联系客服')
             # 之前的申请
             apply = OrderRefundApply.query.filter(
                 OrderRefundApply.isdelete == False,

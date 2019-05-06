@@ -1164,10 +1164,11 @@ class CUser(SUser, BASEAPPROVAL):
                 uiaction = getattr(order_part, 'PRtitle', '购买星币商品')
                 # ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
                 ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
-            ui.fill('uiintegral', uiintegral)
+            integral = f'+{uiintegral}' if uiintegral > 0 else uiintegral
+            ui.fill('uiintegral', integral)
             ui.fill('uiaction', uiaction)
             month_total += uiintegral
-
+        month_total = f'+{month_total}' if month_total > 0 else month_total
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
 
     @get_session
@@ -1853,8 +1854,11 @@ class CUser(SUser, BASEAPPROVAL):
         if cncashnum > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(cncashnum, balance))
             raise ParamsError('提现金额超出余额')
-        elif not (10 <= cncashnum <= 5000):
+        elif API_HOST == 'https://www.bigxingxing.com' and not (10 <= cncashnum <= 5000):
             raise ParamsError('提现金额超出单次可提现范围(10 ~ 5000元)')
+        elif API_HOST != 'https://www.bigxingxing.com' and not (0.03 <= cncashnum <= 5000):
+            raise ParamsError('当前测试版本单次可提现范围(0.03 ~ 5000元)')
+
         uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(cncashnum)
         kw = {}
         if commision_for == ApplyFrom.supplizer.value:
