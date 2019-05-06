@@ -2417,19 +2417,20 @@ class CUser(SUser, BASEAPPROVAL):
             user_dict.setdefault('usheader', admin.ADheader)
             user_dict.setdefault('usname', admin.AD)
             # 用户等级前台展示
-            user_dict.setdefault('uslevel_zh', UserGrade(user.USlevel).zh_value)
-            user_dict.setdefault('uslevel_eh', UserGrade(user.USlevel).name)
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'admin')
         else:
             usid = su.SUid
             user_dict.setdefault('usheader', user.USheader)
             user_dict.setdefault('usname', user.USname)
             # 用户等级前台展示
-            user_dict.setdefault('uslevel_zh', UserGrade(user.USlevel).zh_value)
-            user_dict.setdefault('uslevel_eh', UserGrade(user.USlevel).name)
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'supplizer')
 
         follow, collected, fens_count = self._fill_user_homepage(usid)
         user_dict.setdefault('follow', follow)
         user_dict.setdefault('collected', collected)
+        user_dict.setdefault('fens_count', fens_count)
 
         return Success(data=user_dict)
 
