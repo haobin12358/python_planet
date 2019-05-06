@@ -138,7 +138,7 @@ class CNews(BASEAPPROVAL):
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
 
-        if homepage:
+        if collected:
             news_list = news_query.filter_(*filter_args).order_by(UserCollectionLog.createtime.desc()).all_with_page()
         else:
             news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
