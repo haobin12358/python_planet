@@ -1393,7 +1393,7 @@ class CUser(SUser, BASEAPPROVAL):
             if not code:
                 return url
             # if '?' in url:
-            connector = '&' if '?' in url else '?'
+            # connector = '&' if '?' in url else '?'
             current_app.logger.info('get url = {}'.format(url))
             url_list = url.split(r'/#')
             if len(url_list) == 1:
@@ -1403,9 +1403,9 @@ class CUser(SUser, BASEAPPROVAL):
             current_app.logger.info('changed url = {}'.format(url))
 
             if state:
-                redirect_url = '{}{}code={}&{}'.format(url, connector, code, state)
+                redirect_url = '{}/?code={}&{}'.format(url, code, state)
             else:
-                redirect_url = '{}{}code={}'.format(url, connector, code)
+                redirect_url = '{}/?code={}'.format(url, code)
 
             if url_route:
                 return '{}#{}'.format(redirect_url, url_route)
