@@ -1440,12 +1440,22 @@ class COrder(CPay, CCoupon):
         # 获取各类活动下的订单数量
         if ordertype == 'act':
             act_value = [getattr(ActivityOrderNavigation, k).value for k in ActivityOrderNavigation.all_member()]
-            data = [
-                {'count': self._get_act_order_count(filter_args, k),
-                 'name': getattr(ActivityOrderNavigation, k).zh_value,
-                 'omfrom': getattr(ActivityOrderNavigation, k).value}
-                for k in ActivityOrderNavigation.all_member()
-            ]
+
+            if common_user():
+                data = []
+                for k in ActivityOrderNavigation.all_member():
+                    if self._get_act_order_count(filter_args, k) > 0:
+                        data.append({'count': self._get_act_order_count(filter_args, k),
+                                     'name': getattr(ActivityOrderNavigation, k).zh_value,
+                                     'omfrom': getattr(ActivityOrderNavigation, k).value})
+            else:
+                data = [
+                    {'count': self._get_act_order_count(filter_args, k),
+                     'name': getattr(ActivityOrderNavigation, k).zh_value,
+                     'omfrom': getattr(ActivityOrderNavigation, k).value}
+                    for k in ActivityOrderNavigation.all_member()
+                ]
+
             # 全部
             if is_supplizer() or is_admin():
                 data.insert(  #
