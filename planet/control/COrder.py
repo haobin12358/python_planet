@@ -68,7 +68,7 @@ class COrder(CPay, CCoupon):
         if usid:
             order_main_query = order_main_query.filter(OrderMain.USid == usid)
         # 过滤下活动产生的订单
-        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value, OrderFrom.integral_store.value])
+        normal_filter = OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
         filter_args = set()
         if omfrom is None:
             # 默认获取非活动订单
@@ -1680,11 +1680,12 @@ class COrder(CPay, CCoupon):
         for day in days:
             data = {
                 'day_total': self._history_order('total', day=day,
-                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 status=(OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                         OrderMain.OMfrom != OrderFrom.integral_store.value),
                                                  suid=suid),
                 'day_count': self._history_order('count', day=day, suid=suid),
                 'wai_pay_count': self._history_order('count', day=day,
-                                                     status=OrderMain.OMstatus == OrderMainStatus.wait_pay.value,
+                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value, ),
                                                      suid=suid),
                 'in_refund': self._inrefund(day=day, suid=suid),
                 'day': day
@@ -1694,7 +1695,8 @@ class COrder(CPay, CCoupon):
             # 获取系统全部
             data = {
                 'day_total': self._history_order('total',
-                                                 status=OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                 status=(OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
+                                                         OrderMain.OMfrom != OrderFrom.integral_store.value),
                                                  suid=suid),
                 'day_count': self._history_order('count', suid=suid),
                 'wai_pay_count': 0,
@@ -1717,7 +1719,7 @@ class COrder(CPay, CCoupon):
                 return self._inrefund(*args, **kwargs)
             query = query.filter(OrderMain.isdelete == False)
             if status is not None:
-                query = query.filter(status)
+                query = query.filter(*status)
             if day is not None:
                 query = query.filter(
                     cast(OrderMain.createtime, Date) == day,

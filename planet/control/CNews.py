@@ -57,6 +57,7 @@ class CNews(BASEAPPROVAL):
         args = parameter_required(('page_num', 'page_size'))
         itid = args.get('itid')
         kw = args.get('kw', '').split() or ['']  # 关键词
+        homepage = args.get('homepage')
         nestatus = args.get('nestatus') or 'usual'
         try:
             nestatus = getattr(NewsStatus, nestatus).value
@@ -64,7 +65,7 @@ class CNews(BASEAPPROVAL):
             current_app.logger.error("nestatus error, not a enum value, {}".format(e))
             nestatus = None
 
-        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, None
+        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, False
         filter_args = list()
         if usid:
             ucs = UserCollectionLog.query.filter_by_(UCLcollector=usid,
@@ -76,12 +77,17 @@ class CNews(BASEAPPROVAL):
 
         if str(itid) == 'index':
             itid = None
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
         elif str(itid) == 'mynews':
             if not usid:
                 raise TokenError('未登录')
             userid = usid
             itid = None
             nestatus = None
+            homepage = False
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
         elif is_supplizer():
             userid = usid
         elif str(itid) == 'isrecommend':
@@ -89,40 +95,66 @@ class CNews(BASEAPPROVAL):
             itid = None
 
         if kw not in self.empty:
-            if filter_args and itids_filter in filter_args:
+            if filter_args and (itids_filter in filter_args):
                 filter_args.remove(itids_filter)
             # filter_args.append((or_(and_(*[News.NEtitle.contains(x) for x in kw]), )))
             filter_args.append(or_(*[News.NEtitle.contains(x) for x in kw]))
 
+        collected = args.get('collected')  # 收藏筛选
+        if collected:
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
+            filter_args.extend([
+                UserCollectionLog.UCLcoType == CollectionType.news.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == usid,
+                UserCollectionLog.UCLcollection == News.NEid,
+            ])
+
+        tocid = args.get('tocid')  # 根据话题筛选
+        if tocid not in self.empty:
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
+            filter_args.append(News.TOCid == tocid)
+            itid = None
+
+        if homepage:  # 个人主页
+            filter_args.extend([
+                UserCollectionLog.UCLcoType == CollectionType.user.value,
+                UserCollectionLog.isdelete == False,
+                UserCollectionLog.UCLcollector == usid,
+                or_(News.USid == UserCollectionLog.UCLcollection, News.USid == usid)
+            ])
         filter_args.extend([
-            NewsTag.ITid == itid,
             News.NEstatus == nestatus,
             News.USid == userid,
             News.NEisrecommend == isrecommend,
         ])
-        collected = args.get('collected')
-        if collected:
-            filter_args.extend([
-                UserCollectionLog.UCLcoType == CollectionType.news.value,
-                UserCollectionLog.isdelete == False,
-                UserCollectionLog.UCLcollector == userid,
-                UserCollectionLog.UCLcollection == News.NEid
-            ])
-            news_list = self.snews.get_collect_news_list(filter_args)
+
+        news_query = News.query.filter(News.isdelete == False)
+        if itid:
+            if filter_args and (itids_filter in filter_args):
+                filter_args.remove(itids_filter)
+            news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                              ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
+
+        if homepage:
+            news_list = news_query.filter_(*filter_args).order_by(UserCollectionLog.createtime.desc()).all_with_page()
         else:
-            news_list = self.snews.get_news_list(filter_args)
+            news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
+
         self._fill_news_list(news_list, usid, userid)
 
         # 增加搜索记录
         if kw not in self.empty and usid:
-            with self.snews.auto_commit() as s:
+            with db.auto_commit():
                 instance = UserSearchHistory.create({
                     'USHid': str(uuid.uuid1()),
                     'USid': request.user.id,
                     'USHname': ' '.join(kw),
                     'USHtype': UserSearchHistoryType.news.value
                 })
-                s.add(instance)
+                db.session.add(instance)
         return Success(data=news_list).get_body(istourst=tourist)
 
     def _fill_news_list(self, news_list, usid, userid):
@@ -267,8 +299,9 @@ class CNews(BASEAPPROVAL):
             usid = request.user.id
 
         if not itid:
-            users = User.query.filter(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw])
-                                      ).all_with_page()
+            users = User.query.filter_(User.isdelete == False, or_(*[User.USname.ilike('%{}%'.format(x)) for x in kw]),
+                                       User.USname.notilike('%客官%'), User.USid != usid
+                                       ).all_with_page()
             for user in users:
                 user.fields = ['USid', 'USname', 'USlevel', 'USheader']
                 try:
@@ -626,6 +659,8 @@ class CNews(BASEAPPROVAL):
                 'PRid': product,
                 'NEmainpic': data.get('nemainpic'),
                 'NEisrecommend': isrecommend,
+                'TOCid': data.get('tocid'),
+                'NElocation': data.get('nelocation')
             }
             news_instance.update(news_info, null='no')
             session_list.append(news_instance)
@@ -813,7 +848,7 @@ class CNews(BASEAPPROVAL):
         reply_comments = NewsComment.query.filter(NewsComment.NEid == neid,
                                                   NewsComment.isdelete == False,
                                                   NewsComment.NCrootid == news_comment.NCid
-                                                  ).order_by(NewsComment.createtime.desc()).all()
+                                                  ).order_by(NewsComment.createtime.asc()).all()
         reply_count = NewsComment.query.filter(NewsComment.NEid == neid, NewsComment.isdelete == False,
                                                NewsComment.NCrootid == news_comment.NCid).count()
         favorite_count = NewsCommentFavorite.query.filter_by_(NCid=news_comment.NCid).count()
@@ -1023,6 +1058,8 @@ class CNews(BASEAPPROVAL):
             tocfrom = ApplyFrom.platform.value
         data = parameter_required(('toctitle',))
         totile = data.get('toctitle')
+        if (not totile) or (not re.sub(r' ', '', totile)):
+            raise ParamsError('请输入要创建的话题')
         toc = TopicOfConversations.query.filter(TopicOfConversations.isdelete == False,
                                                 TopicOfConversations.TOCtitle == totile
                                                 ).first()
@@ -1065,7 +1102,7 @@ class CNews(BASEAPPROVAL):
                         'USHtype': UserSearchHistoryType.topic.value
                     })
                     db.session.add(instance)
-        tocs = tocs_query.order_by(TopicOfConversations.createtime.desc()).all()
+        tocs = tocs_query.order_by(TopicOfConversations.createtime.desc()).limit(10).all()  # 暂先限制前十条
         [toc.hide('TOCcreate', 'TOCfrom') for toc in tocs]
         return Success(data=tocs)
 
@@ -1084,9 +1121,10 @@ class CNews(BASEAPPROVAL):
         itids = parameter_required().get('itids')
         with db.auto_commit():
             if itids in self.empty:
-                UserCollectionLog.query.filter_by(UCLcollector=user.USid,
-                                                  UCLcoType=CollectionType.news_tag.value).delete_()
-                return Success('更改成功')
+                # UserCollectionLog.query.filter_by(UCLcollector=user.USid,
+                #                                   UCLcoType=CollectionType.news_tag.value).delete_()
+                # return Success('更改成功')
+                itids = ['mynews']
 
             if not isinstance(itids, list):
                 raise ParamsError('参数格式错误')
@@ -1215,6 +1253,30 @@ class CNews(BASEAPPROVAL):
             })
             db.session.add(ul)
         return ul.ULformattedAddress
+
+    @token_required
+    def get_self_news(self):
+        if is_tourist():
+            tourist = True
+        else:
+            tourist = False
+        data = parameter_required()
+        neid = data.get('neid')
+        usid = data.get('usid')
+        if not (neid or usid):
+            raise ParamsError('参数缺失')
+
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('圈子不存在')
+            user = User.quer.filter_by(USid=news.USid).first()
+            admin = User.query.filter_by(ADid=news.USid).first()
+            su = Supplizer.query.filter_by(SUid=news.USid).first()
+            if not (user or admin or su):
+                raise ParamsError('用户不存在')
+            usid = news.USid
+        news_list = News.query.filter_by(USid=usid).order_by(News.createtime.desc()).all_with_page()
+        self._fill_news_list(news_list, request.user.id, userid=None)
+        return Success(data=news_list).get_body(istourst=tourist)
 
 
 # if __name__ == '__main__':

@@ -17,7 +17,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade
+    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
+    WexinBankCode
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
@@ -42,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog
+    Approval, UserTransmit, UserCollectionLog, News
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -266,6 +267,15 @@ class CUser(SUser, BASEAPPROVAL):
 
         return Success('获取银行信息成功', data={'cnbankname': bankname, 'validated': validated})
 
+    def _verify_chinese(self, name):
+        """
+        校验是否是纯汉字
+        :param name:
+        :return: 汉字, 如果有其他字符返回 []
+        """
+        RE_CHINESE = re.compile(r'^[\u4e00-\u9fa5]{1,8}$')
+        return RE_CHINESE.findall(name)
+
     def __check_card_num(self, num):
         """初步校验卡号"""
         if not num:
@@ -344,6 +354,10 @@ class CUser(SUser, BASEAPPROVAL):
             if not sa or not (sa.SAbankName and sa.SAbankDetail and sa.SAcardNo and sa.SAcardName and sa.SAcardName
                               and sa.SACompanyName and sa.SAICIDcode and sa.SAaddress and sa.SAbankAccount):
                 raise InsufficientConditionsError('账户信息和开票不完整，请补全账户信息和开票信息')
+            try:
+                WexinBankCode(sa.SAbankName)
+            except Exception:
+                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
 
     @get_session
     def login(self):
@@ -434,8 +448,13 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel:
-            raise ParamsError('手机号不能为空')
+        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+            raise ParamsError('请输入正确的手机号码')
+        if common_user():
+            user = User.query.filter_by_(USid=request.user.id).first()
+            if (user and user.UStelphone) and str(Utel) != user.UStelphone:
+                raise ParamsError('请使用已绑定手机号 {} 获取验证码'
+                                  ''.format(str(user.UStelphone).replace(str(user.UStelphone)[3:7], '*' * 4)))
         # 拼接验证码字符串（6位）
         code = ""
         while len(code) < 6:
@@ -1145,10 +1164,11 @@ class CUser(SUser, BASEAPPROVAL):
                 uiaction = getattr(order_part, 'PRtitle', '购买星币商品')
                 # ui.fill('prtitle', getattr(order_part, 'PRtitle', '购买星币商品'))
                 ui.fill('prmainpic', getattr(order_part, 'PRmainpic', ''))
-            ui.fill('uiintegral', uiintegral)
+            integral = f'+{uiintegral}' if uiintegral > 0 else uiintegral
+            ui.fill('uiintegral', integral)
             ui.fill('uiaction', uiaction)
             month_total += uiintegral
-
+        month_total = f'+{month_total}' if month_total > 0 else month_total
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
 
     @get_session
@@ -1834,8 +1854,11 @@ class CUser(SUser, BASEAPPROVAL):
         if cncashnum > float(balance):
             gennerc_log('提现金额为 {0}  实际余额为 {1}'.format(cncashnum, balance))
             raise ParamsError('提现金额超出余额')
-        elif not (10 <= cncashnum <= 5000):
+        elif API_HOST == 'https://www.bigxingxing.com' and not (10 <= cncashnum <= 5000):
             raise ParamsError('提现金额超出单次可提现范围(10 ~ 5000元)')
+        elif API_HOST != 'https://www.bigxingxing.com' and not (0.03 <= cncashnum <= 5000):
+            raise ParamsError('当前测试版本单次可提现范围(0.03 ~ 5000元)')
+
         uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(cncashnum)
         kw = {}
         if commision_for == ApplyFrom.supplizer.value:
@@ -1846,7 +1869,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USid': request.user.id,
                 'CNbankName': sa.SAbankName,
                 'CNbankDetail': sa.SAbankDetail,
-                'CNcardNo': sa.SAcardNo,  # todo 待校验 微信支持的银行
+                'CNcardNo': sa.SAcardNo,
                 'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CNcardName': sa.SAcardName,
                 'CommisionFor': commision_for
@@ -2430,3 +2453,24 @@ class CUser(SUser, BASEAPPROVAL):
             return Success('密码无误')
         else:
             raise StatusError('未设置支付密码')
+
+    def get_user_homepage(self):
+        pass
+
+    def _fill_user_homepage(self, usid):
+        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=usid, isdelete=False).all()
+        follow = collected = 0
+        for ucl in ucl_list:
+            if int(ucl.UCLcoType) == CollectionType.user.value:
+                user_fens = User.query.filter_by(USid=ucl.UCLcollection).first()
+                admin = Admin.query.filter_by(ADid=ucl.UCLcollection).first()
+                su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
+                if user_fens or admin or su:
+                    follow += 1
+            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
+                collected += 1
+
+        fens_count = UserCollectionLog.query.filter_by(
+            UCLcollection=usid, isdelete=False, UCLcoType=CollectionType.user.value).count()
+        current_app.logger.info('follow = {} collected = {} fens_count = {}'.format(follow, collected, fens_count))
+        return follow, collected, fens_count

@@ -233,6 +233,20 @@ class CashNotes(Base):
     CNrejectReason = Column(Text, comment='拒绝理由')
 
 
+class CashFlow(Base):
+    """提现流水"""
+    __tablename__ = 'CashFlow'
+    CFWid = Column(String(64), primary_key=True)
+    CNid = Column(String(64), nullable=False, comment='提现申请id')
+    partner_trade_no = Column(String(64), comment='微信商户订单号')
+    response = Column(Text, comment='微信返回的原数据')
+    status = Column(String(64), comment="代付订单状态：PROCESSING, SUCCESS, FAILED, BANK_FAIL")
+    reason = Column(Text, comment='失败原因')
+    amout = Column(Integer, comment='提现金额(单位：分)')
+    cmms_amt = Column(Integer, default=0, comment='手续费, 提现到银行卡产生(单位：分)')
+    CFWfrom = Column(Integer, default=0, comment='提现渠道 0, 微信零钱 1, 银行卡')
+
+
 class UserCollectionLog(Base):
     """用户收藏记录"""
     __tablename__ = 'UserCollection'

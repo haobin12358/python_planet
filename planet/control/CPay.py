@@ -18,7 +18,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
-    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralAction, UserIntegralType
+    LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralAction, UserIntegralType, \
+    WexinBankCode
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import  wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
@@ -183,7 +184,7 @@ class CPay():
         percent = ConfigSettings().get_item('integralbase', 'trade_percent')
         if not (0 < int(percent) <= 100):
             return
-        intergral = int(Decimal(percent / 100) * Decimal(order_main.OMtrueMount))
+        intergral = int(Decimal(int(percent) / 100) * Decimal(order_main.OMtrueMount))
         ui = UserIntegral.create({
             'UIid': str(uuid.uuid1()),
             'USid': user.USid,
@@ -664,7 +665,7 @@ class CPay():
             }).first_('订单信息错误')
             user = User.query.filter(User.USid == usid, User.isdelete == False).first_("请重新登录")
             if not user.USpaycode:
-                raise ParamsError('请设置支付密码后重试')
+                raise ParamsError('请在 “我的 - 安全中心” 设置支付密码后重试')
             if not (uspaycode and check_password_hash(user.USpaycode, uspaycode)):
                 raise ParamsError('请输入正确的支付密码')
             # 增加星币消费记录
@@ -698,7 +699,7 @@ class CPay():
             result = self.wx_pay.pay_individual(
                 partner_trade_no=self.wx_pay.nonce_str,
                 openid=user.USopenid2,
-                amount=Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100,
+                amount=int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100),
                 desc="大行星零钱转出",
                 spbill_create_ip=self.wx_pay.remote_addr
             )
@@ -714,14 +715,43 @@ class CPay():
         :param cn:
         :return:
         """
-        result = self.wx_pay.pay_individual_to_card(
-            partner_trade_no=self.wx_pay.nonce_str,
-            enc_bank_no=cn.CNcardNo,  # todo 银行卡号rsa加密有问题
-            enc_true_name=cn.CNcardName,
-            bank_code='开户行代码',
-            amount=Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100
-        )
-        pass
+        try:
+            enc_bank_no = self._to_encrypt(cn.CNcardNo)
+            enc_true_name = self._to_encrypt(cn.CNcardName)
+            bank_code = WexinBankCode(cn.CNbankName).zh_value
+        except Exception as e:
+            current_app.logger.error('提现到银行卡，参数加密出错：{}'.format(e))
+            raise ParamsError('服务器繁忙，请稍后再试')
+
+        try:
+            result = self.wx_pay.pay_individual_to_card(
+                partner_trade_no=self.wx_pay.nonce_str,
+                enc_bank_no=enc_bank_no,
+                enc_true_name=enc_true_name,
+                bank_code=bank_code,
+                amount=int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100)
+            )
+            current_app.logger.info('微信提现到银行卡, response: {}'.format(request))
+        except Exception as e:
+            current_app.logger.error('微信提现返回错误：{}'.format(e))
+            raise StatusError('微信商户平台: {}'.format(e))
+        return result
+
+    def _to_encrypt(self, message):
+        """银行卡信息加密"""
+        from planet.config.secret import apiclient_public
+        import base64
+        from Cryptodome.PublicKey import RSA
+        from Cryptodome.Cipher import PKCS1_OAEP
+
+        with open(apiclient_public, 'r') as f:
+            # pubkey = rsa.PublicKey.load_pkcs1(f.read().encode())
+            pubkey = f.read()
+            rsa_key = RSA.importKey(pubkey)
+            # crypto = rsa.encrypt(message.encode(), pubkey)
+            cipher = PKCS1_OAEP.new(rsa_key)
+            crypto = cipher.encrypt(message.encode())
+        return base64.b64encode(crypto).decode()
 
 
     @staticmethod
