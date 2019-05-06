@@ -3,10 +3,11 @@ import json
 import re
 import uuid
 
-from flask import request
+from flask import request, current_app
+from sqlalchemy import func
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, NewsItemPostion
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
@@ -103,22 +104,31 @@ class CItems:
         ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
                                                  UCLcoType=CollectionType.news_tag.value).first()
         item_query = Items.query.filter(Items.isdelete == False,
-                                        Items.ITtype == ItemType.news.value).order_by(Items.ITsort.asc(),
-                                                                                      Items.createtime.desc()
-                                                                                      )
-        if option:
+                                        Items.ITtype == ItemType.news.value)
+        if option and int(option) == NewsItemPostion.category.value:
             if ucs:
                 itids = json.loads(ucs.UCLcollection)
-                my_item = item_query.filter(Items.ITid.in_(itids)).all()
+                my_item = item_query.filter(Items.ITid.in_(itids)).order_by(func.field(Items.ITid, *itids)).all()
                 candidate_item = item_query.filter(Items.ITid.notin_(itids)).all()
+
             else:
-                my_item = []
-                candidate_item = item_query.all()
+                my_item = item_query.all()
+                candidate_item = []
             items = dict(my_item=my_item, candidate_item=candidate_item)
+        elif option and (int(option) == NewsItemPostion.homepage.value or int(option) == NewsItemPostion.post.value):
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                items = item_query.filter(Items.ITid.in_(itids), Items.ITid != 'mynews'
+                                          ).order_by(func.field(Items.ITid, *itids)).all()
+
+            else:
+                items = item_query.filter(Items.ITid != 'mynews').all()
         else:
             if ucs:
                 itids = json.loads(ucs.UCLcollection)
-                items = item_query.filter(Items.ITid.in_(itids)).all()
+                current_app.logger.info("itids = {}".format(itids))
+                items = item_query.filter(Items.ITid.in_(itids)).order_by(func.field(Items.ITid, *itids)).all()
+
             else:
                 items = item_query.all()
         return items

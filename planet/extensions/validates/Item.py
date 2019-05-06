@@ -31,7 +31,7 @@ class ItemCreateForm(BaseForm):
     """创建标签"""
     psid = FieldList(StringField())
     itname = StringField('标签名字', validators=[DataRequired('itname不可为空')])
-    itsort = IntegerField()
+    itsort = IntegerField(default=1)
     itdesc = StringField()
     ittype = IntegerField(default=ItemType.product.value)
     itauthority = IntegerField()
