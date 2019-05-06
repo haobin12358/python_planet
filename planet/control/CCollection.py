@@ -60,7 +60,7 @@ class CCollection:
                 ucl.fill('mutual_concern', bool(UserCollectionLog.query.filter_by(
                     UCLcollector=ucl.UCLcollection, isdelete=False,
                     UCLcollection=user.USid, UCLcoType=CollectionType.user.value).first()))
-
+                ucl.fill('usid', ucl.UCLcollection)
                 ucl.fill('fens_count', UserCollectionLog.query.filter_by(
                     UCLcollection=ucl.UCLcollection, isdelete=False, UCLcoType=CollectionType.user.value).count())
                 if not self._fill_user_info(ucl, ucl.UCLcollection):
@@ -78,6 +78,7 @@ class CCollection:
 
                 ucl.fill('fens_count', UserCollectionLog.query.filter_by(
                     UCLcollection=ucl.UCLcollector, isdelete=False, UCLcoType=CollectionType.user.value).count())
+                ucl.fill('usid', ucl.UCLcollector)
                 if not self._fill_user_info(ucl, ucl.UCLcollector):
                     continue
                 ucl_return_list.append(ucl)
