@@ -32,6 +32,7 @@ class ANews(Resource):
             'location': self.cnews.get_location,                # 获取定位
             'topic': self.cnews.get_topic,                      # 获取话题
             'search': self.cnews.search,                        # 搜索用户/圈子
+            'get_self_news': self.cnews.get_self_news,          # 获取个人圈子列表
 
         }
         return apis

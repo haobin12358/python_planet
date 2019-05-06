@@ -43,13 +43,12 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog
+    Approval, UserTransmit, UserCollectionLog, News
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
 from planet.extensions.qiniu.storage import QiniuStorage
-
 
 
 class CUser(SUser, BASEAPPROVAL):
@@ -442,6 +441,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__user_fill_uw_total(user)
         token = usid_to_token(usid, model='User', level=uslevel, username=user.USname)
         return Success('登录成功', data={'token': token, 'user': user})
+
     @get_session
     def get_inforcode(self):
         """发送/校验验证码"""
@@ -527,6 +527,10 @@ class CUser(SUser, BASEAPPROVAL):
             cast(UserIntegral.createtime, Date) == today).first()
         user.fill('signin', bool(ui))
         self.__user_fill_uw_total(user)
+
+        # 增加订单数
+        # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
+        user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
         return Success('获取首页用户信息成功', data=user)
 
     @get_session
@@ -1361,7 +1365,7 @@ class CUser(SUser, BASEAPPROVAL):
         return Success('获取微信参数成功', data=data)
 
     def wx_auth(self):
-        data = parameter_required(('url', ))
+        data = parameter_required(('url',))
         url = data.get('url')
 
         state = data.get('state')
@@ -1420,7 +1424,6 @@ class CUser(SUser, BASEAPPROVAL):
         current_app.logger.info('get redirect url = {}'.format(redirect_url))
 
         return redirect(redirect_url)
-
 
     @get_session
     def wx_login(self):
@@ -1971,10 +1974,22 @@ class CUser(SUser, BASEAPPROVAL):
                     extract('month', UserSalesVolume.createtime) == month,
                     extract('year', UserSalesVolume.createtime) == year,
                 )
+            fen_login = UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == fens.USid
+            ).order_by(
+                UserLoginTime.createtime.desc()
+            ).first()
+            if not fen_login:
+                time = datetime.datetime.now()
+                current_app.logger.info('{} 找不到此用户的上次登陆时间'.format(fens.USid))
+            else:
+                time = fen_login.createtime
             usv = usv_query.first()
             fens_amount = Decimal(str(usv[0] or 0))  # 月度总额
             user_fens_total += fens_amount
             fens.fill('fens_amount', fens_amount)
+            fens.fill('fens_time', time)
 
         for sub_agent in sub_agent_list:
             self._get_salesvolume(sub_agent, month, year, position, deeplen, **kwargs)
@@ -2132,7 +2147,7 @@ class CUser(SUser, BASEAPPROVAL):
         cash_notes = CashNotes.query.filter(
             extract('month', UserSalesVolume.createtime) == month,
             extract('year', UserSalesVolume.createtime) == year,
-            CashNotes.USid== request.user.id).order_by(
+            CashNotes.USid == request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
         cn_total = Decimal(0)
         for cash_note in cash_notes:
@@ -2371,31 +2386,53 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_home_top(self):
-        user = get_current_user()
-        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).all()
-        follow = collected = 0
-        for ucl in ucl_list:
-            if int(ucl.UCLcoType) == CollectionType.user.value:
-                follow += 1
-            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
-                collected += 1
-        current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
-        user.fields = self.USER_FIELDS[:]
-        # 统计关注人数和收藏数
-        user.fill('follow', follow)
-        user.fill('collected', collected)
-        # 粉丝数
-        user.fill('fens_count', UserCollectionLog.query.filter_by(
-            UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
-        # 用户等级前台展示
-        user.fill('uslevel_zh', UserGrade(user.USlevel).zh_value)
-        user.fill('uslevel_eh', UserGrade(user.USlevel).name)
-        # 遮盖身份证
-        user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        # 用户生日
-        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        current_app.logger.info('get user = {}'.format(user.__dict__))
-        return Success(data=user)
+        data = parameter_required()
+        neid = data.get('neid')
+        usid = data.get('usid')
+        user_dict = dict()
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
+            user = User.query.filter_by(USid=news.USid, isdelete=False).first()
+            admin = Admin.query.filter_by(ADid=news.USid, isdelete=False).first()
+            su = Supplizer.query.filter_by(SUid=news.USid, isdelete=False).first()
+        elif usid:
+            user = User.query.filter_by(USid=usid).first()
+            admin = None
+            su = None
+        else:
+            user = get_current_user()
+            admin = None
+            su = None
+        if not (user or admin or su):
+            raise ParamsError('用户不存在')
+        if user:
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', UserGrade(user.USlevel).zh_value)
+            user_dict.setdefault('uslevel_eh', UserGrade(user.USlevel).name)
+            usid = user.USid
+        elif admin:
+            usid = admin.ADid
+            user_dict.setdefault('usheader', admin.ADheader)
+            user_dict.setdefault('usname', admin.AD)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'admin')
+        else:
+            usid = su.SUid
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'supplizer')
+
+        follow, collected, fens_count = self._fill_user_homepage(usid)
+        user_dict.setdefault('follow', follow)
+        user_dict.setdefault('collected', collected)
+        user_dict.setdefault('fens_count', fens_count)
+
+        return Success(data=user_dict)
 
     @token_required
     def set_paycode(self):
@@ -2434,3 +2471,24 @@ class CUser(SUser, BASEAPPROVAL):
             return Success('密码无误')
         else:
             raise StatusError('未设置支付密码')
+
+    def get_user_homepage(self):
+        pass
+
+    def _fill_user_homepage(self, usid):
+        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=usid, isdelete=False).all()
+        follow = collected = 0
+        for ucl in ucl_list:
+            if int(ucl.UCLcoType) == CollectionType.user.value:
+                user_fens = User.query.filter_by(USid=ucl.UCLcollection).first()
+                admin = Admin.query.filter_by(ADid=ucl.UCLcollection).first()
+                su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
+                if user_fens or admin or su:
+                    follow += 1
+            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
+                collected += 1
+
+        fens_count = UserCollectionLog.query.filter_by(
+            UCLcollection=usid, isdelete=False, UCLcoType=CollectionType.user.value).count()
+        current_app.logger.info('follow = {} collected = {} fens_count = {}'.format(follow, collected, fens_count))
+        return follow, collected, fens_count
