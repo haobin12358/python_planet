@@ -612,6 +612,13 @@ class CartFrom(Enum):
     time_limited = 4, '限时活动'
 
 
+class NewsItemPostion(Enum):
+    """获取圈子标签的页面位置"""
+    category = 1, '发现 - 选择分类页'
+    homepage = 2, '我的 - 个人主页'
+    post = 3, '发布 - 选择标签'
+
+
 class UserGrade(Enum):
     # bronze = 0, '青铜会员'
     # silver = 1, '白银会员'
