@@ -59,7 +59,7 @@ def my_event(data):
 
 
 if __name__ == '__main__':
-    socketio.run(app, port=7443)
-    # app.run(port=7443)
+    # socketio.run(app, port=7443)
+    app.run(port=7443)
     # supervisord -c supervisord.conf
     # supervisorctl -c supervisord.conf shutdown
