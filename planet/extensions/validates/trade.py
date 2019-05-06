@@ -58,8 +58,6 @@ class OrderListForm(BaseForm):
         if raw.data:
             raw.data = list(map(int, raw.data.split(',')))
 
-
-
     def validate_issaler(self, raw):
         """是否卖家"""
         if raw.data is True:
@@ -115,7 +113,7 @@ class CouponCreateForm(BaseForm):
     codesc = StringField('描述')
     itids = FieldList(StringField(), validators=[DataRequired('请指定所在标签')])
     cousenum = IntegerField('可叠加使用数量', default=1)
-    cocode = IntegerField('是否需要兑换码', default=0)
+    cocode = BooleanField('是否需要兑换码', default=False)
 
     def valid_data(self):
         if self.prids.data and self.pbids.data:

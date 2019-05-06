@@ -11,8 +11,9 @@ from flask import request, current_app
 from planet.common.base_service import get_session
 from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
-    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError
+    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus, CashFor
+from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
+    StatusError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
@@ -20,7 +21,8 @@ from planet.common.token_handler import token_required, is_admin, is_hign_level_
 from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFirstApply, MagicBoxApply, TrialCommodity, \
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
-    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku
+    GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku, \
+    CashFlow
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -929,12 +931,29 @@ class CApproval(BASEAPPROVAL):
                 pe_fix.PELevel = level - 1
 
     def agree_cash(self, approval_model):
+        from planet.control.CPay import CPay
         if not approval_model:
             return
+        cpay = CPay()
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         uw = UserWallet.query.filter_by_(USid=approval_model.AVstartid).first()
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
+        flow_dict = dict(CFWid=str(uuid.uuid1()), CNid=cn.CNid)
+        if cn.CommisionFor == ApplyFrom.user.value:
+            res = cpay._pay_to_user(cn)  # 提现并记录流水
+            flow_dict['amout'] = int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100)
+            flow_dict['CFWfrom'] = CashFor.wechat.value
+        else:
+            res = cpay._pay_to_bankcard(cn)
+            flow_dict['amout'] = res.amount
+            flow_dict['cmms_amt'] = res.cmms_amt
+            flow_dict['CFWfrom'] = CashFor.bankcard.value
+        flow_dict['partner_trade_no'] = res.partner_trade_no
+        response = json.dumps(res)
+        flow_dict['response'] = response
+        db.session.add(CashFlow.create(flow_dict))
+
         cn.CNstatus = ApprovalAction.agree.value
         uw.UWbalance = Decimal(str(uw.UWbalance)) - Decimal(str(cn.CNcashNum))
 

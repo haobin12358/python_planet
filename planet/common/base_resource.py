@@ -18,7 +18,8 @@ class Resource(MethodView):
         #     return super(Resource, self).dispatch_request(*args, **kwargs)
         for kwarg in kwargs.values():
             if kwarg not in apis:
-                raise ApiError()
+                raise ApiError(u'接口未注册 | api:{} | request_method: {}'.format(request.path,
+                                                                             request.environ['REQUEST_METHOD']))
             data = apis[kwarg]()
             if isinstance(data, Response) or isinstance(data, str):
                 return data

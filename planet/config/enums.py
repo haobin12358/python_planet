@@ -84,6 +84,7 @@ class ActivityOrderNavigation(Enum):
     magic_box = 50, '好友魔盒'
     trial_commodity = 60, '免费试用'
     time_limited = 70, '限时特惠'
+    integral_store = 80, '星币商城'
 
 
 class OrderEvaluationScore(Enum):
@@ -213,8 +214,10 @@ class NewsStatus(Enum):
 # user
 class UserSearchHistoryType(Enum):
     """搜索记录类型 0 商品, 10 圈子"""
-    product = 0
-    news = 10
+    product = 0, '商品'
+    news = 10, '圈子'
+    topic = 20, '话题'
+    user = 30, '用户'
 
 
 class UserIntegralType(Enum):
@@ -472,6 +475,33 @@ class BankName(Enum):
     HBRCU = 164, "河北省农村信用社"
 
 
+class WexinBankCode(Enum):
+    """微信提现允许的银行"""
+    ICBC = '中国工商银行', 1002
+    ABC = '中国农业银行', 1005
+    BOC = '中国银行', 1026
+    CCB = '中国建设银行', 1003
+    CMB = '招商银行', 1001
+    PSBC = '中国邮政储蓄银行', 1066
+    COMM = '交通银行', 1020
+    SPDB = '上海浦东发展银行', 1004
+    CMBC = '中国民生银行', 1006
+    CIB = '兴业银行', 1009
+    SPABANK = '平安银行', 1010
+    CITIC = '中信银行', 1021
+    HXBANK = '华夏银行', 1025
+    GDB = '广东发展银行', 1027
+    CEB = "中国光大银行", 1022
+    BJBANK = "北京银行", 1032
+    NBBANK = "宁波银行", 1056
+
+
+class CashFor(Enum):
+    """提现渠道"""
+    wechat = 0, '微信零钱'
+    bankcard = 1, '银行卡'
+
+
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
@@ -570,6 +600,7 @@ class CollectionType(Enum):
     product = 0, '商品'
     news = 1, '圈子'
     user = 2, '用户'
+    news_tag = 3, '圈子分类'
 
 
 class CartFrom(Enum):
@@ -581,6 +612,13 @@ class CartFrom(Enum):
     time_limited = 4, '限时活动'
 
 
+class NewsItemPostion(Enum):
+    """获取圈子标签的页面位置"""
+    category = 1, '发现 - 选择分类页'
+    homepage = 2, '我的 - 个人主页'
+    post = 3, '发布 - 选择标签'
+
+
 class UserGrade(Enum):
     # bronze = 0, '青铜会员'
     # silver = 1, '白银会员'
@@ -589,6 +627,12 @@ class UserGrade(Enum):
     # diamonds = 4, '钻石会员'
     normal = 1, '大行星会员'
     agent = 2, '合作伙伴'
+
+
+class PlanetMessageStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '已发布',
+    hide = 1, '隐藏'
 
 
 if __name__ == '__main__':

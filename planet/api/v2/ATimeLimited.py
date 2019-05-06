@@ -11,6 +11,7 @@ class ATimelimited(Resource):
             'get': self.ctl.get,
             'list_activity': self.ctl.list_activity,
             'list_product': self.ctl.list_product,
+            'list_activity_product': self.ctl.list_activity_product,
             # 'get': self.ctl.get,
         }
         return apis

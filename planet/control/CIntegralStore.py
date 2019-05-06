@@ -41,7 +41,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                                           IntegralProduct.PRid == prid,
                                           ).first()
         if ip:
-            raise DumpliError('该商品申请已星币商城中存在')
+            raise DumpliError('该商品申请已存在')
         filter_args = [Products.PRid == prid,
                        Products.isdelete == False,
                        Products.PRstatus == ProductStatus.usual.value]

@@ -233,12 +233,26 @@ class CashNotes(Base):
     CNrejectReason = Column(Text, comment='拒绝理由')
 
 
+class CashFlow(Base):
+    """提现流水"""
+    __tablename__ = 'CashFlow'
+    CFWid = Column(String(64), primary_key=True)
+    CNid = Column(String(64), nullable=False, comment='提现申请id')
+    partner_trade_no = Column(String(64), comment='微信商户订单号')
+    response = Column(Text, comment='微信返回的原数据')
+    status = Column(String(64), comment="代付订单状态：PROCESSING, SUCCESS, FAILED, BANK_FAIL")
+    reason = Column(Text, comment='失败原因')
+    amout = Column(Integer, comment='提现金额(单位：分)')
+    cmms_amt = Column(Integer, default=0, comment='手续费, 提现到银行卡产生(单位：分)')
+    CFWfrom = Column(Integer, default=0, comment='提现渠道 0, 微信零钱 1, 银行卡')
+
+
 class UserCollectionLog(Base):
     """用户收藏记录"""
     __tablename__ = 'UserCollection'
     UCLid = Column(String(64), primary_key=True)
     UCLcollector = Column(String(64), comment='收藏者')
-    UCLcollection = Column(String(64), comment='收藏品')
+    UCLcollection = Column(Text, comment='收藏品')
     UCLcoType = Column(String(64), comment='收藏品类型')
 
 
@@ -251,12 +265,12 @@ class UserTransmit(Base):
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
 
-class UserNewsCategory(Base):
-    __tablename__ = 'UserNewsCategory'
-    UNC = Column(String(64), primary_key=True)
-    NSCid = Column(String(64), comment='圈子系统内置分类id')
-    USid = Column(String(64), comment='用户id')
-    UNCsort = Column(String(64), comment='用户自定义排序')
+# class UserNewsCategory(Base):
+#     __tablename__ = 'UserNewsCategory'
+#     UNC = Column(String(64), primary_key=True)
+#     NSCid = Column(String(64), comment='圈子系统内置分类id')
+#     USid = Column(String(64), comment='用户id')
+#     UNCsort = Column(String(64), comment='用户自定义排序')
 
 
 class UserLocation(Base):

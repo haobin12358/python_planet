@@ -30,11 +30,12 @@ class CGuessNum(COrder, BASEAPPROVAL):
         # todo 修改具体内容
         """参与活动"""
         date_now = datetime.now()
+        current_app.logger.info('get week is  {}'.format(date_now.weekday()))
         if date_now.hour == 14 and date_now.minute > 50:
                 raise StatusError('15点以后不开放')
         if date_now.hour > 15:
             raise StatusError('15点以后不开放')
-        if date_now.weekday() in [0, 6]:
+        if date_now.weekday() in [5, 6]:
             raise StatusError('周六周日不开放')
         form = GuessNumCreateForm().valid_data()
         gnnum = form.gnnum.data
@@ -93,7 +94,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
 
             # product = Products.query.filter_by_({'PRid': join_history.PRid}).first()
             # product.fields = ['PRid', 'PRmainpic', 'PRtitle']
+            correct_count = 0
             # join_history.fill('product', product)
+            if correct_num and join_history:
+                correct_count = self._compare_str(correct_num.CNnum, join_history.GNnum)
+
+            join_history.fill('correct_count', correct_count)
+
         return Success(data=join_history)
 
     @token_required
@@ -299,13 +306,18 @@ class CGuessNum(COrder, BASEAPPROVAL):
         }
         return Success('创建订单成功', data=response)
 
-    # @token_required
+    @token_required
     def today_gnap(self):
+        now = datetime.now()
         today = date.today()
         gnaa_list = GuessNumAwardApply.query.filter_by(
             GNAAstarttime=today, GNAAstatus=ApplyStatus.agree.value, isdelete=False).all()
+        user = get_current_user()
+        gn = GuessNum.query.filter_by(USid=user.USid, isdelete=False).order_by(GuessNum.createtime.desc()).first()
+
         for gnaa in gnaa_list:
-            self._fill_gnaa(gnaa)
+            current_app.logger.info('获取到申请 {}'.format(gnaa.GNAAid))
+            self._fill_gnaa(gnaa, gn, now)
 
         # 上方图
         activity = Activity.query.filter_by_({
@@ -324,9 +336,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
     def get_discount_by_skuid(self):
         data = parameter_required(('skuid', 'gnaaid'))
         user = get_current_user()
+        gn = GuessNum.query.filter_by(USid=user.USid, isdelete=False).order_by(GuessNum.createtime.desc()).first()
         # today = date.today()
-        now = datetime.now()
-        gn = GuessNum.query.filter_by(USid=request.user.id).order_by(GuessNum.createtime.desc()).first()
         gnas = GuessNumAwardSku.query.filter(
             GuessNumAwardSku.SKUid == data.get('skuid'),
             GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
@@ -336,26 +347,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
         )
         print(str(gnas))
         gnas = gnas.first()
-        # 时间判断来获取折扣
-        if now.hour < 16:
-            discount = 0
-        elif now.hour == 16 and now.minute < 20:
-            discount = 0
-        elif not gn:
-            discount = 0
-        elif gn.createtime.day < now.day:
-            discount = 0
-        elif gn.SKUid:
-            discount = 0
-        else:
-            correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
-            correctnum = correctnum_instance.CNnum
-            guessnum = gn.GNnum
-            correct_count = self._compare_str(correctnum, guessnum)
-
-            discount = self.get_discount(gnas, correct_count)
-
-        return Success(data={'discount': discount})
+        now = datetime.now()
+        return Success(data={'discount': self._get_discount(gnas, gn, now)})
 
     def list(self):
         """查看自己的申请列表"""
@@ -770,7 +763,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             return gnas.SKUdiscountsix
         return 0
 
-    def _fill_gnaa(self, gnaa):
+    def _fill_gnaa(self, gnaa, gn, now):
         gnap = GuessNumAwardProduct.query.filter_by(GNAAid=gnaa.GNAAid, isdelete=False).first()
         if not gnap:
             current_app.logger.info('该申请无商品 gnaaid = {0}'.format(gnaa.GNAAid))
@@ -795,6 +788,8 @@ class CGuessNum(COrder, BASEAPPROVAL):
         gnas_list = GuessNumAwardSku.query.filter_by(GNAPid=gnap.GNAPid, isdelete=False).all()
         skus = list()
         sku_value_item = list()
+        sku_discount = list()
+
         for gnas in gnas_list:
             sku = ProductSku.query.filter_by(SKUid=gnas.SKUid, isdelete=False).first()
             if not sku:
@@ -814,10 +809,13 @@ class CGuessNum(COrder, BASEAPPROVAL):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
             skus.append(sku)
+            sku_discount.append(self._get_discount(gnas, gn, now))
         if not skus:
             current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
             return
         product.fill('skus', skus)
+        current_app.logger.info('get product discount {}'.format(max(sku_discount)))
+        product.fill('skudiscount', max(sku_discount))
         sku_value_item_reverse = []
         for index, name in enumerate(product.PRattribute):
             value = list(set([attribute[index] for attribute in sku_value_item]))
@@ -829,3 +827,25 @@ class CGuessNum(COrder, BASEAPPROVAL):
             sku_value_item_reverse.append(temp)
         product.fill('SkuValue', sku_value_item_reverse)
         gnaa.fill('product', product)
+
+    def _get_discount(self, gnas, gn, now):
+        # 时间判断来获取折扣
+        if now.hour < 16:
+            discount = 0
+        elif now.hour == 16 and now.minute < 20:
+            discount = 0
+        elif not gn:
+            discount = 0
+        elif gn.createtime.day < now.day:
+            discount = 0
+        elif gn.SKUid:
+            discount = 0
+        else:
+            correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
+            correctnum = correctnum_instance.CNnum
+            guessnum = gn.GNnum
+            correct_count = self._compare_str(correctnum, guessnum)
+
+            discount = self.get_discount(gnas, correct_count)
+            current_app.logger.info('start compare get compare discount = {}'.format(discount))
+        return discount

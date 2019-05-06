@@ -12,6 +12,7 @@ class ACoupon(Resource):
             'list_user_coupon': self.ccoupon.list_user_coupon,
             'list': self.ccoupon.list,
             'get': self.ccoupon.get,
+            'get_code_list': self.ccoupon.get_code_list,
         }
         return apis
 
@@ -21,6 +22,8 @@ class ACoupon(Resource):
             'update': self.ccoupon.update,
             'delete': self.ccoupon.delete,
             'fetch': self.ccoupon.fetch,
+            'create_code': self.ccoupon.create_code,
             'code': self.ccoupon.code,
+            'update_code': self.ccoupon.update_code,
         }
         return apis

@@ -15,7 +15,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
-    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm, request
@@ -435,11 +435,27 @@ class CSupplizer:
             raise AuthorityError
 
         from flask import request
+        from planet.control.CUser import CUser
         data = request.json
-        # todo 数据校验
+        cuser = CUser()
+        cardno = data.get('sacardno')
+        cuser._CUser__check_card_num(cardno)
+        check_res = cuser._verify_cardnum(cardno)  # 检验卡号
+        if not check_res.data.get('validated'):
+            raise ParamsError('请输入正确的银行卡号')
+        if not cuser._verify_chinese(data.get('sacardname')):
+            raise ParamsError('请输入正确的开户人姓名')
+        current_app.logger.info('用户输入银行名为:{}'.format(data.get('sabankname')))
+        bankname = check_res.data.get('cnbankname')
+        try:
+            WexinBankCode(bankname)
+        except Exception:
+            raise ParamsError('系统暂不支持该银行提现，请更换银行后重新保存')
+        data['sabankname'] = bankname
+        current_app.logger.info('校验后更改银行名为:{}'.format(data.get('sabankname')))
+
         sa = SupplizerAccount.query.filter(
             SupplizerAccount.SUid == request.user.id, SupplizerAccount.isdelete == False).first()
-
         if sa:
             for key in sa.__dict__:
                 if str(key).lower() in data:

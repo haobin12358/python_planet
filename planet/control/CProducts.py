@@ -228,7 +228,11 @@ class CProducts(BaseController):
             prstatus = prstatus or 'usual'  # 商品状态
         if prstatus:
             prstatus = getattr(ProductStatus, prstatus).value
-        product_order = order_enum.get(order)
+        # 收藏排序筛选
+        if data.get('collected'):
+            product_order = UserCollectionLog.createtime
+        else:
+            product_order = order_enum.get(order)
         if desc_asc == 'desc':
             by_order = product_order.desc()
         elif desc_asc == 'asc':
