@@ -2386,35 +2386,53 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_home_top(self):
-        user = get_current_user()
-        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).order_by(UserCollectionLog.createtime.desc()).all()
-        follow = collected = 0
-        for ucl in ucl_list:
-            if int(ucl.UCLcoType) == CollectionType.user.value:
-                user_fens = User.query.filter_by(USid=ucl.UCLcollection).first()
-                admin = Admin.query.filter_by(ADid=ucl.UCLcollection).first()
-                su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
-                if user_fens or admin or su:
-                    follow += 1
-            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
-                collected += 1
-        current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
-        user.fields = self.USER_FIELDS[:]
-        # 统计关注人数和收藏数
-        user.fill('follow', follow)
-        user.fill('collected', collected)
-        # 粉丝数
-        user.fill('fens_count', UserCollectionLog.query.filter_by(
-            UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
-        # 用户等级前台展示
-        user.fill('uslevel_zh', UserGrade(user.USlevel).zh_value)
-        user.fill('uslevel_eh', UserGrade(user.USlevel).name)
-        # 遮盖身份证
-        user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        # 用户生日
-        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        current_app.logger.info('get user = {}'.format(user.__dict__))
-        return Success(data=user)
+        data = parameter_required()
+        neid = data.get('neid')
+        usid = data.get('usid')
+        user_dict = dict()
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
+            user = User.query.filter_by(USid=news.USid, isdelete=False).first()
+            admin = Admin.query.filter_by(ADid=news.USid, isdelete=False).first()
+            su = Supplizer.query.filter_by(SUid=news.USid, isdelete=False).first()
+        elif usid:
+            user = User.query.filter_by(USid=usid).first()
+            admin = None
+            su = None
+        else:
+            user = get_current_user()
+            admin = None
+            su = None
+        if not (user or admin or su):
+            raise ParamsError('用户不存在')
+        if user:
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', UserGrade(user.USlevel).zh_value)
+            user_dict.setdefault('uslevel_eh', UserGrade(user.USlevel).name)
+            usid = user.USid
+        elif admin:
+            usid = admin.ADid
+            user_dict.setdefault('usheader', admin.ADheader)
+            user_dict.setdefault('usname', admin.ADname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'admin')
+        else:
+            usid = su.SUid
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'supplizer')
+
+        follow, collected, fens_count = self._fill_user_homepage(usid)
+        user_dict.setdefault('follow', follow)
+        user_dict.setdefault('collected', collected)
+        user_dict.setdefault('fens_count', fens_count)
+
+        return Success(data=user_dict)
 
     @token_required
     def set_paycode(self):

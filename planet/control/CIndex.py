@@ -121,7 +121,7 @@ class CIndex:
             data = parameter_required()
             hibshow = data.get('hibshow', None)
 
-            if hibshow is not None:
+            if hibshow is not None and str(hibshow) != 'all':
                 filter_args.add(HypermarketIndexBanner.HIBshow == bool(hibshow))
         else:
             filter_args.add(HypermarketIndexBanner.HIBshow == True)
@@ -134,7 +134,9 @@ class CIndex:
     @admin_required
     def set_hypermarket_banner(self):
         current_app.logger.info("Admin {} set index banner".format(request.user.username))
-        data = parameter_required(('contentlink', 'hibpic', 'hibshow'))
+        # data = parameter_required(('contentlink', 'hibpic', 'hibshow'))
+        data = parameter_required()
+
         ibid = data.get('hibid') or str(uuid.uuid1())
 
         with db.auto_commit():
