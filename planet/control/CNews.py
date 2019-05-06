@@ -1264,7 +1264,7 @@ class CNews(BASEAPPROVAL):
 
         if neid:
             news = News.query.filter_by(NEid=neid, isdelete=False).first_('圈子不存在')
-            user = User.quer.filter_by(USid=news.USid).first()
+            user = User.query.filter_by(USid=news.USid).first()
             admin = User.query.filter_by(ADid=news.USid).first()
             su = Supplizer.query.filter_by(SUid=news.USid).first()
             if not (user or admin or su):
