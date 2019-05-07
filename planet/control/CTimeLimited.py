@@ -637,6 +637,7 @@ class CTimeLimited(COrder, CUser):
         product.fill('tlastatus_zh', ApplyStatus(tlp.TLAstatus).zh_value)
         product.fill('tlastatus_en', ApplyStatus(tlp.TLAstatus).name)
         product.fill('tlastatus', tlp.TLAstatus)
+        product.fill('prprice', tlp.PRprice)
 
         return product
 
