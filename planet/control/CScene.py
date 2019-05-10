@@ -7,7 +7,7 @@ from flask import current_app
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, common_user, is_tourist
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
 from planet.models import ProductScene, SceneItem
 from planet.service.SProduct import SProducts
 
@@ -71,7 +71,10 @@ class CScene(object):
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
-            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime - timedelta(hours=8), )
+            scene_task_id = cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime - timedelta(hours=8), )
+            current_app.logger.info("场景id{}  返回的任务task_id: {}".format(scene_dict['PSid'], scene_task_id))
+            key, value = scene_dict['PSid'], scene_task_id
+            conn.set(key, value)
 
         return Success('创建成功', data={
             'psid': product_scene_instance.PSid
@@ -91,6 +94,7 @@ class CScene(object):
             if isdelete:
                 SceneItem.query.filter_by(PSid=psid).delete_()
                 product_scene.isdelete = True
+                conn.delete(psid)
             else:
                 product_scene.update({
                     "PSpic": pspic,
@@ -101,6 +105,21 @@ class CScene(object):
                     "PSendtime": psendtime,
                 }, null='not')
                 db.session.add(product_scene)
+            if form.pstimelimited.data:
+                from planet.extensions.tasks import cancel_scene_association
+                current_app.logger.info('更新限时场景结束时间为 : {} '.format(psendtime))
+                from planet.extensions.tasks import celery
+                # celery.control.revoke(task_id=psid, terminate=True, signal='SIGKILL')
+                exist_task = conn.get(psid)
+                if exist_task:
+                    exist_task = str(exist_task, encoding='utf-8')
+                    current_app.logger.info('场景已有任务id: {}'.format(exist_task))
+                    celery.AsyncResult(exist_task).revoke()
+
+                scene_task_id = cancel_scene_association.apply_async(args=(psid,),
+                                                                     eta=psendtime - timedelta(hours=8), )
+                key, value = psid, scene_task_id
+                conn.set(key, value)
 
         return Success('更新成功', {'psid': psid})
 

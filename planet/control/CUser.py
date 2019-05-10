@@ -1856,8 +1856,8 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('提现金额超出余额')
         elif API_HOST == 'https://www.bigxingxing.com' and not (10 <= cncashnum <= 5000):
             raise ParamsError('提现金额超出单次可提现范围(10 ~ 5000元)')
-        elif API_HOST != 'https://www.bigxingxing.com' and not (0.03 <= cncashnum <= 5000):
-            raise ParamsError('当前测试版本单次可提现范围(0.03 ~ 5000元)')
+        elif API_HOST != 'https://www.bigxingxing.com' and not (0.30 <= cncashnum <= 5000):
+            raise ParamsError('当前测试版本单次可提现范围(0.30 ~ 5000元)')
 
         uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(cncashnum)
         kw = {}
