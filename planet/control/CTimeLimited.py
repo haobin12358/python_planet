@@ -12,7 +12,7 @@ from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import end_timelimited, start_timelimited
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, AdminActions
 from .CUser import CUser
 
 
@@ -235,6 +235,16 @@ class CTimeLimited(COrder, CUser):
             })
             with db.auto_commit():
                 db.session.add(tlb)
+
+            admin_action = AdminActions.create({
+                'ADid': request.user.id,
+                'AAaction': 1,
+                'AAmodel': TimeLimitedActivity,
+                'AApart': str(uuid.uuid1())
+            })
+            with db.auto_commit():
+                db.session.add(admin_action)
+
             current_app.logger.info('增加轮播图成功')
         else:
             current_app.logger.info('没有增加轮播图')
