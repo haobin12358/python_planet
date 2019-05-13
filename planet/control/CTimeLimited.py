@@ -240,7 +240,8 @@ class CTimeLimited(COrder, CUser):
                 'ADid': request.user.id,
                 'AAaction': 1,
                 'AAmodel': TimeLimitedActivity,
-                'AApart': str(uuid.uuid1())
+                'AAdetail': request.detail,
+                'AAkey': str(uuid.uuid1())
             })
             with db.auto_commit():
                 db.session.add(admin_action)
@@ -442,6 +443,14 @@ class CTimeLimited(COrder, CUser):
                 # 如果删除活动的话，退还库存
                 for tlp in tlp_list:
                     self._re_stock(tlp)
+                admin_action = AdminActions.create({
+                    'ADid': request.user.id,
+                    'AAaction': 2,
+                    'AAmodel': TimeLimitedActivity,
+                    'AAdetail': request.detail,
+                    'AAkey': tla.TLAid
+                })
+                db.session.add(admin_action)
                 return Success('删除成功')
 
             if tla.TLAstatus == TimeLimitedStatus.end.value:
@@ -472,8 +481,6 @@ class CTimeLimited(COrder, CUser):
                 end_time = datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S')
                 if time_now < start_time:
                     tlastatus = TimeLimitedStatus.waiting.value
-                    # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
-                    #                         start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
                 elif time_now > end_time:
                     tlastatus = TimeLimitedStatus.end.value
                 else:
@@ -482,7 +489,14 @@ class CTimeLimited(COrder, CUser):
                 tla.TLAstatus = tlastatus
                 self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
-
+                admin_action = AdminActions.create({
+                    'ADid': request.user.id,
+                    'AAaction': 3,
+                    'AAmodel': TimeLimitedActivity,
+                    'AAdetail': request.detail,
+                    'AAkey': tla.TLAid
+                })
+                db.session.add(admin_action)
         return Success('修改成功')
 
     def award_detail(self):

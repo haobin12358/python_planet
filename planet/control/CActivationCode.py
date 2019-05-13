@@ -15,7 +15,8 @@ from planet.common.token_handler import token_required, is_admin, admin_required
 from planet.config.enums import UserActivationCodeStatus, ApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
-from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply, ApprovalNotes, Approval
+from planet.models import UserActivationCode, ActivationCodeRule, ActivationCodeApply, ApprovalNotes, Approval, \
+    AdminActions
 from planet.extensions.validates.trade import ActRuleSetFrom
 
 
@@ -101,6 +102,14 @@ class CActivationCode(BASEAPPROVAL):
                 'ACRcash': form.acrcash.data
             })
             db.session.add(rule_instance)
+            admin_action = AdminActions.create({
+                'ADid': request.user.id,
+                'AAaction': 1,
+                'AAmodel': ActivationCodeRule,
+                'AAdetail': request.detail,
+                'AAkey': str(uuid.uuid1())
+            })
+            db.session.add(admin_action)
         return Success('添加成功', rule_instance.ACRid)
 
     @admin_required
