@@ -80,8 +80,9 @@ class CItems:
         items_query = items_query.order_by(Items.ITsort.asc(), Items.createtime.desc())
 
         # 普通用户默认获取已经自选过的圈子标签
-        if str(ittype) == str(ItemType.news.value) and common_user():
-            items = self._filter_new_items(request.user.id, option=form.option.data)
+        if str(ittype) == str(ItemType.news.value):
+            uid = request.user.id if common_user() else None
+            items = self._filter_new_items(uid=uid, option=form.option.data)
             return Success(data=items)
         items = items_query.all()
         for item in items:
@@ -99,10 +100,12 @@ class CItems:
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
 
-    def _filter_new_items(self, uid, option=None):
+    def _filter_new_items(self, uid=None, option=None):
         """筛选出用户自选的圈子标签"""
-        ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
-                                                 UCLcoType=CollectionType.news_tag.value).first()
+        ucs = list()
+        if uid:
+            ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
+                                                     UCLcoType=CollectionType.news_tag.value).first()
         item_query = Items.query.filter(Items.isdelete == False,
                                         Items.ITtype == ItemType.news.value)
         if option and int(option) == NewsItemPostion.category.value:
