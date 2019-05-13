@@ -71,14 +71,13 @@ class CScene(object):
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
-            scene_task_id = cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime - timedelta(hours=8), )
-            current_app.logger.info("场景id{}  返回的任务task_id: {}".format(scene_dict['PSid'], scene_task_id))
-            key, value = scene_dict['PSid'], scene_task_id
-            conn.set(key, value)
+            scene_task_id = cancel_scene_association.apply_async(args=(scene_dict['PSid'],),
+                                                                 eta=psendtime - timedelta(hours=8), )
 
-        return Success('创建成功', data={
-            'psid': product_scene_instance.PSid
-        })
+            current_app.logger.info("场景id{}  任务返回的task_id: {}".format(scene_dict['PSid'], scene_task_id))
+            conn.set(scene_dict['PSid'], scene_task_id)
+
+        return Success('创建成功', data={'psid': product_scene_instance.PSid})
 
     @admin_required
     def update(self):
@@ -106,9 +105,9 @@ class CScene(object):
                 }, null='not')
                 db.session.add(product_scene)
             if form.pstimelimited.data:
-                from planet.extensions.tasks import cancel_scene_association
+
+                from planet.extensions.tasks import cancel_scene_association, celery
                 current_app.logger.info('更新限时场景结束时间为 : {} '.format(psendtime))
-                from planet.extensions.tasks import celery
                 # celery.control.revoke(task_id=psid, terminate=True, signal='SIGKILL')
                 exist_task = conn.get(psid)
                 if exist_task:
@@ -118,8 +117,8 @@ class CScene(object):
 
                 scene_task_id = cancel_scene_association.apply_async(args=(psid,),
                                                                      eta=psendtime - timedelta(hours=8), )
-                key, value = psid, scene_task_id
-                conn.set(key, value)
+
+                conn.set(psid, scene_task_id)
 
         return Success('更新成功', {'psid': psid})
 
