@@ -176,7 +176,7 @@ class COrder(CPay, CCoupon):
                 os.makedirs(abs_dir)
             with open(abs_file, 'wb') as f:
                 f.write(data.xls)
-            return send_from_directory(abs_dir, xls_name, as_attachment=True)
+            return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
         return Success(data=order_mains)
 
     @token_required
@@ -206,7 +206,7 @@ class COrder(CPay, CCoupon):
             f.write(book.xls)
         # return Success(data=HTTP_HOST + '/' + aletive_file)
         current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
-        return send_from_directory(abs_dir, xls_name, as_attachment=True)
+        return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
 
     def _list_part(self, form, *args, **kwargs):
         omstatus = form.omstatus.data  # 过滤参数
