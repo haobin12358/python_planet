@@ -2182,7 +2182,9 @@ class CUser(SUser, BASEAPPROVAL):
             integral_commit=data.get('integral_commit'),
             integral_transmit=data.get('integral_transmit'),
             trade_percent=data.get('trade_percent'),
-            exchange_rate=data.get('exchange_rate')
+            exchange_rate=data.get('exchange_rate'),
+            integral_news=data.get('integral_news'),
+            news_count=data.get('news_count'),
         )
         for key in param_dict.keys():
             if param_dict[key] or str(param_dict[key]) == '0':
@@ -2208,7 +2210,9 @@ class CUser(SUser, BASEAPPROVAL):
                    integral_commit=None,
                    integral_transmit=None,
                    trade_percent=None,
-                   exchange_rate=None
+                   exchange_rate=None,
+                   integral_news=None,
+                   news_count=None,
                    )
         # sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
