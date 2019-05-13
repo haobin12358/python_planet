@@ -9,8 +9,8 @@ from planet.common.token_handler import token_required, is_supplizer, is_admin, 
 from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
 from planet.control.COrder import COrder
-from planet.extensions.register_ext import db
-from planet.extensions.tasks import end_timelimited, start_timelimited
+from planet.extensions.register_ext import db, conn
+from planet.extensions.tasks import end_timelimited, start_timelimited, celery
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
     TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner
 from .CUser import CUser
@@ -656,10 +656,16 @@ class CTimeLimited(COrder, CUser):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
-            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+            connid = 'start{}'.format(tlaid)
+            self._cancle_celery(connid)
+            start_task_id = start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+            conn.set(connid, start_task_id)
         if tlastatus < TimeLimitedStatus.end.value:
             current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
-            end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
+            connid = 'end{}'.format(tlaid)
+            self._cancle_celery(connid)
+            end_task_id = end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
+            conn.set(connid, end_task_id)
 
     def _fill_tla(self, time_limited, time_now=datetime.now()):
 
@@ -683,3 +689,10 @@ class CTimeLimited(COrder, CUser):
             else:
                 end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
             time_limited.fill('duration_end', str(end_time - time_now))
+
+    def _cancle_celery(self, conid):
+        exist_task = conn.get(conid)
+        if exist_task:
+            exist_task = str(exist_task, encoding='utf-8')
+            current_app.logger.info('已有任务id: {}'.format(exist_task))
+            celery.AsyncResult(exist_task).revoke()
