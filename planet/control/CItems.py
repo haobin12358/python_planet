@@ -181,7 +181,8 @@ class CItems:
         itname = form.itname  # 这里不要在后面加data
         isdelete = form.isdelete.data
         if itid in ['planet_featured', 'index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand',
-                    'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
+                    'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product', 'mynews'
+                    ] and isdelete is True:
             raise StatusError('系统默认标签不能被删除')
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")
