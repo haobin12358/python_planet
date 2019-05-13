@@ -104,7 +104,6 @@ class CTimeLimited(COrder, CUser):
             self._fill_tla(time_limited, time_now)
         return Success(data=time_limited_list)
 
-
     def list_product(self):
         """获取活动商品"""
         data = parameter_required(('tlaid',))
