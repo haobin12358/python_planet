@@ -192,13 +192,14 @@ def deposit_to_account():
                 deposit.UCstatus = UserCommissionStatus.in_account.value
                 db.session.add(deposit)
                 # 用户钱包
-                user_wallet = UserWallet.query.filter( UserWallet.isdelete == False,
-                                                       UserWallet.USid == deposit.USid,
-                                                       UserWallet.CommisionFor == deposit.CommisionFor
-                                                       ).first()
+                user_wallet = UserWallet.query.filter(UserWallet.isdelete == False,
+                                                      UserWallet.USid == deposit.USid,
+                                                      UserWallet.CommisionFor == deposit.CommisionFor
+                                                      ).first()
                 if user_wallet:
                     current_app.logger.info("-->  用户 ‘{}’ 已有钱包账户  <--".format(user_name))
-                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(deposit.UCcommission or 0))
+                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(
+                        str(deposit.UCcommission or 0))
                     user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(deposit.UCcommission))
                     user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(deposit.UCcommission))
                     current_app.logger.info("此次到账佣金{}；该用户现在账户余额：{}； 账户总额{}； 可提现余额{}".format(
@@ -235,7 +236,8 @@ def fix_evaluate_status_error():
                                                                                         )).first()
             if not om:
                 om_info = OrderMain.query.filter(OrderMain.OMid == oe.OMid).first()
-                current_app.logger.info("-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
+                current_app.logger.info(
+                    "-->  存在有评价，主单已删除或来自活动订单，OMid为{0}, OMfrom为{1}  <--".format(str(oe.OMid), str(om_info.OMfrom)))
                 continue
             omid = om.OMid
             omstatus = om.OMstatus
@@ -261,6 +263,8 @@ def create_settlenment():
     current_app.logger.info("----->  开始创建供应商结算单  <-----")
     with db.auto_commit():
         su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
+        from planet.control.COrder import COrder
+        corder = COrder()
         for su in su_list:
             today = datetime.now()
             pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
@@ -282,6 +286,7 @@ def create_settlenment():
                 'SSstatus': SupplizerSettementStatus.settlementing.value
             })
             db.session.add(ss)
+            corder._create_settlement_excel(su.SUid)
 
 
 @celery.task(name='get_logistics')
@@ -321,7 +326,7 @@ def auto_confirm_order():
         OrderLogistics.isdelete == False,
         OrderLogistics.OLsignStatus == LogisticsSignStatus.already_signed.value,
         OrderLogistics.updatetime <= time_now - timedelta(days=auto_confirm_day)
-        ).all()
+    ).all()
     current_app.logger.info('自动确认收货, 共{}个订单'.format(len(order_mains)))
     for order_main in order_mains:
         with db.auto_commit():
@@ -341,8 +346,8 @@ def check_for_update(*args, **kwargs):
     else:
         users = User.query.filter(
             User.isdelete == False,
-              User.CommisionLevel <= 5,
-              User.USlevel == 2
+            User.CommisionLevel <= 5,
+            User.USlevel == 2
         ).all()
     cuser = CUser()
     for user in users:
@@ -370,7 +375,7 @@ def auto_agree_task(avid):
         try:
             cp.agree_action(approval)
             approval.AVstatus = ApplyStatus.agree.value
-        except NotFound :
+        except NotFound:
             current_app.logger.info('审批流状态有误')
             # 如果不存在的商品, 需要将审批流失效
             approval.AVstatus = ApplyStatus.cancle.value
@@ -402,7 +407,8 @@ def cancel_scene_association(psid):
             sitids = [sitem.ITid for sitem in SceneItem.query.filter(SceneItem.PSid == scene.PSid,
                                                                      SceneItem.isdelete == False).all()]
             for itid in sitids:
-                if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != psid, SceneItem.isdelete == False).first():
+                if SceneItem.query.filter(SceneItem.ITid == itid, SceneItem.PSid != psid,
+                                          SceneItem.isdelete == False).first():
                     continue
                 else:
                     current_app.logger.info('--> 标签"{}"只有此场景有关联，同时删除标签下的商品关联 <-- '.format(itid))
@@ -516,7 +522,8 @@ def event_expired_revert():
                 other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
                                                               MagicBoxApply.MBAid != magic_box_apply.MBAid,
                                                               MagicBoxApply.MBAstatus.in_(
-                                                                  [ApplyStatus.wait_check.value, ApplyStatus.agree.value]),
+                                                                  [ApplyStatus.wait_check.value,
+                                                                   ApplyStatus.agree.value]),
                                                               MagicBoxApply.OSid == magic_box_apply.OSid,
                                                               MagicBoxApply.AgreeEndtime >= today,
                                                               ).first()  # 是否存在同用库存还没到期的
@@ -526,7 +533,8 @@ def event_expired_revert():
                 current_app.logger.info(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
                 magic_box_apply.MBAstatus = ApplyStatus.shelves.value  # 改为已下架
                 try:
-                    out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == magic_box_apply.OSid).first()
+                    out_stock = OutStock.query.filter(OutStock.isdelete == False,
+                                                      OutStock.OSid == magic_box_apply.OSid).first()
                     current_app.logger.info(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
                     corder._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
                     out_stock.OSnum = 0
@@ -603,6 +611,7 @@ def get_url_local(url_list):
         if not os.path.isdir(filepath):
             os.makedirs(filepath)
         return filepath, file_db_path
+
     current_app.logger.info('start 去重 {}'.format(datetime.now()))
     url_list = {}.fromkeys(url_list).keys()  # 去重
     current_app.logger.info('end  去重 {}'.format(datetime.now()))
@@ -719,7 +728,7 @@ def end_timelimited(tlaid):
                 TimeLimitedSku.TLPid == tlp.TLPid,
                 TimeLimitedSku.isdelete == False,
                 TimeLimitedProduct.isdelete == False,
-                ).all()
+            ).all()
             # 获取原商品属性
             product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
             if not product:
@@ -734,10 +743,11 @@ def end_timelimited(tlaid):
         tla.TLAstatus = TimeLimitedStatus.end.value
         # 删除轮播图
         IndexBanner.query.filter_by(
-            IBpic = tla.TLAtopPic,
-            isdelete = False
+            IBpic=tla.TLAtopPic,
+            isdelete=False
         ).delete_()
     current_app.logger.info('修改限时活动为结束，并且退还库存给商品 结束')
+
 
 @celery.task()
 def start_timelimited(tlaid):
@@ -747,7 +757,7 @@ def start_timelimited(tlaid):
     if not tla:
         current_app.logger.info('已删除该活动 任务结束')
         return
-    if tla.TLAstatus  == TimeLimitedStatus.abort.value:
+    if tla.TLAstatus == TimeLimitedStatus.abort.value:
         current_app.logger.info('已中止的活动不自动开启')
         return
 
@@ -758,12 +768,13 @@ def start_timelimited(tlaid):
 
 if __name__ == '__main__':
     from planet import create_app
-    app = create_app()
+
+    app, _ = create_app()
     with app.app_context():
-        event_expired_revert()
+        # event_expired_revert()
         # deposit_to_account()
         # fetch_share_deal()
-        # create_settlenment()
+        create_settlenment()
         # auto_evaluate()
         # check_for_update()
         # auto_confirm_order()

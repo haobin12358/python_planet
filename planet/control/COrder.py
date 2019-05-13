@@ -182,158 +182,32 @@ class COrder(CPay, CCoupon):
     @token_required
     def export_xls(self):
         """结算页的导出"""
-        if not is_supplizer() and not is_admin():
-            raise AuthorityError()
-        now = datetime.now()
-        current_app.logger.info('开始创建供应商结算表')
-        pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
-        tomonth_22 = date(year=now.year, month=now.month, day=22)
-        pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
-        form = OrderListForm().valid_data()
-        list_part = self._list_part(form=form, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
-        list_refund = self._list_refund(form=form, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
-        confirms = self._confirm_favor(form=form, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22)
+        # if not is_supplizer() and not is_admin():
 
-        book = tablib.Databook([list_part, list_refund, confirms])
-        aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
-        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
-        xls_name = self._generic_omno() + '.xls'
-        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
-        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
-        if not os.path.isdir(abs_dir):
-            os.makedirs(abs_dir)
-        with open(abs_file, 'wb') as f:
-            f.write(book.xls)
-        # return Success(data=HTTP_HOST + '/' + aletive_file)
-        current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
-        return send_from_directory(abs_dir, xls_name, as_attachment=True)
-
-    def _list_part(self, form, *args, **kwargs):
-        omstatus = form.omstatus.data  # 过滤参数
-        createtime_start = form.createtime_start.data or kwargs.get('pre_month')
-        createtime_end = form.createtime_end.data or kwargs.get('tomonth')
-        paytime_start = form.paytime_start.data
-        paytime_end = form.paytime_end.data
-        query = db.session.query(
-            OrderPart,
-            OrderPay,
-            OrderLogistics,  # 发货时间
-            OrderMain,
-        ).outerjoin(OrderMain, OrderMain.OMid == OrderPart.OMid). \
-            outerjoin(OrderPay, OrderPay.OPayno == OrderMain.OPayno). \
-            outerjoin(
-            OrderLogistics, OrderLogistics.OMid == OrderMain.OMid
-        ).filter(
-            OrderPart.isdelete == False,
-            OrderMain.isdelete == False,
-            OrderPay.isdelete == False,
-            OrderLogistics.isdelete == False,
-        )
+        time_now = datetime.now()
+        data = parameter_required()
         if is_supplizer():
-            query = query.filter(
-                OrderMain.PRcreateId == request.user.id,
-                # OrderMain.OMstatus == OrderMainStatus.ready.value
-            )
-        if createtime_start:
-            query = query.filter(
-                OrderMain.createtime >= createtime_start,
-            )
-        if createtime_end:
-            query = query.filter(
-                OrderMain.createtime <= createtime_end,
-                # OrderMain.updatetime <= createtime_end
-            )
-        if paytime_start:
-            query = query.filter(
-                OrderPay.OPaytime >= paytime_start,
-            )
-        if paytime_end:
-            query = query.filter(
-                OrderPay.OPaytime <= paytime_end,
-            )
-        if omstatus == 'refund':
-            # 后台获得售后订单(获取主单售后和附单售后)
-            if is_admin() or is_supplizer():
-                query = query.filter(
-                    or_(and_(OrderPart.isdelete == False,
-                             OrderPart.OPisinORA == True),
-                        (OrderMain.OMinRefund == True)))
-            else:
-                query = query.filter(
-                    OrderMain.OMinRefund == True
-                )
-        elif omstatus:
-            query = query.filter(*omstatus)
-        results = query.all()
-        # headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
-        #            '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
-        #            '商品编码', '商品名称', '购买件数',
-        #            '销售单价', '销售总价',
-        #            '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
-        #            '代理商佣金', '平台费用', '供应商剩余',)
-        headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
-                   '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
-                   '商品编码', '商品名称', '购买件数',
-                   '销售单价', '销售总价',
-                   '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
-                   '让利', '押金', '供应商实收',)
-        items = []
-        for result in results:
-            order_part, order_pay, order_logistic, order_main = result
-            if order_main is None:
-                current_app.logger.info('出现None数据')
-                continue
-            item = [
-                getattr(order_main, 'OMno', None), getattr(order_part, 'createtime', None),
-                getattr(order_pay, 'createtime', None), getattr(order_logistic, 'createtime', None),
-                order_main.PBname, OrderMainStatus(order_main.OMstatus).zh_value,
-                getattr(order_main, 'OMrecvName', None), getattr(order_main, 'OMrecvAddress', None),
-                getattr(order_part, 'SKUsn', None), getattr(order_part, 'PCname', None),
-                getattr(order_main, 'PRid', None),
-                '{}-{}'.format(order_part.PRtitle, '-'.join(json.loads(order_part.SKUattriteDetail))),
-                order_part.OPnum
-            ]
-            if order_main.OMfrom == OrderFrom.fresh_man.value:
-                sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = \
-                    agent_commision = planet_commision = supplizer_remain = 0
-                free_price = order_part.OPsubTrueTotal
-            else:
-                sku_price = order_part.SKUprice
-                sold_total = order_part.OPsubTrueTotal
-                activity_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0
-                coupon_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0
-                true_pay = order_part.OPsubTrueTotal
-                free_price = 0
-                comm_flow = UserCommission.query.filter(UserCommission.isdelete == False,
-                                                        UserCommission.UCstatus != UserCommissionStatus.error.value,
-                                                        UserCommission.OPid == order_part.OPid).all()
-                agent_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 20])
-                planet_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 0])
-                supplizer_remain = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 10])
-            activity_name = OrderFrom(order_main.OMfrom).zh_value
-            sdl = SupplizerDepositLog.query.filter(
-                SupplizerDepositLog.isdelete == False, SupplizerDepositLog.SDLcontentid == order_part.OPid).first()
-            desposit = 0
-            if sdl:
-                desposit = sdl.SDLnum
-            # item.extend([
-            #     sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
-            #     agent_commision, planet_commision, supplizer_remain
-            # ])
-            item.extend([
-                sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
-                agent_commision + planet_commision, desposit, supplizer_remain
-            ])
-            for itd in item:
-                if isinstance(itd, datetime):
-                    itd.strftime('%Y-%m-%d')
-            items.append(item)
-        data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
-        return data
+            suid = request.user.id
+        elif is_admin():
+            suid = data.get('suid')
+        else:
+            raise AuthorityError()
 
-    def _list_refund(self, form, *args, **kwargs):
-        createtime_start = form.createtime_start.data or kwargs.get('pre_month')
-        createtime_end = form.createtime_end.data or kwargs.get('tomonth')
+        if not suid:
+            raise ParamsError('suid 参数缺失')
+
+        month = data.get('month') or time_now.month
+        year = data.get('year') or time_now.year
+        excel_path = os.path.join(BASEDIR, 'img', 'xls', str(year), str(month))
+        filename = '{}.xls'.format(suid)
+        if not os.path.isfile(os.path.join(excel_path, filename)):
+            raise ParamsError('供应商当月没有结算单')
+        return send_from_directory(excel_path, filename, as_attachment=True, cache_timeout=-1)
+
+    def _list_refund(self, *args, **kwargs):
+        createtime_start = kwargs.get('pre_month')
+        createtime_end = kwargs.get('tomonth')
+        suid = kwargs.get('suid')
         query = db.session.query(OrderPart, OrderMain, OrderRefundApply, OrderRefund, OrderRefundFlow). \
             join(
             OrderMain, OrderPart.OMid == OrderMain.OMid
@@ -349,10 +223,11 @@ class COrder(CPay, CCoupon):
             .filter(
             OrderPart.isdelete == False,
             OrderMain.isdelete == False,
+            OrderMain.PRcreateId == suid,
             OrderRefundApply.isdelete == False
         )
-        if is_supplizer():
-            query = query.filter(OrderMain.PRcreateId == request.user.id)
+        # if is_supplizer():
+        #     query = query.filter(OrderMain.PRcreateId == request.user.id)
         if createtime_start:
             query = query.filter(
                 OrderMain.createtime >= createtime_start
@@ -382,21 +257,23 @@ class COrder(CPay, CCoupon):
         data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
 
-    def _confirm_favor(self, form, *args, **kwargs):
-        paytime_start = form.paytime_start.data or kwargs.get('pre_month')
-        paytime_end = form.paytime_end.data or kwargs.get('tomonth')
-        suname = request.user.username
+    def _confirm_favor(self, *args, **kwargs):
+        paytime_start = kwargs.get('pre_month')
+        paytime_end = kwargs.get('tomonth')
+        # suname = kwargs.get('suname')
+        suid = kwargs.get('suid')
         supplizer = Supplizer.query.filter(
             Supplizer.isdelete == False,
-            Supplizer.SUid == request.user.id
+            Supplizer.SUid == suid
         ).first()
+        suname = supplizer.SUname
         supplizer_account = SupplizerAccount.query.filter(
             SupplizerAccount.isdelete == False,
-            SupplizerAccount.SUid == Supplizer.SUid
+            SupplizerAccount.SUid == suid
         ).first()
         settlement = SupplizerSettlement.query.filter(
             SupplizerSettlement.isdelete == False,
-            SupplizerSettlement.SUid == request.user.id
+            SupplizerSettlement.SUid == suid
         ).first()
         mobile = getattr(supplizer, 'SUloginPhone', None)
         currency = '人民币'
@@ -412,11 +289,11 @@ class COrder(CPay, CCoupon):
         if ticket_status is not None:
             ticket_status = SupplizerSettementStatus(ticket_status).zh_value
         # 订单销售额
-        tomonth_total = self._tomonth_total(request.user.id, tomonth=paytime_end, pre_month=paytime_start)
-        preview_num = self._preview_num(request.user.id, tomonth=paytime_end, pre_month=paytime_start)
+        tomonth_total = self._tomonth_total(suid, tomonth=paytime_end, pre_month=paytime_start)
+        preview_num = self._preview_num(suid, tomonth=paytime_end, pre_month=paytime_start)
         userwallet = UserWallet.query.filter(
             UserWallet.isdelete == False,
-            UserWallet.USid == request.user.id,
+            UserWallet.USid == suid,
             UserWallet.CommisionFor == ApplyFrom.supplizer.value
         ).first()
         balance = userwallet.UWbalance if userwallet else 0
@@ -2384,3 +2261,131 @@ class COrder(CPay, CCoupon):
                 items.append(item)
                 headers.append(header)
         return headers, items
+
+    def _create_settlement_excel(self, suid):
+        now = datetime.now()
+        current_app.logger.info('开始创建供应商结算表')
+        pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
+        tomonth_22 = date(year=now.year, month=now.month, day=22)
+        pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
+        # form = OrderListForm().valid_data()
+        # form = {}
+        list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        list_refund = self._list_refund(suid=suid, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        confirms = self._confirm_favor(suid=suid, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22)
+
+        book = tablib.Databook([list_part, list_refund, confirms])
+        aletive_dir = 'img/xls/{year}/{month}'.format(year=now.year, month=now.month)
+        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month))
+        # xls_name = self._generic_omno() + '.xls'
+        xls_name = '{}.xls'.format(suid)
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
+        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
+        if not os.path.isdir(abs_dir):
+            os.makedirs(abs_dir)
+        with open(abs_file, 'wb') as f:
+            f.write(book.xls)
+        # return Success(data=HTTP_HOST + '/' + aletive_file)
+        current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
+        # return send_from_directory(abs_dir, xls_name, as_attachment=True)
+
+    def _list_part(self, *args, **kwargs):
+        createtime_start = kwargs.get('pre_month')
+        createtime_end = kwargs.get('tomonth')
+        suid = kwargs.get('suid')
+        query = db.session.query(
+            OrderPart,
+            OrderPay,
+            OrderLogistics,  # 发货时间
+            OrderMain,
+        ).outerjoin(OrderMain, OrderMain.OMid == OrderPart.OMid). \
+            outerjoin(OrderPay, OrderPay.OPayno == OrderMain.OPayno). \
+            outerjoin(
+            OrderLogistics, OrderLogistics.OMid == OrderMain.OMid
+        ).filter(
+            OrderPart.isdelete == False,
+            OrderMain.isdelete == False,
+            OrderPay.isdelete == False,
+            OrderLogistics.isdelete == False,
+            OrderMain.PRcreateId == suid,
+        )
+        # if is_supplizer():
+        # query = query.filter(
+        #     OrderMain.PRcreateId == request.user.id,
+        #     # OrderMain.OMstatus == OrderMainStatus.ready.value
+        # )
+        if createtime_start:
+            query = query.filter(
+                OrderMain.createtime >= createtime_start,
+            )
+        if createtime_end:
+            query = query.filter(
+                OrderMain.createtime <= createtime_end,
+                # OrderMain.updatetime <= createtime_end
+            )
+        results = query.all()
+        # headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
+        #            '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
+        #            '商品编码', '商品名称', '购买件数',
+        #            '销售单价', '销售总价',
+        #            '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
+        #            '代理商佣金', '平台费用', '供应商剩余',)
+        headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
+                   '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
+                   '商品编码', '商品名称', '购买件数',
+                   '销售单价', '销售总价',
+                   '活动减免价格', '优惠金额', '实付金额', '活动名称', '试用价',
+                   '让利', '押金', '供应商实收',)
+        items = []
+        for result in results:
+            order_part, order_pay, order_logistic, order_main = result
+            if order_main is None:
+                current_app.logger.info('出现None数据')
+                continue
+            item = [
+                getattr(order_main, 'OMno', None), getattr(order_part, 'createtime', None),
+                getattr(order_pay, 'createtime', None), getattr(order_logistic, 'createtime', None),
+                order_main.PBname, OrderMainStatus(order_main.OMstatus).zh_value,
+                getattr(order_main, 'OMrecvName', None), getattr(order_main, 'OMrecvAddress', None),
+                getattr(order_part, 'SKUsn', None), getattr(order_part, 'PCname', None),
+                getattr(order_main, 'PRid', None),
+                '{}-{}'.format(order_part.PRtitle, '-'.join(json.loads(order_part.SKUattriteDetail))),
+                order_part.OPnum
+            ]
+            if order_main.OMfrom == OrderFrom.fresh_man.value:
+                sku_price = sold_total = activity_reduce = coupon_reduce = true_pay = \
+                    agent_commision = planet_commision = supplizer_remain = 0
+                free_price = order_part.OPsubTrueTotal
+            else:
+                sku_price = order_part.SKUprice
+                sold_total = order_part.OPsubTrueTotal
+                activity_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_main.OMfrom == OrderFrom.magic_box.value else 0
+                coupon_reduce = order_part.OPsubTotal - order_part.OPsubTrueTotal if order_part.UseCoupon else 0
+                true_pay = order_part.OPsubTrueTotal
+                free_price = 0
+                comm_flow = UserCommission.query.filter(UserCommission.isdelete == False,
+                                                        UserCommission.UCstatus != UserCommissionStatus.error.value,
+                                                        UserCommission.OPid == order_part.OPid).all()
+                agent_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 20])
+                planet_commision = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 0])
+                supplizer_remain = sum([x.UCcommission for x in comm_flow if x.CommisionFor == 10])
+            activity_name = OrderFrom(order_main.OMfrom).zh_value
+            sdl = SupplizerDepositLog.query.filter(
+                SupplizerDepositLog.isdelete == False, SupplizerDepositLog.SDLcontentid == order_part.OPid).first()
+            desposit = 0
+            if sdl:
+                desposit = sdl.SDLnum
+            # item.extend([
+            #     sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
+            #     agent_commision, planet_commision, supplizer_remain
+            # ])
+            item.extend([
+                sku_price, sold_total, activity_reduce, coupon_reduce, true_pay, activity_name, free_price,
+                agent_commision + planet_commision, desposit, supplizer_remain
+            ])
+            for itd in item:
+                if isinstance(itd, datetime):
+                    itd.strftime('%Y-%m-%d')
+            items.append(item)
+        data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
+        return data
