@@ -21,7 +21,7 @@ from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserI
     WexinBankCode, CashStatus
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -2353,6 +2353,12 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
             ss.fill('suname', su.SUname)
             ss.add('createtime')
+            excel_exist = False
+            year, month = self._get_year_month(ss.createtime, year=True, month=True)
+            current_app.logger.info('get year {}  and month {}'.format(year, month))
+            if os.path.isfile(os.path.join(BASEDIR, 'img', 'xls', str(year), str(month), '{}.xls'.format(su.SUid))):
+                excel_exist = True
+            ss.fill('excel_exist', excel_exist)
         return Success('获取结算记录成功', data=ss_list)
 
     @token_required
@@ -2500,3 +2506,18 @@ class CUser(SUser, BASEAPPROVAL):
             UCLcollection=usid, isdelete=False, UCLcoType=CollectionType.user.value).count()
         current_app.logger.info('follow = {} collected = {} fens_count = {}'.format(follow, collected, fens_count))
         return follow, collected, fens_count
+
+    def _get_year_month(self, time_, **kwargs):
+        if not isinstance(time_, datetime.datetime):
+            # time_ = datetime.datetime.strptime()
+            raise ParamsError('数据库数据异常，请联系管理员')
+        k_list = ['year', 'month', 'day']
+        # year, month, day = time_.year, time_.month, time_.day
+        return_sort = list()
+        for k in k_list:
+            if kwargs.get(k):
+                return_sort.append(time_.__getattribute__(k))
+        if len(return_sort) == 1 :
+            return return_sort[0]
+        return tuple(return_sort)
+
