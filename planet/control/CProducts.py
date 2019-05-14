@@ -16,13 +16,13 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
     admin_required, common_user, get_current_user
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
-    PermissionType, ApprovalType, ProductBrandStatus, CollectionType
+    PermissionType, ApprovalType, ProductBrandStatus, CollectionType, TimeLimitedStatus
 from planet.control.BaseControl import BASEAPPROVAL, BaseController
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
-    ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor
+    ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -320,6 +320,8 @@ class CProducts(BaseController):
             product.fill('brand', brand)
             product.PRattribute = json.loads(product.PRattribute)
             product.PRremarks = json.loads(getattr(product, 'PRremarks') or '{}')
+            tlpid = self._check_timelimit(product.PRid)
+            product.fill('tlpid', tlpid)
             if is_supplizer() or is_admin():
                 # 供应商
                 supplizer = Supplizer.query.join(
@@ -1151,3 +1153,13 @@ class CProducts(BaseController):
                 ccoupon._coupon(cou)
             valid_conpons.append(cou)
         product.fill('coupons', valid_conpons)
+
+    def _check_timelimit(self, prid):
+        tp = TimeLimitedProduct.query.join(
+            TimeLimitedActivity, TimeLimitedActivity.TLAid == TimeLimitedProduct.TLAid).filter(
+            TimeLimitedActivity.isdelete == False, TimeLimitedActivity.TLAstatus == TimeLimitedStatus.starting.value,
+            TimeLimitedProduct.isdelete == False, TimeLimitedProduct.PRid == prid
+        ).order_by(TimeLimitedActivity.TLAstartTime.asc()).first()
+        if not tp:
+            return None
+        return tp.TLPid
