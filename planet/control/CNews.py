@@ -791,16 +791,16 @@ class CNews(BASEAPPROVAL):
                     })
                     s.add(news_favorite)
 
-                    # 点赞加星币，一天最多加五次，一次加三个
+                    # 点赞加星币
                     now_time = datetime.now()
                     count = s.query(NewsFavorite).filter(
                         extract('month', NewsFavorite.createtime) == now_time.month,
                         extract('year', NewsFavorite.createtime) == now_time.year,
                         extract('day', NewsFavorite.createtime) == now_time.day,
                         NewsFavorite.USid == usid).count()
-                    if count < 5:
+                    num = int(ConfigSettings().get_item('integralbase', 'favorite_count'))
+                    if count < num:
                         integral = ConfigSettings().get_item('integralbase', 'integral_favorite')
-                        #integral = '3'  # 引用签到配置文件
                         ui = UserIntegral.create({
                             'UIid': str(uuid.uuid1()),
                             'USid': usid,
@@ -942,15 +942,15 @@ class CNews(BASEAPPROVAL):
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
-                # 评论加星币，一天最多加五次，一次加三个
+                # 评论加星币
                 now_time = datetime.now()
                 count = nc.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count < 5:
-                    #integral = '3'
+                num = int(ConfigSettings().get_item('integralbase', 'commit_count'))
+                if count < num:
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
@@ -985,15 +985,15 @@ class CNews(BASEAPPROVAL):
                     'NCrootid': ncrootid,
                 })
                 r.add(reply)
-                # 回复评论加星币，一天最多加五次，一次加三个
+                # 回复评论加星币
                 now_time = datetime.now()
                 count = r.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count < 5:
-                    #integral = '3'
+                num = int(ConfigSettings().get_item('integralbase', 'commit_count'))
+                if count < num:
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),

@@ -2185,6 +2185,8 @@ class CUser(SUser, BASEAPPROVAL):
             exchange_rate=data.get('exchange_rate'),
             integral_news=data.get('integral_news'),
             news_count=data.get('news_count'),
+            favorite_count=data.get('favorite_count'),
+            commit_count=data.get('commit_count'),
         )
         for key in param_dict.keys():
             if param_dict[key] or str(param_dict[key]) == '0':
@@ -2213,6 +2215,8 @@ class CUser(SUser, BASEAPPROVAL):
                    exchange_rate=None,
                    integral_news=None,
                    news_count=None,
+                   favorite_count=None,
+                   commit_count=None,
                    )
         # sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
