@@ -196,8 +196,8 @@ class COrder(CPay, CCoupon):
         if not suid:
             raise ParamsError('suid 参数缺失')
 
-        month = data.get('month') or time_now.month
-        year = data.get('year') or time_now.year
+        month = int(data.get('month', 0)) or time_now.month
+        year = int(data.get('year', 0)) or time_now.year
         excel_path = os.path.join(BASEDIR, 'img', 'xls', str(year), str(month))
         filename = '{}.xls'.format(suid)
         if not os.path.isfile(os.path.join(excel_path, filename)):
