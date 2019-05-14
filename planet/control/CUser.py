@@ -18,7 +18,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode
+    WexinBankCode, CashStatus
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
@@ -184,6 +184,11 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.UCstatus == UserCommissionStatus.preview.value,
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
+        uswithdrawal = db.session.query(func.sum(CashNotes.CNcashNum)
+                                        ).filter(CashNotes.USid == user.USid,
+                                                 CashNotes.CNstatus in [CashStatus.submit.value,
+                                                                        CashStatus.agree.value]).all()
+        user.fill('uswithdrawal', uswithdrawal[0][0])
 
         user.fill('usexpect', float('%.2f' % uc_total))
 
@@ -357,7 +362,7 @@ class CUser(SUser, BASEAPPROVAL):
             try:
                 WexinBankCode(sa.SAbankName)
             except Exception:
-                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
+                raise ParamsError('系统暂不支持提现账户中的银行，请在 "设置 - 商户信息 - 提现账户" 重新设置银行卡信息。 ')
 
     @get_session
     def login(self):
@@ -1841,7 +1846,10 @@ class CUser(SUser, BASEAPPROVAL):
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
         try:
-            cncashnum = float(data.get('cncashnum'))
+            cncashnum = data.get('cncashnum')
+            if not re.match(r'(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)', str(cncashnum)):
+                raise ValueError
+            cncashnum = float(cncashnum)
         except Exception as e:
             current_app.logger.error('cncashnum value error: {}'.format(e))
             raise ParamsError('提现金额格式错误')
@@ -2164,8 +2172,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
-            cash_note.fill('cnstatus_zh', ApprovalAction(cash_note.CNstatus).zh_value)
-            cash_note.fill('cnstatus_en', ApprovalAction(cash_note.CNstatus).name)
+            cash_note.fill('cnstatus_zh', CashStatus(cash_note.CNstatus).zh_value)
+            cash_note.fill('cnstatus_en', CashStatus(cash_note.CNstatus).name)
 
         return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
 
