@@ -184,11 +184,15 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.UCstatus == UserCommissionStatus.preview.value,
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
+
         uswithdrawal = db.session.query(func.sum(CashNotes.CNcashNum)
                                         ).filter(CashNotes.USid == user.USid,
-                                                 CashNotes.CNstatus in [CashStatus.submit.value,
-                                                                        CashStatus.agree.value]).all()
-        user.fill('uswithdrawal', uswithdrawal[0][0])
+                                                 CashNotes.isdelete == False,
+                                                 CashNotes.CNstatus.in_([CashStatus.submit.value,
+                                                                        CashStatus.agree.value])
+                                                 ).scalar()
+
+        user.fill('uswithdrawal', uswithdrawal or 0)
 
         user.fill('usexpect', float('%.2f' % uc_total))
 
