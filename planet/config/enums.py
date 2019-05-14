@@ -245,7 +245,7 @@ class UserIntegralAction(Enum):
     commit = 4, '评论'
     transmit = 5, '转发'
     trade = 6, '购物'
-    news = 7, '创建圈子'
+    news = 7, '发布图文'
 
 
 
