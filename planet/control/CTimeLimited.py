@@ -8,15 +8,16 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
 from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
+from planet.control.BaseControl import BaseController
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import end_timelimited, start_timelimited, celery
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision
 from .CUser import CUser
 
 
-class CTimeLimited(COrder, CUser):
+class CTimeLimited(COrder, CUser, BaseController):
 
     def list_activity_product(self):
         """获取活动列表"""
@@ -600,6 +601,18 @@ class CTimeLimited(COrder, CUser):
         tls_list = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, isdelete=False).all()
         skus = list()
         sku_value_item = list()
+        # 预计佣金
+        comm = Commision.query.filter(Commision.isdelete == False).first()
+        try:
+            commision = json.loads(comm.Levelcommision)
+            level1commision = commision[0]  # 一级分销商
+            planetcommision = commision[-1]  # 平台收费比例
+        except ValueError:
+            current_app.logger.info('ValueError error')
+        except IndexError:
+            current_app.logger.info('IndexError error')
+
+        preview_get = []
         for tls in tls_list:
             sku = ProductSku.query.filter_by(SKUid=tls.SKUid, isdelete=False).first()
             if not sku:
@@ -609,11 +622,18 @@ class CTimeLimited(COrder, CUser):
             # sku.hide('SKUstock')
             sku.fill('tlsprice', tls.SKUprice)
             sku.fill('tlsstock', tls.TLSstock)
-
+            preview_get.append(
+                self._commision_preview(
+                    price=tls.SKUprice,
+                    planet_rate=planetcommision,
+                    planet_and_user_rate=sku.SkudevideRate or planetcommision,
+                    current_user_rate=level1commision
+                ))
             if isinstance(sku.SKUattriteDetail, str):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
             skus.append(sku)
+        product.fill('profict', min(preview_get))
         if not skus:
             current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
             return
