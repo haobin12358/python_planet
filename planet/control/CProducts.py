@@ -22,7 +22,8 @@ from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
-    ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity
+    ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity, \
+    FreshManFirstProduct, GuessNumAwardProduct
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -1021,10 +1022,33 @@ class CProducts(BaseController):
             Products.isdelete == False,
             Products.PRid == data.get('prid'),
             Products.PRstatus == ProductStatus.usual.value).first_('商品已下架')
+        prprice = product.PRprice
+        url = data.get('url')
+        if 'tlpid' in url:
+            # 限时活动
+            # prprice = TimeLimitedProduct.PRid
+            tlpid = re.match(r'(.*)tlpid=(.*)&(.*)', url).group(2)
+            tlp = TimeLimitedProduct.query.filter_by(TLPid=tlpid, isdelete=False).first()
+            if tlp:
+              prprice = tlp.PRprice
+        elif 'fmfpid' in url:
+            # 猜数字
+            fmfpid = re.match(r'(.*)fmfpid=(.*)&(.*)', url).group(2)
+            fmfp = FreshManFirstProduct.query.filter_by(FMFPid=fmfpid).first()
+            if fmfp:
+                prprice = fmfp.PRprice
+        elif 'gnapid' in url:
+            gnapid = re.match(r'(.*)gnapid=(.*)&(.*)', url).group(2)
+            gnap = GuessNumAwardProduct.query.filter_by(GNAPid=gnapid, isdelete=False).first()
+            if gnap:
+                prprice = gnap.PRprice
+        # elif '' in url:
+        # todo 魔术礼盒价格修改
+
         assesmble = AssemblePicture(
-            prid=product.PRid, prprice=product.PRprice,
+            prid=product.PRid, prprice=prprice,
             prlineprice=product.PRlinePrice, prmain=product.PRmainpic, prtitle=product.PRtitle)
-        promotion_path, local_path = assesmble.add_qrcode(data.get('url'), product.PRpromotion)
+        promotion_path, local_path = assesmble.add_qrcode(url, product.PRpromotion)
         from planet.extensions.qiniu.storage import QiniuStorage
         qiniu = QiniuStorage(current_app)
         try:
