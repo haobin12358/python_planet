@@ -2,11 +2,12 @@ import uuid
 
 from flask import request
 
-from planet.config.enums import AdminStatus, QuestAnswerNoteType
+from planet.config.enums import AdminStatus, QuestAnswerNoteType, AdminAction
 from planet.common.error_response import AuthorityError, ParamsError, SystemError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_supplizer
+from planet.control.BaseControl import BASEADMIN
 from planet.models import Quest, QuestOutline, Answer, User, AnswerUser, Admin, QuestAnswerNote, Supplizer
 from planet.common.request_handler import gennerc_log
 from planet.common.base_service import get_session, db
@@ -62,7 +63,7 @@ class CQuestanswer():
         })
         db.session.add(an_instance)
         qo = QuestOutline.query.filter_by(QOid=qu_model.QOid, isdelete=False).first_('数据异常')
-        other_qu = Quest.query.filter(Quest.QOid == qo.QOid, Quest.QUid !=qu_model.QUid, Quest.isdelete == False).all()
+        other_qu = Quest.query.filter(Quest.QOid == qo.QOid, Quest.QUid != qu_model.QUid, Quest.isdelete == False).all()
         qo.fill('other', [{'quid': qu.QUid, 'ququest': qu.QUquest} for qu in other_qu])
         answer_model.fill('qo', qo)
         return Success('获取回答成功', data=answer_model)
@@ -105,7 +106,8 @@ class CQuestanswer():
             'QOtype': qotype,
             'QOcreateId': admin.ADid
         })
-        db.session.add(qo_instance)
+        db.session.add(qo_instance,
+                       BASEADMIN().create_action(AdminAction.insert.value, 'QuestOutline', str(uuid.uuid1())))
         qo_instance.fields = self.QuestOutlineFields[:]
         return Success('创建问题分类成功', data=qo_instance)
 
@@ -148,8 +150,9 @@ class CQuestanswer():
             'QAcreateId': admin.ADid
         })
 
-        db.session.add(quest_instance)
-        db.session.add(answer_instance)
+        db.session.add(quest_instance, BASEADMIN().create_action(AdminAction.insert.value, 'Quest', str(uuid.uuid1())))
+        db.session.add(answer_instance,
+                       BASEADMIN().create_action(AdminAction.insert.value, 'Answer', str(uuid.uuid1())))
         return Success('创建问题成功')
 
     @get_session
@@ -211,10 +214,10 @@ class CQuestanswer():
         answer_model = Answer.query.filter_(Answer.QUid == qa_model.QUid, Answer.isdelete == False).first()
         if not answer_model:
             db.session.add(Answer.create({
-            'QAid': str(uuid.uuid1()),
-            'QUid': qa_model.QUid,
-            'QAcontent': answer,
-            'QAcreateId': request.user.id}))
+                'QAid': str(uuid.uuid1()),
+                'QUid': qa_model.QUid,
+                'QAcontent': answer,
+                'QAcreateId': request.user.id}))
         else:
             qan_instance = QuestAnswerNote.create({
                 'QANid': str(uuid.uuid1()),
@@ -277,7 +280,8 @@ class CQuestanswer():
                 'QANcreateid': admin.ADid,
                 'QANtargetId': qoid
             })
-            db.session.add(qan)
+            db.session.add(qan,
+                           BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1())))
         return Success('删除完成')
 
     @get_session
@@ -305,7 +309,8 @@ class CQuestanswer():
                 'QANtargetId': quid,
                 'QANtype': QuestAnswerNoteType.qu.value,
             })
-            db.session.add(qan)
+            db.session.add(qan,
+                           BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1())))
 
         return Success('删除完成')
     #

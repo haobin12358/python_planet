@@ -44,7 +44,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News
-from .BaseControl import BASEAPPROVAL
+from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -2127,7 +2127,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission2': commision2,
                 'USCommission3': commision3,
             }, 'dont ignore')
-            db.session.add(user)
+            db.session.add(user,BASEADMIN().create_action(AdminAction.update.value, 'User', usid))
+
         return Success('设置成功')
 
     def __get_adnum(self):

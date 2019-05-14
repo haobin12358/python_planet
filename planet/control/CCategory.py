@@ -5,7 +5,8 @@ from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
-from planet.config.enums import ProductStatus
+from planet.config.enums import ProductStatus, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.models import ProductCategory, Products
 from .CProducts import CProducts
@@ -64,7 +65,7 @@ class CCategory(CProducts):
                 'PCsort': pcsort,
                 'PCtopPic': data.get('pctoppic')
             })
-            s.add(category_instance)
+            s.add(category_instance,BASEADMIN().create_action(AdminAction.insert.value, 'ProductCategory', str(uuid.uuid4())))
         return Success('创建成功', {'pcid': category_instance.PCid})
 
     @admin_required
@@ -74,7 +75,7 @@ class CCategory(CProducts):
         with self.sproduct.auto_commit() as s:
             product_category_instance = s.query(ProductCategory).filter_by_({'PCid': pcid}).first_('该分类不存在')
             product_category_instance.isdelete = True
-            s.add(product_category_instance)
+            s.add(product_category_instance,BASEADMIN().create_action(AdminAction.delete.value, 'ProductCategory', pcid))
             s.query(Products).filter_(Products.PCid == product_category_instance.PCid).update({
                 'PRstatus': ProductStatus.off_shelves.value,
                 'PCid': None

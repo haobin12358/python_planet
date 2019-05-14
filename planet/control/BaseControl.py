@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import json
 
-from flask import current_app
+from flask import current_app, request
 
 from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, ApplyFrom, UserMediaType, \
     TrialCommodityStatus
@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, AdminActions
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -41,6 +41,18 @@ class JSONEncoder(_JSONEncoder):
             return round(float(o), 2)
 
         raise TypeError(repr(o) + " is not JSON serializable")
+
+
+class BASEADMIN():
+    def create_action(self, AAaction, AAmodel, AAkey):
+        admin_action = AdminActions.create({
+            'ADid': request.user.id,
+            'AAaction': AAaction,
+            'AAmodel': AAmodel,
+            'AAdetail': request.detail,
+            'AAkey': AAkey
+        })
+        return admin_action
 
 
 class BASEAPPROVAL():
@@ -391,10 +403,10 @@ class BASEAPPROVAL():
             return None, None
         # product = TimeLimitedProduct.query.filter_by_(TLPid=contentid).first()
         product_model = Products.query.filter_by(PRid=content.PRid, isdelete=False).first_('商品已下架')
-        content.fill('PBid',product_model.PBid)
-        content.fill('PRattribute',product_model.PRattribute)
-        content.fill('PRremarks',product_model.PRremarks)
-        content.fill('PCid',product_model.PCid)
+        content.fill('PBid', product_model.PBid)
+        content.fill('PRattribute', product_model.PRattribute)
+        content.fill('PRremarks', product_model.PRremarks)
+        content.fill('PCid', product_model.PCid)
         content.fill('PRtitle', product_model.PRtitle)
         content.fill('PRmainpic', product_model.PRmainpic)
         content.fill('TlAname', tla.TlAname)
@@ -413,7 +425,8 @@ class BASEAPPROVAL():
             Products.PRid == ip.PRid, Products.isdelete == False).first()
         if not product:
             current_app.logger.info('·商品已删除 prid = {}'.format(ip.PRid))
-        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription','PRlinePrice']
+        product.fields = ['PRid', 'PRtitle', 'PRstatus', 'PRmainpic', 'PRattribute', 'PRdesc', 'PRdescription',
+                          'PRlinePrice']
         if isinstance(product.PRattribute, str):
             product.PRattribute = json.loads(product.PRattribute)
         if isinstance(getattr(product, 'PRremarks', None) or '{}', str):

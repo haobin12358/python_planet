@@ -24,11 +24,12 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus, ProductBrandStatus
+    TimeLimitedStatus, ProductBrandStatus, AdminAction
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
+from planet.control.BaseControl import BASEADMIN
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.control.CUser import CUser
@@ -340,8 +341,10 @@ class COrder(CPay, CCoupon):
         ).join(
             OrderRefundApply,
             or_(
-                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderMain.OMinRefund == True, OrderRefundApply.isdelete == False),
-                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderPart.OPisinORA == True, OrderRefundApply.isdelete == False)
+                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderMain.OMinRefund == True,
+                     OrderRefundApply.isdelete == False),
+                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderPart.OPisinORA == True,
+                     OrderRefundApply.isdelete == False)
             ),
         ).outerjoin(OrderRefund, and_(OrderRefund.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)). \
             outerjoin(OrderRefundFlow,
@@ -646,7 +649,7 @@ class COrder(CPay, CCoupon):
                             })
                             # model_bean.append(month_sale_instance)
                             s.add(month_sale_instance)
-                            
+
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,
@@ -780,7 +783,8 @@ class COrder(CPay, CCoupon):
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
                 if opaytype == PayType.mixedpay.value:  # 如果是组合支付的话，更改实际支付金额
-                    dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance, order_price)
+                    dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance,
+                                                                                order_price)
                 order_price -= dev_mount
                 # 快递费选最大
                 freight = max(freight_list)
@@ -880,7 +884,8 @@ class COrder(CPay, CCoupon):
                     assert opnum > 0
                     sku_instance = ProductSku.query.filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
-                    product_instance = Products.query.filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+                    product_instance = Products.query.filter_by_({'PRid': prid}).first_(
+                        'skuid: {}对应的商品不存在'.format(skuid))
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
 
@@ -1256,7 +1261,8 @@ class COrder(CPay, CCoupon):
                         average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
                         Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
                     except Exception as e:
-                        gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
+                        gennerc_log(
+                            "Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
                 # 评价中的图片
                 image_list = evaluation.get('image')
                 if image_list:
@@ -1324,7 +1330,8 @@ class COrder(CPay, CCoupon):
                         other_scores = [oe.OEscore for oe in
                                         OrderEvaluation.query.filter(OrderEvaluation.PRid == other_product_info.PRid,
                                                                      OrderEvaluation.isdelete == False).all()]
-                        other_average_score = round(((float(sum(other_scores)) + float(5.0)) / (len(other_scores) + 1)) * 2)
+                        other_average_score = round(
+                            ((float(sum(other_scores)) + float(5.0)) / (len(other_scores) + 1)) * 2)
                         Products.query.filter_by_(PRid=other_product_info.PRid).update(
                             {'PRaverageScore': other_average_score})
                     except Exception as e:
@@ -1355,6 +1362,8 @@ class COrder(CPay, CCoupon):
         day = data.get('day', 7)
         cfs = ConfigSettings()
         cfs.set_item('order_auto', 'auto_evaluate_day', str(day))
+        with db.auto_commit():
+            db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'config', 'set_autoevaluation_time'))
         return Success('设置成功', {'day': day})
 
     @admin_required
@@ -1685,7 +1694,7 @@ class COrder(CPay, CCoupon):
                                                  suid=suid),
                 'day_count': self._history_order('count', day=day, suid=suid),
                 'wai_pay_count': self._history_order('count', day=day,
-                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value, ),
+                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value,),
                                                      suid=suid),
                 'in_refund': self._inrefund(day=day, suid=suid),
                 'day': day

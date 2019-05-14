@@ -238,7 +238,7 @@ class AdminStatus(Enum):
     deleted = 2, '已删除'
 
 class AdminAction(Enum):
-    add = 1, '添加'
+    insert = 1, '添加'
     delete = 2, '删除'
     update = 3, '修改'
 

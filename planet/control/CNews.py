@@ -13,8 +13,8 @@ from planet.common.token_handler import token_required, is_tourist, admin_requir
     get_current_admin, is_admin, is_supplizer, common_user
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade, \
-    UserSearchHistoryType
-from planet.control.BaseControl import BASEAPPROVAL
+    UserSearchHistoryType, AdminAction
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
@@ -691,7 +691,7 @@ class CNews(BASEAPPROVAL):
                 # 'NCLoperation': operation,
             })
             session_list.append(changelog)
-            db.session.add_all(session_list)
+            db.session.add_all(session_list,BASEADMIN().create_action(AdminAction.update.value, 'News', neid))
             # 添加到审批流
         # super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})

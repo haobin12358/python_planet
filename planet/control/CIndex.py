@@ -7,7 +7,8 @@ from planet.common.error_response import SystemError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required, is_admin
-from planet.config.enums import ProductStatus, ProductBrandStatus
+from planet.config.enums import ProductStatus, ProductBrandStatus, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
@@ -58,14 +59,15 @@ class CIndex:
                 'IBsort': form.ibsort.data,
                 'IBshow': form.ibshow.data
             })
-            db.session.add(banner)
+            db.session.add(banner, BASEADMIN().create_action(AdminAction.insert.value, 'IndexBanner', ibid)
+                           )
         return Success('添加成功', {'ibid': ibid})
 
     @admin_required
     def update_banner(self):
         current_app.logger.info("Admin {} update index banner".format(request.user.username))
         form = IndexUpdateBannerForm().valid_data()
-        ibid= form.ibid.data
+        ibid = form.ibid.data
         isdelete = form.isdelete.data
         IndexBanner.query.filter_by_(IBid=ibid).first_('未找到该轮播图信息')
         with db.auto_commit():
@@ -78,6 +80,7 @@ class CIndex:
                            }
             banner_dict = {k: v for k, v in banner_dict.items() if v is not None}
             banner = IndexBanner.query.filter_by_(IBid=ibid).update(banner_dict)
+            db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'IndexBanner', ibid))
             if not banner:
                 raise SystemError('服务器繁忙 10000')
         return Success('修改成功', {'ibid': ibid})
@@ -157,9 +160,11 @@ class CIndex:
             if not hib:
                 hib_dict.setdefault('HIBid', ibid)
                 hib = HypermarketIndexBanner.create(hib_dict)
+                db.session.add(BASEADMIN().create_action(AdminAction.insert.value, 'HypermarketIndexBanner', ibid))
                 msg = '添加成功'
             else:
                 hib.update(hib_dict)
+                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'HypermarketIndexBanner', ibid))
                 msg = '修改成功'
             db.session.add(hib)
 
@@ -194,7 +199,7 @@ class CIndex:
                 adname = admin.ADname if admin else '平台'
                 e.fill('ADname', adname)
             # else:
-                # return Success(data=e)
+            # return Success(data=e)
 
         return Success(data=en)
 
@@ -211,7 +216,7 @@ class CIndex:
                 if not en:
                     raise ParamsError('banner 已删除')
                 en.update({'isdelete': True})
-                db.session.add(en)
+                db.session.add(en, BASEADMIN().create_action(AdminAction.delete.value, 'Entry', enid))
                 return Success('删除成功', {'enid': enid})
 
             endict = {
@@ -224,9 +229,11 @@ class CIndex:
                 endict.setdefault('ENid', enid)
                 endict.setdefault('ACid', request.user.id)
                 en = Entry.create(endict)
+                db.session.add(BASEADMIN().create_action(AdminAction.insert.value, 'Entry', enid))
                 msg = '添加成功'
             else:
                 en.update(endict)
+                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'Entry', enid))
                 msg = '修改成功'
             db.session.add(en)
 

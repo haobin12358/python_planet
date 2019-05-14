@@ -6,6 +6,8 @@ from flask import current_app, request
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, common_user, is_tourist
+from planet.config.enums import AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
 from planet.extensions.register_ext import db
 from planet.models import ProductScene, SceneItem, AdminActions
@@ -67,15 +69,8 @@ class CScene(object):
                 'PSid': scene_dict.get('PSid'),
                 'ITid': 'planet_featured'
             })
-            s.add(default_scene_item)
-            admin_action = AdminActions.create({
-                'ADid': request.user.id,
-                'AAaction': 1,
-                'AAmodel': ProductScene,
-                'AAdetail': request.detail,
-                'AAkey': str(uuid.uuid1())
-            })
-            s.add(admin_action)
+            s.add(default_scene_item,
+                  BASEADMIN().create_action(AdminAction.insert.value, 'ProductScene', str(uuid.uuid1())))
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
@@ -116,15 +111,7 @@ class CScene(object):
                     "PSstarttime": psstarttime,
                     "PSendtime": psendtime,
                 }, null='not')
-                db.session.add(product_scene)
-                admin_action = AdminActions.create({
-                    'ADid': request.user.id,
-                    'AAaction': 3,
-                    'AAmodel': ProductScene,
-                    'AAdetail': request.detail,
-                    'AAkey': psid
-                })
-                db.session.add(admin_action)
+                db.session.add(product_scene, BASEADMIN().create_action(AdminAction.update.value, 'ProductScene', psid))
 
         return Success('更新成功', {'psid': psid})
 

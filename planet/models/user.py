@@ -108,9 +108,7 @@ class AdminActions(Base):
     AAaction = Column(Integer, default=1, comment='管理员行为, {1: 添加, 2: 删除 3: 修改}')
     AAmodel = Column(String(255), comment='操作的数据表')
     AAdetail = Column(LONGTEXT, default='none',comment='请求的data')
-    AAkey = Column(String(255), comment='操作数据表的主键')
-    AAcreateTime = Column(DateTime, default=datetime.datetime.now(), comment='创建时间')
-
+    AAkey = Column(String(255), comment='操作数据表的主键的值')
 
 class AdminNotes(Base):
     """

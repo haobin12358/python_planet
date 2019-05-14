@@ -15,7 +15,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
-    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
     SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm, request
@@ -112,6 +113,7 @@ class CSupplizer:
                 'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
             })
             db.session.add(supperlizer)
+            # db.session.add(supperlizer,BASEADMIN().create_action(AdminAction.insert.value, 'Supplizer', suid))
             if pbids:
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -182,10 +184,13 @@ class CSupplizer:
                             'SDbefore': Decimal(getattr(supplizer, 'SUdeposit', 0)),
                             'SDLacid': request.user.id,
                         })
-                        db.session.add(depositlog)
+                        db.session.add(depositlog,
+                                       BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog',
+                                                                 str(uuid.uuid1())))
 
             supplizer.update(supplizer_dict, null='dont ignore')
-            db.session.add(supplizer)
+            db.session.add(supplizer,
+                           BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', str(uuid.uuid1())))
             if pbids and is_admin():
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -242,11 +247,10 @@ class CSupplizer:
         supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
         supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
 
-
     @admin_required
     def offshelves(self):
         current_app.logger.info('下架供应商')
-        data = parameter_required(('suid', ))
+        data = parameter_required(('suid',))
         suid = data.get('suid')
         with db.auto_commit():
             supplizer = Supplizer.query.filter(
@@ -254,14 +258,14 @@ class CSupplizer:
                 Supplizer.SUid == suid
             ).first_('供应商不存在')
             supplizer.SUstatus = UserStatus.forbidden.value
-            db.session.add(supplizer)
+            db.session.add(supplizer, BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid))
             # 供应商的品牌也下架
             brand_count = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
                 ProductBrand.PBstatus == ProductBrandStatus.upper.value,
                 ProductBrand.SUid == suid
             ).update({
-                'PBstatus':  ProductBrandStatus.off_shelves.value
+                'PBstatus': ProductBrandStatus.off_shelves.value
             })
             current_app.logger.info('共下架了 {}个品牌'.format(brand_count))
             # 供应商的商品下架
@@ -278,7 +282,7 @@ class CSupplizer:
     @admin_required
     def delete(self):
         """删除"""
-        data = parameter_required(('suid', ))
+        data = parameter_required(('suid',))
         suid = data.get('suid')
         with db.auto_commit():
             supplizer = Supplizer.query.filter(
@@ -289,7 +293,7 @@ class CSupplizer:
                 raise StatusError('供应商部分订单正在进行')
 
             supplizer.isdelete = True
-            db.session.add(supplizer)
+            db.session.add(supplizer, BASEADMIN().create_action(AdminAction.delete.value, 'Supplizer', suid))
             # 品牌删除
             productbrands = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
@@ -428,6 +432,7 @@ class CSupplizer:
             response_send_message = SendSMS(mobile, params)
             if not response_send_message:
                 current_app.logger.error('发送失败')
+
     @get_session
     @token_required
     def set_supplizeraccount(self):
@@ -513,7 +518,7 @@ class CSupplizer:
         from flask import request
         if not is_admin():
             raise AuthorityError
-        data = parameter_required(('mncontent','mnstatus'))
+        data = parameter_required(('mncontent', 'mnstatus'))
         mnstatus = data.get('mnstatus')
         mnstatus = getattr(NotesStatus, mnstatus, None)
         if not mnstatus:
@@ -526,7 +531,7 @@ class CSupplizer:
         with db.auto_commit():
             if mnid:
                 mn = ManagerSystemNotes.query.filter(
-                    ManagerSystemNotes.MNid == mnid, ManagerSystemNotes.isdelete==False).first()
+                    ManagerSystemNotes.MNid == mnid, ManagerSystemNotes.isdelete == False).first()
                 if mn:
                     mn.MNcontent = mncontent
                     mn.MNstatus = mnstatus
@@ -540,5 +545,6 @@ class CSupplizer:
                 'MNcreateid': request.user.id
             })
 
-            db.session.add(mn)
+            db.session.add(mn,
+                           BASEADMIN().create_action(AdminAction.insert.value, 'ManagerSystemNotes', str(uuid.uuid1())))
         return Success('创建通告成功', data=mn.MNid)

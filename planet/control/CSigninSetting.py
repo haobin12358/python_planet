@@ -7,6 +7,8 @@ from planet.common.error_response import AuthorityError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin
+from planet.config.enums import AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import SignIndelete
 from planet.models import SignInAward
@@ -50,7 +52,8 @@ class CSigninSetting():
         for delete_sia in delete_sia_list:
             delete_sia.isdelete = True
 
-        db.session.add_all(sia_in_list)
+        db.session.add_all(sia_in_list,
+                           BASEADMIN().create_action(AdminAction.insert.value, 'SignInAward', str(uuid.uuid1())))
         return Success('签到设置成功')
 
     @get_session
@@ -61,6 +64,8 @@ class CSigninSetting():
         data = SignIndelete().valid_data()
         siaid = data.siaid.data
         check_sia = SignInAward.query.filter_by(SIAid=siaid, isdelete=False).delete_()
+        with db.auto_commit():
+            db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'SignInAward', siaid))
         if not check_sia:
             raise ParamsError('已删除')
         return Success('删除设置成功')

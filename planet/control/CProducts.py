@@ -16,8 +16,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
     admin_required, common_user, get_current_user
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
-    PermissionType, ApprovalType, ProductBrandStatus, CollectionType
-from planet.control.BaseControl import BASEAPPROVAL, BaseController
+    PermissionType, ApprovalType, ProductBrandStatus, CollectionType, AdminAction
+from planet.control.BaseControl import BASEAPPROVAL, BaseController, BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
@@ -83,7 +83,7 @@ class CProducts(BaseController):
                     planet_rate=planetcommision,
                     planet_and_user_rate=sku.SkudevideRate or planetcommision,
                     current_user_rate=level1commision
-            ))
+                ))
         product.fill('skus', skus)
         # product.fill('profict', str(self.get_two_float(Decimal(product.PRprice) * Decimal(level1commision) / 100)))
         product.fill('profict', min(preview_get))
@@ -422,9 +422,12 @@ class CProducts(BaseController):
                                                        Supplizer.SUid == request.user.id
                                                        ).first()
                     if skudeviderate:
-                        if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                        if Decimal(skudeviderate) < self._current_commission(
+                                getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
                             # if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
-                            raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
+                            raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1,
+                                                                               getattr(supplizer, 'SUbaseRate',
+                                                                                       default_derate)))
                     else:
                         skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
@@ -617,9 +620,12 @@ class CProducts(BaseController):
                             Supplizer.isdelete == False,
                             Supplizer.SUid == request.user.id).first()
                         if skudeviderate:
-                            if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
-                            # if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate) or default_derate):
-                                raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
+                            if Decimal(skudeviderate) < self._current_commission(
+                                    getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                                # if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate) or default_derate):
+                                raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1,
+                                                                                   getattr(supplizer, 'SUbaseRate',
+                                                                                           default_derate)))
                                 # raise StatusError('第{}行sku让利比错误'.format(index+1))
                         else:
                             skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
@@ -846,6 +852,7 @@ class CProducts(BaseController):
                 ).update({
                     'PRstatus': value
                 })
+                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'ProductApplyAgreeForm', prid))
                 if not product:
                     continue
                 # approval = Approval.query.filter(

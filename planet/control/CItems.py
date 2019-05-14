@@ -6,7 +6,8 @@ import uuid
 from flask import request
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
@@ -159,7 +160,8 @@ class CItems:
                     }
                     scene_item_instance = SceneItem.create(scene_item_dict)
                     s_list.append(scene_item_instance)
-            s.add_all(s_list)
+            s.add_all(s_list,BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
+)
         return Success('添加成功', {'itid': itid})
 
     @admin_required
@@ -204,12 +206,14 @@ class CItems:
                             'SIid': str(uuid.uuid1())
                         }
                         scene_item_instance = SceneItem.create(scene_item_dict)
-                        db.session.add(scene_item_instance)
+                        db.session.add(scene_item_instance, BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
+)
                     else:
                         old_psids.remove(psi)
                 [SceneItem.query.filter_by(PSid=droped_psid, ITid=itid).delete_() for droped_psid in old_psids]
             else:
                 SceneItem.query.filter_by(ITid=itid).delete_()  # psid = [] 为空时，删除所有该标签场景的关联
+                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'SceneItem', itid))
         return Success('修改成功', {'itid': itid})
 
     def _check_itsort(self, itsort, ittype):

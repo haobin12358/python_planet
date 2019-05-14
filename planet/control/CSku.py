@@ -6,6 +6,8 @@ from planet.common.error_response import ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
+from planet.config.enums import AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.models import Products, ProductSku
 from planet.service.SProduct import SProducts
 
@@ -30,7 +32,6 @@ class CSku(object):
         assert price > 0 and stock > 0, '价格或库存参数不准确'
         # 添加
         with self.sproduct.auto_commit() as s:
-
             sku_instance = ProductSku.create({
                 'SKUid': str(uuid.uuid4()),
                 'PRid': prid,
@@ -44,7 +45,7 @@ class CSku(object):
 
     @token_required
     def update(self):
-        data = parameter_required(('skuid', ))
+        data = parameter_required(('skuid',))
         skuid = data.get('skuid')
         price = data.get('skuprice')
         stock = data.get('skustock')
@@ -74,14 +75,13 @@ class CSku(object):
 
     @admin_required
     def delete(self):
-        data = parameter_required(('skuid', ))
+        data = parameter_required(('skuid',))
         skuid = data.get('skuid')
         with self.sproduct.auto_commit() as s:
             count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
+            from planet.extensions.register_ext import db
+            with db.auto_commit():
+                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'ProductSku', skuid))
             if not count:
                 raise NotFound('不存在的sku')
         return Success('删除成功')
-
-
-
-

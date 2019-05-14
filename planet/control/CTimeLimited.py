@@ -6,9 +6,10 @@ from flask import request, current_app
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
-from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
+from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus, AdminAction
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
 from planet.control.COrder import COrder
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import end_timelimited, start_timelimited
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
@@ -103,7 +104,6 @@ class CTimeLimited(COrder, CUser):
         for time_limited in time_limited_list:
             self._fill_tla(time_limited, time_now)
         return Success(data=time_limited_list)
-
 
     def list_product(self):
         """获取活动商品"""
@@ -234,17 +234,8 @@ class CTimeLimited(COrder, CUser):
                 'contentlink': API_HOST + "/?tlaid=" + tla.TLAid + "&secret_usid="
             })
             with db.auto_commit():
-                db.session.add(tlb)
-
-            admin_action = AdminActions.create({
-                'ADid': request.user.id,
-                'AAaction': 1,
-                'AAmodel': TimeLimitedActivity,
-                'AAdetail': request.detail,
-                'AAkey': str(uuid.uuid1())
-            })
-            with db.auto_commit():
-                db.session.add(admin_action)
+                db.session.add(tlb, BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedActivity',
+                                                              str(uuid.uuid1())))
 
             current_app.logger.info('增加轮播图成功')
         else:
@@ -443,14 +434,8 @@ class CTimeLimited(COrder, CUser):
                 # 如果删除活动的话，退还库存
                 for tlp in tlp_list:
                     self._re_stock(tlp)
-                admin_action = AdminActions.create({
-                    'ADid': request.user.id,
-                    'AAaction': 2,
-                    'AAmodel': TimeLimitedActivity,
-                    'AAdetail': request.detail,
-                    'AAkey': tla.TLAid
-                })
-                db.session.add(admin_action)
+
+                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedActivity', tla.TLAid))
                 return Success('删除成功')
 
             if tla.TLAstatus == TimeLimitedStatus.end.value:
@@ -489,14 +474,7 @@ class CTimeLimited(COrder, CUser):
                 tla.TLAstatus = tlastatus
                 self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
-                admin_action = AdminActions.create({
-                    'ADid': request.user.id,
-                    'AAaction': 3,
-                    'AAmodel': TimeLimitedActivity,
-                    'AAdetail': request.detail,
-                    'AAkey': tla.TLAid
-                })
-                db.session.add(admin_action)
+                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedActivity', tla.TLAid))
         return Success('修改成功')
 
     def award_detail(self):

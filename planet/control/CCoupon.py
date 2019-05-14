@@ -11,7 +11,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType, SupplizerDepositLogType
+from planet.config.enums import ItemType, SupplizerDepositLogType, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm, \
     CouponUpdateForm
@@ -57,7 +58,7 @@ class CCoupon(object):
         return Success(data=coupons)
 
     def get(self):
-        data = parameter_required(('coid', ))
+        data = parameter_required(('coid',))
         coid = data.get('coid')
         coupon = Coupon.query.filter(
             Coupon.COid == coid,
@@ -283,7 +284,7 @@ class CCoupon(object):
                 s_list.append(sdl)
 
             # todo 优惠券历史创建
-            s.add_all(s_list)
+            s.add_all(s_list, BASEADMIN().create_action(AdminAction.insert.value, 'Coupon', coid))
         return Success('添加成功', data=coid)
 
     @admin_required
@@ -325,7 +326,7 @@ class CCoupon(object):
                 # todo 如果修改的是供应商的优惠券。需要涉及押金的修改 目前不做校验
                 pass
 
-            db.session.add(coupon)
+            db.session.add(coupon, BASEADMIN().create_action(AdminAction.update.value, 'Coupon', coid))
             for itid in itids:
                 Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
                 coupon_items = CouponItem.query.filter(CouponItem.ITid == itid, CouponItem.isdelete == False,
@@ -391,6 +392,7 @@ class CCoupon(object):
                 CouponFor.isdelete == False,
                 CouponFor.COid == coid
             ).delete_()
+            db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'CouponUser', coid))
             current_app.logger.info('删除优惠券的同时 将{}个用户拥有的优惠券也删除'.format(coupon_user))
         return Success('删除成功')
 
@@ -557,7 +559,7 @@ class CCoupon(object):
         # 发放完毕或抢空
         can_not_collect = (not coupon.COcanCollect) or (coupon.COlimitNum and not coupon.COremainNum) or (
                 coupon.COsendStarttime and coupon.COsendStarttime > datetime.now()) or (
-                coupon.COsendEndtime and coupon.COsendEndtime < datetime.now())
+                                  coupon.COsendEndtime and coupon.COsendEndtime < datetime.now())
         return not can_not_collect
 
     def _isavalible(self, coupon, user_coupon=None):
@@ -599,7 +601,8 @@ class CCoupon(object):
                     'COid': coid,
                     'CCcode': cccode
                 })
-                db.session.add(coupon_code)
+                db.session.add(coupon_code, BASEADMIN().create_action(AdminAction.insert.value, 'CouponCode', coid)
+)
                 db.session.flush()
 
         return Success('生成激活码成功', data={'coid': coid, 'conum': conum})
@@ -621,5 +624,6 @@ class CCoupon(object):
 
         with db.auto_commit():
             coupon.update({'COcode': bool(data.get('cocode', False))})
+            db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'Coupon', data.get('coid')))
 
         return Success('修改成功', data={'coid': coupon.COid})

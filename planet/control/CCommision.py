@@ -3,7 +3,8 @@ from decimal import Decimal
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
-from planet.config.enums import UserIdentityStatus
+from planet.config.enums import UserIdentityStatus, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.commision import CommsionUpdateForm, ParamsError
 from planet.models import User, Commision
@@ -39,7 +40,7 @@ class CCommision:
             levelcommision = json.loads(commision.Levelcommision)[:-1]
             if sum(levelcommision) > 100:
                 raise ParamsError('总佣金比大于100')
-            db.session.add(commision)
+            db.session.add(commision,BASEADMIN().create_action(AdminAction.update.value, 'Commision', commision.COid))
         return Success('修改成功')
 
     def get(self):
