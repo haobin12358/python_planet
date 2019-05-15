@@ -468,6 +468,8 @@ class CProducts(BaseController):
                 product_dict['PRstatus'] = ProductStatus.sell_out.value
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.insert.value, 'Products', prid)
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
@@ -631,6 +633,8 @@ class CProducts(BaseController):
                             skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                     sku_instance.SkudevideRate = skudeviderate
                     session_list.append(sku_instance)
+                    if is_admin():
+                        BASEADMIN().create_action(AdminAction.update.value, 'Products', prid)
 
                     prstock += sku_instance.SKUstock
                 # 剩下的就是删除
@@ -816,6 +820,8 @@ class CProducts(BaseController):
         with db.auto_commit():
             product.PRstatus = ProductStatus.auditing.value
             db.session.add(product)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'Products', data.get('prid'))
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product.PRid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
@@ -852,7 +858,7 @@ class CProducts(BaseController):
                 ).update({
                     'PRstatus': value
                 })
-                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'ProductApplyAgreeForm', prid))
+                BASEADMIN().create_action(AdminAction.update.value, 'ProductApplyAgreeForm', prid)
                 if not product:
                     continue
                 # approval = Approval.query.filter(
@@ -881,6 +887,8 @@ class CProducts(BaseController):
                     SupplizerProduct.SUid == request.user.id,
                 )
             query.delete_(synchronize_session=False)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.delete.value, 'Products', data.get('prid'))
         return Success('删除成功')
 
     @token_required
@@ -922,6 +930,8 @@ class CProducts(BaseController):
                 product.PRstatus = status
                 msg = '下架成功'
             db.session.add(product)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'Products', prid)
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
@@ -963,6 +973,8 @@ class CProducts(BaseController):
                 for product in products:
                     product.PRstatus = status
                 msg = '下架成功'
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'Products', str(prids))
         for prid in to_approvals:
             avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
             # 5 分钟后自动通过

@@ -309,8 +309,8 @@ class CQuestanswer():
                 'QANtargetId': quid,
                 'QANtype': QuestAnswerNoteType.qu.value,
             })
-            db.session.add(qan,
-                           BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1())))
+            db.session.add(qan)
+            BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1()))
 
         return Success('删除完成')
     #
