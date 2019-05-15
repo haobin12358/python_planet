@@ -691,7 +691,8 @@ class CNews(BASEAPPROVAL):
                 # 'NCLoperation': operation,
             })
             session_list.append(changelog)
-            db.session.add_all(session_list,BASEADMIN().create_action(AdminAction.update.value, 'News', neid))
+            db.session.add_all(session_list)
+            BASEADMIN().create_action(AdminAction.update.value, 'News', neid)
             # 添加到审批流
         # super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
@@ -724,6 +725,8 @@ class CNews(BASEAPPROVAL):
                     if news.USid != usid:
                         raise StatusError('只能删除自己发布的资讯')
                 News.query.filter_by(NEid=neid, isdelete=False).delete_()
+                if is_admin():
+                    BASEADMIN().create_action(AdminAction.delete.value, 'News', neid)
                 NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
                 NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
                 NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
@@ -1071,6 +1074,8 @@ class CNews(BASEAPPROVAL):
                                                           'TOCtitle': totile,
                                                           'TOCfrom': tocfrom})
             db.session.add(topic_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.insert.value, 'TopicOfConversations', str(uuid.uuid1()))
         return Success('创建成功', data=dict(tocid=topic_instance.TOCid, toctitle=topic_instance.TOCtitle))
 
     def get_topic(self):
