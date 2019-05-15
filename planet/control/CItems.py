@@ -160,8 +160,8 @@ class CItems:
                     }
                     scene_item_instance = SceneItem.create(scene_item_dict)
                     s_list.append(scene_item_instance)
-            s.add_all(s_list,BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
-)
+            s.add_all(s_list)
+            BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
         return Success('添加成功', {'itid': itid})
 
     @admin_required
@@ -206,8 +206,8 @@ class CItems:
                             'SIid': str(uuid.uuid1())
                         }
                         scene_item_instance = SceneItem.create(scene_item_dict)
-                        db.session.add(scene_item_instance, BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
-)
+                        db.session.add(scene_item_instance)
+                        BASEADMIN().create_action(AdminAction.insert.value, 'SceneItem', psi)
                     else:
                         old_psids.remove(psi)
                 [SceneItem.query.filter_by(PSid=droped_psid, ITid=itid).delete_() for droped_psid in old_psids]
