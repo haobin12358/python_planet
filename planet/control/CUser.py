@@ -1313,6 +1313,7 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
         db.session.add(an_instance)
+        BASEADMIN().create_action(AdminAction.insert.value, 'AdminNotes', str(uuid.uuid1()))
         return Success("操作成功")
 
     @get_session
@@ -1889,6 +1890,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CommisionFor': commision_for
             })
         db.session.add(cn)
+        if is_admin():
+            BASEADMIN().create_action(AdminAction.insert.value, 'CashNotes', str(uuid.uuid1()))
         db.session.flush()
         # 创建审批流
 
@@ -2127,7 +2130,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission2': commision2,
                 'USCommission3': commision3,
             }, 'dont ignore')
-            db.session.add(user,BASEADMIN().create_action(AdminAction.update.value, 'User', usid))
+            db.session.add(user)
+            BASEADMIN().create_action(AdminAction.update.value, 'User', usid)
 
         return Success('设置成功')
 
