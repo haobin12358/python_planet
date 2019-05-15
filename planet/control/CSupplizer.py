@@ -439,11 +439,16 @@ class CSupplizer:
         data = request.json
         cuser = CUser()
         cardno = data.get('sacardno')
+        cardno = re.sub(r'\s', '', str(cardno))
         cuser._CUser__check_card_num(cardno)
         check_res = cuser._verify_cardnum(cardno)  # 检验卡号
         if not check_res.data.get('validated'):
             raise ParamsError('请输入正确的银行卡号')
-        if not cuser._verify_chinese(data.get('sacardname')):
+        checked_res = cuser._verify_cardnum(data.get('sabankaccount'))
+        if not checked_res.data.get('validated'):
+            raise ParamsError('请输入正确的开票账户银行卡号')
+        checked_name = cuser._verify_chinese(data.get('sacardname'))
+        if not checked_name or len(checked_name[0]) < 2:
             raise ParamsError('请输入正确的开户人姓名')
         current_app.logger.info('用户输入银行名为:{}'.format(data.get('sabankname')))
         bankname = check_res.data.get('cnbankname')
@@ -459,7 +464,10 @@ class CSupplizer:
         if sa:
             for key in sa.__dict__:
                 if str(key).lower() in data:
-                    if str(key).lower() == 'suid':
+                    if re.match(r'^(said|suid)$', str(key).lower()):
+                        continue
+                    if str(key).lower() == 'sacardno':
+                        setattr(sa, key, cardno)
                         continue
                     setattr(sa, key, data.get(str(key).lower()))
         else:
@@ -467,9 +475,12 @@ class CSupplizer:
             for key in SupplizerAccount.__dict__:
 
                 if str(key).lower() in data:
+                    if not data.get(str(key).lower()):
+                        continue
                     if str(key).lower() == 'suid':
                         continue
-                    if not data.get(str(key).lower()):
+                    if str(key).lower() == 'sacardno':
+                        sa_dict.setdefault(key, cardno)
                         continue
                     sa_dict.setdefault(key, data.get(str(key).lower()))
             sa_dict.setdefault('SAid', str(uuid.uuid1()))
