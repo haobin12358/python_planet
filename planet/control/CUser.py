@@ -18,10 +18,10 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode
+    WexinBankCode, CashStatus
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -37,13 +37,13 @@ from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db
+from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -184,6 +184,16 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.UCstatus == UserCommissionStatus.preview.value,
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
+
+        uswithdrawal = db.session.query(func.sum(CashNotes.CNcashNum)
+                                        ).filter(CashNotes.USid == user.USid,
+                                                 CashNotes.isdelete == False,
+                                                 CashNotes.CNstatus == ApprovalAction.submit.value
+                                                 # CashNotes.CNstatus.in_([CashStatus.submit.value,
+                                                 #                        CashStatus.agree.value])
+                                                 ).scalar()
+
+        user.fill('uswithdrawal', uswithdrawal or 0)
 
         user.fill('usexpect', float('%.2f' % uc_total))
 
@@ -357,7 +367,7 @@ class CUser(SUser, BASEAPPROVAL):
             try:
                 WexinBankCode(sa.SAbankName)
             except Exception:
-                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
+                raise ParamsError('系统暂不支持提现账户中的银行，请在 "设置 - 商户信息 - 提现账户" 重新设置银行卡信息。 ')
 
     @get_session
     def login(self):
@@ -1841,7 +1851,10 @@ class CUser(SUser, BASEAPPROVAL):
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
         try:
-            cncashnum = float(data.get('cncashnum'))
+            cncashnum = data.get('cncashnum')
+            if not re.match(r'(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)', str(cncashnum)):
+                raise ValueError
+            cncashnum = float(cncashnum)
         except Exception as e:
             current_app.logger.error('cncashnum value error: {}'.format(e))
             raise ParamsError('提现金额格式错误')
@@ -2149,8 +2162,19 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserSalesVolume.createtime) == year,
             CashNotes.USid == request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
+
+        # with db.auto_commit():
+
         cn_total = Decimal(0)
         for cash_note in cash_notes:
+            # if cash_note.CNstatus == CashStatus.agree.value:
+            #     cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+            #                                       CashFlow.CNid == cash_note.CNid
+            #                                       ).first()
+            #     if cash_flow and cash_flow.status == 'SUCCESS':
+            #         cash_note = CashStatus.alreadyAccounted.value
+            #         # todo 异步任务完成，这里只处理异常情况
+            # if cash_note.CNstatus == CashStatus.alreadyAccounted.value:
             if cash_note.CNstatus == ApprovalAction.agree.value:
                 cn_total += Decimal(str(cash_note.CNcashNum))
             cash_note.fields = [
@@ -2164,10 +2188,26 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
+            # cash_note.fill('cnstatus_zh', CashStatus(cash_note.CNstatus).zh_value)
+            # cash_note.fill('cnstatus_en', CashStatus(cash_note.CNstatus).name)
             cash_note.fill('cnstatus_zh', ApprovalAction(cash_note.CNstatus).zh_value)
             cash_note.fill('cnstatus_en', ApprovalAction(cash_note.CNstatus).name)
 
         return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
+
+    def _cash_progress_query(self, cashnote):
+        if not cashnote:
+            return
+        cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+                                          CashFlow.CNid == cashnote.CNid).first()
+        if cash_flow and (not cash_flow.status or cash_flow.status == 'PROCESSING'):
+            res = wx_pay.pay_individual_query(partner_trade_no=cash_flow.partner_trade_no)
+            with db.auto_commit():
+                cash_flow.update({'status': res.get('status'),
+                                  'reason': res.get('reason')
+                                  })
+                db.session.add(cash_flow)
+        pass  #todo
 
     @token_required
     def set_signin_default(self):
@@ -2345,6 +2385,12 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
             ss.fill('suname', su.SUname)
             ss.add('createtime')
+            excel_exist = False
+            year, month = self._get_year_month(ss.createtime, year=True, month=True)
+            current_app.logger.info('get year {}  and month {}'.format(year, month))
+            if os.path.isfile(os.path.join(BASEDIR, 'img', 'xls', str(year), str(month), '{}.xls'.format(su.SUid))):
+                excel_exist = True
+            ss.fill('excel_exist', excel_exist)
         return Success('获取结算记录成功', data=ss_list)
 
     @token_required
@@ -2492,3 +2538,18 @@ class CUser(SUser, BASEAPPROVAL):
             UCLcollection=usid, isdelete=False, UCLcoType=CollectionType.user.value).count()
         current_app.logger.info('follow = {} collected = {} fens_count = {}'.format(follow, collected, fens_count))
         return follow, collected, fens_count
+
+    def _get_year_month(self, time_, **kwargs):
+        if not isinstance(time_, datetime.datetime):
+            # time_ = datetime.datetime.strptime()
+            raise ParamsError('数据库数据异常，请联系管理员')
+        k_list = ['year', 'month', 'day']
+        # year, month, day = time_.year, time_.month, time_.day
+        return_sort = list()
+        for k in k_list:
+            if kwargs.get(k):
+                return_sort.append(time_.__getattribute__(k))
+        if len(return_sort) == 1 :
+            return return_sort[0]
+        return tuple(return_sort)
+
