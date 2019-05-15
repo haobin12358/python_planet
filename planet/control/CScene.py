@@ -69,8 +69,8 @@ class CScene(object):
                 'PSid': scene_dict.get('PSid'),
                 'ITid': 'planet_featured'
             })
-            s.add(default_scene_item,
-                  BASEADMIN().create_action(AdminAction.insert.value, 'ProductScene', str(uuid.uuid1())))
+            s.add(default_scene_item)
+            BASEADMIN().create_action(AdminAction.insert.value, 'ProductScene', str(uuid.uuid1()))
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
@@ -111,7 +111,8 @@ class CScene(object):
                     "PSstarttime": psstarttime,
                     "PSendtime": psendtime,
                 }, null='not')
-                db.session.add(product_scene, BASEADMIN().create_action(AdminAction.update.value, 'ProductScene', psid))
+                db.session.add(product_scene)
+                BASEADMIN().create_action(AdminAction.update.value, 'ProductScene', psid)
 
         return Success('更新成功', {'psid': psid})
 
