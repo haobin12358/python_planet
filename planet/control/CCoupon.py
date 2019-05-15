@@ -284,7 +284,9 @@ class CCoupon(object):
                 s_list.append(sdl)
 
             # todo 优惠券历史创建
-            s.add_all(s_list, BASEADMIN().create_action(AdminAction.insert.value, 'Coupon', coid))
+            s.add_all(s_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.insert.value, 'Coupon', coid)
         return Success('添加成功', data=coid)
 
     @admin_required
@@ -326,7 +328,8 @@ class CCoupon(object):
                 # todo 如果修改的是供应商的优惠券。需要涉及押金的修改 目前不做校验
                 pass
 
-            db.session.add(coupon, BASEADMIN().create_action(AdminAction.update.value, 'Coupon', coid))
+            db.session.add(coupon)
+            BASEADMIN().create_action(AdminAction.update.value, 'Coupon', coid)
             for itid in itids:
                 Items.query.filter_by_({'ITid': itid, 'ITtype': ItemType.coupon.value}).first_('指定标签不存在')
                 coupon_items = CouponItem.query.filter(CouponItem.ITid == itid, CouponItem.isdelete == False,
@@ -392,7 +395,7 @@ class CCoupon(object):
                 CouponFor.isdelete == False,
                 CouponFor.COid == coid
             ).delete_()
-            db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'CouponUser', coid))
+            BASEADMIN().create_action(AdminAction.delete.value, 'CouponUser', coid)
             current_app.logger.info('删除优惠券的同时 将{}个用户拥有的优惠券也删除'.format(coupon_user))
         return Success('删除成功')
 
@@ -601,8 +604,8 @@ class CCoupon(object):
                     'COid': coid,
                     'CCcode': cccode
                 })
-                db.session.add(coupon_code, BASEADMIN().create_action(AdminAction.insert.value, 'CouponCode', coid)
-)
+                db.session.add(coupon_code)
+                BASEADMIN().create_action(AdminAction.insert.value, 'CouponCode', coid)
                 db.session.flush()
 
         return Success('生成激活码成功', data={'coid': coid, 'conum': conum})
@@ -624,6 +627,6 @@ class CCoupon(object):
 
         with db.auto_commit():
             coupon.update({'COcode': bool(data.get('cocode', False))})
-            db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'Coupon', data.get('coid')))
+            BASEADMIN().create_action(AdminAction.update.value, 'Coupon', data.get('coid'))
 
         return Success('修改成功', data={'coid': coupon.COid})
