@@ -53,8 +53,8 @@ class CClub():
             "CMmessage": form.cmmessage.data,
             "CMindex": CMindex
         })
-        db.session.add(new_companymessage,
-                       BASEADMIN().create_action(AdminAction.insert.value,'CompanyMessage', str(uuid.uuid1())))
+        db.session.add(new_companymessage)
+        BASEADMIN().create_action(AdminAction.insert.value, 'CompanyMessage', str(uuid.uuid1()))
         return Success("发布成功")
 
     @get_session
@@ -146,8 +146,7 @@ class CClub():
                                                      CompanyMessage.CMid == data.get('cmid')).first_('公告已删除')
         if data.get('delete'):
             companymessage.isdelete = True
-
-            db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'CompanyMessage', data.get('cmid')))
+            BASEADMIN().create_action(AdminAction.delete.value, 'CompanyMessage', data.get('cmid'))
             current_app.logger.info('start delete company message {}'.format(companymessage.CMid))
             return Success('删除公告成功', data={'cmid': companymessage.CMid})
         current_app.logger.info('start update company message {}'.format(companymessage.CMid))
