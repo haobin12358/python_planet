@@ -37,13 +37,13 @@ from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db
+from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -188,8 +188,9 @@ class CUser(SUser, BASEAPPROVAL):
         uswithdrawal = db.session.query(func.sum(CashNotes.CNcashNum)
                                         ).filter(CashNotes.USid == user.USid,
                                                  CashNotes.isdelete == False,
-                                                 CashNotes.CNstatus.in_([CashStatus.submit.value,
-                                                                        CashStatus.agree.value])
+                                                 CashNotes.CNstatus == ApprovalAction.submit.value
+                                                 # CashNotes.CNstatus.in_([CashStatus.submit.value,
+                                                 #                        CashStatus.agree.value])
                                                  ).scalar()
 
         user.fill('uswithdrawal', uswithdrawal or 0)
@@ -2161,8 +2162,19 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserSalesVolume.createtime) == year,
             CashNotes.USid == request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
+
+        # with db.auto_commit():
+
         cn_total = Decimal(0)
         for cash_note in cash_notes:
+            # if cash_note.CNstatus == CashStatus.agree.value:
+            #     cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+            #                                       CashFlow.CNid == cash_note.CNid
+            #                                       ).first()
+            #     if cash_flow and cash_flow.status == 'SUCCESS':
+            #         cash_note = CashStatus.alreadyAccounted.value
+            #         # todo 异步任务完成，这里只处理异常情况
+            # if cash_note.CNstatus == CashStatus.alreadyAccounted.value:
             if cash_note.CNstatus == ApprovalAction.agree.value:
                 cn_total += Decimal(str(cash_note.CNcashNum))
             cash_note.fields = [
@@ -2176,10 +2188,26 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
-            cash_note.fill('cnstatus_zh', CashStatus(cash_note.CNstatus).zh_value)
-            cash_note.fill('cnstatus_en', CashStatus(cash_note.CNstatus).name)
+            # cash_note.fill('cnstatus_zh', CashStatus(cash_note.CNstatus).zh_value)
+            # cash_note.fill('cnstatus_en', CashStatus(cash_note.CNstatus).name)
+            cash_note.fill('cnstatus_zh', ApprovalAction(cash_note.CNstatus).zh_value)
+            cash_note.fill('cnstatus_en', ApprovalAction(cash_note.CNstatus).name)
 
         return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
+
+    def _cash_progress_query(self, cashnote):
+        if not cashnote:
+            return
+        cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+                                          CashFlow.CNid == cashnote.CNid).first()
+        if cash_flow and (not cash_flow.status or cash_flow.status == 'PROCESSING'):
+            res = wx_pay.pay_individual_query(partner_trade_no=cash_flow.partner_trade_no)
+            with db.auto_commit():
+                cash_flow.update({'status': res.get('status'),
+                                  'reason': res.get('reason')
+                                  })
+                db.session.add(cash_flow)
+        pass  #todo
 
     @token_required
     def set_signin_default(self):

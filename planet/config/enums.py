@@ -502,6 +502,14 @@ class CashFor(Enum):
     bankcard = 1, '银行卡'
 
 
+class CashStatus(Enum):
+    alreadyAccounted = 2, '已到账'
+    agree = 1, '银行处理中'
+    refuse = -1, '未通过'
+    submit = 0, '审核中'
+    cancle = -10, '已取消'
+
+
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
