@@ -43,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, ProductSum
 from .BaseControl import BASEAPPROVAL
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -2560,4 +2560,15 @@ class CUser(SUser, BASEAPPROVAL):
         if len(return_sort) == 1 :
             return return_sort[0]
         return tuple(return_sort)
+
+    @token_required
+    def user_sum(self):
+        if not is_admin():
+            raise AuthorityError
+        sum_dict = {}
+        with db.auto_commit():
+            product_range = ProductSum.PRid.order_by(ProductSum.PRid.count()).all()
+            sum_dict['product'] = product_range
+
+        return Success(data=sum_dict)
 

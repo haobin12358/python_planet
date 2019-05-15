@@ -23,7 +23,7 @@ from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
     ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity, \
-    FreshManFirstProduct, GuessNumAwardProduct
+    FreshManFirstProduct, GuessNumAwardProduct, ProductSum
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -197,6 +197,12 @@ class CProducts(BaseController):
                 product.fill('pcids', self._up_category_id(product.PCid))
         # 可用优惠券
         self._fill_coupons(product)
+
+        with self.sproduct.auto_commit() as s:
+            ps = ProductSum.create({
+                'PRid': prid
+            })
+            s.add_all(ps)
 
         return Success(data=product)
 

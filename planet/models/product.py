@@ -297,6 +297,10 @@ class IntegralProductSku(Base):
     SKUprice = Column(BIGINT,  nullable=False, comment='sku星币价格')
 
 
+class ProductSum(Base):
+    __tablename__ = 'ProductSum'
+    PSid = Column(String(64), primary_key=True)
+    PRid = Column(String(64), nullable=False, comment='商品id')
 # class SupplizerBrand(Base):
 #     """供应商品牌表"""
 #     SUBid = Column(String(64), primary_key=True)
