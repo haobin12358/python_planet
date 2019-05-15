@@ -75,7 +75,8 @@ class CCategory(CProducts):
         with self.sproduct.auto_commit() as s:
             product_category_instance = s.query(ProductCategory).filter_by_({'PCid': pcid}).first_('该分类不存在')
             product_category_instance.isdelete = True
-            s.add(product_category_instance,BASEADMIN().create_action(AdminAction.delete.value, 'ProductCategory', pcid))
+            s.add(product_category_instance)
+            BASEADMIN().create_action(AdminAction.delete.value, 'ProductCategory', pcid)
             s.query(Products).filter_(Products.PCid == product_category_instance.PCid).update({
                 'PRstatus': ProductStatus.off_shelves.value,
                 'PCid': None

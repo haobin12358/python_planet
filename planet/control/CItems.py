@@ -213,7 +213,7 @@ class CItems:
                 [SceneItem.query.filter_by(PSid=droped_psid, ITid=itid).delete_() for droped_psid in old_psids]
             else:
                 SceneItem.query.filter_by(ITid=itid).delete_()  # psid = [] 为空时，删除所有该标签场景的关联
-                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'SceneItem', itid))
+                BASEADMIN().create_action(AdminAction.delete.value, 'SceneItem', itid)
         return Success('修改成功', {'itid': itid})
 
     def _check_itsort(self, itsort, ittype):

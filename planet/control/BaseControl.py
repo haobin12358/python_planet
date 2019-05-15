@@ -52,7 +52,7 @@ class BASEADMIN():
             'AAdetail': request.detail,
             'AAkey': AAkey
         })
-        return admin_action
+        db.session.add(admin_action)
 
 
 class BASEAPPROVAL():
