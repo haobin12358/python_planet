@@ -408,6 +408,7 @@ class CSupplizer:
             supplizer.update({
                 'SUpassword': generate_password_hash(password)
             })
+            db.session.add(supplizer)
             BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', supplizer.SUid)
         return Success('修改成功')
 

@@ -234,8 +234,8 @@ class CTimeLimited(COrder, CUser):
                 'contentlink': API_HOST + "/?tlaid=" + tla.TLAid + "&secret_usid="
             })
             with db.auto_commit():
-                db.session.add(tlb, BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedActivity',
-                                                              str(uuid.uuid1())))
+                db.session.add(tlb)
+                BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedActivity', str(uuid.uuid1()))
 
             current_app.logger.info('增加轮播图成功')
         else:
@@ -312,6 +312,8 @@ class CTimeLimited(COrder, CUser):
                 instance_list.append(tls)
                 # prstock += skustock
             db.session.add_all(instance_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
 
         # todo  添加到审批流
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid, applyfrom=tlp_from)
@@ -415,6 +417,8 @@ class CTimeLimited(COrder, CUser):
             # prstock += skustock
 
             db.session.add_all(instance_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedProduct', data.get('tlpid'))
 
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid,
                                                   applyfrom=tlp_from)
@@ -435,7 +439,7 @@ class CTimeLimited(COrder, CUser):
                 for tlp in tlp_list:
                     self._re_stock(tlp)
 
-                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedActivity', tla.TLAid))
+                BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedActivity', tla.TLAid)
                 return Success('删除成功')
 
             if tla.TLAstatus == TimeLimitedStatus.end.value:
@@ -474,7 +478,7 @@ class CTimeLimited(COrder, CUser):
                 tla.TLAstatus = tlastatus
                 self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
-                db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedActivity', tla.TLAid))
+                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedActivity', tla.TLAid)
         return Success('修改成功')
 
     def award_detail(self):
@@ -527,6 +531,8 @@ class CTimeLimited(COrder, CUser):
                 AVcontent=tlpid, AVstartid=request.user.id, isdelete=False,
                 AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedProduct', tlpid)
         return Success('取消成功', {'tlpid': tlpid})
 
     def del_award(self):
@@ -556,6 +562,8 @@ class CTimeLimited(COrder, CUser):
                                             ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedProduct', tlpid)
 
         return Success('删除成功', {'tlpid': tlpid})
 
