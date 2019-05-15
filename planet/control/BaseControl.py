@@ -45,14 +45,15 @@ class JSONEncoder(_JSONEncoder):
 
 class BASEADMIN():
     def create_action(self, AAaction, AAmodel, AAkey):
-        admin_action = AdminActions.create({
+        admin_action = {
             'ADid': request.user.id,
             'AAaction': AAaction,
             'AAmodel': AAmodel,
             'AAdetail': request.detail,
             'AAkey': AAkey
-        })
-        db.session.add(admin_action)
+        }
+        aa_instance = AdminActions.create(admin_action)
+        db.session.add(aa_instance)
 
 
 class BASEAPPROVAL():
