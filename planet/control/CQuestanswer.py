@@ -106,8 +106,8 @@ class CQuestanswer():
             'QOtype': qotype,
             'QOcreateId': admin.ADid
         })
-        db.session.add(qo_instance,
-                       BASEADMIN().create_action(AdminAction.insert.value, 'QuestOutline', str(uuid.uuid1())))
+        db.session.add(qo_instance)
+        BASEADMIN().create_action(AdminAction.insert.value, 'QuestOutline', str(uuid.uuid1()))
         qo_instance.fields = self.QuestOutlineFields[:]
         return Success('创建问题分类成功', data=qo_instance)
 
@@ -151,8 +151,8 @@ class CQuestanswer():
         })
 
         db.session.add(quest_instance, BASEADMIN().create_action(AdminAction.insert.value, 'Quest', str(uuid.uuid1())))
-        db.session.add(answer_instance,
-                       BASEADMIN().create_action(AdminAction.insert.value, 'Answer', str(uuid.uuid1())))
+        db.session.add(answer_instance)
+        BASEADMIN().create_action(AdminAction.insert.value, 'Answer', str(uuid.uuid1()))
         return Success('创建问题成功')
 
     @get_session
@@ -280,8 +280,8 @@ class CQuestanswer():
                 'QANcreateid': admin.ADid,
                 'QANtargetId': qoid
             })
-            db.session.add(qan,
-                           BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1())))
+            db.session.add(qan)
+            BASEADMIN().create_action(AdminAction.delete.value, 'QuestAnswerNote', str(uuid.uuid1()))
         return Success('删除完成')
 
     @get_session
