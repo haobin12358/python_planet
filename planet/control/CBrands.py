@@ -246,7 +246,8 @@ class CBrands(object):
                 ProductBrand.isdelete == False
             ).first_('品牌不存在')
             brand.isdelete = True
-            db.session.add(brand, BASEADMIN().create_action(AdminAction.delete.value, 'ProductBrand', pbid))
+            db.session.add(brand)
+            BASEADMIN().create_action(AdminAction.delete.value, 'ProductBrand', pbid)
             # 商品下架
             off_products = Products.query.filter(
                 Products.isdelete == False,
