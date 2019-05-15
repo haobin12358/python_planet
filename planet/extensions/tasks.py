@@ -260,34 +260,37 @@ def fix_evaluate_status_error():
 @celery.task(name='create_settlenment')
 def create_settlenment():
     """每月22号创建结算单"""
-    current_app.logger.info("----->  开始创建供应商结算单  <-----")
-    with db.auto_commit():
-        su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
-        from planet.control.COrder import COrder
-        corder = COrder()
-        for su in su_list:
-            today = datetime.now()
-            pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
-            tomonth_22 = date(year=today.year, month=today.month, day=22)
-            pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
-            su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
-                UserCommission.USid == su.SUid,
-                UserCommission.isdelete == False,
-                UserCommission.UCstatus == UserCommissionStatus.in_account.value,
-                UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                cast(UserCommission.createtime, Date) < tomonth_22,
-                cast(UserCommission.createtime, Date) >= pre_month_22,
-            ).first()
-            ss_total = su_comiission[0] or 0
-            ss = SupplizerSettlement.create({
-                'SSid': str(uuid.uuid1()),
-                'SUid': su.SUid,
-                'SSdealamount': float('%.2f' % float(ss_total)),
-                'SSstatus': SupplizerSettementStatus.settlementing.value
-            })
-            db.session.add(ss)
-            db.session.flush()
-            corder._create_settlement_excel(su.SUid, ss)
+    try:
+        current_app.logger.info("----->  开始创建供应商结算单  <-----")
+        with db.auto_commit():
+            su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
+            from planet.control.COrder import COrder
+            corder = COrder()
+            for su in su_list:
+                today = datetime.now()
+                pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
+                tomonth_22 = date(year=today.year, month=today.month, day=22)
+                pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
+                su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
+                    UserCommission.USid == su.SUid,
+                    UserCommission.isdelete == False,
+                    UserCommission.UCstatus == UserCommissionStatus.in_account.value,
+                    UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+                    cast(UserCommission.createtime, Date) < tomonth_22,
+                    cast(UserCommission.createtime, Date) >= pre_month_22,
+                ).first()
+                ss_total = su_comiission[0] or 0
+                ss = SupplizerSettlement.create({
+                    'SSid': str(uuid.uuid1()),
+                    'SUid': su.SUid,
+                    'SSdealamount': float('%.2f' % float(ss_total)),
+                    'SSstatus': SupplizerSettementStatus.settlementing.value
+                })
+                db.session.add(ss)
+                db.session.flush()
+                corder._create_settlement_excel(su.SUid, ss)
+    except Exception as e:
+        current_app.logger.info('创建失败')
 
 
 @celery.task(name='get_logistics')

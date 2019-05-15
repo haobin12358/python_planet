@@ -14,31 +14,35 @@ from .success_response import Success
 User = namedtuple('User', ('id', 'model', 'level'))
 
 
+def token_to_user_():
+    current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
+    parameter = request.args.to_dict()
+    token = parameter.get('token')
+    if token:
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+            id = data['id']
+            model = data['model']
+            level = data['level']
+            username = data.get('username', 'none')
+            User = namedtuple('User', ('id', 'model', 'level', 'username'))
+            user = User(id, model, level, username)
+            setattr(request, 'user', user)
+            current_app.logger.info('current_user info : {}'.format(data))
+        except BadSignature as e:
+            pass
+        except SignatureExpired as e:
+            pass
+        except Exception as e:
+            current_app.logger.info(e)
+    current_app.logger.info(request.detail)
+
+
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
-        parameter = request.args.to_dict()
-        token = parameter.get('token')
-        if token:
-            s = Serializer(current_app.config['SECRET_KEY'])
-            try:
-                data = s.loads(token)
-                id = data['id']
-                model = data['model']
-                level = data['level']
-                username = data.get('username', 'none')
-                User = namedtuple('User', ('id', 'model', 'level', 'username'))
-                user = User(id, model, level, username)
-                setattr(request, 'user', user)
-                current_app.logger.info('current_user info : {}'.format(data))
-            except BadSignature as e:
-                pass
-            except SignatureExpired as e:
-                pass
-            except Exception as e:
-                current_app.logger.info(e)
-        current_app.logger.info(request.detail)
+        return token_to_user_()
     #
     # @app.teardown_request
     # def end_request(param):

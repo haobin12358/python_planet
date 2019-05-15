@@ -3,7 +3,7 @@ import uuid
 from flask import request
 
 from flaskrun import socketio
-from planet.common.error_response import AuthorityError, ParamsError
+from planet.common.error_response import AuthorityError, ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_supplizer, common_user
@@ -51,11 +51,14 @@ class CMessage():
                 pm = PlatformMessage.create(pmdict)
                 msg = '创建成功'
             else:
+                if pm.PMstatus == PlanetMessageStatus.publish.value:
+                    raise StatusError('已上线站内信不能修改')
                 pm.update(pmdict)
                 msg = '更新成功'
 
-            # 如果站内信为上线状态，创建用户站内信 todo
+            # 如果站内信为上线状态，创建用户站内信 推送 todo
             if pm.PMstatus == PlanetMessageStatus.publish:
+                # 创建用户站内信
                 user_list = User.query.filter_by(isdelete=False).all()
                 instance_list = list()
                 for user in user_list:
@@ -67,8 +70,11 @@ class CMessage():
                     instance_list.append(upm)
 
                 db.session.add_all(instance_list)
+                # 推送
+                socketio.on_event('getplanetmessage', self.push_platform_message)
             return Success(msg, data={'pmid': pmid})
 
+    @token_required
     def get_platform_message(self):
         data = parameter_required()
         filter_args = {
@@ -100,17 +106,8 @@ class CMessage():
         pm.fill('pmstatus_zh', PlanetMessageStatus(pm.PMstatus).zh_value)
         pm.fill('pmstatus_eh', PlanetMessageStatus(pm.PMstatus).name)
 
-    @socketio.on('connect', namespace='/change_platfromMessage')
-    def change_platfromMessage(self):
-        # global thread
-        # with thread_lock:
-        # if thread is None:
-        socketio.start_background_task(target=self.background_thread)
+    def push_platform_message(self):
+        pm_list = UserPlatfromMessage.query.filter(
 
-    def background_thread(self):
-        while True:
-            # socketio.sleep(5)
-            # t = random.randint(1, 100)
-            upm = UserPlatfromMessage.query.filter_by()
-            socketio.emit('server_response',
-                          {'data': t}, namespace='/change_platfromMessage')
+        ).order_by(PlatformMessage.createtime.desc()).all_with_page()
+        socketio
