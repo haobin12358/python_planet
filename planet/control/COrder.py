@@ -1018,6 +1018,8 @@ class COrder(CPay, CCoupon):
         if not is_admin() and not is_supplizer() and order_main.USid != usid:
             raise NotFound('订单订单不存在')
         self._cancle(order_main)
+        if is_admin():
+            BASEADMIN().create_action(AdminAction.update.value, 'OrderMain', omid)
         return Success('取消成功')
 
     def _cancle(self, order_main):
@@ -1362,8 +1364,6 @@ class COrder(CPay, CCoupon):
         day = data.get('day', 7)
         cfs = ConfigSettings()
         cfs.set_item('order_auto', 'auto_evaluate_day', str(day))
-        with db.auto_commit():
-            db.session.add(BASEADMIN().create_action(AdminAction.update.value, 'config', 'set_autoevaluation_time'))
         return Success('设置成功', {'day': day})
 
     @admin_required
@@ -1900,6 +1900,8 @@ class COrder(CPay, CCoupon):
         with db.auto_commit():
             order_main.OMtrueMount = price
             db.session.add(order_main)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'OrderMain', omid)
         return Success('修改成功')
 
     def test_to_send(self):
