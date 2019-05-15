@@ -40,7 +40,8 @@ class CCommision:
             levelcommision = json.loads(commision.Levelcommision)[:-1]
             if sum(levelcommision) > 100:
                 raise ParamsError('总佣金比大于100')
-            db.session.add(commision,BASEADMIN().create_action(AdminAction.update.value, 'Commision', commision.COid))
+            db.session.add(commision)
+            BASEADMIN().create_action(AdminAction.update.value, 'Commision', commision.COid)
         return Success('修改成功')
 
     def get(self):
