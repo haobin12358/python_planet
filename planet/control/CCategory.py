@@ -65,7 +65,8 @@ class CCategory(CProducts):
                 'PCsort': pcsort,
                 'PCtopPic': data.get('pctoppic')
             })
-            s.add(category_instance,BASEADMIN().create_action(AdminAction.insert.value, 'ProductCategory', str(uuid.uuid4())))
+            s.add(category_instance)
+            BASEADMIN().create_action(AdminAction.insert.value, 'ProductCategory', str(uuid.uuid4()))
         return Success('创建成功', {'pcid': category_instance.PCid})
 
     @admin_required
