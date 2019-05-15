@@ -113,7 +113,8 @@ class CSupplizer:
                 'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
             })
             db.session.add(supperlizer)
-            # db.session.add(supperlizer,BASEADMIN().create_action(AdminAction.insert.value, 'Supplizer', suid))
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.insert.value, 'Supplizer', suid)
             if pbids:
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -135,6 +136,7 @@ class CSupplizer:
                     'SDbefore': 0,
                     'SDLacid': request.user.id,
                 })
+                BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
     def update(self):
@@ -184,13 +186,13 @@ class CSupplizer:
                             'SDbefore': Decimal(getattr(supplizer, 'SUdeposit', 0)),
                             'SDLacid': request.user.id,
                         })
-                        db.session.add(depositlog,
-                                       BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog',
-                                                                 str(uuid.uuid1())))
+                        db.session.add(depositlog)
+                        BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog',str(uuid.uuid1()))
 
             supplizer.update(supplizer_dict, null='dont ignore')
-            db.session.add(supplizer,
-                           BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', str(uuid.uuid1())))
+            db.session.add(supplizer)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', form.suid.data)
             if pbids and is_admin():
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -258,7 +260,8 @@ class CSupplizer:
                 Supplizer.SUid == suid
             ).first_('供应商不存在')
             supplizer.SUstatus = UserStatus.forbidden.value
-            db.session.add(supplizer, BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid))
+            db.session.add(supplizer)
+            BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid)
             # 供应商的品牌也下架
             brand_count = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
@@ -293,7 +296,8 @@ class CSupplizer:
                 raise StatusError('供应商部分订单正在进行')
 
             supplizer.isdelete = True
-            db.session.add(supplizer, BASEADMIN().create_action(AdminAction.delete.value, 'Supplizer', suid))
+            db.session.add(supplizer)
+            BASEADMIN().create_action(AdminAction.delete.value, 'Supplizer', suid)
             # 品牌删除
             productbrands = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
@@ -377,6 +381,8 @@ class CSupplizer:
                 raise AuthorityError('原密码错误')
             supplizer.SUpassword = generate_password_hash(supassword)
             db.session.add(supplizer)
+            if is_admin():
+                BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid)
         return Success('修改成功')
 
     @token_required
@@ -395,12 +401,14 @@ class CSupplizer:
         if not is_admin():
             raise AuthorityError()
         with db.auto_commit():
-            Supplizer.query.filter(
+            supplizer = Supplizer.query.filter(
                 Supplizer.isdelete == False,
                 Supplizer.SUloginPhone == mobile
-            ).update({
+            ).first()
+            supplizer.update({
                 'SUpassword': generate_password_hash(password)
             })
+            BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', supplizer.SUid)
         return Success('修改成功')
 
     @token_required
@@ -545,6 +553,6 @@ class CSupplizer:
                 'MNcreateid': request.user.id
             })
 
-            db.session.add(mn,
-                           BASEADMIN().create_action(AdminAction.insert.value, 'ManagerSystemNotes', str(uuid.uuid1())))
+            db.session.add(mn)
+            BASEADMIN().create_action(AdminAction.insert.value, 'ManagerSystemNotes', str(uuid.uuid1()))
         return Success('创建通告成功', data=mn.MNid)
