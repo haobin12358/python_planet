@@ -12,7 +12,7 @@ from PIL import ImageDraw as imd
 
 from planet.config.http_config import MEDIA_HOST
 from planet.extensions.tasks import contenttype_config
-
+# import numpy as np
 
 class AssemblePicture():
 
@@ -184,6 +184,15 @@ class AssemblePicture():
         qrcode = img.open(newFile)
         qrcode.thumbnail((172, 172))
         base.paste(qrcode, (540, 801))
+        # 商品价格
+        # prprice_font = imf.truetype(self.res_path + r'\PingFang SC Semibold.ttf', 36)
+        prprice_font = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 36)
+        # icon_font = imf.truetype(self.res_path + r'\PingFang Regular.otf', 24)
+        icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 24)
+        draw = imd.Draw(base)
+        draw.rectangle((31, 891, 200, 940), fill=(255, 255, 255))
+        draw.text((31, 903), str('￥'), fill='#E56C2F', font=icon_font)
+        draw.text((50, 891), str('%.2f' % self.prprice), fill='#E56C2F', font=prprice_font)
         promotion_path = os.path.join(current_app.config['BASEDIR'], 'img', folder_promotion, year, month, day)
         if not os.path.isdir(promotion_path):
             os.makedirs(promotion_path)

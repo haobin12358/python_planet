@@ -21,7 +21,7 @@ from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, Use
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralAction, UserIntegralType, \
     WexinBankCode
 from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import  wx_pay, db, alipay
+from planet.extensions.register_ext import wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \

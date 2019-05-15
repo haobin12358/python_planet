@@ -18,10 +18,10 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode
+    WexinBankCode, CashStatus
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -37,14 +37,19 @@ from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db
+from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
+<<<<<<< HEAD
     Approval, UserTransmit, UserCollectionLog, News
 from .BaseControl import BASEAPPROVAL, BASEADMIN
+=======
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow
+from .BaseControl import BASEAPPROVAL
+>>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -184,6 +189,16 @@ class CUser(SUser, BASEAPPROVAL):
             UserCommission.UCstatus == UserCommissionStatus.preview.value,
             UserCommission.isdelete == False).all()
         uc_total = sum([Decimal(str(uc.UCcommission)) for uc in ucs])
+
+        uswithdrawal = db.session.query(func.sum(CashNotes.CNcashNum)
+                                        ).filter(CashNotes.USid == user.USid,
+                                                 CashNotes.isdelete == False,
+                                                 CashNotes.CNstatus == ApprovalAction.submit.value
+                                                 # CashNotes.CNstatus.in_([CashStatus.submit.value,
+                                                 #                        CashStatus.agree.value])
+                                                 ).scalar()
+
+        user.fill('uswithdrawal', uswithdrawal or 0)
 
         user.fill('usexpect', float('%.2f' % uc_total))
 
@@ -357,7 +372,7 @@ class CUser(SUser, BASEAPPROVAL):
             try:
                 WexinBankCode(sa.SAbankName)
             except Exception:
-                raise ParamsError('系统暂不支持提现账户中银行，请重新设置"商户信息 - 提现账户"')
+                raise ParamsError('系统暂不支持提现账户中的银行，请在 "设置 - 商户信息 - 提现账户" 重新设置银行卡信息。 ')
 
     @get_session
     def login(self):
@@ -1378,7 +1393,7 @@ class CUser(SUser, BASEAPPROVAL):
         APP_SECRET_KEY = fromdict.get('appsecret')
 
         wxlogin = WeixinLogin(APP_ID, APP_SECRET_KEY)
-        api_call_back = '{}/api/v1/user/wx_callback'.format(API_HOST)
+        api_call_back = '{}/api/v2/user/wx_callback'.format(API_HOST)
         redirect_url = wxlogin.authorize(api_call_back, scope=scope, state=url)
         # from flask import redirect
         current_app.logger.info('get redirect_url = {}'.format(redirect_url))
@@ -1394,7 +1409,7 @@ class CUser(SUser, BASEAPPROVAL):
             if not code:
                 return url
             # if '?' in url:
-            connector = '&' if '?' in url else '?'
+            # connector = '&' if '?' in url else '?'
             current_app.logger.info('get url = {}'.format(url))
             url_list = url.split(r'/#')
             if len(url_list) == 1:
@@ -1404,9 +1419,9 @@ class CUser(SUser, BASEAPPROVAL):
             current_app.logger.info('changed url = {}'.format(url))
 
             if state:
-                redirect_url = '{}{}code={}&{}'.format(url, connector, code, state)
+                redirect_url = '{}/?code={}&{}'.format(url, code, state)
             else:
-                redirect_url = '{}{}code={}'.format(url, connector, code)
+                redirect_url = '{}/?code={}'.format(url, code)
 
             if url_route:
                 return '{}#{}'.format(redirect_url, url_route)
@@ -1842,7 +1857,10 @@ class CUser(SUser, BASEAPPROVAL):
         # if user.USlevel != self.AGENT_TYPE:
         #     raise AuthorityError('代理商权限过期')
         try:
-            cncashnum = float(data.get('cncashnum'))
+            cncashnum = data.get('cncashnum')
+            if not re.match(r'(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)', str(cncashnum)):
+                raise ValueError
+            cncashnum = float(cncashnum)
         except Exception as e:
             current_app.logger.error('cncashnum value error: {}'.format(e))
             raise ParamsError('提现金额格式错误')
@@ -1857,8 +1875,8 @@ class CUser(SUser, BASEAPPROVAL):
             raise ParamsError('提现金额超出余额')
         elif API_HOST == 'https://www.bigxingxing.com' and not (10 <= cncashnum <= 5000):
             raise ParamsError('提现金额超出单次可提现范围(10 ~ 5000元)')
-        elif API_HOST != 'https://www.bigxingxing.com' and not (0.03 <= cncashnum <= 5000):
-            raise ParamsError('当前测试版本单次可提现范围(0.03 ~ 5000元)')
+        elif API_HOST != 'https://www.bigxingxing.com' and not (0.30 <= cncashnum <= 5000):
+            raise ParamsError('当前测试版本单次可提现范围(0.30 ~ 5000元)')
 
         uw.UWcash = Decimal(str(uw.UWcash)) - Decimal(cncashnum)
         kw = {}
@@ -2154,8 +2172,19 @@ class CUser(SUser, BASEAPPROVAL):
             extract('year', UserSalesVolume.createtime) == year,
             CashNotes.USid == request.user.id).order_by(
             CashNotes.createtime.desc()).all_with_page()
+
+        # with db.auto_commit():
+
         cn_total = Decimal(0)
         for cash_note in cash_notes:
+            # if cash_note.CNstatus == CashStatus.agree.value:
+            #     cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+            #                                       CashFlow.CNid == cash_note.CNid
+            #                                       ).first()
+            #     if cash_flow and cash_flow.status == 'SUCCESS':
+            #         cash_note = CashStatus.alreadyAccounted.value
+            #         # todo 异步任务完成，这里只处理异常情况
+            # if cash_note.CNstatus == CashStatus.alreadyAccounted.value:
             if cash_note.CNstatus == ApprovalAction.agree.value:
                 cn_total += Decimal(str(cash_note.CNcashNum))
             cash_note.fields = [
@@ -2169,10 +2198,26 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNstatus',
                 'CNrejectReason',
             ]
+            # cash_note.fill('cnstatus_zh', CashStatus(cash_note.CNstatus).zh_value)
+            # cash_note.fill('cnstatus_en', CashStatus(cash_note.CNstatus).name)
             cash_note.fill('cnstatus_zh', ApprovalAction(cash_note.CNstatus).zh_value)
             cash_note.fill('cnstatus_en', ApprovalAction(cash_note.CNstatus).name)
 
         return Success('获取提现记录成功', data={'cash_notes': cash_notes, 'cntotal': cn_total})
+
+    def _cash_progress_query(self, cashnote):
+        if not cashnote:
+            return
+        cash_flow = CashFlow.query.filter(CashFlow.isdelete == False,
+                                          CashFlow.CNid == cashnote.CNid).first()
+        if cash_flow and (not cash_flow.status or cash_flow.status == 'PROCESSING'):
+            res = wx_pay.pay_individual_query(partner_trade_no=cash_flow.partner_trade_no)
+            with db.auto_commit():
+                cash_flow.update({'status': res.get('status'),
+                                  'reason': res.get('reason')
+                                  })
+                db.session.add(cash_flow)
+        pass  #todo
 
     @token_required
     def set_signin_default(self):
@@ -2187,7 +2232,11 @@ class CUser(SUser, BASEAPPROVAL):
             integral_commit=data.get('integral_commit'),
             integral_transmit=data.get('integral_transmit'),
             trade_percent=data.get('trade_percent'),
-            exchange_rate=data.get('exchange_rate')
+            exchange_rate=data.get('exchange_rate'),
+            integral_news=data.get('integral_news'),
+            news_count=data.get('news_count'),
+            favorite_count=data.get('favorite_count'),
+            commit_count=data.get('commit_count'),
         )
         for key in param_dict.keys():
             if param_dict[key] or str(param_dict[key]) == '0':
@@ -2213,7 +2262,11 @@ class CUser(SUser, BASEAPPROVAL):
                    integral_commit=None,
                    integral_transmit=None,
                    trade_percent=None,
-                   exchange_rate=None
+                   exchange_rate=None,
+                   integral_news=None,
+                   news_count=None,
+                   favorite_count=None,
+                   commit_count=None,
                    )
         # sia_list = SignInAward.query.filter_by(isdelete=False).order_by(SignInAward.SIAday).all()
         # sia_rule = '\n'.join([sia.SIAnum for sia in sia_list])
@@ -2350,6 +2403,12 @@ class CUser(SUser, BASEAPPROVAL):
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
             ss.fill('suname', su.SUname)
             ss.add('createtime')
+            excel_exist = False
+            year, month = self._get_year_month(ss.createtime, year=True, month=True)
+            current_app.logger.info('get year {}  and month {}'.format(year, month))
+            if os.path.isfile(os.path.join(BASEDIR, 'img', 'xls', str(year), str(month), '{}.xls'.format(su.SUid))):
+                excel_exist = True
+            ss.fill('excel_exist', excel_exist)
         return Success('获取结算记录成功', data=ss_list)
 
     @token_required
@@ -2391,35 +2450,53 @@ class CUser(SUser, BASEAPPROVAL):
 
     @token_required
     def get_home_top(self):
-        user = get_current_user()
-        ucl_list = UserCollectionLog.query.filter_by(UCLcollector=user.USid, isdelete=False).order_by(UserCollectionLog.createtime.desc()).all()
-        follow = collected = 0
-        for ucl in ucl_list:
-            if int(ucl.UCLcoType) == CollectionType.user.value:
-                user_fens = User.query.filter_by(USid=ucl.UCLcollection).first()
-                admin = Admin.query.filter_by(ADid=ucl.UCLcollection).first()
-                su = Supplizer.query.filter_by(SUid=ucl.UCLcollection).first()
-                if user_fens or admin or su:
-                    follow += 1
-            elif re.match(r'^[01]$', str(ucl.UCLcoType)):  # 只统计商品和圈子，排除圈子分类
-                collected += 1
-        current_app.logger.info('follow = {} collected = {}'.format(follow, collected))
-        user.fields = self.USER_FIELDS[:]
-        # 统计关注人数和收藏数
-        user.fill('follow', follow)
-        user.fill('collected', collected)
-        # 粉丝数
-        user.fill('fens_count', UserCollectionLog.query.filter_by(
-            UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).count())
-        # 用户等级前台展示
-        user.fill('uslevel_zh', UserGrade(user.USlevel).zh_value)
-        user.fill('uslevel_eh', UserGrade(user.USlevel).name)
-        # 遮盖身份证
-        user.fill('usidentification', self.__conver_idcode(user.USidentification))
-        # 用户生日
-        user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
-        current_app.logger.info('get user = {}'.format(user.__dict__))
-        return Success(data=user)
+        data = parameter_required()
+        neid = data.get('neid')
+        usid = data.get('usid')
+        user_dict = dict()
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
+            user = User.query.filter_by(USid=news.USid, isdelete=False).first()
+            admin = Admin.query.filter_by(ADid=news.USid, isdelete=False).first()
+            su = Supplizer.query.filter_by(SUid=news.USid, isdelete=False).first()
+        elif usid:
+            user = User.query.filter_by(USid=usid).first()
+            admin = None
+            su = None
+        else:
+            user = get_current_user()
+            admin = None
+            su = None
+        if not (user or admin or su):
+            raise ParamsError('用户不存在')
+        if user:
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', UserGrade(user.USlevel).zh_value)
+            user_dict.setdefault('uslevel_eh', UserGrade(user.USlevel).name)
+            usid = user.USid
+        elif admin:
+            usid = admin.ADid
+            user_dict.setdefault('usheader', admin.ADheader)
+            user_dict.setdefault('usname', admin.ADname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'admin')
+        else:
+            usid = su.SUid
+            user_dict.setdefault('usheader', user.USheader)
+            user_dict.setdefault('usname', user.USname)
+            # 用户等级前台展示
+            user_dict.setdefault('uslevel_zh', ApplyFrom.platform.zh_value)
+            user_dict.setdefault('uslevel_eh', 'supplizer')
+
+        follow, collected, fens_count = self._fill_user_homepage(usid)
+        user_dict.setdefault('follow', follow)
+        user_dict.setdefault('collected', collected)
+        user_dict.setdefault('fens_count', fens_count)
+
+        return Success(data=user_dict)
 
     @token_required
     def set_paycode(self):
@@ -2479,3 +2556,18 @@ class CUser(SUser, BASEAPPROVAL):
             UCLcollection=usid, isdelete=False, UCLcoType=CollectionType.user.value).count()
         current_app.logger.info('follow = {} collected = {} fens_count = {}'.format(follow, collected, fens_count))
         return follow, collected, fens_count
+
+    def _get_year_month(self, time_, **kwargs):
+        if not isinstance(time_, datetime.datetime):
+            # time_ = datetime.datetime.strptime()
+            raise ParamsError('数据库数据异常，请联系管理员')
+        k_list = ['year', 'month', 'day']
+        # year, month, day = time_.year, time_.month, time_.day
+        return_sort = list()
+        for k in k_list:
+            if kwargs.get(k):
+                return_sort.append(time_.__getattribute__(k))
+        if len(return_sort) == 1 :
+            return return_sort[0]
+        return tuple(return_sort)
+

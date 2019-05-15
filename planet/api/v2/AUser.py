@@ -69,6 +69,6 @@ class AUser(Resource):
             'get_settlenment': self.user.get_settlenment,  # 获取结算记录
             'wx_auth': self.user.wx_auth,  # 微信登录转发接口
             'wx_callback': self.user.wx_callback,  # 转发回调接口
-            'get_home_top': self.user.get_home_top,  # 转发回调接口
+            'get_home_top': self.user.get_home_top,  # 用户主页顶部信息
         }
         return apis

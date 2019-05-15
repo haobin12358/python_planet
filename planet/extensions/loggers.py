@@ -47,7 +47,7 @@ class LoggerHandler():
         log_file_handler = MyTimedRotatingFileHandler(dir_log=os.path.join(logger_dir, 'log'), when='MIDNIGHT')
         # log_file_handler = RotatingFileHandler(filename=os.path.join(logger_dir, 'log'), maxBytes=12)
         log_file_handler.setFormatter(formatter)
-        log_file_handler.setLevel(logging.DEBUG)
+        log_file_handler.setLevel(logging.INFO)
         app.logger.addHandler(log_file_handler)
         app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format('start success'))
 

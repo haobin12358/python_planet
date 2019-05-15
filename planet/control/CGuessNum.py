@@ -11,19 +11,19 @@ from planet.common.error_response import StatusError, ParamsError, NotFound, Aut
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin
-from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
+from planet.control.BaseControl import BASEAPPROVAL, BaseController,BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import GuessNumCreateForm, GuessNumGetForm, GuessNumHistoryForm
 from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessAwardFlow, Products, ProductBrand, \
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
-    GuessNumAwardSku, User, Activity
+    GuessNumAwardSku, User, Activity, Commision
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus, AdminAction
 from .COrder import COrder
 
 
-class CGuessNum(COrder, BASEAPPROVAL):
+class CGuessNum(COrder, BASEAPPROVAL, BaseController):
 
     @token_required
     def creat(self):
@@ -795,7 +795,18 @@ class CGuessNum(COrder, BASEAPPROVAL):
         skus = list()
         sku_value_item = list()
         sku_discount = list()
+        # 预计佣金
+        comm = Commision.query.filter(Commision.isdelete == False).first()
+        try:
+            commision = json.loads(comm.Levelcommision)
+            level1commision = commision[0]  # 一级分销商
+            planetcommision = commision[-1]  # 平台收费比例
+        except ValueError:
+            current_app.logger.info('ValueError error')
+        except IndexError:
+            current_app.logger.info('IndexError error')
 
+        preview_get = []
         for gnas in gnas_list:
             sku = ProductSku.query.filter_by(SKUid=gnas.SKUid, isdelete=False).first()
             if not sku:
@@ -811,6 +822,14 @@ class CGuessNum(COrder, BASEAPPROVAL):
             sku.fill('SKUdiscountfour', gnas.SKUdiscountfour)
             sku.fill('SKUdiscountfive', gnas.SKUdiscountfive)
             sku.fill('SKUdiscountsix', gnas.SKUdiscountsix)
+
+            preview_get.append(
+                self._commision_preview(
+                    price=gnas.SKUprice,
+                    planet_rate=planetcommision,
+                    planet_and_user_rate=sku.SkudevideRate or planetcommision,
+                    current_user_rate=level1commision
+                ))
             if isinstance(sku.SKUattriteDetail, str):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
@@ -820,6 +839,7 @@ class CGuessNum(COrder, BASEAPPROVAL):
             current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
             return
         product.fill('skus', skus)
+        product.fill('profict', min(preview_get))
         current_app.logger.info('get product discount {}'.format(max(sku_discount)))
         product.fill('skudiscount', max(sku_discount))
         sku_value_item_reverse = []

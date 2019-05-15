@@ -249,6 +249,8 @@ class UserIntegralAction(Enum):
     commit = 4, '评论'
     transmit = 5, '转发'
     trade = 6, '购物'
+    news = 7, '发布图文'
+
 
 
 class AdminAction(Enum):
@@ -506,6 +508,14 @@ class CashFor(Enum):
     bankcard = 1, '银行卡'
 
 
+class CashStatus(Enum):
+    alreadyAccounted = 2, '已到账'
+    agree = 1, '银行处理中'
+    refuse = -1, '未通过'
+    submit = 0, '审核中'
+    cancle = -10, '已取消'
+
+
 class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
@@ -614,6 +624,13 @@ class CartFrom(Enum):
     magic_box = 2, '魔术礼盒'
     free_use = 3, '免费试用'
     time_limited = 4, '限时活动'
+
+
+class NewsItemPostion(Enum):
+    """获取圈子标签的页面位置"""
+    category = 1, '发现 - 选择分类页'
+    homepage = 2, '我的 - 个人主页'
+    post = 3, '发布 - 选择标签'
 
 
 class UserGrade(Enum):

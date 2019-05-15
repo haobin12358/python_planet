@@ -9,8 +9,13 @@ from planet.common.token_handler import admin_required, common_user, is_tourist
 from planet.config.enums import AdminAction
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
+<<<<<<< HEAD
 from planet.extensions.register_ext import db
 from planet.models import ProductScene, SceneItem, AdminActions
+=======
+from planet.extensions.register_ext import db, conn
+from planet.models import ProductScene, SceneItem
+>>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
 from planet.service.SProduct import SProducts
 
 
@@ -74,11 +79,13 @@ class CScene(object):
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
-            cancel_scene_association.apply_async(args=(scene_dict['PSid'],), eta=psendtime - timedelta(hours=8), )
+            scene_task_id = cancel_scene_association.apply_async(args=(scene_dict['PSid'],),
+                                                                 eta=psendtime - timedelta(hours=8), )
 
-        return Success('创建成功', data={
-            'psid': product_scene_instance.PSid
-        })
+            current_app.logger.info("场景id{}  任务返回的task_id: {}".format(scene_dict['PSid'], scene_task_id))
+            conn.set(scene_dict['PSid'], scene_task_id)
+
+        return Success('创建成功', data={'psid': product_scene_instance.PSid})
 
     @admin_required
     def update(self):
@@ -94,6 +101,7 @@ class CScene(object):
             if isdelete:
                 SceneItem.query.filter_by(PSid=psid).delete_()
                 product_scene.isdelete = True
+<<<<<<< HEAD
                 admin_action = AdminActions.create({
                     'ADid': request.user.id,
                     'AAaction': 2,
@@ -102,6 +110,9 @@ class CScene(object):
                     'AAkey': psid
                 })
                 db.session.add(admin_action)
+=======
+                conn.delete(psid)
+>>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
             else:
                 product_scene.update({
                     "PSpic": pspic,
@@ -112,7 +123,25 @@ class CScene(object):
                     "PSendtime": psendtime,
                 }, null='not')
                 db.session.add(product_scene)
+<<<<<<< HEAD
                 BASEADMIN().create_action(AdminAction.update.value, 'ProductScene', psid)
+=======
+            if form.pstimelimited.data:
+
+                from planet.extensions.tasks import cancel_scene_association, celery
+                current_app.logger.info('更新限时场景结束时间为 : {} '.format(psendtime))
+                # celery.control.revoke(task_id=psid, terminate=True, signal='SIGKILL')
+                exist_task = conn.get(psid)
+                if exist_task:
+                    exist_task = str(exist_task, encoding='utf-8')
+                    current_app.logger.info('场景已有任务id: {}'.format(exist_task))
+                    celery.AsyncResult(exist_task).revoke()
+
+                scene_task_id = cancel_scene_association.apply_async(args=(psid,),
+                                                                     eta=psendtime - timedelta(hours=8), )
+
+                conn.set(psid, scene_task_id)
+>>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
 
         return Success('更新成功', {'psid': psid})
 

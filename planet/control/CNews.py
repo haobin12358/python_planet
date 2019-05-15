@@ -65,20 +65,19 @@ class CNews(BASEAPPROVAL):
             current_app.logger.error("nestatus error, not a enum value, {}".format(e))
             nestatus = None
 
-        userid, isrecommend, ucs, itids, itids_filter = None, None, None, None, False
+        userid, isrecommend, itids_filter = None, None, None
         filter_args = list()
         if usid:
             ucs = UserCollectionLog.query.filter_by_(UCLcollector=usid,
                                                      UCLcoType=CollectionType.news_tag.value).first()
             if ucs:
                 itids = json.loads(ucs.UCLcollection)
-                itids_filter = NewsTag.ITid.in_(itids)
-                filter_args.append(itids_filter)
+                itids_filter = [NewsTag.ITid.in_(itids), ]
 
         if str(itid) == 'index':
             itid = None
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
+            itids_filter = None
+
         elif str(itid) == 'mynews':
             if not usid:
                 raise TokenError('未登录')
@@ -86,8 +85,8 @@ class CNews(BASEAPPROVAL):
             itid = None
             nestatus = None
             homepage = False
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
+            itids_filter = None
+
         elif is_supplizer():
             userid = usid
         elif str(itid) == 'isrecommend':
@@ -95,15 +94,15 @@ class CNews(BASEAPPROVAL):
             itid = None
 
         if kw not in self.empty:
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
+            itids_filter = None
             # filter_args.append((or_(and_(*[News.NEtitle.contains(x) for x in kw]), )))
             filter_args.append(or_(*[News.NEtitle.contains(x) for x in kw]))
 
         collected = args.get('collected')  # 收藏筛选
+        order_args = News.createtime.desc()
         if collected:
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
+            itids_filter = None
+            order_args = UserCollectionLog.createtime.desc()
             filter_args.extend([
                 UserCollectionLog.UCLcoType == CollectionType.news.value,
                 UserCollectionLog.isdelete == False,
@@ -113,10 +112,9 @@ class CNews(BASEAPPROVAL):
 
         tocid = args.get('tocid')  # 根据话题筛选
         if tocid not in self.empty:
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
             filter_args.append(News.TOCid == tocid)
             itid = None
+            itids_filter = None
 
         if homepage:  # 个人主页
             filter_args.extend([
@@ -132,17 +130,17 @@ class CNews(BASEAPPROVAL):
         ])
 
         news_query = News.query.filter(News.isdelete == False)
+
         if itid:
-            if filter_args and (itids_filter in filter_args):
-                filter_args.remove(itids_filter)
+            itids_filter = None
             news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
                                               ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
 
-        if collected:
-            news_list = news_query.filter_(*filter_args).order_by(UserCollectionLog.createtime.desc()).all_with_page()
-        else:
-            news_list = news_query.filter_(*filter_args).order_by(News.createtime.desc()).all_with_page()
+        if itids_filter:
+            news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                              ).filter_(NewsTag.isdelete == False, *itids_filter)
 
+        news_list = news_query.filter_(*filter_args).order_by(order_args).all_with_page()
         self._fill_news_list(news_list, usid, userid)
 
         # 增加搜索记录
@@ -589,6 +587,28 @@ class CNews(BASEAPPROVAL):
                 'NElocation': data.get('nelocation')
             })
             session_list.append(news_info)
+
+            # 创建圈子加星币
+            now_time = datetime.now()
+            count = s.query(News).filter(
+                extract('month', News.createtime) == now_time.month,
+                extract('year', News.createtime) == now_time.year,
+                extract('day', News.createtime) == now_time.day,
+                News.USid == usid).count()
+            num = int(ConfigSettings().get_item('integralbase', 'news_count'))
+            if count < num:
+                integral = ConfigSettings().get_item('integralbase', 'integral_news')
+                ui = UserIntegral.create({
+                    'UIid': str(uuid.uuid1()),
+                    'USid': usid,
+                    'UIintegral': integral,
+                    'UIaction': UserIntegralAction.news.value,
+                    'UItype': UserIntegralType.income.value
+                })
+                session_list.append(ui)
+                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                session_list.append(user)
+
             if items not in self.empty:
                 for item in items:
                     s.query(Items).filter_by_({'ITid': item, 'ITtype': ItemType.news.value}).first_('指定标签不存在')
@@ -774,16 +794,16 @@ class CNews(BASEAPPROVAL):
                     })
                     s.add(news_favorite)
 
-                    # 点赞加星币，一天最多加五次，一次加三个
+                    # 点赞加星币
                     now_time = datetime.now()
                     count = s.query(NewsFavorite).filter(
                         extract('month', NewsFavorite.createtime) == now_time.month,
                         extract('year', NewsFavorite.createtime) == now_time.year,
                         extract('day', NewsFavorite.createtime) == now_time.day,
                         NewsFavorite.USid == usid).count()
-                    if count < 5:
+                    num = int(ConfigSettings().get_item('integralbase', 'favorite_count'))
+                    if count < num:
                         integral = ConfigSettings().get_item('integralbase', 'integral_favorite')
-                        #integral = '3'  # 引用签到配置文件
                         ui = UserIntegral.create({
                             'UIid': str(uuid.uuid1()),
                             'USid': usid,
@@ -925,15 +945,15 @@ class CNews(BASEAPPROVAL):
                     'NCtext': data.get('nctext'),
                 })
                 nc.add(comment)
-                # 评论加星币，一天最多加五次，一次加三个
+                # 评论加星币
                 now_time = datetime.now()
                 count = nc.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count < 5:
-                    #integral = '3'
+                num = int(ConfigSettings().get_item('integralbase', 'commit_count'))
+                if count < num:
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
@@ -968,15 +988,15 @@ class CNews(BASEAPPROVAL):
                     'NCrootid': ncrootid,
                 })
                 r.add(reply)
-                # 回复评论加星币，一天最多加五次，一次加三个
+                # 回复评论加星币
                 now_time = datetime.now()
                 count = r.query(NewsComment).filter(
                     extract('month', NewsComment.createtime) == now_time.month,
                     extract('year', NewsComment.createtime) == now_time.year,
                     extract('day', NewsComment.createtime) == now_time.day,
                     NewsComment.USid == usid).count()
-                if count < 5:
-                    #integral = '3'
+                num = int(ConfigSettings().get_item('integralbase', 'commit_count'))
+                if count < num:
                     integral = ConfigSettings().get_item('integralbase', 'integral_commit')
                     ui = UserIntegral.create({
                         'UIid': str(uuid.uuid1()),
@@ -1279,7 +1299,12 @@ class CNews(BASEAPPROVAL):
             if not (user or admin or su):
                 raise ParamsError('用户不存在')
             usid = news.USid
-        news_list = News.query.filter_by(USid=usid).order_by(News.createtime.desc()).all_with_page()
+        news_list = News.query.outerjoin(
+            NewsTag, NewsTag.NEid == News.NEid
+        ).outerjoin(
+            Items, Items.ITid == NewsTag.ITid
+        ).filter(NewsTag.isdelete == False, Items.isdelete == False, News.USid == usid,
+                 News.isdelete == False).order_by(News.createtime.desc()).all_with_page()
         self._fill_news_list(news_list, request.user.id, userid=None)
         return Success(data=news_list).get_body(istourst=tourist)
 

@@ -3,11 +3,12 @@ import json
 import re
 import uuid
 
-from flask import request
+from flask import request, current_app
+from sqlalchemy import func
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, AdminAction
 from planet.control.BaseControl import BASEADMIN
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, NewsItemPostion, AdminAction
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
@@ -80,8 +81,9 @@ class CItems:
         items_query = items_query.order_by(Items.ITsort.asc(), Items.createtime.desc())
 
         # 普通用户默认获取已经自选过的圈子标签
-        if str(ittype) == str(ItemType.news.value) and common_user():
-            items = self._filter_new_items(request.user.id, option=form.option.data)
+        if str(ittype) == str(ItemType.news.value):
+            uid = request.user.id if common_user() else None
+            items = self._filter_new_items(uid=uid, option=form.option.data)
             return Success(data=items)
         items = items_query.all()
         for item in items:
@@ -99,27 +101,38 @@ class CItems:
                 item.fill('prscene', pr_scene)
         return Success('获取成功', data=items)
 
-    def _filter_new_items(self, uid, option=None):
+    def _filter_new_items(self, uid=None, option=None):
         """筛选出用户自选的圈子标签"""
-        ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
-                                                 UCLcoType=CollectionType.news_tag.value).first()
+        ucs = list()
+        if uid:
+            ucs = UserCollectionLog.query.filter_by_(UCLcollector=uid,
+                                                     UCLcoType=CollectionType.news_tag.value).first()
         item_query = Items.query.filter(Items.isdelete == False,
-                                        Items.ITtype == ItemType.news.value).order_by(Items.ITsort.asc(),
-                                                                                      Items.createtime.desc()
-                                                                                      )
-        if option:
+                                        Items.ITtype == ItemType.news.value)
+        if option and int(option) == NewsItemPostion.category.value:
             if ucs:
                 itids = json.loads(ucs.UCLcollection)
-                my_item = item_query.filter(Items.ITid.in_(itids)).all()
+                my_item = item_query.filter(Items.ITid.in_(itids)).order_by(func.field(Items.ITid, *itids)).all()
                 candidate_item = item_query.filter(Items.ITid.notin_(itids)).all()
+
             else:
-                my_item = []
-                candidate_item = item_query.all()
+                my_item = item_query.all()
+                candidate_item = []
             items = dict(my_item=my_item, candidate_item=candidate_item)
+        elif option and (int(option) == NewsItemPostion.homepage.value or int(option) == NewsItemPostion.post.value):
+            if ucs:
+                itids = json.loads(ucs.UCLcollection)
+                items = item_query.filter(Items.ITid.in_(itids), Items.ITid != 'mynews'
+                                          ).order_by(func.field(Items.ITid, *itids)).all()
+
+            else:
+                items = item_query.filter(Items.ITid != 'mynews').all()
         else:
             if ucs:
                 itids = json.loads(ucs.UCLcollection)
-                items = item_query.filter(Items.ITid.in_(itids)).all()
+                current_app.logger.info("itids = {}".format(itids))
+                items = item_query.filter(Items.ITid.in_(itids)).order_by(func.field(Items.ITid, *itids)).all()
+
             else:
                 items = item_query.all()
         return items
@@ -173,7 +186,8 @@ class CItems:
         itname = form.itname  # 这里不要在后面加data
         isdelete = form.isdelete.data
         if itid in ['planet_featured', 'index_hot', 'news_bind_product', 'news_bind_coupon', 'index_brand',
-                    'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product'] and isdelete is True:
+                    'index_brand_product', 'index_recommend_product_for_you', 'upgrade_product', 'mynews'
+                    ] and isdelete is True:
             raise StatusError('系统默认标签不能被删除')
 
         Items.query.filter_by_(ITid=itid).first_("未找到该标签")

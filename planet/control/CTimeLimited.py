@@ -8,16 +8,17 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
 from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus, AdminAction
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
+from planet.control.BaseControl import BaseController
 from planet.control.COrder import COrder
 from planet.control.BaseControl import BASEADMIN
-from planet.extensions.register_ext import db
-from planet.extensions.tasks import end_timelimited, start_timelimited
+from planet.extensions.register_ext import db, conn
+from planet.extensions.tasks import end_timelimited, start_timelimited, celery
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, AdminActions
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision,AdminActions
 from .CUser import CUser
 
 
-class CTimeLimited(COrder, CUser):
+class CTimeLimited(COrder, CUser, BaseController):
 
     def list_activity_product(self):
         """获取活动列表"""
@@ -611,6 +612,18 @@ class CTimeLimited(COrder, CUser):
         tls_list = TimeLimitedSku.query.filter_by(TLPid=tlp.TLPid, isdelete=False).all()
         skus = list()
         sku_value_item = list()
+        # 预计佣金
+        comm = Commision.query.filter(Commision.isdelete == False).first()
+        try:
+            commision = json.loads(comm.Levelcommision)
+            level1commision = commision[0]  # 一级分销商
+            planetcommision = commision[-1]  # 平台收费比例
+        except ValueError:
+            current_app.logger.info('ValueError error')
+        except IndexError:
+            current_app.logger.info('IndexError error')
+
+        preview_get = []
         for tls in tls_list:
             sku = ProductSku.query.filter_by(SKUid=tls.SKUid, isdelete=False).first()
             if not sku:
@@ -620,11 +633,18 @@ class CTimeLimited(COrder, CUser):
             # sku.hide('SKUstock')
             sku.fill('tlsprice', tls.SKUprice)
             sku.fill('tlsstock', tls.TLSstock)
-
+            preview_get.append(
+                self._commision_preview(
+                    price=tls.SKUprice,
+                    planet_rate=planetcommision,
+                    planet_and_user_rate=sku.SkudevideRate or planetcommision,
+                    current_user_rate=level1commision
+                ))
             if isinstance(sku.SKUattriteDetail, str):
                 sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
             sku_value_item.append(sku.SKUattriteDetail)
             skus.append(sku)
+        product.fill('profict', min(preview_get))
         if not skus:
             current_app.logger.info('该申请的商品没有sku prid = {0}'.format(product.PRid))
             return
@@ -647,6 +667,7 @@ class CTimeLimited(COrder, CUser):
         product.fill('tlastatus_zh', ApplyStatus(tlp.TLAstatus).zh_value)
         product.fill('tlastatus_en', ApplyStatus(tlp.TLAstatus).name)
         product.fill('tlastatus', tlp.TLAstatus)
+        # product.fill('prprice', tlp.PRprice)
 
         return product
 
@@ -665,10 +686,16 @@ class CTimeLimited(COrder, CUser):
         current_app.logger.info('创建异步任务 tlaid = {} 状态是 {} '.format(tlaid, TimeLimitedStatus(tlastatus).zh_value))
         if tlastatus < TimeLimitedStatus.starting.value:
             current_app.logger.info('开始创建开始活动的异步任务 开始时间是 {}'.format(start_time))
-            start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+            connid = 'start{}'.format(tlaid)
+            self._cancle_celery(connid)
+            start_task_id = start_timelimited.apply_async(args=(tlaid,), eta=start_time - timedelta(hours=8))
+            conn.set(connid, start_task_id)
         if tlastatus < TimeLimitedStatus.end.value:
             current_app.logger.info('开始创建结束活动的异步任务 结束时间是 {}'.format(end_time))
-            end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
+            connid = 'end{}'.format(tlaid)
+            self._cancle_celery(connid)
+            end_task_id = end_timelimited.apply_async(args=(tlaid,), eta=end_time - timedelta(hours=8))
+            conn.set(connid, end_task_id)
 
     def _fill_tla(self, time_limited, time_now=datetime.now()):
 
@@ -692,3 +719,10 @@ class CTimeLimited(COrder, CUser):
             else:
                 end_time = datetime.strptime(str(time_limited.TLAendTime), '%Y-%m-%d %H:%M:%S')
             time_limited.fill('duration_end', str(end_time - time_now))
+
+    def _cancle_celery(self, conid):
+        exist_task = conn.get(conid)
+        if exist_task:
+            exist_task = str(exist_task, encoding='utf-8')
+            current_app.logger.info('已有任务id: {}'.format(exist_task))
+            celery.AsyncResult(exist_task).revoke()
