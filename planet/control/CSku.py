@@ -81,7 +81,7 @@ class CSku(object):
             count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
             from planet.extensions.register_ext import db
             with db.auto_commit():
-                db.session.add(BASEADMIN().create_action(AdminAction.delete.value, 'ProductSku', skuid))
+               BASEADMIN().create_action(AdminAction.delete.value, 'ProductSku', skuid)
             if not count:
                 raise NotFound('不存在的sku')
         return Success('删除成功')
