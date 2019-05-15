@@ -2379,7 +2379,7 @@ class CUser(SUser, BASEAPPROVAL):
         ss_list = SupplizerSettlement.query.filter(
             SupplizerSettlement.SUid == request.user.id,
             SupplizerSettlement.isdelete == False
-        ).all()
+        ).order_by(SupplizerSettlement.createtime.desc()).all()
 
         for ss in ss_list:
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
