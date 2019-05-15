@@ -141,7 +141,8 @@ class CActivity(CUser):
                 'ACname': form.acname.data,
                 'ACsort': form.acsort.data,
             })
-            db.session.add(act,BASEADMIN().create_action(AdminAction.update.value, 'Activity', str(act.ACid)))
+            db.session.add(act)
+            BASEADMIN().create_action(AdminAction.update.value, 'Activity', str(act.ACid))
         return Success('修改成功')
 
     def get(self):
