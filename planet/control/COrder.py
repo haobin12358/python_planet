@@ -270,11 +270,12 @@ class COrder(CPay, CCoupon):
         supplizer_account = SupplizerAccount.query.filter(
             SupplizerAccount.isdelete == False,
             SupplizerAccount.SUid == suid
-        ).first()
-        settlement = SupplizerSettlement.query.filter(
-            SupplizerSettlement.isdelete == False,
-            SupplizerSettlement.SUid == suid
-        ).first()
+        ).order_by(SupplizerAccount.createtime.desc()).first()
+        # settlement = SupplizerSettlement.query.filter(
+        #     SupplizerSettlement.isdelete == False,
+        #     SupplizerSettlement.SUid == suid
+        # ).order_by(SupplizerSettlement.createtime.desc()).first()
+        settlement = kwargs.get('settlement')
         mobile = getattr(supplizer, 'SUloginPhone', None)
         currency = '人民币'
         bank = getattr(supplizer_account, 'SAbankName', '')
@@ -2262,7 +2263,7 @@ class COrder(CPay, CCoupon):
                 headers.append(header)
         return headers, items
 
-    def _create_settlement_excel(self, suid):
+    def _create_settlement_excel(self, suid, ss):
         now = datetime.now()
         current_app.logger.info('开始创建供应商结算表')
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
@@ -2272,7 +2273,8 @@ class COrder(CPay, CCoupon):
         # form = {}
         list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
         list_refund = self._list_refund(suid=suid, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
-        confirms = self._confirm_favor(suid=suid, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22)
+        confirms = self._confirm_favor(suid=suid, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22,
+                                       settlement=ss)
 
         book = tablib.Databook([list_part, list_refund, confirms])
         aletive_dir = 'img/xls/{year}/{month}'.format(year=now.year, month=now.month)

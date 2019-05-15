@@ -286,7 +286,8 @@ def create_settlenment():
                 'SSstatus': SupplizerSettementStatus.settlementing.value
             })
             db.session.add(ss)
-            corder._create_settlement_excel(su.SUid)
+            db.session.flush()
+            corder._create_settlement_excel(su.SUid, ss)
 
 
 @celery.task(name='get_logistics')
