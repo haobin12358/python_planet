@@ -1050,14 +1050,13 @@ class CApproval(BASEAPPROVAL):
                                                          News.NEstatus == NewsStatus.usual.value,
                                                          News.NEid == news_award.NEid).first_("状态错误，请检查要打赏的圈子是否已删除或已下架")
         necontent = json.loads(news.NEtext) if isinstance(news.NEtext, str) else []
-        nepic = ''
+        nepic = None
         for ne in necontent:
             if ne.get('type') == 'image':
                 try:
                     nepic = ne.get('content')[0]
                 except Exception as e:
                     current_app.logger.error(f"news award doesn't have a pic when agree approval, error is {e}")
-                    nepic = ''
 
         user_commision_dict = {
             'UCid': str(uuid.uuid1()),
