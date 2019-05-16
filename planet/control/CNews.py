@@ -587,6 +587,8 @@ class CNews(BASEAPPROVAL):
                 'NElocation': data.get('nelocation')
             })
             session_list.append(news_info)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'News', neid)
 
             # 创建圈子加星币
             if user:
@@ -685,6 +687,8 @@ class CNews(BASEAPPROVAL):
             }
             news_instance.update(news_info, null='no')
             session_list.append(news_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'News', neid)
 
             if items not in self.empty:
                 item_list = list()
@@ -814,6 +818,8 @@ class CNews(BASEAPPROVAL):
                         })
                         s.add(ui)
                         user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
+                        if is_admin():
+                            BASEADMIN().create_action(AdminActionS.update.value, 'UserIntegral', str(uuid.uuid1()))
                         s.add(user)
                 msg = '已赞同'
             else:
@@ -1137,6 +1143,7 @@ class CNews(BASEAPPROVAL):
         """删除话题"""
         tocid = parameter_required(('tocid',)).get('tocid')
         TopicOfConversations.query.filter_by(TOCid=tocid).delete_()
+        BASEADMIN().create_action(AdminActionS.delete.value, 'TopicOfConversations', tocid)
         return Success('删除成功')
 
     def choose_category(self):
