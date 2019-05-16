@@ -45,11 +45,15 @@ class JSONEncoder(_JSONEncoder):
 
 class BASEADMIN():
     def create_action(self, AAaction, AAmodel, AAkey):
+        detail = request.detail
+        detail['data'] = detail['data'].decode()
+
         admin_action = {
+            'AAid':str(uuid.uuid1()),
             'ADid': request.user.id,
             'AAaction': AAaction,
             'AAmodel': AAmodel,
-            'AAdetail': request.detail,
+            'AAdetail': json.dumps(detail),
             'AAkey': AAkey
         }
         aa_instance = AdminActions.create(admin_action)
