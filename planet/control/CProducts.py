@@ -16,8 +16,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_shop_keeper, is_tourist, is_supplizer, \
     admin_required, common_user, get_current_user
 from planet.config.enums import ProductStatus, ProductFrom, UserSearchHistoryType, ItemType, ItemAuthrity, ItemPostion, \
-    PermissionType, ApprovalType, ProductBrandStatus, CollectionType, TimeLimitedStatus
-from planet.control.BaseControl import BASEAPPROVAL, BaseController
+    PermissionType, ApprovalType, ProductBrandStatus, CollectionType, TimeLimitedStatus, AdminAction, AdminActionS
+from planet.control.BaseControl import BASEAPPROVAL, BaseController, BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
@@ -84,7 +84,7 @@ class CProducts(BaseController):
                     planet_rate=planetcommision,
                     planet_and_user_rate=sku.SkudevideRate or planetcommision,
                     current_user_rate=level1commision
-            ))
+                ))
         product.fill('skus', skus)
         # product.fill('profict', str(self.get_two_float(Decimal(product.PRprice) * Decimal(level1commision) / 100)))
         product.fill('profict', min(preview_get))
@@ -425,9 +425,12 @@ class CProducts(BaseController):
                                                        Supplizer.SUid == request.user.id
                                                        ).first()
                     if skudeviderate:
-                        if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                        if Decimal(skudeviderate) < self._current_commission(
+                                getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
                             # if Decimal(skudeviderate) < getattr(supplizer, 'SUbaseRate', default_derate):
-                            raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
+                            raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1,
+                                                                               getattr(supplizer, 'SUbaseRate',
+                                                                                       default_derate)))
                     else:
                         skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                 assert skuprice > 0 and skustock >= 0, 'sku价格或库存错误'
@@ -468,6 +471,8 @@ class CProducts(BaseController):
                 product_dict['PRstatus'] = ProductStatus.sell_out.value
             product_instance = Products.create(product_dict)
             session_list.append(product_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'Products', prid)
             # sku value
             pskuvalue = data.get('pskuvalue')
             if pskuvalue:
@@ -620,14 +625,19 @@ class CProducts(BaseController):
                             Supplizer.isdelete == False,
                             Supplizer.SUid == request.user.id).first()
                         if skudeviderate:
-                            if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
-                            # if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate) or default_derate):
-                                raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1, getattr(supplizer, 'SUbaseRate', default_derate)))
+                            if Decimal(skudeviderate) < self._current_commission(
+                                    getattr(supplizer, 'SUbaseRate', default_derate), Decimal(default_derate)):
+                                # if Decimal(skudeviderate) < self._current_commission(getattr(supplizer, 'SUbaseRate', default_derate) or default_derate):
+                                raise StatusError('商品规格的第{}行 让利不符.（需大于{}%）'.format(index + 1,
+                                                                                   getattr(supplizer, 'SUbaseRate',
+                                                                                           default_derate)))
                                 # raise StatusError('第{}行sku让利比错误'.format(index+1))
                         else:
                             skudeviderate = getattr(supplizer, 'SUbaseRate', default_derate)
                     sku_instance.SkudevideRate = skudeviderate
                     session_list.append(sku_instance)
+                    if is_admin():
+                        BASEADMIN().create_action(AdminActionS.update.value, 'Products', prid)
 
                     prstock += sku_instance.SKUstock
                 # 剩下的就是删除
@@ -813,6 +823,8 @@ class CProducts(BaseController):
         with db.auto_commit():
             product.PRstatus = ProductStatus.auditing.value
             db.session.add(product)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'Products', data.get('prid'))
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, product.PRid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
@@ -849,6 +861,7 @@ class CProducts(BaseController):
                 ).update({
                     'PRstatus': value
                 })
+                BASEADMIN().create_action(AdminActionS.update.value, 'ProductApplyAgreeForm', prid)
                 if not product:
                     continue
                 # approval = Approval.query.filter(
@@ -877,6 +890,8 @@ class CProducts(BaseController):
                     SupplizerProduct.SUid == request.user.id,
                 )
             query.delete_(synchronize_session=False)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.delete.value, 'Products', data.get('prid'))
         return Success('删除成功')
 
     @token_required
@@ -918,6 +933,8 @@ class CProducts(BaseController):
                 product.PRstatus = status
                 msg = '下架成功'
             db.session.add(product)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'Products', prid)
         avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
         # 5 分钟后自动通过
         auto_agree_task.apply_async(args=[avid], countdown=5 * 60, expires=10 * 60, )
@@ -959,6 +976,8 @@ class CProducts(BaseController):
                 for product in products:
                     product.PRstatus = status
                 msg = '下架成功'
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'Products', str(prids))
         for prid in to_approvals:
             avid = BASEAPPROVAL().create_approval('toshelves', request.user.id, prid, product_from)
             # 5 分钟后自动通过
@@ -1030,7 +1049,7 @@ class CProducts(BaseController):
             tlpid = re.match(r'(.*)tlpid=(.*)&(.*)', url).group(2)
             tlp = TimeLimitedProduct.query.filter_by(TLPid=tlpid, isdelete=False).first()
             if tlp:
-              prprice = tlp.PRprice
+                prprice = tlp.PRprice
         elif 'fmfpid' in url:
             # 猜数字
             fmfpid = re.match(r'(.*)fmfpid=(.*)&(.*)', url).group(2)

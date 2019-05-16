@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import String, Text, Integer, Boolean
+from sqlalchemy import String, Text, Integer, Boolean, DECIMAL
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
@@ -25,6 +25,17 @@ class News(Base):
     NErefusereason = Column(String(125), comment='审批拒绝理由')
     TOCid = Column(String(64), comment='关联话题id')
     NElocation = Column(Text, comment='定位')
+
+
+class NewsAward(Base):
+    """圈子打赏记录"""
+    __tablename__ = 'NewsAward'
+    NAid = Column(String(64), primary_key=True)
+    NEid = Column(String(64), nullable=False, comment='圈子id')
+    NAreward = Column(DECIMAL(precision=28, scale=2), comment='打赏金额')
+    NAstatus = Column(Integer, default=0, comment='打赏的状态')
+    NArewarder = Column(String(64), nullable=False, comment='打赏人')
+    NArefusereason = Column(String(125), comment='审批拒绝理由')
 
 
 class NewsImage(Base):
