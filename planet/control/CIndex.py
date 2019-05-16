@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import uuid
-
+import datetime
 from flask import request, current_app
 
 from planet.common.error_response import SystemError, ParamsError
@@ -12,7 +12,7 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner, Entry, Admin
+    HypermarketIndexBanner, Entry, Admin, UserLoginTime
 from planet.service.SIndex import SIndex
 
 
@@ -45,6 +45,31 @@ class CIndex:
         # [index_banner.fill('prtitle', Products.query.filter_by_(PRid=index_banner.PRid).first()['PRtitle'])
         #  for index_banner in index_banners]
         return Success(data=index_banners)
+
+    def visit_num(self):
+        today_visitnum = UserLoginTime.query.filter(
+            UserLoginTime.isdelete == False,
+            UserLoginTime.createtime.year == datetime.datetime.now().year,
+            UserLoginTime.createtime.month == datetime.datetime.now().month,
+            UserLoginTime.createtime.day == datetime.datetime.now().day,
+        ).order_by(
+            UserLoginTime.createtime.desc()
+        ).count()
+
+        yesterday_visitnum = UserLoginTime.query.filter(
+            UserLoginTime.isdelete == False,
+            UserLoginTime.createtime.year == datetime.datetime.now().year,
+            UserLoginTime.createtime.month == datetime.datetime.now().month,
+            UserLoginTime.createtime.day == datetime.datetime.now() - datetime.timedelta(days=1),
+        ).order_by(
+            UserLoginTime.createtime.desc()
+        ).count()
+
+        visitnum = {
+            'today_visitnum': today_visitnum,
+            'yesterday_visitnum': yesterday_visitnum
+        }
+        return Success(data=visitnum)
 
     @admin_required
     def set_banner(self):

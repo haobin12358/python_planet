@@ -15,6 +15,8 @@ class AIndex(Resource):
             'brand_recommend': self.cindex.brand_recommend,
             'list_hypermarket_banner': self.cindex.list_hypermarket_banner,
             'get_entry': self.cindex.get_entry,
+            'visit_num': self.cindex.visit_num
+
         }
         return apis
 
