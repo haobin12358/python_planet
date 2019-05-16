@@ -87,56 +87,59 @@ class CSupplizer:
             sustatus = UserStatus.auditing.value
             sudeposit = 0
         supassword = generate_password_hash(form.supassword.data) if form.supassword.data else None
-        with db.auto_commit():
-            supperlizer = Supplizer.create({
-                'SUid': suid,
-                'SUlinkPhone': form.sulinkphone.data,
-                'SUloginPhone': form.suloginphone.data,
-                'SUname': form.suname.data,
-                'SUlinkman': form.sulinkman.data,
-                'SUbaseRate': form.subaserate.data,
-                'SUaddress': form.suaddress.data,
-                'SUdeposit': sudeposit,
-                'SUstatus': sustatus,  # 管理员添加的可直接上线
-                'SUbanksn': form.subanksn.data,
-                'SUbankname': form.subankname.data,
-                'SUpassword': supassword,
-                'SUheader': form.suheader.data,
-                'SUcontract': form.sucontract.data,
-                'SUbusinessLicense': form.subusinesslicense.data,
-                'SUregisteredFund': form.suregisteredfund.data,
-                'SUmainCategory': form.sumaincategory.data,
-                'SUregisteredTime': form.suregisteredtime.data,
-                'SUlegalPerson': form.sulegalperson.data,
-                'SUemail': form.suemail.data,
-                'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
-                'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
-            })
-            db.session.add(supperlizer)
-            if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'Supplizer', suid)
-            if pbids:
-                for pbid in pbids:
-                    product_brand = ProductBrand.query.filter(
-                        ProductBrand.isdelete == False,
-                        ProductBrand.PBid == pbid
-                    ).first()
-                    if not product_brand:
-                        raise NotFound('品牌不存在')
-                    if product_brand.SUid:
-                        raise DumpliError('品牌已有供应商')
-                    product_brand.SUid = supperlizer.SUid
-                    db.session.add(product_brand)
-            if sudeposit and is_admin():
-                SupplizerDepositLog.create({
-                    'SDLid': str(uuid.uuid1()),
+        try:
+            with db.auto_commit():
+                supperlizer = Supplizer.create({
                     'SUid': suid,
-                    'SDLnum': Decimal(sudeposit),
-                    'SDafter': Decimal(sudeposit),
-                    'SDbefore': 0,
-                    'SDLacid': request.user.id,
+                    'SUlinkPhone': form.sulinkphone.data,
+                    'SUloginPhone': form.suloginphone.data,
+                    'SUname': form.suname.data,
+                    'SUlinkman': form.sulinkman.data,
+                    'SUbaseRate': form.subaserate.data,
+                    'SUaddress': form.suaddress.data,
+                    'SUdeposit': sudeposit,
+                    'SUstatus': sustatus,  # 管理员添加的可直接上线
+                    'SUbanksn': form.subanksn.data,
+                    'SUbankname': form.subankname.data,
+                    'SUpassword': supassword,
+                    'SUheader': form.suheader.data,
+                    'SUcontract': form.sucontract.data,
+                    'SUbusinessLicense': form.subusinesslicense.data,
+                    'SUregisteredFund': form.suregisteredfund.data,
+                    'SUmainCategory': form.sumaincategory.data,
+                    'SUregisteredTime': form.suregisteredtime.data,
+                    'SUlegalPerson': form.sulegalperson.data,
+                    'SUemail': form.suemail.data,
+                    'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
+                    'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
                 })
-                BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
+                db.session.add(supperlizer)
+                if is_admin():
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'Supplizer', suid)
+                if pbids:
+                    for pbid in pbids:
+                        product_brand = ProductBrand.query.filter(
+                            ProductBrand.isdelete == False,
+                            ProductBrand.PBid == pbid
+                        ).first()
+                        if not product_brand:
+                            raise NotFound('品牌不存在')
+                        if product_brand.SUid:
+                            raise DumpliError('品牌已有供应商')
+                        product_brand.SUid = supperlizer.SUid
+                        db.session.add(product_brand)
+                if sudeposit and is_admin():
+                    SupplizerDepositLog.create({
+                        'SDLid': str(uuid.uuid1()),
+                        'SUid': suid,
+                        'SDLnum': Decimal(sudeposit),
+                        'SDafter': Decimal(sudeposit),
+                        'SDbefore': 0,
+                        'SDLacid': request.user.id,
+                    })
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
+        except:
+            raise ParamsError('手机号重复')
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
     def update(self):
