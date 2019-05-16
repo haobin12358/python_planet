@@ -5,7 +5,7 @@ import uuid
 from planet.common.error_response import ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, admin_required
+from planet.common.token_handler import token_required, admin_required, is_admin
 from planet.config.enums import AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.models import Products, ProductSku
@@ -41,6 +41,8 @@ class CSku(object):
                 'SKUstock': stock
             })
             s.add(sku_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'ProductSku', str(uuid.uuid4()))
         return Success('添加成功', {'skuid': sku_instance.SKUid})
 
     @token_required
@@ -71,6 +73,8 @@ class CSku(object):
             }
             [setattr(sku, k, v) for k, v in sku_dict.items() if v is not None]
             s.add(sku)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'ProductSku', skuid)
         return Success('更新成功')
 
     @admin_required
@@ -79,9 +83,7 @@ class CSku(object):
         skuid = data.get('skuid')
         with self.sproduct.auto_commit() as s:
             count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
-            from planet.extensions.register_ext import db
-            with db.auto_commit():
-               BASEADMIN().create_action(AdminActionS.delete.value, 'ProductSku', skuid)
+            BASEADMIN().create_action(AdminActionS.delete.value, 'ProductSku', skuid)
             if not count:
                 raise NotFound('不存在的sku')
         return Success('删除成功')
