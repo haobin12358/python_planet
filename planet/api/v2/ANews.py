@@ -20,6 +20,7 @@ class ANews(Resource):
             'topic': self.cnews.create_topic,                   # 创建话题
             'choose_category': self.cnews.choose_category,      # 选择分类
             'del_topic': self.cnews.del_topic,                  # 删除话题
+            'award': self.cnews.news_award,                     # 圈子打赏
         }
         return apis
 
@@ -33,6 +34,7 @@ class ANews(Resource):
             'topic': self.cnews.get_topic,                      # 获取话题
             'search': self.cnews.search,                        # 搜索用户/圈子
             'get_self_news': self.cnews.get_self_news,          # 获取个人圈子列表
+            'award': self.cnews.get_news_award,                 # 获取圈子打赏记录
 
         }
         return apis
