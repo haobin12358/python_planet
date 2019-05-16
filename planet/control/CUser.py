@@ -16,9 +16,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode, CashStatus, UserCommissionType
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
+    ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
+    UserCommissionType, AdminActionS
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
@@ -44,7 +44,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow
-from .BaseControl import BASEAPPROVAL
+from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -1346,6 +1346,8 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
         db.session.add(an_instance)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
         return Success("操作成功")
 
     @get_session
@@ -1849,6 +1851,7 @@ class CUser(SUser, BASEAPPROVAL):
             if check_password_hash(admin.ADpassword, pwd_old):
                 self.__check_password(pwd_new)
                 admin.ADpassword = generate_password_hash(pwd_new)
+                BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
                 return Success('更新密码成功')
             gennerc_log('{0} update pwd failed'.format(admin.ADname))
             raise ParamsError('旧密码有误')
@@ -1925,6 +1928,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CommisionFor': commision_for
             })
         db.session.add(cn)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))
         db.session.flush()
         # 创建审批流
 
@@ -2171,6 +2176,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission3': commision3,
             }, 'dont ignore')
             db.session.add(user)
+            BASEADMIN().create_action(AdminActionS.update.value, 'User', usid)
+
         return Success('设置成功')
 
     def __get_adnum(self):
@@ -2270,6 +2277,8 @@ class CUser(SUser, BASEAPPROVAL):
         default_rule = data.get('rule')
         if default_rule:
             cfg.set_item('integralrule', 'rule', str(default_rule))
+        with db.auto_commit():
+            BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
         return Success('修改成功')
 
     def get_signin_default(self):
@@ -2417,7 +2426,7 @@ class CUser(SUser, BASEAPPROVAL):
         ss_list = SupplizerSettlement.query.filter(
             SupplizerSettlement.SUid == request.user.id,
             SupplizerSettlement.isdelete == False
-        ).all()
+        ).order_by(SupplizerSettlement.createtime.desc()).all()
 
         for ss in ss_list:
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)

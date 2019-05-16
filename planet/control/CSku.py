@@ -5,7 +5,9 @@ import uuid
 from planet.common.error_response import ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, admin_required
+from planet.common.token_handler import token_required, admin_required, is_admin
+from planet.config.enums import AdminAction, AdminActionS
+from planet.control.BaseControl import BASEADMIN
 from planet.models import Products, ProductSku
 from planet.service.SProduct import SProducts
 
@@ -30,7 +32,6 @@ class CSku(object):
         assert price > 0 and stock > 0, '价格或库存参数不准确'
         # 添加
         with self.sproduct.auto_commit() as s:
-
             sku_instance = ProductSku.create({
                 'SKUid': str(uuid.uuid4()),
                 'PRid': prid,
@@ -40,11 +41,13 @@ class CSku(object):
                 'SKUstock': stock
             })
             s.add(sku_instance)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'ProductSku', str(uuid.uuid4()))
         return Success('添加成功', {'skuid': sku_instance.SKUid})
 
     @token_required
     def update(self):
-        data = parameter_required(('skuid', ))
+        data = parameter_required(('skuid',))
         skuid = data.get('skuid')
         price = data.get('skuprice')
         stock = data.get('skustock')
@@ -70,18 +73,17 @@ class CSku(object):
             }
             [setattr(sku, k, v) for k, v in sku_dict.items() if v is not None]
             s.add(sku)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'ProductSku', skuid)
         return Success('更新成功')
 
     @admin_required
     def delete(self):
-        data = parameter_required(('skuid', ))
+        data = parameter_required(('skuid',))
         skuid = data.get('skuid')
         with self.sproduct.auto_commit() as s:
             count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
+            BASEADMIN().create_action(AdminActionS.delete.value, 'ProductSku', skuid)
             if not count:
                 raise NotFound('不存在的sku')
         return Success('删除成功')
-
-
-
-

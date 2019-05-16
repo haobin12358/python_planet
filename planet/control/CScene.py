@@ -2,13 +2,15 @@
 from datetime import datetime, timedelta
 import uuid
 
-from flask import current_app
+from flask import current_app, request
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, common_user, is_tourist
+from planet.config.enums import AdminAction, AdminActionS
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
 from planet.extensions.register_ext import db, conn
-from planet.models import ProductScene, SceneItem
+from planet.models import ProductScene, SceneItem,AdminActions
 from planet.service.SProduct import SProducts
 
 
@@ -68,6 +70,7 @@ class CScene(object):
                 'ITid': 'planet_featured'
             })
             s.add(default_scene_item)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ProductScene', str(uuid.uuid1()))
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
@@ -93,6 +96,14 @@ class CScene(object):
             if isdelete:
                 SceneItem.query.filter_by(PSid=psid).delete_()
                 product_scene.isdelete = True
+                admin_action = AdminActions.create({
+                    'ADid': request.user.id,
+                    'AAaction': 2,
+                    'AAmodel': ProductScene,
+                    'AAdetail': request.detail,
+                    'AAkey': psid
+                })
+                db.session.add(admin_action)
                 conn.delete(psid)
             else:
                 product_scene.update({
@@ -104,6 +115,7 @@ class CScene(object):
                     "PSendtime": psendtime,
                 }, null='not')
                 db.session.add(product_scene)
+                BASEADMIN().create_action(AdminActionS.update.value, 'ProductScene', psid)
             if form.pstimelimited.data:
 
                 from planet.extensions.tasks import cancel_scene_association, celery
