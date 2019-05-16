@@ -589,25 +589,26 @@ class CNews(BASEAPPROVAL):
             session_list.append(news_info)
 
             # 创建圈子加星币
-            now_time = datetime.now()
-            count = s.query(News).filter(
-                extract('month', News.createtime) == now_time.month,
-                extract('year', News.createtime) == now_time.year,
-                extract('day', News.createtime) == now_time.day,
-                News.USid == usid).count()
-            num = int(ConfigSettings().get_item('integralbase', 'news_count'))
-            if count < num:
-                integral = ConfigSettings().get_item('integralbase', 'integral_news')
-                ui = UserIntegral.create({
-                    'UIid': str(uuid.uuid1()),
-                    'USid': usid,
-                    'UIintegral': integral,
-                    'UIaction': UserIntegralAction.news.value,
-                    'UItype': UserIntegralType.income.value
-                })
-                session_list.append(ui)
-                user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                session_list.append(user)
+            if user:
+                now_time = datetime.now()
+                count = s.query(News).filter(
+                    extract('month', News.createtime) == now_time.month,
+                    extract('year', News.createtime) == now_time.year,
+                    extract('day', News.createtime) == now_time.day,
+                    News.USid == usid).count()
+                num = int(ConfigSettings().get_item('integralbase', 'news_count'))
+                if count < num:
+                    integral = ConfigSettings().get_item('integralbase', 'integral_news')
+                    ui = UserIntegral.create({
+                        'UIid': str(uuid.uuid1()),
+                        'USid': usid,
+                        'UIintegral': int(integral),
+                        'UIaction': UserIntegralAction.news.value,
+                        'UItype': UserIntegralType.income.value
+                    })
+                    session_list.append(ui)
+                    user.update({'USintegral': user.USintegral + int(integral)})
+                    session_list.append(user)
 
             if items not in self.empty:
                 for item in items:
