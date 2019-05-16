@@ -64,8 +64,7 @@ class CSigninSetting():
         data = SignIndelete().valid_data()
         siaid = data.siaid.data
         check_sia = SignInAward.query.filter_by(SIAid=siaid, isdelete=False).delete_()
-        with db.auto_commit():
-            BASEADMIN().create_action(AdminActionS.delete.value, 'SignInAward', siaid)
+        BASEADMIN().create_action(AdminActionS.delete.value, 'SignInAward', siaid)
         if not check_sia:
             raise ParamsError('已删除')
         return Success('删除设置成功')

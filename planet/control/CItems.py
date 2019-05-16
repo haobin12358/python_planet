@@ -163,6 +163,7 @@ class CItems:
             }
             items_instance = Items.create(item_dict)
             s_list.append(items_instance)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'Items', itid)
             # 标签场景标签表
             if psid:
                 for psi in psid:
@@ -174,8 +175,8 @@ class CItems:
                     }
                     scene_item_instance = SceneItem.create(scene_item_dict)
                     s_list.append(scene_item_instance)
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'SceneItem', psi)
             s.add_all(s_list)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'SceneItem', psi)
         return Success('添加成功', {'itid': itid})
 
     @admin_required
@@ -206,7 +207,7 @@ class CItems:
                          }
             # item_dict = {k: v for k, v in item_dict.items() if v is not None}
             Items.query.filter_by_(ITid=itid).update(item_dict)
-
+            BASEADMIN().create_action(AdminActionS.update.value, 'Items', itid)
             # 标签场景标签表
             if psid:
                 old_psids = list()

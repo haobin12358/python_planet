@@ -1323,7 +1323,8 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
         db.session.add(an_instance)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
         return Success("操作成功")
 
     @get_session
@@ -1827,6 +1828,7 @@ class CUser(SUser, BASEAPPROVAL):
             if check_password_hash(admin.ADpassword, pwd_old):
                 self.__check_password(pwd_new)
                 admin.ADpassword = generate_password_hash(pwd_new)
+                BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
                 return Success('更新密码成功')
             gennerc_log('{0} update pwd failed'.format(admin.ADname))
             raise ParamsError('旧密码有误')
@@ -2252,6 +2254,8 @@ class CUser(SUser, BASEAPPROVAL):
         default_rule = data.get('rule')
         if default_rule:
             cfg.set_item('integralrule', 'rule', str(default_rule))
+        with db.auto_commit():
+            BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
         return Success('修改成功')
 
     def get_signin_default(self):
