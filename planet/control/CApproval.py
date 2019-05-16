@@ -9,12 +9,12 @@ from decimal import Decimal
 from flask import request, current_app
 
 from planet.common.base_service import get_session
-from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
-    AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
-    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus, CashFor, NewsAwardStatus, \
-    UserCommissionType, UserCommissionStatus
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
-    StatusError
+from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
+    AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
+    UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
+    SupplizerSettementStatus, CashFor,  AdminActionS
+
+from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
@@ -34,7 +34,7 @@ from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
 
-from planet.control.BaseControl import BASEAPPROVAL
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 
 
 # from .BaseControl import BASEAPPROVAL
@@ -96,6 +96,7 @@ class CApproval(BASEAPPROVAL):
             'PIname': piname,
         })
         db.session.add(pi)
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
         ptn.setdefault('PNcontent', pi.PIid)
         ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
         db.session.add(PermissionNotes.create(ptn))
@@ -150,6 +151,7 @@ class CApproval(BASEAPPROVAL):
         ptn.setdefault('PINaction', '创建 {} 审批类型'.format(ptname))
         db.session.add(PermissionNotes.create(ptn))
         db.session.add(PermissionType.create(pt_dict))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionType', str(uuid.uuid1()))
         return Success('创建审批类型成功', data={'ptid': pt.PTid})
 
     @get_session
@@ -206,6 +208,7 @@ class CApproval(BASEAPPROVAL):
             "PELevel": pelevel
         })
         db.session.add(permission_instence)
+        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', str(uuid.uuid1()))
         # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
         #     pt_after.PTname, data.get("pelevel"))
         ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
@@ -242,6 +245,7 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', str(uuid.uuid1()))
         # 校验是否有被删除的管理员
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
@@ -554,6 +558,8 @@ class CApproval(BASEAPPROVAL):
         }
         apn_instance = ApprovalNotes.create(approvalnote_dict)
         db.session.add(apn_instance)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', str(uuid.uuid1()))
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -572,7 +578,6 @@ class CApproval(BASEAPPROVAL):
         else:
             # 审批操作为拒绝
             approval_model.AVstatus = ApplyStatus.reject.value
-
             self.refuse_action(approval_model, data.get('anabo'))
 
         return Success("审批操作完成")
@@ -721,6 +726,7 @@ class CApproval(BASEAPPROVAL):
                 'PINaction': '创建权限标签{}'.format(pi.PIname),
             }
             db.session.add(pi)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')

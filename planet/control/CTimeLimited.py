@@ -6,14 +6,15 @@ from flask import request, current_app
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
-from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus
+from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus, AdminAction, AdminActionS
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
 from planet.control.BaseControl import BaseController
 from planet.control.COrder import COrder
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import end_timelimited, start_timelimited, celery
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision,AdminActions
 from .CUser import CUser
 
 
@@ -235,6 +236,8 @@ class CTimeLimited(COrder, CUser, BaseController):
             })
             with db.auto_commit():
                 db.session.add(tlb)
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedActivity', str(uuid.uuid1()))
+
             current_app.logger.info('增加轮播图成功')
         else:
             current_app.logger.info('没有增加轮播图')
@@ -310,6 +313,8 @@ class CTimeLimited(COrder, CUser, BaseController):
                 instance_list.append(tls)
                 # prstock += skustock
             db.session.add_all(instance_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
 
         # todo  添加到审批流
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid, applyfrom=tlp_from)
@@ -413,6 +418,8 @@ class CTimeLimited(COrder, CUser, BaseController):
             # prstock += skustock
 
             db.session.add_all(instance_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedProduct', data.get('tlpid'))
 
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid,
                                                   applyfrom=tlp_from)
@@ -432,6 +439,8 @@ class CTimeLimited(COrder, CUser, BaseController):
                 # 如果删除活动的话，退还库存
                 for tlp in tlp_list:
                     self._re_stock(tlp)
+
+                BASEADMIN().create_action(AdminActionS.delete.value, 'TimeLimitedActivity', tla.TLAid)
                 return Success('删除成功')
 
             if tla.TLAstatus == TimeLimitedStatus.end.value:
@@ -462,8 +471,6 @@ class CTimeLimited(COrder, CUser, BaseController):
                 end_time = datetime.strptime(str(tla.TLAendTime), '%Y-%m-%d %H:%M:%S')
                 if time_now < start_time:
                     tlastatus = TimeLimitedStatus.waiting.value
-                    # self._crete_celery_task(tlastatus=TimeLimitedStatus.waiting.value, tlaid=tla.tlaid,
-                    #                         start_time=tla.TLAstartTime, end_time=tla.TLAendTime)
                 elif time_now > end_time:
                     tlastatus = TimeLimitedStatus.end.value
                 else:
@@ -472,7 +479,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 tla.TLAstatus = tlastatus
                 self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
-
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedActivity', tla.TLAid)
         return Success('修改成功')
 
     def award_detail(self):
@@ -525,6 +532,8 @@ class CTimeLimited(COrder, CUser, BaseController):
                 AVcontent=tlpid, AVstartid=request.user.id, isdelete=False,
                 AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedProduct', tlpid)
         return Success('取消成功', {'tlpid': tlpid})
 
     def del_award(self):
@@ -554,6 +563,8 @@ class CTimeLimited(COrder, CUser, BaseController):
                                             ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.delete.value, 'TimeLimitedProduct', tlpid)
 
         return Success('删除成功', {'tlpid': tlpid})
 

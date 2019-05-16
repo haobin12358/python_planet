@@ -11,8 +11,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, admin_required, token_required, is_admin, is_supplizer
 from planet.config.enums import TrialCommodityStatus, ActivityType, Client, OrderFrom, PayType, ApplyFrom, ApplyStatus, \
-    ProductBrandStatus, UserIdentityStatus
-from planet.control.BaseControl import BASEAPPROVAL
+    ProductBrandStatus, UserIdentityStatus, AdminAction, AdminActionS
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import TrialCommodity, TrialCommodityImage, User, TrialCommoditySku, ProductBrand, Activity, \
@@ -274,6 +274,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             })
             session_list.append(commodity)
             db.session.add_all(session_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TrialCommodity', tcid)
             # 添加进审批流
         super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
         return Success("添加成功", {'tcid': tcid})
@@ -413,6 +415,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 })
             session_list.append(upinfo)
             db.session.add_all(session_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'TrialCommodity', tcid)
         return Success('修改成功', {'tcid': tcid})
 
     def cancel_commodity_apply(self):
@@ -440,6 +444,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             approval_info = Approval.query.filter_by_(AVcontent=tcid, AVstartid=request.user.id,
                                                       AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'TrialCommodity', tcid)
         return Success('取消成功', {'tcid': tcid})
 
     def shelves(self):
@@ -465,6 +471,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 raise StatusError('只能下架正在上架状态的商品')
             with db.auto_commit():
                 commodity.TCstatus = TrialCommodityStatus.reject.value
+                if is_admin():
+                    BASEADMIN().create_action(AdminActionS.update.value, 'TrialCommodity', tcid)
         return Success('下架成功', {'tcid': tcid_list})
 
     def resubmit_apply(self):
@@ -492,6 +500,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 if commodity.CreaterId != usid:
                     raise AuthorityError('仅可重新提交自己上传的商品')
             commodity.TCstatus = TrialCommodityStatus.auditing.value
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'TrialCommodity', tcid)
             # 重新创建一个审批流
         super().create_approval('totrialcommodity', usid, tcid, nefrom)
         return Success('提交成功', {'tcid': tcid})
@@ -521,6 +531,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             TrialCommodityImage.query.filter_by(TCid=tcid).delete_()
             TrialCommoditySku.query.filter_by(TCid=tcid).delete_()
             TrialCommoditySkuValue.query.filter_by(TCid=tcid).delete_()
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.delete.value, 'TrialCommodity', tcid)
         return Success('删除成功', {'tcid': tcid})
 
     @token_required
