@@ -795,6 +795,21 @@ class CNews(BASEAPPROVAL):
         super(CNews, self).create_approval('tonewsaward', admin.ADid, newsaward_instance.NAid, ApplyFrom.platform.value)
         return Success('提交成功', dict(naid=newsaward_instance.NAid))
 
+    @admin_required
+    def get_news_award(self):
+        """查看打赏记录"""
+        data = parameter_required(('neid',))
+        nas = NewsAward.query.filter(NewsAward.isdelete == False, NewsAward.NEid == data.get('neid')
+                                     ).order_by(NewsAward.createtime.desc()).all()
+        # list(map(lambda x: x.fill('nastatus_zh', NewsAwardStatus(x.NAstatus).zh_value), nas))
+        for na in nas:
+            na.fields = ['NEid', 'NAreward', 'NAstatus', 'NArefusereason', 'createtime']
+            narewarder = Admin.query.filter_by_(ADid=na.NArewarder).first()
+            narewarder = narewarder.ADname if narewarder else '平台'
+            na.fill('narewarder', narewarder)
+            na.fill('nastatus_zh', NewsAwardStatus(na.NAstatus).zh_value)
+        return Success(data=nas)
+
     @token_required
     def news_favorite(self):
         """资讯点赞/踩"""

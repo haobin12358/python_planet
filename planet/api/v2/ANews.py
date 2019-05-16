@@ -34,6 +34,7 @@ class ANews(Resource):
             'topic': self.cnews.get_topic,                      # 获取话题
             'search': self.cnews.search,                        # 搜索用户/圈子
             'get_self_news': self.cnews.get_self_news,          # 获取个人圈子列表
+            'award': self.cnews.get_news_award,                 # 获取圈子打赏记录
 
         }
         return apis
