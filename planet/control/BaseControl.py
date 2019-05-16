@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
 
@@ -205,6 +205,16 @@ class BASEAPPROVAL():
 
         content = News.query.filter_by_(NEid=contentid).first()
         if not start or not content:
+            return None, None
+        return start, content
+
+    def __fill_newsaward(self, startid, contentid):
+        start = Admin.query.filter_by_(ADid=startid).first()
+        news_award = NewsAward.query.filter_by_(NAid=contentid).first()
+        content = News.query.filter_by_(NEid=news_award.NEid).first()
+        content.fill('NAid', news_award.NAid)
+        content.fill('NAreward', news_award.NAreward)
+        if not start or not news_award or not content:
             return None, None
         return start, content
 
@@ -479,6 +489,8 @@ class BASEAPPROVAL():
             return self.__fill_shelves(start, content)
         elif pt.PTid == 'topublish':
             return self.__fill_publish(start, content)
+        elif pt.PTid == 'tonewsaward':
+            return self.__fill_newsaward(start, content)
         elif pt.PTid == 'toguessnum':
             return self.__fill_guessnum(start, content)
         elif pt.PTid == 'tomagicbox':
