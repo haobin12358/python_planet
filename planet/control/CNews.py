@@ -13,7 +13,7 @@ from planet.common.token_handler import token_required, is_tourist, admin_requir
     get_current_admin, is_admin, is_supplizer, common_user
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade, \
-    UserSearchHistoryType, AdminAction
+    UserSearchHistoryType, AdminAction, AdminActionS
 from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
@@ -712,7 +712,7 @@ class CNews(BASEAPPROVAL):
             })
             session_list.append(changelog)
             db.session.add_all(session_list)
-            BASEADMIN().create_action(AdminAction.update.value, 'News', neid)
+            BASEADMIN().create_action(AdminActionS.update.value, 'News', neid)
             # 添加到审批流
         # super(CNews, self).create_approval('topublish', adid, neid, ApplyFrom.platform.value)
         return Success('修改成功', {'neid': neid})
@@ -746,7 +746,7 @@ class CNews(BASEAPPROVAL):
                         raise StatusError('只能删除自己发布的资讯')
                 News.query.filter_by(NEid=neid, isdelete=False).delete_()
                 if is_admin():
-                    BASEADMIN().create_action(AdminAction.delete.value, 'News', neid)
+                    BASEADMIN().create_action(AdminActionS.delete.value, 'News', neid)
                 NewsTag.query.filter_by(NEid=neid).delete_()  # 删除标签关联
                 NewsComment.query.filter_by(NEid=neid).delete_()  # 删除评论
                 NewsFavorite.query.filter_by(NEid=neid).delete_()  # 删除点赞
@@ -1095,7 +1095,7 @@ class CNews(BASEAPPROVAL):
                                                           'TOCfrom': tocfrom})
             db.session.add(topic_instance)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.insert.value, 'TopicOfConversations', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TopicOfConversations', str(uuid.uuid1()))
         return Success('创建成功', data=dict(tocid=topic_instance.TOCid, toctitle=topic_instance.TOCtitle))
 
     def get_topic(self):

@@ -6,7 +6,7 @@ from planet.common.error_response import ParamsError, NotFound
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required
-from planet.config.enums import AdminAction
+from planet.config.enums import AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.models import Products, ProductSku
 from planet.service.SProduct import SProducts
@@ -81,7 +81,7 @@ class CSku(object):
             count = s.query(ProductSku).filter_by_({"SKUid": skuid}).delete_()
             from planet.extensions.register_ext import db
             with db.auto_commit():
-               BASEADMIN().create_action(AdminAction.delete.value, 'ProductSku', skuid)
+               BASEADMIN().create_action(AdminActionS.delete.value, 'ProductSku', skuid)
             if not count:
                 raise NotFound('不存在的sku')
         return Success('删除成功')

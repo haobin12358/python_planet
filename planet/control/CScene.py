@@ -6,16 +6,11 @@ from flask import current_app, request
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, common_user, is_tourist
-from planet.config.enums import AdminAction
+from planet.config.enums import AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.validates.product import SceneCreateForm, SceneUpdateForm, SceneListForm
-<<<<<<< HEAD
-from planet.extensions.register_ext import db
-from planet.models import ProductScene, SceneItem, AdminActions
-=======
 from planet.extensions.register_ext import db, conn
-from planet.models import ProductScene, SceneItem
->>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
+from planet.models import ProductScene, SceneItem,AdminActions
 from planet.service.SProduct import SProducts
 
 
@@ -75,7 +70,7 @@ class CScene(object):
                 'ITid': 'planet_featured'
             })
             s.add(default_scene_item)
-            BASEADMIN().create_action(AdminAction.insert.value, 'ProductScene', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ProductScene', str(uuid.uuid1()))
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))
@@ -101,7 +96,6 @@ class CScene(object):
             if isdelete:
                 SceneItem.query.filter_by(PSid=psid).delete_()
                 product_scene.isdelete = True
-<<<<<<< HEAD
                 admin_action = AdminActions.create({
                     'ADid': request.user.id,
                     'AAaction': 2,
@@ -110,9 +104,7 @@ class CScene(object):
                     'AAkey': psid
                 })
                 db.session.add(admin_action)
-=======
                 conn.delete(psid)
->>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
             else:
                 product_scene.update({
                     "PSpic": pspic,
@@ -123,9 +115,7 @@ class CScene(object):
                     "PSendtime": psendtime,
                 }, null='not')
                 db.session.add(product_scene)
-<<<<<<< HEAD
-                BASEADMIN().create_action(AdminAction.update.value, 'ProductScene', psid)
-=======
+                BASEADMIN().create_action(AdminActionS.update.value, 'ProductScene', psid)
             if form.pstimelimited.data:
 
                 from planet.extensions.tasks import cancel_scene_association, celery
@@ -141,7 +131,6 @@ class CScene(object):
                                                                      eta=psendtime - timedelta(hours=8), )
 
                 conn.set(psid, scene_task_id)
->>>>>>> 4d6c2fb877ab2aee80f18e19ef6e37677f892709
 
         return Success('更新成功', {'psid': psid})
 

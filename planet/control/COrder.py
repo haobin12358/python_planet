@@ -24,7 +24,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus, ProductBrandStatus, AdminAction
+    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -897,7 +897,7 @@ class COrder(CPay, CCoupon):
             raise NotFound('订单订单不存在')
         self._cancle(order_main)
         if is_admin():
-            BASEADMIN().create_action(AdminAction.update.value, 'OrderMain', omid)
+            BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('取消成功')
 
     def _cancle(self, order_main):
@@ -1789,7 +1789,7 @@ class COrder(CPay, CCoupon):
             order_main.OMtrueMount = price
             db.session.add(order_main)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'OrderMain', omid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('修改成功')
 
     def test_to_send(self):

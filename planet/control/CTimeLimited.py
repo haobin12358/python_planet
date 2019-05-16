@@ -6,7 +6,7 @@ from flask import request, current_app
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, admin_required, common_user
-from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus, AdminAction
+from planet.config.enums import ApplyStatus, ProductStatus, ApplyFrom, TimeLimitedStatus, AdminAction, AdminActionS
 from planet.common.error_response import StatusError, ParamsError, AuthorityError, DumpliError
 from planet.control.BaseControl import BaseController
 from planet.control.COrder import COrder
@@ -236,7 +236,7 @@ class CTimeLimited(COrder, CUser, BaseController):
             })
             with db.auto_commit():
                 db.session.add(tlb)
-                BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedActivity', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedActivity', str(uuid.uuid1()))
 
             current_app.logger.info('增加轮播图成功')
         else:
@@ -314,7 +314,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 # prstock += skustock
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
 
         # todo  添加到审批流
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, tlp.TLPid, applyfrom=tlp_from)
@@ -419,7 +419,7 @@ class CTimeLimited(COrder, CUser, BaseController):
 
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedProduct', data.get('tlpid'))
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedProduct', data.get('tlpid'))
 
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid,
                                                   applyfrom=tlp_from)
@@ -440,7 +440,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 for tlp in tlp_list:
                     self._re_stock(tlp)
 
-                BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedActivity', tla.TLAid)
+                BASEADMIN().create_action(AdminActionS.delete.value, 'TimeLimitedActivity', tla.TLAid)
                 return Success('删除成功')
 
             if tla.TLAstatus == TimeLimitedStatus.end.value:
@@ -479,7 +479,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 tla.TLAstatus = tlastatus
                 self._crete_celery_task(tlastatus=tlastatus, tlaid=tla.TLAid,
                                         start_time=start_time, end_time=end_time)
-                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedActivity', tla.TLAid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedActivity', tla.TLAid)
         return Success('修改成功')
 
     def award_detail(self):
@@ -533,7 +533,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'TimeLimitedProduct', tlpid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedProduct', tlpid)
         return Success('取消成功', {'tlpid': tlpid})
 
     def del_award(self):
@@ -564,7 +564,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
-                BASEADMIN().create_action(AdminAction.delete.value, 'TimeLimitedProduct', tlpid)
+                BASEADMIN().create_action(AdminActionS.delete.value, 'TimeLimitedProduct', tlpid)
 
         return Success('删除成功', {'tlpid': tlpid})
 

@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import request, current_app
 from planet.common.base_service import get_session, db
 from planet.common.token_handler import admin_required
-from planet.config.enums import AdminAction
+from planet.config.enums import AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.models.club import CompanyMessage, UserWords
 from planet.common.success_response import Success
@@ -54,7 +54,7 @@ class CClub():
             "CMindex": CMindex
         })
         db.session.add(new_companymessage)
-        BASEADMIN().create_action(AdminAction.insert.value, 'CompanyMessage', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'CompanyMessage', str(uuid.uuid1()))
         return Success("发布成功")
 
     @get_session
@@ -146,7 +146,7 @@ class CClub():
                                                      CompanyMessage.CMid == data.get('cmid')).first_('公告已删除')
         if data.get('delete'):
             companymessage.isdelete = True
-            BASEADMIN().create_action(AdminAction.delete.value, 'CompanyMessage', data.get('cmid'))
+            BASEADMIN().create_action(AdminActionS.delete.value, 'CompanyMessage', data.get('cmid'))
             current_app.logger.info('start delete company message {}'.format(companymessage.CMid))
             return Success('删除公告成功', data={'cmid': companymessage.CMid})
         current_app.logger.info('start update company message {}'.format(companymessage.CMid))

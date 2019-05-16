@@ -5,7 +5,7 @@ from flask import current_app
 from sqlalchemy import or_
 
 from planet.common.params_validates import parameter_required
-from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType, AdminAction
+from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType, AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.service.SProduct import SProducts
@@ -247,7 +247,7 @@ class CBrands(object):
             ).first_('品牌不存在')
             brand.isdelete = True
             db.session.add(brand)
-            BASEADMIN().create_action(AdminAction.delete.value, 'ProductBrand', pbid)
+            BASEADMIN().create_action(AdminActionS.delete.value, 'ProductBrand', pbid)
             # 商品下架
             off_products = Products.query.filter(
                 Products.isdelete == False,

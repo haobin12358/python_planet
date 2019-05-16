@@ -18,7 +18,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode, CashStatus
+    WexinBankCode, CashStatus, AdminActionS
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
@@ -1323,7 +1323,7 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
         db.session.add(an_instance)
-        BASEADMIN().create_action(AdminAction.insert.value, 'AdminNotes', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
         return Success("操作成功")
 
     @get_session
@@ -1904,7 +1904,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
         db.session.add(cn)
         if is_admin():
-            BASEADMIN().create_action(AdminAction.insert.value, 'CashNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))
         db.session.flush()
         # 创建审批流
 
@@ -2107,7 +2107,7 @@ class CUser(SUser, BASEAPPROVAL):
             ).order_by(
                 UserLoginTime.createtime.desc()
             ).first()
-            user.fill('userlogintime', userlogintime)
+            user.fill('userlogintime', userlogintime.createtime)
 
         return Success(data=users)
 
@@ -2151,7 +2151,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission3': commision3,
             }, 'dont ignore')
             db.session.add(user)
-            BASEADMIN().create_action(AdminAction.update.value, 'User', usid)
+            BASEADMIN().create_action(AdminActionS.update.value, 'User', usid)
 
         return Success('设置成功')
 

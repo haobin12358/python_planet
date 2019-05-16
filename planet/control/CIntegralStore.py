@@ -9,7 +9,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import is_supplizer, is_admin, common_user, is_tourist, token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ApplyFrom, ApplyStatus, ProductStatus, Client, OrderFrom, PayType, UserIntegralAction, \
-    UserIntegralType, AdminAction
+    UserIntegralType, AdminAction, AdminActionS
 from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
@@ -79,7 +79,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 instance_list.append(ipsku_instance)
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.insert.value, 'IntegralProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', str(uuid.uuid1()))
         super(CIntegralStore, self).create_approval('tointegral', uid, ip_instance.IPid, applyfrom=ipfrom)
         return Success('申请成功', data=dict(IPid=ip_instance.IPid))
 
@@ -147,7 +147,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 instance_list.append(ipsku_instance)
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'IntegralProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', str(uuid.uuid1()))
         super(CIntegralStore, self).create_approval('tointegral', uid, ip.IPid, applyfrom=ipfrom)
         return Success('更新成功', data=dict(IPid=ip.IPid))
 
@@ -302,7 +302,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             ip.update({'IPstatus': ApplyStatus.cancle.value})
             db.session.add(ip)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'IntegralProduct', data.get('ipid'))
+                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', data.get('ipid'))
             # 返回库存
             product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first_('商品信息出错')
             ips_old = IntegralProductSku.query.filter(IntegralProductSku.IPid == ip.IPid,
@@ -347,7 +347,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             apply_info.isdelete = True
             IntegralProductSku.query.filter(IntegralProductSku.IPid == apply_info.IPid).delete_()
             if is_admin():
-                BASEADMIN().create_action(AdminAction.delete.value, 'IntegralProduct', apply_info.IPid)
+                BASEADMIN().create_action(AdminActionS.delete.value, 'IntegralProduct', apply_info.IPid)
         return Success('删除成功', {'ipid': ipid})
 
     def shelf(self):
@@ -373,7 +373,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 raise StatusError('只能下架已上架的商品')
             ip.IPstatus = ApplyStatus.shelves.value
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'IntegralProduct', ipid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', ipid)
             # 返回库存
             product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first_('商品信息出错')
             ips_old = IntegralProductSku.query.filter(IntegralProductSku.IPid == ip.IPid,

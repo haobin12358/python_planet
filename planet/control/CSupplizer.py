@@ -15,7 +15,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
-    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminAction
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminAction, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
@@ -114,7 +114,7 @@ class CSupplizer:
             })
             db.session.add(supperlizer)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.insert.value, 'Supplizer', suid)
+                BASEADMIN().create_action(AdminActionS.insert.value, 'Supplizer', suid)
             if pbids:
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -136,7 +136,7 @@ class CSupplizer:
                     'SDbefore': 0,
                     'SDLacid': request.user.id,
                 })
-                BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
     def update(self):
@@ -187,12 +187,12 @@ class CSupplizer:
                             'SDLacid': request.user.id,
                         })
                         db.session.add(depositlog)
-                        BASEADMIN().create_action(AdminAction.insert.value, 'SupplizerDepositLog',str(uuid.uuid1()))
+                        BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog',str(uuid.uuid1()))
 
             supplizer.update(supplizer_dict, null='dont ignore')
             db.session.add(supplizer)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', form.suid.data)
+                BASEADMIN().create_action(AdminActionS.update.value, 'Supplizer', form.suid.data)
             if pbids and is_admin():
                 for pbid in pbids:
                     product_brand = ProductBrand.query.filter(
@@ -261,7 +261,7 @@ class CSupplizer:
             ).first_('供应商不存在')
             supplizer.SUstatus = UserStatus.forbidden.value
             db.session.add(supplizer)
-            BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid)
+            BASEADMIN().create_action(AdminActionS.update.value, 'Supplizer', suid)
             # 供应商的品牌也下架
             brand_count = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
@@ -297,7 +297,7 @@ class CSupplizer:
 
             supplizer.isdelete = True
             db.session.add(supplizer)
-            BASEADMIN().create_action(AdminAction.delete.value, 'Supplizer', suid)
+            BASEADMIN().create_action(AdminActionS.delete.value, 'Supplizer', suid)
             # 品牌删除
             productbrands = ProductBrand.query.filter(
                 ProductBrand.isdelete == False,
@@ -382,7 +382,7 @@ class CSupplizer:
             supplizer.SUpassword = generate_password_hash(supassword)
             db.session.add(supplizer)
             if is_admin():
-                BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', suid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'Supplizer', suid)
         return Success('修改成功')
 
     @token_required
@@ -409,7 +409,7 @@ class CSupplizer:
                 'SUpassword': generate_password_hash(password)
             })
             db.session.add(supplizer)
-            BASEADMIN().create_action(AdminAction.update.value, 'Supplizer', supplizer.SUid)
+            BASEADMIN().create_action(AdminActionS.update.value, 'Supplizer', supplizer.SUid)
         return Success('修改成功')
 
     @token_required
@@ -566,5 +566,5 @@ class CSupplizer:
             })
 
             db.session.add(mn)
-            BASEADMIN().create_action(AdminAction.insert.value, 'ManagerSystemNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ManagerSystemNotes', str(uuid.uuid1()))
         return Success('创建通告成功', data=mn.MNid)
