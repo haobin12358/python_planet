@@ -1051,7 +1051,7 @@ class CApproval(BASEAPPROVAL):
                     nepic = ne.get('content')[0]
                 except Exception as e:
                     current_app.logger.error(f"news award doesn't have a pic when agree approval, error is {e}")
-                    nepic = ''
+                    nepic = None
 
         user_commision_dict = {
             'UCid': str(uuid.uuid1()),
