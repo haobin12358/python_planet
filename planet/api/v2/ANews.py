@@ -20,6 +20,7 @@ class ANews(Resource):
             'topic': self.cnews.create_topic,                   # 创建话题
             'choose_category': self.cnews.choose_category,      # 选择分类
             'del_topic': self.cnews.del_topic,                  # 删除话题
+            'award': self.cnews.news_award,                     # 圈子打赏
         }
         return apis
 
