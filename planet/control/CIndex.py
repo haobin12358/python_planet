@@ -12,7 +12,7 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner, Entry, Admin, UserLoginTime
+    HypermarketIndexBanner, Entry, Admin, UserLoginTime, User
 from planet.service.SIndex import SIndex
 
 
@@ -47,7 +47,7 @@ class CIndex:
         return Success(data=index_banners)
 
     def visit_num(self):
-        today_visitnum = UserLoginTime.query.filter(
+        today_visitnum = User.query.join(UserLoginTime).filter(
             UserLoginTime.isdelete == False,
             UserLoginTime.createtime.year == datetime.datetime.now().year,
             UserLoginTime.createtime.month == datetime.datetime.now().month,
@@ -56,7 +56,7 @@ class CIndex:
             UserLoginTime.createtime.desc()
         ).count()
 
-        yesterday_visitnum = UserLoginTime.query.filter(
+        yesterday_visitnum = User.query.join(UserLoginTime).filter(
             UserLoginTime.isdelete == False,
             UserLoginTime.createtime.year == datetime.datetime.now().year,
             UserLoginTime.createtime.month == datetime.datetime.now().month,
