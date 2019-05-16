@@ -6,6 +6,8 @@ from decimal import Decimal
 from threading import Thread
 from flask import current_app
 from sqlalchemy import or_, and_
+# from pymysql.err import IntegrityError
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.common.Inforsend import SendSMS
@@ -138,7 +140,7 @@ class CSupplizer:
                         'SDLacid': request.user.id,
                     })
                     BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
-        except:
+        except IntegrityError:
             raise ParamsError('手机号重复')
         return Success('创建成功', data={'suid': supperlizer.SUid})
 
