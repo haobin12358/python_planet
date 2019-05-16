@@ -785,10 +785,10 @@ class CNews(BASEAPPROVAL):
             User.query.filter_by_(USid=news.USid).first_("只能对普通用户发布的圈子进行打赏")
 
             newsaward_instance = NewsAward.create({'NAid': str(uuid.uuid1()),
-                                          'NEid': news.NEid,
-                                          'NAreward': Decimal(nareward).quantize(Decimal('0.00')),
-                                          'NAstatus': NewsAwardStatus.submit.value,
-                                          'NArewarder': admin.ADid})
+                                                   'NEid': news.NEid,
+                                                   'NAreward': Decimal(nareward).quantize(Decimal('0.00')),
+                                                   'NAstatus': NewsAwardStatus.submit.value,
+                                                   'NArewarder': admin.ADid})
             db.session.add(newsaward_instance)
 
         # 添加审批流

@@ -18,7 +18,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
     ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode, CashStatus
+    WexinBankCode, CashStatus, UserCommissionType
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
@@ -1058,11 +1058,12 @@ class CUser(SUser, BASEAPPROVAL):
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_model.fill('ucstatus', UserCommissionStatus(uc_model.UCstatus).zh_value)
             uc_mount += float(uc_model.UCcommission)
-            op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
+            if uc_model.UCtype != UserCommissionType.news_award.value:
+                op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
 
-            if not op_list:
-                gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
-                raise SystemError('服务器异常')
+                if not op_list:
+                    gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
+                    raise SystemError('服务器异常')
             # is_popular = False
             # om_name = []
             # for op in op_list:
@@ -1180,6 +1181,28 @@ class CUser(SUser, BASEAPPROVAL):
             month_total += uiintegral
         month_total = f'+{month_total}' if month_total > 0 else month_total
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
+
+    @admin_required
+    def user_data_overview(self):
+        """用户数概览"""
+        days = self._get_nday_list(7)
+        user_count = list()
+        # user_count = db.session.query(*[func.count(cast(User.createtime, Date) <= day) for day in days]
+        #                               ).filter(User.isdelete == False).all()
+        for day in days:  # todo 查询次数多，待优化
+            ucount = User.query.filter(User.isdelete == False,
+                                       cast(User.createtime, Date) <= day).count()
+            user_count.append(ucount)
+
+        series = [dict(name='用户数量', data=user_count), ]
+        return Success(data=dict(days=days, series=series))
+
+    @staticmethod
+    def _get_nday_list(n):
+        before_n_days = []
+        for i in range(1, n + 1)[::-1]:
+            before_n_days.append(str(datetime.date.today() - datetime.timedelta(days=i)))
+        return before_n_days
 
     @get_session
     def admin_login(self):
@@ -2098,6 +2121,13 @@ class CUser(SUser, BASEAPPROVAL):
                 agent_time = user_agent_approval.updatetime
 
             user.fill('agenttime', agent_time)
+            userlogintime = UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == usid
+            ).order_by(
+                UserLoginTime.createtime.desc()
+            ).first()
+            user.fill('userlogintime', userlogintime.createtime)
 
         return Success(data=users)
 
