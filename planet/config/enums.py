@@ -237,10 +237,12 @@ class AdminStatus(Enum):
     frozen = 1, '已冻结'
     deleted = 2, '已删除'
 
+
 class AdminActionS(Enum):
     insert = 1, '添加'
     delete = 2, '删除'
     update = 3, '修改'
+
 
 class UserIntegralAction(Enum):
     signin = 1, '签到'
@@ -250,7 +252,6 @@ class UserIntegralAction(Enum):
     transmit = 5, '转发'
     trade = 6, '购物'
     news = 7, '发布图文'
-
 
 
 class AdminAction(Enum):

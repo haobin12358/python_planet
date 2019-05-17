@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required
-from planet.config.enums import UserIdentityStatus, AdminAction, AdminActionS
+from planet.config.enums import UserIdentityStatus, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.commision import CommsionUpdateForm, ParamsError
