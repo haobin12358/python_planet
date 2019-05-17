@@ -627,14 +627,14 @@ class COrder(CPay, CCoupon):
                                 str(coupon.COsubtration))
                             order_price = order_price - reduce_price
                             if order_price <= 0:
-                                order_price = 0.01
+                                order_price = Decimal(0.01)
                         else:
                             coupon_for_sum = order_old_price
                             order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(
                                 str(coupon.COsubtration))
                             reduce_price = order_old_price - order_price
                             if order_price <= 0:
-                                order_price = 0.01
+                                order_price = Decimal(0.01)
                         # 副单按照比例计算'实际价格'
                         for order_part in order_part_list:
                             if order_part.PRid in coupon_for_in_this:
@@ -642,7 +642,7 @@ class COrder(CPay, CCoupon):
                                                             (reduce_price * coupon_for_in_this[
                                                                 order_part.PRid] / coupon_for_sum)
                                 if order_part.OPsubTrueTotal <= 0:
-                                    order_part.OPsubTrueTotal = 0.01
+                                    order_part.OPsubTrueTotal = Decimal(0.01)
                                 order_part.UseCoupon = True
                                 s.add(order_part)
                                 s.flush()
