@@ -360,7 +360,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.insert.value, 'FreshManFirstApply', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'FreshManFirstApply', str(uuid.uuid1()))
             # 商品, 暂时只可以添加一个商品
             check_product = FreshManFirstProduct.query.filter(
                 FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid,
