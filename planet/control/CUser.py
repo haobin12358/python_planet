@@ -2195,9 +2195,10 @@ class CUser(SUser, BASEAPPROVAL):
         year = data.get('year') or today.year
 
         cash_notes = CashNotes.query.filter(
-            extract('month', UserSalesVolume.createtime) == month,
-            extract('year', UserSalesVolume.createtime) == year,
-            CashNotes.USid == request.user.id).order_by(
+            CashNotes.USid == request.user.id,
+            extract('year', CashNotes.createtime) == year,
+            extract('month', CashNotes.createtime) == month
+            ).order_by(
             CashNotes.createtime.desc()).all_with_page()
 
         # with db.auto_commit():
