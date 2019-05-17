@@ -252,7 +252,7 @@ class CPay():
             up2_user = User.query.filter(User.isdelete == False, User.USid == up2).first()
             up3_user = User.query.filter(User.isdelete == False, User.USid == up3).first()
             self._caculate_commsion(user, up1_user, up2_user, up3_user, commision,
-                                    order_part, is_act=bool(order_main.OMfrom > OrderFrom.product_info.value))
+                                    order_part, is_act=bool(order_main.OMfrom == OrderFrom.trial_commodity.value))
 
         # 新人活动订单
         if order_main.OMfrom == OrderFrom.fresh_man.value:
