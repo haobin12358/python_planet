@@ -1200,7 +1200,7 @@ class CUser(SUser, BASEAPPROVAL):
     @staticmethod
     def _get_nday_list(n):
         before_n_days = []
-        for i in range(1, n + 1)[::-1]:
+        for i in range(n)[::-1]:
             before_n_days.append(str(datetime.date.today() - datetime.timedelta(days=i)))
         return before_n_days
 
@@ -2195,9 +2195,10 @@ class CUser(SUser, BASEAPPROVAL):
         year = data.get('year') or today.year
 
         cash_notes = CashNotes.query.filter(
-            extract('month', UserSalesVolume.createtime) == month,
-            extract('year', UserSalesVolume.createtime) == year,
-            CashNotes.USid == request.user.id).order_by(
+            CashNotes.USid == request.user.id,
+            extract('year', CashNotes.createtime) == year,
+            extract('month', CashNotes.createtime) == month
+            ).order_by(
             CashNotes.createtime.desc()).all_with_page()
 
         # with db.auto_commit():
