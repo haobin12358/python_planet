@@ -250,9 +250,10 @@ class CCoupon(object):
                 s_list.append(coupon_for)
             for prid in prids:
                 # 限制使用商品
-                product = Products.query.filter(
-                    Products.isdelete == False, Products.PRid == prid, Products.CreaterId == suid
-                ).first_('不能指定其他供应商商品')
+                if is_supplizer():
+                    product = Products.query.filter(
+                        Products.isdelete == False, Products.PRid == prid, Products.CreaterId == suid
+                    ).first_('不能指定其他供应商商品')  # 0517 暂时取消管理员发放优惠券商品限制
 
                 coupon_for = CouponFor.create({
                     'CFid': str(uuid.uuid1()),
