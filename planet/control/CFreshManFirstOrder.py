@@ -610,7 +610,6 @@ class CFreshManFirstOrder(COrder, CUser):
                 'AVstatus': ApplyStatus.cancle.value
             })
             if is_admin():
-                # BASEADMIN.create_action(AdminAction.delete.value, 'Approval', fmfaid)
                 BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
         return Success('撤销成功')
 

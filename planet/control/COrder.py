@@ -896,8 +896,6 @@ class COrder(CPay, CCoupon):
         if not is_admin() and not is_supplizer() and order_main.USid != usid:
             raise NotFound('订单订单不存在')
         self._cancle(order_main)
-        if is_admin():
-            BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('取消成功')
 
     def _cancle(self, order_main):

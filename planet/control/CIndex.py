@@ -2,6 +2,7 @@
 import uuid
 import datetime
 from flask import request, current_app
+from sqlalchemy import extract
 
 from planet.common.error_response import SystemError, ParamsError
 from planet.common.params_validates import parameter_required
@@ -47,24 +48,24 @@ class CIndex:
         return Success(data=index_banners)
 
     def visit_num(self):
-        today_visitnum = User.query.join(UserLoginTime).filter(
+        today_visitnum = User.query.join(UserLoginTime, User.USid == UserLoginTime.USid).filter(
             UserLoginTime.isdelete == False,
-            UserLoginTime.createtime.year == datetime.datetime.now().year,
-            UserLoginTime.createtime.month == datetime.datetime.now().month,
-            UserLoginTime.createtime.day == datetime.datetime.now().day,
+            extract('year', UserLoginTime.createtime) == datetime.datetime.now().year,
+            extract('month', UserLoginTime.createtime) == datetime.datetime.now().month,
+            extract('day', UserLoginTime.createtime) == datetime.datetime.now().day,
         ).order_by(
             UserLoginTime.createtime.desc()
         ).count()
 
-        yesterday_visitnum = User.query.join(UserLoginTime).filter(
+        yesterday_visitnum = User.query.join(UserLoginTime, User.USid == UserLoginTime.USid).filter(
             UserLoginTime.isdelete == False,
-            UserLoginTime.createtime.year == datetime.datetime.now().year,
-            UserLoginTime.createtime.month == datetime.datetime.now().month,
-            UserLoginTime.createtime.day == datetime.datetime.now() - datetime.timedelta(days=1),
+            extract('year', UserLoginTime.createtime) == datetime.datetime.now().year,
+            extract('month', UserLoginTime.createtime) == datetime.datetime.now().month,
+            extract('day', UserLoginTime.createtime) == int(datetime.datetime.now().day) - 1,
         ).order_by(
             UserLoginTime.createtime.desc()
         ).count()
-
+        current_app.logger.info('{} '.format(today_visitnum, yesterday_visitnum))
         visitnum = {
             'today_visitnum': today_visitnum,
             'yesterday_visitnum': yesterday_visitnum

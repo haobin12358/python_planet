@@ -387,8 +387,8 @@ def add_uac_acaid():
                 createtime=user_act_code.createtime
                 # print(createtime)
                 cratetime_list.append(createtime)
-                createtime1 = createtime+datetime.timedelta(hours=5)
-                createtime2 = createtime-datetime.timedelta(hours=5)
+                createtime1 = createtime+datetime.timedelta(hours=3)
+                createtime2 = createtime-datetime.timedelta(hours=3)
                 aca = ActivationCodeApply.query.filter(
                     ActivationCodeApply.USid == user_act_code.USid,
                     ActivationCodeApply.updatetime <= createtime1,

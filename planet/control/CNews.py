@@ -693,8 +693,6 @@ class CNews(BASEAPPROVAL):
             }
             news_instance.update(news_info, null='no')
             session_list.append(news_instance)
-            if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'News', neid)
 
             if items not in self.empty:
                 item_list = list()
@@ -704,11 +702,12 @@ class CNews(BASEAPPROVAL):
                     exist = NewsTag.query.filter_by_(NEid=neid, ITid=item).first()
                     if not exist:
                         news_item_info = NewsTag.create({
-                            'NTid': str(uuid.uuid1()),
+                            'NTid': NewsTag,
                             'NEid': neid,
                             'ITid': item
                         })
                         session_list.append(news_item_info)
+                        BASEADMIN().create_action(AdminActionS.insert.value, 'NewsTag', NewsTag)
                 current_app.logger.info('获取到的资讯标签为：{}'.format(item_list))
                 count = NewsTag.query.filter(NewsTag.ITid.notin_(item_list), NewsTag.NEid == neid,
                                              NewsTag.isdelete == False).delete_(synchronize_session=False)
@@ -869,8 +868,6 @@ class CNews(BASEAPPROVAL):
                         })
                         s.add(ui)
                         user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                        if is_admin():
-                            BASEADMIN().create_action(AdminActionS.update.value, 'UserIntegral', str(uuid.uuid1()))
                         s.add(user)
                 msg = '已赞同'
             else:
