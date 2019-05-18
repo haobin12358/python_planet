@@ -3,6 +3,7 @@ import json
 import re
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError, TokenError
@@ -13,13 +14,14 @@ from planet.common.token_handler import token_required, is_tourist, admin_requir
     get_current_admin, is_admin, is_supplizer, common_user
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade, \
-    UserSearchHistoryType, AdminAction, AdminActionS
+    UserSearchHistoryType, AdminActionS, NewsAwardStatus
 from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
+
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
     Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog, \
-    TopicOfConversations, UserLocation
+    TopicOfConversations, UserLocation, NewsAward
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -129,16 +131,18 @@ class CNews(BASEAPPROVAL):
             News.NEisrecommend == isrecommend,
         ])
 
-        news_query = News.query.filter(News.isdelete == False)
+        news_query = News.query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                          ).outerjoin(Items, Items.ITid == NewsTag.ITid
+                                                      ).filter(NewsTag.isdelete == False,
+                                                               News.isdelete == False,
+                                                               Items.isdelete == False)
 
         if itid:
             itids_filter = None
-            news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
-                                              ).filter_(NewsTag.isdelete == False, NewsTag.ITid == itid)
+            filter_args.append(NewsTag.ITid == itid)
 
         if itids_filter:
-            news_query = news_query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
-                                              ).filter_(NewsTag.isdelete == False, *itids_filter)
+            filter_args.extend(itids_filter)
 
         news_list = news_query.filter_(*filter_args).order_by(order_args).all_with_page()
         self._fill_news_list(news_list, usid, userid)
@@ -262,6 +266,9 @@ class CNews(BASEAPPROVAL):
             news.fill('netext', text)
             news.fill('showtype', showtype)
 
+            self._fill_news(news)  # 增加话题 | 打赏金额
+
+
             # 以下是多图的板式，勿删
             # netext = list()
             # if news.NEmainpic:
@@ -283,7 +290,6 @@ class CNews(BASEAPPROVAL):
             #     text = ''
             # netext.append(dict(type='text', content=text))
             # news.fill('netext', netext)
-            self._fill_news(news)  # 增加话题
 
     def search(self):
         """发现页的搜索"""
@@ -766,6 +772,51 @@ class CNews(BASEAPPROVAL):
                 except Exception as e:
                     current_app.logger.error('删除圈子相关审批流时出错: {}'.format(e))
         return Success('删除成功', {'neid': neids})
+
+    @admin_required
+    def news_award(self):
+        """打赏圈子"""
+        admin = Admin.query.filter_by_(ADid=request.user.id).first_('账号不存在')
+        data = parameter_required(('neid', 'nareward'))
+        neid, nareward = data.get('neid'), data.get('nareward')
+        if not re.match(r'(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)', str(nareward)) or float(nareward) <= 0:
+            raise ParamsError('请输入合理的打赏金额')
+        with db.auto_commit():
+            news = News.query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                        ).outerjoin(Items, Items.ITid == NewsTag.ITid
+                                                    ).filter(News.isdelete == False,
+                                                             NewsTag.isdelete == False,
+                                                             Items.isdelete == False,
+                                                             News.NEstatus == NewsStatus.usual.value,
+                                                             News.NEid == neid).first_('只能打赏正常展示中的圈子')
+
+            User.query.filter_by_(USid=news.USid).first_("只能对普通用户发布的圈子进行打赏")
+
+            newsaward_instance = NewsAward.create({'NAid': str(uuid.uuid1()),
+                                                   'NEid': news.NEid,
+                                                   'NAreward': Decimal(nareward).quantize(Decimal('0.00')),
+                                                   'NAstatus': NewsAwardStatus.submit.value,
+                                                   'NArewarder': admin.ADid})
+            db.session.add(newsaward_instance)
+
+        # 添加审批流
+        super(CNews, self).create_approval('tonewsaward', admin.ADid, newsaward_instance.NAid, ApplyFrom.platform.value)
+        return Success('提交成功', dict(naid=newsaward_instance.NAid))
+
+    @admin_required
+    def get_news_award(self):
+        """查看打赏记录"""
+        data = parameter_required(('neid',))
+        nas = NewsAward.query.filter(NewsAward.isdelete == False, NewsAward.NEid == data.get('neid')
+                                     ).order_by(NewsAward.createtime.desc()).all()
+        # list(map(lambda x: x.fill('nastatus_zh', NewsAwardStatus(x.NAstatus).zh_value), nas))
+        for na in nas:
+            na.fields = ['NEid', 'NAreward', 'NAstatus', 'NArefusereason', 'createtime']
+            narewarder = Admin.query.filter_by_(ADid=na.NArewarder).first()
+            narewarder = narewarder.ADname if narewarder else '平台'
+            na.fill('narewarder', narewarder)
+            na.fill('nastatus_zh', NewsAwardStatus(na.NAstatus).zh_value)
+        return Success(data=nas)
 
     @token_required
     def news_favorite(self):
@@ -1263,10 +1314,16 @@ class CNews(BASEAPPROVAL):
         return res
 
     def _fill_news(self, news):
-        # 增加 话题信息
+        # 增加 话题信息 | 打赏金额
         toc = TopicOfConversations.query.filter_by(TOCid=news.TOCid, isdelete=False).first()
         toctitle = toc.TOCtitle if toc else ""
         news.fill('toctitle', toctitle)
+
+        award = db.session.query(func.sum(NewsAward.NAreward)).filter(NewsAward.NEid == news.NEid,
+                                                                      NewsAward.isdelete == False,
+                                                                      NewsAward.NAstatus == NewsAwardStatus.agree.value
+                                                                      ).scalar()
+        news.fill('nareward', award or 0)
 
     def _get_location(self, lat, lng, usid):
         gl = GetLocation(lat, lng)

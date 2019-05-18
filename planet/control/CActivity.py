@@ -6,8 +6,7 @@ from flask import request
 
 from planet.common.success_response import Success
 from planet.common.token_handler import is_tourist, is_admin, admin_required, is_supplizer
-from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, TrialCommodityStatus, AdminAction, \
-    AdminActionS
+from planet.config.enums import OrderMainStatus, ActivityType, ApplyStatus, TrialCommodityStatus, AdminActionS
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
