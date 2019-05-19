@@ -7,6 +7,7 @@ import uuid
 from decimal import Decimal
 
 from flask import request, current_app
+from sqlalchemy import or_
 
 from planet.common.base_service import get_session
 from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
@@ -369,13 +370,27 @@ class CApproval(BASEAPPROVAL):
                 Approval.AVstatus == ApplyStatus.wait_check.value,
                 PermissionType.isdelete == False, Approval.isdelete == False
             ).all()
+            if not pt_list:
+                pt_list = PermissionType.query.filter_by_(PTid='tointegral').all()
             # todo 供应商的审批类型筛选
             for pt in pt_list:
-                ap_num = Approval.query.filter(
-                    Approval.AVstartid == sup.SUid,
-                    Approval.PTid == pt.PTid,
-                    Approval.isdelete == False
-                ).count()
+                if pt.PTid == 'tointegral':
+                    ap_num = Approval.query.outerjoin(IntegralProduct,
+                                                      IntegralProduct.IPid == Approval.AVcontent
+                                                      ).outerjoin(Products,
+                                                                  Products.PRid == IntegralProduct.PRid
+                                                                  ).filter(IntegralProduct.isdelete == False,
+                                                                           Approval.isdelete == False,
+                                                                           Products.isdelete == False,
+                                                                           Products.CreaterId == sup.SUid,
+                                                                           Approval.AVstatus == ApplyStatus.wait_check.value
+                                                                           ).count()
+                else:
+                    ap_num = Approval.query.filter(
+                        Approval.AVstartid == sup.SUid,
+                        Approval.PTid == pt.PTid,
+                        Approval.isdelete == False
+                    ).count()
 
                 pt.fill('approval_num', ap_num)
         else:
