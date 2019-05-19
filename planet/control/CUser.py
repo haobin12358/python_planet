@@ -16,9 +16,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
-    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, ApprovalType, UserCommissionStatus, \
-    ApplyStatus, ApplyFrom, ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, \
-    WexinBankCode, CashStatus
+    UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
+    ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
+    UserCommissionType, AdminActionS
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
@@ -42,9 +42,9 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow, ProductSum
-from .BaseControl import BASEAPPROVAL
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, ProductSum, UserHomeCount
+from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -1058,11 +1058,12 @@ class CUser(SUser, BASEAPPROVAL):
             uc_model.fill('uccommission', float(uc_model.UCcommission))
             uc_model.fill('ucstatus', UserCommissionStatus(uc_model.UCstatus).zh_value)
             uc_mount += float(uc_model.UCcommission)
-            op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
+            if uc_model.UCtype != UserCommissionType.news_award.value:
+                op_list = OrderPart.query.filter(OrderPart.OMid == uc_model.OMid, OrderPart.isdelete == False).all()
 
-            if not op_list:
-                gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
-                raise SystemError('服务器异常')
+                if not op_list:
+                    gennerc_log('已完成订单找不到分单 订单id = {0}'.format(uc_model.OMid))
+                    raise SystemError('服务器异常')
             # is_popular = False
             # om_name = []
             # for op in op_list:
@@ -1180,6 +1181,28 @@ class CUser(SUser, BASEAPPROVAL):
             month_total += uiintegral
         month_total = f'+{month_total}' if month_total > 0 else month_total
         return Success('获取积分列表完成', data={'usintegral': user.USintegral, 'month_total': month_total, 'uilist': ui_list})
+
+    @admin_required
+    def user_data_overview(self):
+        """用户数概览"""
+        days = self._get_nday_list(7)
+        user_count = list()
+        # user_count = db.session.query(*[func.count(cast(User.createtime, Date) <= day) for day in days]
+        #                               ).filter(User.isdelete == False).all()
+        for day in days:  # todo 查询次数多，待优化
+            ucount = User.query.filter(User.isdelete == False,
+                                       cast(User.createtime, Date) <= day).count()
+            user_count.append(ucount)
+
+        series = [dict(name='用户数量', data=user_count), ]
+        return Success(data=dict(days=days, series=series))
+
+    @staticmethod
+    def _get_nday_list(n):
+        before_n_days = []
+        for i in range(n)[::-1]:
+            before_n_days.append(str(datetime.date.today() - datetime.timedelta(days=i)))
+        return before_n_days
 
     @get_session
     def admin_login(self):
@@ -1323,6 +1346,8 @@ class CUser(SUser, BASEAPPROVAL):
             "ANdoneid": request.user.id
         })
         db.session.add(an_instance)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
         return Success("操作成功")
 
     @get_session
@@ -1826,6 +1851,7 @@ class CUser(SUser, BASEAPPROVAL):
             if check_password_hash(admin.ADpassword, pwd_old):
                 self.__check_password(pwd_new)
                 admin.ADpassword = generate_password_hash(pwd_new)
+                BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
                 return Success('更新密码成功')
             gennerc_log('{0} update pwd failed'.format(admin.ADname))
             raise ParamsError('旧密码有误')
@@ -1902,6 +1928,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CommisionFor': commision_for
             })
         db.session.add(cn)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))
         db.session.flush()
         # 创建审批流
 
@@ -2098,6 +2126,13 @@ class CUser(SUser, BASEAPPROVAL):
                 agent_time = user_agent_approval.updatetime
 
             user.fill('agenttime', agent_time)
+            userlogintime = UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == usid
+            ).order_by(
+                UserLoginTime.createtime.desc()
+            ).first()
+            user.fill('userlogintime', userlogintime.createtime)
 
         return Success(data=users)
 
@@ -2141,6 +2176,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'USCommission3': commision3,
             }, 'dont ignore')
             db.session.add(user)
+            BASEADMIN().create_action(AdminActionS.update.value, 'User', usid)
+
         return Success('设置成功')
 
     def __get_adnum(self):
@@ -2240,6 +2277,8 @@ class CUser(SUser, BASEAPPROVAL):
         default_rule = data.get('rule')
         if default_rule:
             cfg.set_item('integralrule', 'rule', str(default_rule))
+        with db.auto_commit():
+            BASEADMIN().create_action(AdminActionS.update.value, 'none', 'none')
         return Success('修改成功')
 
     def get_signin_default(self):
@@ -2387,7 +2426,7 @@ class CUser(SUser, BASEAPPROVAL):
         ss_list = SupplizerSettlement.query.filter(
             SupplizerSettlement.SUid == request.user.id,
             SupplizerSettlement.isdelete == False
-        ).all()
+        ).order_by(SupplizerSettlement.createtime.desc()).all()
 
         for ss in ss_list:
             ss.fill('ssstatus', SupplizerSettementStatus(ss.SSstatus).zh_value)
@@ -2486,6 +2525,15 @@ class CUser(SUser, BASEAPPROVAL):
         user_dict.setdefault('collected', collected)
         user_dict.setdefault('fens_count', fens_count)
 
+        user_visitor = self.get_user_by_id(request.user.id)
+        with db.auto_commit():
+            if user_visitor.USid != user.USid:
+                userhomecount = UserHomeCount.create({
+                    'UHCid': str(uuid.uuid1()),
+                    'USid': user_visitor.USid,
+                    'UHid': user.USid
+                })
+                db.session.add(userhomecount)
         return Success(data=user_dict)
 
     @token_required
@@ -2565,10 +2613,15 @@ class CUser(SUser, BASEAPPROVAL):
     def user_sum(self):
         if not is_admin():
             raise AuthorityError
+        data = parameter_required(('usid',))
+        usid = data.get('usid')
         sum_dict = {}
         with db.auto_commit():
             product_range = ProductSum.PRid.order_by(ProductSum.PRid.count()).all()
             sum_dict['product'] = product_range
+            user_home = UserHomeCount.query.filter(
+                UserHomeCount.USid == usid).order_by(UserHomeCount.UHid.count()).all()
+            sum_dict['user_home'] = user_home
 
         return Success(data=sum_dict)
 

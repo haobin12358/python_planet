@@ -237,6 +237,10 @@ class AdminStatus(Enum):
     frozen = 1, '已冻结'
     deleted = 2, '已删除'
 
+class AdminActionS(Enum):
+    insert = 1, '添加'
+    delete = 2, '删除'
+    update = 3, '修改'
 
 class UserIntegralAction(Enum):
     signin = 1, '签到'
@@ -516,6 +520,7 @@ class UserCommissionType(Enum):
     true_commision = 0, '佣金'
     fresh_man = 1, '新人商品'
     deposit = 2, '押金'
+    news_award = 3, '圈子打赏'
 
 
 class UserCommissionStatus(Enum):
@@ -627,6 +632,13 @@ class NewsItemPostion(Enum):
     category = 1, '发现 - 选择分类页'
     homepage = 2, '我的 - 个人主页'
     post = 3, '发布 - 选择标签'
+
+
+class NewsAwardStatus(Enum):
+    """圈子打赏状态"""
+    agree = 1, '已打赏'
+    refuse = -1, '未通过'
+    submit = 0, '审核中'
 
 
 class UserGrade(Enum):

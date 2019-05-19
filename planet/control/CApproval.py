@@ -9,11 +9,12 @@ from decimal import Decimal
 from flask import request, current_app
 
 from planet.common.base_service import get_session
-from planet.config.enums import ApprovalType, UserIdentityStatus, PermissionNotesType, AdminLevel, \
-    AdminStatus, UserLoginTimetype, UserMediaType, ActivityType, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, \
-    GuessNumAwardStatus, TrialCommodityStatus, ApplyFrom, SupplizerSettementStatus, CashFor
-from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
-    StatusError
+from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
+    AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
+    UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
+    SupplizerSettementStatus, CashFor,  AdminActionS
+
+from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
 from planet.common.request_handler import gennerc_log
 from planet.common.params_validates import parameter_required
@@ -22,7 +23,7 @@ from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFi
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
     GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku, \
-    CashFlow
+    CashFlow, NewsAward, NewsTag, UserCommission
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -33,7 +34,7 @@ from planet.models.trade import OrderRefundApply
 from planet.service.SApproval import SApproval
 from planet.extensions.register_ext import db
 
-from planet.control.BaseControl import BASEAPPROVAL
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 
 
 # from .BaseControl import BASEAPPROVAL
@@ -95,6 +96,7 @@ class CApproval(BASEAPPROVAL):
             'PIname': piname,
         })
         db.session.add(pi)
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
         ptn.setdefault('PNcontent', pi.PIid)
         ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
         db.session.add(PermissionNotes.create(ptn))
@@ -149,6 +151,7 @@ class CApproval(BASEAPPROVAL):
         ptn.setdefault('PINaction', '创建 {} 审批类型'.format(ptname))
         db.session.add(PermissionNotes.create(ptn))
         db.session.add(PermissionType.create(pt_dict))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionType', str(uuid.uuid1()))
         return Success('创建审批类型成功', data={'ptid': pt.PTid})
 
     @get_session
@@ -205,6 +208,7 @@ class CApproval(BASEAPPROVAL):
             "PELevel": pelevel
         })
         db.session.add(permission_instence)
+        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', str(uuid.uuid1()))
         # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
         #     pt_after.PTname, data.get("pelevel"))
         ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
@@ -241,6 +245,7 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', str(uuid.uuid1()))
         # 校验是否有被删除的管理员
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
@@ -451,13 +456,13 @@ class CApproval(BASEAPPROVAL):
                 ap_list = Approval.query.outerjoin(IntegralProduct,
                                                    IntegralProduct.IPid == Approval.AVcontent
                                                    ).outerjoin(Products,
-                                                             Products.PRid == IntegralProduct.PRid
-                                                             ).filter_(IntegralProduct.isdelete == False,
-                                                                       Approval.isdelete == False,
-                                                                       Products.isdelete == False,
-                                                                       Products.CreaterId == sup.SUid,
-                                                                       Approval.AVstatus == status
-                                                                       ).all_with_page()
+                                                               Products.PRid == IntegralProduct.PRid
+                                                               ).filter_(IntegralProduct.isdelete == False,
+                                                                         Approval.isdelete == False,
+                                                                         Products.isdelete == False,
+                                                                         Products.CreaterId == sup.SUid,
+                                                                         Approval.AVstatus == status
+                                                                         ).all_with_page()
             else:
                 ap_list = Approval.query.filter_by_(AVstartid=sup.SUid).all_with_page()
         res = []
@@ -468,7 +473,7 @@ class CApproval(BASEAPPROVAL):
             content = ap.AVcontentdetail or 'null'
             content = json.loads(content)
             start = ap.AVstartdetail or 'null'
-            if ap.PTid == 'topublish':
+            if ap.PTid == 'topublish' or ap.PTid == 'tonewsaward':
                 new_content = content.get('netext')
                 if new_content:
                     new_content = json.loads(new_content) if isinstance(new_content, str) else new_content
@@ -553,6 +558,8 @@ class CApproval(BASEAPPROVAL):
         }
         apn_instance = ApprovalNotes.create(approvalnote_dict)
         db.session.add(apn_instance)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', str(uuid.uuid1()))
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -571,7 +578,6 @@ class CApproval(BASEAPPROVAL):
         else:
             # 审批操作为拒绝
             approval_model.AVstatus = ApplyStatus.reject.value
-
             self.refuse_action(approval_model, data.get('anabo'))
 
         return Success("审批操作完成")
@@ -720,6 +726,7 @@ class CApproval(BASEAPPROVAL):
                 'PINaction': '创建权限标签{}'.format(pi.PIname),
             }
             db.session.add(pi)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')
@@ -861,6 +868,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_settlenment(approval_model)
         elif approval_model.PTid == 'tointegral':
             self.agree_tointegral(approval_model)
+        elif approval_model.PTid == 'tonewsaward':
+            self.agree_newsaward(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -895,6 +904,8 @@ class CApproval(BASEAPPROVAL):
             self.refuse_settlenment(approval_model, refuse_abo)
         elif approval_model.PTid == 'tointegral':
             self.refuse_tointegral(approval_model, refuse_abo)
+        elif approval_model.PTid == 'tonewsaward':
+            self.refuse_newsaward(approval_model, refuse_abo)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -1027,6 +1038,61 @@ class CApproval(BASEAPPROVAL):
         if not product:
             return
         product.PRstatus = ProductStatus.reject.value
+
+    def agree_newsaward(self, approval_model):
+        news_award = NewsAward.query.filter_by_(NAid=approval_model.AVcontent).first_('圈子打赏申请已被删除')
+        news_award.NAstatus = NewsAwardStatus.agree.value
+        news = News.query.outerjoin(NewsTag, NewsTag.NEid == News.NEid
+                                    ).outerjoin(Items, Items.ITid == NewsTag.ITid
+                                                ).filter(News.isdelete == False,
+                                                         NewsTag.isdelete == False,
+                                                         Items.isdelete == False,
+                                                         News.NEstatus == NewsStatus.usual.value,
+                                                         News.NEid == news_award.NEid).first_("状态错误，请检查要打赏的圈子是否已删除或已下架")
+        necontent = json.loads(news.NEtext) if isinstance(news.NEtext, str) else []
+        nepic = None
+        for ne in necontent:
+            if ne.get('type') == 'image':
+                try:
+                    nepic = ne.get('content')[0]
+                except Exception as e:
+                    current_app.logger.error(f"news award doesn't have a pic when agree approval, error is {e}")
+
+        user_commision_dict = {
+            'UCid': str(uuid.uuid1()),
+            'UCcommission': Decimal(news_award.NAreward).quantize(Decimal('0.00')),
+            'USid': news.USid,
+            'UCtype': UserCommissionType.news_award.value,
+            'UCstatus': UserCommissionStatus.in_account.value,
+            'PRtitle': f'[圈子打赏]{news.NEtitle}',  # 打赏圈子的标题
+            'SKUpic': nepic,  # 圈子中的第一张图片
+            'FromUsid': news_award.NArewarder  # 圈子打赏者
+        }
+        db.session.add(UserCommission.create(user_commision_dict))
+
+        user_wallet = UserWallet.query.filter_by_(USid=news.USid).first()
+
+        if user_wallet:
+            user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(news_award.NAreward))
+            user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(news_award.NAreward))
+            user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(news_award.NAreward))
+            db.session.add(user_wallet)
+        else:
+            user_wallet_instance = UserWallet.create({
+                'UWid': str(uuid.uuid1()),
+                'USid': news.USid,
+                'UWbalance': Decimal(news_award.NAreward).quantize(Decimal('0.00')),
+                'UWtotal': Decimal(news_award.NAreward).quantize(Decimal('0.00')),
+                'UWcash': Decimal(news_award.NAreward).quantize(Decimal('0.00')),
+                # 'UWexpect': user_commision.UCcommission,
+                'CommisionFor': ApplyFrom.user.value
+            })
+            db.session.add(user_wallet_instance)
+
+    def refuse_newsaward(self, approval_model, refuse_abo):
+        news_award = NewsAward.query.filter_by_(NAid=approval_model.AVcontent).first()
+        news_award.NAstatus = NewsAwardStatus.refuse.value
+        news_award.NArefusereason = refuse_abo
 
     def agree_publish(self, approval_model):
         news = News.query.filter_by_(NEid=approval_model.AVcontent).first_('资讯已被删除')

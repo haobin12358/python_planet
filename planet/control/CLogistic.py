@@ -116,7 +116,7 @@ class CLogistic:
 
     def get(self):
         """获取主单物流"""
-        data = parameter_required(('omid', ))
+        data = parameter_required(('omid',))
         omid = data.get('omid')
         with db.auto_commit():
             order_logistics = OrderLogistics.query.filter_by_({'OMid': omid}).first_('未获得物流信息')
@@ -222,9 +222,3 @@ class CLogistic:
 
     def _insert_to_orderlogistics(self, response, ):
         pass
-
-
-
-
-
-
