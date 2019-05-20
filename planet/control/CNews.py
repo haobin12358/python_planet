@@ -702,7 +702,7 @@ class CNews(BASEAPPROVAL):
                     exist = NewsTag.query.filter_by_(NEid=neid, ITid=item).first()
                     if not exist:
                         news_item_info = NewsTag.create({
-                            'NTid': NewsTag,
+                            'NTid': str(uuid.uuid1()),
                             'NEid': neid,
                             'ITid': item
                         })

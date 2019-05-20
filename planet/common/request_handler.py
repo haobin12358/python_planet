@@ -1,18 +1,46 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import traceback
+import uuid
 from collections import namedtuple
 
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask import current_app, request
 from sqlalchemy.exc import IntegrityError
 
+from planet.extensions.register_ext import db
+from planet.models import UserLoginTime, UserLoginApi, UserIp
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
 
 User = namedtuple('User', ('id', 'model', 'level'))
 
+
+def _get_user_agent():
+    user_agent = request.user_agent
+    ua = str(user_agent).split()
+    osversion = phonemodel = wechatversion = nettype = None
+    if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+        return
+    for index, item in enumerate(ua):
+        if 'Android' in item:
+            osversion = f'Android {ua[index + 1][:-1]}'
+            phonemodel = ua[index + 2]
+            temp_index = index + 3
+            while 'Build' not in ua[temp_index]:
+                phonemodel = f'{phonemodel} {ua[temp_index]}'
+                temp_index += 1
+        elif 'OS' in item:
+            if ua[index - 1] == 'iPhone':
+                osversion = f'iOS {ua[index + 1]}'
+                phonemodel = 'iPhone'
+        if 'MicroMessenger' in item:
+            wechatversion = re.match(r'^(.*)\/(.*)\((.*)$', item).group(2)
+        if 'NetType' in item:
+            nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+    return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
 def request_first_handler(app):
     @app.before_request
@@ -32,6 +60,36 @@ def request_first_handler(app):
                 user = User(id, model, level, username)
                 setattr(request, 'user', user)
                 current_app.logger.info('current_user info : {}'.format(data))
+                useragent = _get_user_agent()
+                with db.auto_commit():
+                    ula_dict1 = {
+                        'ULAid': str(uuid.uuid1()),
+                        'USid': request.user.id,
+                        'ULA':request.detail['path'],
+                        'USTip':request.remote_addr,
+                        'OSVersion':useragent[0],
+                        'PhoneModel':useragent[1],
+                        'WechatVersion':useragent[2],
+                        'NetType':useragent[3]
+                    }
+                    ula_instance = UserLoginApi.create(ula_dict1)
+                    db.session.add(ula_instance)
+                    ui=UserIp.query.filter(
+                        UserIp.isdelete == False,
+                        UserIp.USTip == request.remote_addr,
+                    ).first()
+                    if ui:
+                        ui_instance = ui.update(
+                            {'USid':request.user.id}
+                        )
+                    else:
+                        ui_instance = UserIp.create({
+                            'USTip':request.remote_addr,
+                            'USid': request.user.id
+                        })
+                    db.session.add(ui_instance)
+
+
             except BadSignature as e:
                 pass
             except SignatureExpired as e:
@@ -39,6 +97,7 @@ def request_first_handler(app):
             except Exception as e:
                 current_app.logger.info(e)
         current_app.logger.info(request.detail)
+
     #
     # @app.teardown_request
     # def end_request(param):

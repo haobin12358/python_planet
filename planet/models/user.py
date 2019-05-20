@@ -50,6 +50,23 @@ class UserLoginTime(Base):
     NetType = Column(String(10), comment='用户网络')
     UserAgent = Column(Text, comment='浏览器User-Agent')
 
+class UserLoginApi(Base):
+    """记录访问api的信息"""
+    __tablename__ = 'UserLoginApi'
+    ULAid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    ULA = Column(String(64), comment='请求api地址')
+    USTip = Column(String(64), comment='登录ip地址')
+    OSVersion = Column(String(25), comment='手机系统版本')
+    PhoneModel = Column(String(16), comment='手机型号')
+    WechatVersion = Column(String(16), comment='微信版本')
+    NetType = Column(String(10), comment='用户网络')
+
+class UserIp(Base):
+    """记录最新的ip地址和用户id的对应关系，用于统计独立ip"""
+    __tablename__ = 'UserIp'
+    USTip = Column(String(64), primary_key=True,comment='登录ip地址（不重复记录IP地址）')
+    USid = Column(String(64), nullable=False, comment='用户id')
 
 class UserCommission(Base):
     """用户佣金"""
