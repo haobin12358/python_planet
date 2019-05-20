@@ -1186,16 +1186,28 @@ class CUser(SUser, BASEAPPROVAL):
     def user_data_overview(self):
         """用户数概览"""
         days = self._get_nday_list(7)
-        user_count = list()
+        user_count, ip_count, uv_count = [], [], []
         # user_count = db.session.query(*[func.count(cast(User.createtime, Date) <= day) for day in days]
         #                               ).filter(User.isdelete == False).all()
         for day in days:  # todo 查询次数多，待优化
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
+            ipcount = db.session.query(UserLoginTime.USTip).filter(UserLoginTime.isdelete == False,
+                                                                   UserLoginTime.ULtype == UserLoginTimetype.user.value,
+                                                                   cast(UserLoginTime.createtime, Date) == day,
+                                                                   ).group_by(UserLoginTime.USTip).count()
+            ip_count.append(ipcount)
+            uvcount = db.session.query(UserLoginTime.USid).filter(UserLoginTime.isdelete == False,
+                                                                  UserLoginTime.ULtype == UserLoginTimetype.user.value,
+                                                                  cast(UserLoginTime.createtime, Date) == day
+                                                                  ).group_by(UserLoginTime.USid).count()
+            uv_count.append(uvcount)
 
-        series = [dict(name='用户数量', data=user_count), ]
-        return Success(data=dict(days=days, series=series))
+        series = [{'name': '用户数量', 'data': user_count},
+                  {'name': '独立ip', 'data': ip_count},
+                  {'name': 'uv', 'data': uv_count}]
+        return Success(data={'days': days, 'series': series})
 
     @staticmethod
     def _get_nday_list(n):
@@ -1218,7 +1230,8 @@ class CUser(SUser, BASEAPPROVAL):
                 "ULTid": str(uuid.uuid1()),
                 "USid": admin.ADid,
                 "USTip": request.remote_addr,
-                "ULtype": 2
+                "ULtype": UserLoginTimetype.admin.value,
+                "UserAgent": request.user_agent.string
             })
             db.session.add(ul_instance)
             token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel, username=admin.ADname)
@@ -1556,7 +1569,13 @@ class CUser(SUser, BASEAPPROVAL):
             "USid": usid,
             "USTip": request.remote_addr
         })
-
+        useragent = self._get_user_agent()
+        if useragent:
+            setattr(userloggintime, 'OSVersion', useragent[0])
+            setattr(userloggintime, 'PhoneModel', useragent[1])
+            setattr(userloggintime, 'WechatVersion', useragent[2])
+            setattr(userloggintime, 'NetType', useragent[3])
+            setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
@@ -1669,9 +1688,15 @@ class CUser(SUser, BASEAPPROVAL):
         userloggintime = UserLoginTime.create({
             "ULTid": str(uuid.uuid1()),
             "USid": usid,
-            "USTip": request.remote_addr
+            "USTip": request.remote_addr,
         })
-
+        useragent = self._get_user_agent()
+        if useragent:
+            setattr(userloggintime, 'OSVersion', useragent[0])
+            setattr(userloggintime, 'PhoneModel', useragent[1])
+            setattr(userloggintime, 'WechatVersion', useragent[2])
+            setattr(userloggintime, 'NetType', useragent[3])
+            setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
@@ -1689,6 +1714,30 @@ class CUser(SUser, BASEAPPROVAL):
         data.setdefault('token', token)
         gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
+
+    def _get_user_agent(self):
+        user_agent = request.user_agent
+        ua = str(user_agent).split()
+        osversion=phonemodel=wechatversion=nettype=None
+        if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+            return
+        for index, item in enumerate(ua):
+            if 'Android' in item:
+                osversion = f'Android {ua[index + 1][:-1]}'
+                phonemodel = ua[index + 2]
+                temp_index = index + 3
+                while 'Build' not in ua[temp_index]:
+                    phonemodel = f'{phonemodel} {ua[temp_index]}'
+                    temp_index += 1
+            elif 'OS' in item:
+                if ua[index - 1] == 'iPhone':
+                    osversion = f'iOS {ua[index + 1]}'
+                    phonemodel = 'iPhone'
+            if 'MicroMessenger' in item:
+                wechatversion = re.match(r'^(.*)\/(.*)\((.*)$', item).group(2)
+            if 'NetType' in item:
+                nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+        return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
     @get_session
     # @token_required
