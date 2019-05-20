@@ -37,11 +37,8 @@ class BrandsCreateForm(BaseForm):
             ).first_('不存在的供应商')
 
     def validate_pbintegralpayrate(self, raw):
-        try:
-            self.pbintegralpayrate.data = int(raw.data) if raw.data and 0 < int(raw.data) <= 100 else 0
-        except Exception as e:
-            current_app.logger.error('pbintegralpayrate error {}'.format(e))
-            self.pbintegralpayrate.data = 0
+        if raw.data and not 0 < raw.data <= 100:
+            raise ParamsError("请输入正确的星币抵扣百分比(0 - 100)%")
 
 
 class BrandUpdateForm(BrandsCreateForm):
