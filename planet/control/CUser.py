@@ -1734,7 +1734,7 @@ class CUser(SUser, BASEAPPROVAL):
                     osversion = f'iOS {ua[index + 1]}'
                     phonemodel = 'iPhone'
             if 'MicroMessenger' in item:
-                wechatversion = re.match(r'^(.*)\/(.*)\((.*)$', item).group(2)
+                wechatversion = re.match(r'^(.*)\/(.*)(\((.*))?$', item).group(2)
             if 'NetType' in item:
                 nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
         return osversion, phonemodel, wechatversion, nettype, user_agent.string
