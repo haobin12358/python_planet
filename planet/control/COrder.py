@@ -82,7 +82,8 @@ class COrder(CPay, CCoupon):
                 filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
-            filter_args.remove(normal_filter)
+            if normal_filter in filter_args:
+                filter_args.remove(normal_filter)
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
@@ -2276,8 +2277,8 @@ class COrder(CPay, CCoupon):
         return headers, items
 
     def _create_settlement_excel(self, suid, ss):
-        # now = datetime.now()
-        now = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
+        now = datetime.now()
+        # now = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
         current_app.logger.info('开始创建供应商结算表')
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)

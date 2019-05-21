@@ -42,8 +42,8 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, ProductSum, UserHomeCount,UserLoginApi
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -460,7 +460,7 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+        if not Utel or not re.match(r'^1[1-9][0-9]{9}$', str(Utel)):
             raise ParamsError('请输入正确的手机号码')
         if common_user():
             user = User.query.filter_by_(USid=request.user.id).first()
@@ -633,7 +633,7 @@ class CUser(SUser, BASEAPPROVAL):
         aaid = data.get('aaid')
         if not re.match(r'^[01]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
-        if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+        if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
@@ -718,7 +718,7 @@ class CUser(SUser, BASEAPPROVAL):
             else:
                 uadefault = True
         if uaphone:
-            if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+            if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
                 raise ParamsError('请填写正确的手机号码')
         if uapostalcode:
             if not re.match(r'^\d{6}$', str(uapostalcode)):
@@ -1734,7 +1734,13 @@ class CUser(SUser, BASEAPPROVAL):
                     osversion = f'iOS {ua[index + 1]}'
                     phonemodel = 'iPhone'
             if 'MicroMessenger' in item:
-                wechatversion = re.match(r'^(.*)\/(.*)(\((.*))?$', item).group(2)
+                try:
+                    wechatversion = item.split('/')[1]
+                    if '(' in wechatversion:
+                        wechatversion = wechatversion.split('(')[0]
+                except Exception as e:
+                    current_app.logger.error('MicroMessenger:{}, error is :{}'.format(item, e))
+                    wechatversion = item.split('/')[1][:3]
             if 'NetType' in item:
                 nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
         return osversion, phonemodel, wechatversion, nettype, user_agent.string
@@ -2582,6 +2588,15 @@ class CUser(SUser, BASEAPPROVAL):
         user_dict.setdefault('collected', collected)
         user_dict.setdefault('fens_count', fens_count)
 
+        user_visitor = self.get_user_by_id(request.user.id)
+        with db.auto_commit():
+            if user_visitor.USid != user.USid:
+                userhomecount = UserHomeCount.create({
+                    'UHCid': str(uuid.uuid1()),
+                    'USid': user_visitor.USid,
+                    'UHid': user.USid
+                })
+                db.session.add(userhomecount)
         return Success(data=user_dict)
 
     @token_required
@@ -2656,4 +2671,20 @@ class CUser(SUser, BASEAPPROVAL):
         if len(return_sort) == 1 :
             return return_sort[0]
         return tuple(return_sort)
+
+    @token_required
+    def get_user_sum(self):
+        if not is_admin():
+            raise AuthorityError
+        # data = parameter_required(('usid',))
+        # usid = data.get('usid')
+        sum_dict = dict()
+        with db.auto_commit():
+            product_range = ProductSum.PRid.order_by(ProductSum.PRid.count()).all()
+            sum_dict.setdefault('product', product_range)
+            user_home = UserHomeCount.query.filter(
+                ).order_by(UserHomeCount.UHid.count()).all()
+            sum_dict.setdefault('user_home', user_home)
+
+        return Success(data=sum_dict)
 

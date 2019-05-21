@@ -314,3 +314,11 @@ class UserLocation(Base):
     ULlng = Column(Text, comment='维度')
     ULlat = Column(Text, comment='经度')
     USid = Column(String(64), comment='用户id')
+
+
+class UserHomeCount(Base):
+    __tablename__ = 'UserHomeCount'
+    UHCid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    UHid = Column(String(64), nullable=False, comment='主页用户id')
+
