@@ -8,7 +8,7 @@ from decimal import Decimal
 import requests
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date, extract, func
+from sqlalchemy import cast, Date, extract, func, or_, and_
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
@@ -270,6 +270,7 @@ def create_settlenment():
         corder = COrder()
         for su in su_list:
             today = datetime.now()
+            # today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
             pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
             tomonth_22 = date(year=today.year, month=today.month, day=22)
             pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
@@ -278,11 +279,19 @@ def create_settlenment():
                 UserCommission.isdelete == False,
                 UserCommission.UCstatus == UserCommissionStatus.in_account.value,
                 UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                cast(UserCommission.createtime, Date) < tomonth_22,
-                cast(UserCommission.createtime, Date) >= pre_month_22,
+                # or_(
+                #     and_(
+                #         cast(UserCommission.createtime, Date) < tomonth_22,
+                #         cast(UserCommission.createtime, Date) >= pre_month_22,),
+                #     and_(
+                cast(UserCommission.updatetime, Date) < tomonth_22,
+                cast(UserCommission.updatetime, Date) >= pre_month_22,
+                    # ))
             ).first()
             ss_total = su_comiission[0] or 0
             ss = SupplizerSettlement.create({
+                'createtime': today,
+                'updatetime': today,
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
                 'SSdealamount': float('%.2f' % float(ss_total)),

@@ -208,6 +208,8 @@ class CUser(SUser, BASEAPPROVAL):
 
     def _get_local_head(self, headurl, openid):
         """转置微信头像到服务器，用以后续二维码生成"""
+        if not headurl:
+            return GithubAvatarGenerator().save_avatar(openid)
         data = requests.get(headurl)
         filename = openid + '.png'
         filepath, filedbpath = self._get_path('avatar')

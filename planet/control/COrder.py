@@ -82,7 +82,8 @@ class COrder(CPay, CCoupon):
                 filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
-            filter_args.remove(normal_filter)
+            if normal_filter in filter_args:
+                filter_args.remove(normal_filter)
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
@@ -320,6 +321,9 @@ class COrder(CPay, CCoupon):
             UserCommission.CommisionFor == ApplyFrom.supplizer.value,
             UserCommission.createtime < tomonth,
             UserCommission.createtime >= pre_month,
+            UserCommission.OMid == OrderMain.OMid,
+            OrderMain.OMstatus > OrderMainStatus.wait_send.value,
+            OrderMain.isdelete == False
         ).first()
         pre_view = su_comiission[0]
         return pre_view
@@ -2276,13 +2280,14 @@ class COrder(CPay, CCoupon):
 
     def _create_settlement_excel(self, suid, ss):
         now = datetime.now()
+        # now = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
         current_app.logger.info('开始创建供应商结算表')
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)
         pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
         # form = OrderListForm().valid_data()
         # form = {}
-        list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22,)
         list_refund = self._list_refund(suid=suid, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
         confirms = self._confirm_favor(suid=suid, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22,
                                        settlement=ss)
@@ -2303,6 +2308,7 @@ class COrder(CPay, CCoupon):
         # return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
     def _list_part(self, *args, **kwargs):
+        # updatetime_start = kwargs.get('pre_month')
         createtime_start = kwargs.get('pre_month')
         createtime_end = kwargs.get('tomonth')
         suid = kwargs.get('suid')
@@ -2327,16 +2333,21 @@ class COrder(CPay, CCoupon):
         #     OrderMain.PRcreateId == request.user.id,
         #     # OrderMain.OMstatus == OrderMainStatus.ready.value
         # )
-        if createtime_start:
-            query = query.filter(
-                OrderMain.createtime >= createtime_start,
-            )
-        if createtime_end:
-            query = query.filter(
-                OrderMain.createtime <= createtime_end,
-                # OrderMain.updatetime <= createtime_end
-            )
+        # if createtime_start:
+        query = query.filter(
+            or_(
+                and_(
+                    createtime_end > OrderMain.createtime, OrderMain.createtime >= createtime_start,),
+                and_(createtime_end >= OrderMain.updatetime,
+                     OrderMain.updatetime >= createtime_start,
+                     OrderMain.OMstatus == OrderMainStatus.ready.value)))
+        # if createtime_end:
+        #     query = query.filter(
+        #         OrderMain.createtime <= ,
+        #         # OrderMain.updatetime <= createtime_end
+        #     )
         results = query.all()
+
         # headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
         #            '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
         #            '商品编码', '商品名称', '购买件数',
