@@ -458,7 +458,7 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+        if not Utel or not re.match(r'^1[1-9][0-9]{9}$', str(Utel)):
             raise ParamsError('请输入正确的手机号码')
         if common_user():
             user = User.query.filter_by_(USid=request.user.id).first()
@@ -631,7 +631,7 @@ class CUser(SUser, BASEAPPROVAL):
         aaid = data.get('aaid')
         if not re.match(r'^[01]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
-        if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+        if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
@@ -716,7 +716,7 @@ class CUser(SUser, BASEAPPROVAL):
             else:
                 uadefault = True
         if uaphone:
-            if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+            if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
                 raise ParamsError('请填写正确的手机号码')
         if uapostalcode:
             if not re.match(r'^\d{6}$', str(uapostalcode)):
@@ -1734,7 +1734,13 @@ class CUser(SUser, BASEAPPROVAL):
                     osversion = f'iOS {ua[index + 1]}'
                     phonemodel = 'iPhone'
             if 'MicroMessenger' in item:
-                wechatversion = re.match(r'^(.*)\/(.*)(\((.*))?$', item).group(2)
+                try:
+                    wechatversion = item.split('/')[1]
+                    if '(' in wechatversion:
+                        wechatversion = wechatversion.split('(')[0]
+                except Exception as e:
+                    current_app.logger.error('MicroMessenger:{}, error is :{}'.format(item, e))
+                    wechatversion = item.split('/')[1][:3]
             if 'NetType' in item:
                 nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
         return osversion, phonemodel, wechatversion, nettype, user_agent.string
