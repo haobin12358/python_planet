@@ -9,7 +9,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin
 from planet.config.enums import ApplyStatus, OrderMainStatus, OrderFrom, Client, ActivityType, PayType, ProductStatus, \
-    ApplyFrom, AdminAction
+    ApplyFrom, AdminActionS
 from planet.common.error_response import StatusError, ParamsError, AuthorityError
 from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.control.COrder import COrder
@@ -360,7 +360,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.insert.value, 'FreshManFirstApply', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'FreshManFirstApply', str(uuid.uuid1()))
             # 商品, 暂时只可以添加一个商品
             check_product = FreshManFirstProduct.query.filter(
                 FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid,
@@ -437,7 +437,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.update.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
             # 商品, 暂时只可以添加一个商品
             fresh_first_product = FreshManFirstProduct.query.filter(
                 FreshManFirstProduct.isdelete == False,
@@ -611,7 +611,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             if is_admin():
                 # BASEADMIN.create_action(AdminAction.delete.value, 'Approval', fmfaid)
-                BASEADMIN.create_action(AdminAction.update.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
         return Success('撤销成功')
 
     def del_award(self):
@@ -628,7 +628,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
-                BASEADMIN.create_action(AdminAction.delete.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN.create_action(AdminActionS.delete.value, 'FreshManFirstApply', fmfaid)
         return Success('删除成功', {'fmfaid': fmfaid})
 
     @staticmethod

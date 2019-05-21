@@ -208,6 +208,8 @@ class CUser(SUser, BASEAPPROVAL):
 
     def _get_local_head(self, headurl, openid):
         """转置微信头像到服务器，用以后续二维码生成"""
+        if not headurl:
+            return GithubAvatarGenerator().save_avatar(openid)
         data = requests.get(headurl)
         filename = openid + '.png'
         filepath, filedbpath = self._get_path('avatar')
@@ -458,7 +460,7 @@ class CUser(SUser, BASEAPPROVAL):
         args = request.args.to_dict()
         print('get inforcode args: {0}'.format(args))
         Utel = args.get('ustelphone')
-        if not Utel or not re.match(r'^1[345789][0-9]{9}$', str(Utel)):
+        if not Utel or not re.match(r'^1[1-9][0-9]{9}$', str(Utel)):
             raise ParamsError('请输入正确的手机号码')
         if common_user():
             user = User.query.filter_by_(USid=request.user.id).first()
@@ -631,7 +633,7 @@ class CUser(SUser, BASEAPPROVAL):
         aaid = data.get('aaid')
         if not re.match(r'^[01]$', str(uadefault)):
             raise ParamsError('uadefault, 参数异常')
-        if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+        if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
             raise ParamsError('请填写正确的手机号码')
         if not re.match(r'^\d{6}$', str(uapostalcode)):
             raise ParamsError('请输入正确的六位邮编')
@@ -716,7 +718,7 @@ class CUser(SUser, BASEAPPROVAL):
             else:
                 uadefault = True
         if uaphone:
-            if not re.match(r'^1[345789][0-9]{9}$', str(uaphone)):
+            if not re.match(r'^1[1-9][0-9]{9}$', str(uaphone)):
                 raise ParamsError('请填写正确的手机号码')
         if uapostalcode:
             if not re.match(r'^\d{6}$', str(uapostalcode)):
@@ -1186,16 +1188,28 @@ class CUser(SUser, BASEAPPROVAL):
     def user_data_overview(self):
         """用户数概览"""
         days = self._get_nday_list(7)
-        user_count = list()
+        user_count, ip_count, uv_count = [], [], []
         # user_count = db.session.query(*[func.count(cast(User.createtime, Date) <= day) for day in days]
         #                               ).filter(User.isdelete == False).all()
         for day in days:  # todo 查询次数多，待优化
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
+            ipcount = db.session.query(UserLoginTime.USTip).filter(UserLoginTime.isdelete == False,
+                                                                   UserLoginTime.ULtype == UserLoginTimetype.user.value,
+                                                                   cast(UserLoginTime.createtime, Date) == day,
+                                                                   ).group_by(UserLoginTime.USTip).count()
+            ip_count.append(ipcount)
+            uvcount = db.session.query(UserLoginTime.USid).filter(UserLoginTime.isdelete == False,
+                                                                  UserLoginTime.ULtype == UserLoginTimetype.user.value,
+                                                                  cast(UserLoginTime.createtime, Date) == day
+                                                                  ).group_by(UserLoginTime.USid).count()
+            uv_count.append(uvcount)
 
-        series = [dict(name='用户数量', data=user_count), ]
-        return Success(data=dict(days=days, series=series))
+        series = [{'name': '用户数量', 'data': user_count},
+                  {'name': '独立ip', 'data': ip_count},
+                  {'name': 'uv', 'data': uv_count}]
+        return Success(data={'days': days, 'series': series})
 
     @staticmethod
     def _get_nday_list(n):
@@ -1218,7 +1232,8 @@ class CUser(SUser, BASEAPPROVAL):
                 "ULTid": str(uuid.uuid1()),
                 "USid": admin.ADid,
                 "USTip": request.remote_addr,
-                "ULtype": 2
+                "ULtype": UserLoginTimetype.admin.value,
+                "UserAgent": request.user_agent.string
             })
             db.session.add(ul_instance)
             token = usid_to_token(admin.ADid, 'Admin', admin.ADlevel, username=admin.ADname)
@@ -1556,7 +1571,13 @@ class CUser(SUser, BASEAPPROVAL):
             "USid": usid,
             "USTip": request.remote_addr
         })
-
+        useragent = self._get_user_agent()
+        if useragent:
+            setattr(userloggintime, 'OSVersion', useragent[0])
+            setattr(userloggintime, 'PhoneModel', useragent[1])
+            setattr(userloggintime, 'WechatVersion', useragent[2])
+            setattr(userloggintime, 'NetType', useragent[3])
+            setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
@@ -1669,9 +1690,15 @@ class CUser(SUser, BASEAPPROVAL):
         userloggintime = UserLoginTime.create({
             "ULTid": str(uuid.uuid1()),
             "USid": usid,
-            "USTip": request.remote_addr
+            "USTip": request.remote_addr,
         })
-
+        useragent = self._get_user_agent()
+        if useragent:
+            setattr(userloggintime, 'OSVersion', useragent[0])
+            setattr(userloggintime, 'PhoneModel', useragent[1])
+            setattr(userloggintime, 'WechatVersion', useragent[2])
+            setattr(userloggintime, 'NetType', useragent[3])
+            setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
         user.fields = self.USER_FIELDS[:]
         user.fill('openid', openid)
@@ -1689,6 +1716,36 @@ class CUser(SUser, BASEAPPROVAL):
         data.setdefault('token', token)
         gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
+
+    def _get_user_agent(self):
+        user_agent = request.user_agent
+        ua = str(user_agent).split()
+        osversion=phonemodel=wechatversion=nettype=None
+        if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+            return
+        for index, item in enumerate(ua):
+            if 'Android' in item:
+                osversion = f'Android {ua[index + 1][:-1]}'
+                phonemodel = ua[index + 2]
+                temp_index = index + 3
+                while 'Build' not in ua[temp_index]:
+                    phonemodel = f'{phonemodel} {ua[temp_index]}'
+                    temp_index += 1
+            elif 'OS' in item:
+                if ua[index - 1] == 'iPhone':
+                    osversion = f'iOS {ua[index + 1]}'
+                    phonemodel = 'iPhone'
+            if 'MicroMessenger' in item:
+                try:
+                    wechatversion = item.split('/')[1]
+                    if '(' in wechatversion:
+                        wechatversion = wechatversion.split('(')[0]
+                except Exception as e:
+                    current_app.logger.error('MicroMessenger:{}, error is :{}'.format(item, e))
+                    wechatversion = item.split('/')[1][:3]
+            if 'NetType' in item:
+                nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+        return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
     @get_session
     # @token_required
@@ -2195,9 +2252,10 @@ class CUser(SUser, BASEAPPROVAL):
         year = data.get('year') or today.year
 
         cash_notes = CashNotes.query.filter(
-            extract('month', UserSalesVolume.createtime) == month,
-            extract('year', UserSalesVolume.createtime) == year,
-            CashNotes.USid == request.user.id).order_by(
+            CashNotes.USid == request.user.id,
+            extract('year', CashNotes.createtime) == year,
+            extract('month', CashNotes.createtime) == month
+            ).order_by(
             CashNotes.createtime.desc()).all_with_page()
 
         # with db.auto_commit():
