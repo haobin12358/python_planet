@@ -60,19 +60,20 @@ def request_first_handler(app):
                 setattr(request, 'user', user)
                 current_app.logger.info('current_user info : {}'.format(data))
                 useragent = _get_user_agent()
-                with db.auto_commit():
-                    ula_dict1 = {
-                        'ULAid': str(uuid.uuid1()),
-                        'USid': request.user.id,
-                        'ULA':request.detail['path'],
-                        'USTip':request.remote_addr,
-                        'OSVersion':useragent[0],
-                        'PhoneModel':useragent[1],
-                        'WechatVersion':useragent[2],
-                        'NetType':useragent[3]
-                    }
-                    ula_instance = UserLoginApi.create(ula_dict1)
-                    db.session.add(ula_instance)
+                if useragent:
+                    with db.auto_commit():
+                        ula_dict1 = {
+                            'ULAid': str(uuid.uuid1()),
+                            'USid': request.user.id,
+                            'ULA':request.detail['path'],
+                            'USTip':request.remote_addr,
+                            'OSVersion':useragent[0],
+                            'PhoneModel':useragent[1],
+                            'WechatVersion':useragent[2],
+                            'NetType':useragent[3]
+                        }
+                        ula_instance = UserLoginApi.create(ula_dict1)
+                        db.session.add(ula_instance)
 
             except BadSignature as e:
                 pass

@@ -1195,7 +1195,8 @@ class CUser(SUser, BASEAPPROVAL):
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
-            ipcount = db.session.query(UserLoginApi.USTip).filter(UserLoginApi.isdelete == False,
+            ipcount = db.session.query(UserLoginApi.USTip).filter(
+                                                                UserLoginApi.isdelete == False,
                                                                 cast(UserLoginApi.createtime, Date) == day
                                                                 ).group_by(UserLoginApi.USTip).count()
             ip_count.append(ipcount)
