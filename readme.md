@@ -40,6 +40,11 @@ source ~/.bashrc
 ```bash
 ddd
 ```
+## 119服务器重启
+```bash
+dss
+```
+
 ## 数据库迁移
 
 更改model后使用
