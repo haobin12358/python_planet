@@ -2610,18 +2610,18 @@ class CUser(SUser, BASEAPPROVAL):
         return tuple(return_sort)
 
     @token_required
-    def user_sum(self):
+    def get_user_sum(self):
         if not is_admin():
             raise AuthorityError
-        data = parameter_required(('usid',))
-        usid = data.get('usid')
-        sum_dict = {}
+        # data = parameter_required(('usid',))
+        # usid = data.get('usid')
+        sum_dict = dict()
         with db.auto_commit():
             product_range = ProductSum.PRid.order_by(ProductSum.PRid.count()).all()
-            sum_dict['product'] = product_range
+            sum_dict.setdefault('product', product_range)
             user_home = UserHomeCount.query.filter(
-                UserHomeCount.USid == usid).order_by(UserHomeCount.UHid.count()).all()
-            sum_dict['user_home'] = user_home
+                ).order_by(UserHomeCount.UHid.count()).all()
+            sum_dict.setdefault('user_home', user_home)
 
         return Success(data=sum_dict)
 

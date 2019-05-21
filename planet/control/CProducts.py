@@ -183,6 +183,17 @@ class CProducts(BaseController):
 
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
+            usid = request.user.id
+            if usid:
+                ps = ProductSum.create({
+                    'PRid': prid,
+                    'USid': usid
+                })
+            else:
+                ps = ProductSum.create({
+                    'PRid': prid
+                })
+            db.session.add(ps)
         product.fill('month_sale_value', month_sale_value)
         # 是否收藏
         if common_user():
@@ -197,12 +208,6 @@ class CProducts(BaseController):
                 product.fill('pcids', self._up_category_id(product.PCid))
         # 可用优惠券
         self._fill_coupons(product)
-
-        with self.sproduct.auto_commit() as s:
-            ps = ProductSum.create({
-                'PRid': prid
-            })
-            s.add_all(ps)
 
         return Success(data=product)
 
