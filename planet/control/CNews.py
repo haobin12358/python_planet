@@ -260,14 +260,13 @@ class CNews(BASEAPPROVAL):
             try:
                 text = new_content[text_index[0]].get('content')[:100] + ' ...'
             except Exception as e:
-                current_app.logger.error('convert text content error, neid {}, error: {}'.format(news.NEid, e))
+                # current_app.logger.error('convert text content error, neid {}, error: {}'.format(news.NEid, e))
                 text = ' ...'
 
             news.fill('netext', text)
             news.fill('showtype', showtype)
 
             self._fill_news(news)  # 增加话题 | 打赏金额
-
 
             # 以下是多图的板式，勿删
             # netext = list()
