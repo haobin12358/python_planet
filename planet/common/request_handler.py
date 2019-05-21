@@ -10,7 +10,7 @@ from flask import current_app, request
 from sqlalchemy.exc import IntegrityError
 
 from planet.extensions.register_ext import db
-from planet.models import  UserLoginApi, UserIp
+from planet.models import UserLoginApi, UserIp
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
@@ -21,7 +21,7 @@ def _get_user_agent():
     user_agent = request.user_agent
     ua = str(user_agent).split()
     osversion = phonemodel = wechatversion = nettype = None
-    if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+    if not re.match(r'^(android|iphone|windows)$', str(user_agent.platform)):
         return
     for index, item in enumerate(ua):
         if 'Android' in item:
@@ -39,6 +39,7 @@ def _get_user_agent():
             wechatversion = re.match(r'^(.*)\/(.*)\((.*)$', item).group(2)
         if 'NetType' in item:
             nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+        current_app.logger.info('ula_dict1 info :  {} {} {} {} {} '.format(osversion, phonemodel, wechatversion, nettype, user_agent.string))
     return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
 def request_first_handler(app):
@@ -86,6 +87,7 @@ def request_first_handler(app):
                             'USTip':request.remote_addr,
                             'USid': request.user.id
                         })
+                    current_app.logger.info('ui_instance info : {}'.format(ui_instance))
                     db.session.add(ui_instance)
 
 
