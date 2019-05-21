@@ -43,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -2175,12 +2175,19 @@ class CUser(SUser, BASEAPPROVAL):
                 agent_time = user_agent_approval.updatetime
 
             user.fill('agenttime', agent_time)
-            userlogintime = UserLoginTime.query.filter(
-                UserLoginTime.isdelete == False,
-                UserLoginTime.USid == usid
+            userlogintime = UserLoginApi.query.filter(
+                UserLoginApi.isdelete == False,
+                UserLoginApi.USid == usid
             ).order_by(
-                UserLoginTime.createtime.desc()
+                UserLoginApi.createtime.desc()
             ).first()
+            if not userlogintime:
+                userlogintime = UserLoginTime.query.filter(
+                    UserLoginTime.isdelete == False,
+                    UserLoginTime.USid == usid
+                ).order_by(
+                    UserLoginTime.createtime.desc()
+                ).first()
             user.fill('userlogintime', userlogintime.createtime)
 
         return Success(data=users)

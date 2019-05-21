@@ -10,13 +10,12 @@ from flask import current_app, request
 from sqlalchemy.exc import IntegrityError
 
 from planet.extensions.register_ext import db
-from planet.models import UserLoginTime, UserLoginApi, UserIp
+from planet.models import  UserLoginApi, UserIp
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
 
 User = namedtuple('User', ('id', 'model', 'level'))
-
 
 def _get_user_agent():
     user_agent = request.user_agent
