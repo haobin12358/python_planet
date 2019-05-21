@@ -10,7 +10,7 @@ from flask import current_app, request
 from sqlalchemy.exc import IntegrityError
 
 from planet.extensions.register_ext import db
-from planet.models import UserLoginApi, UserIp
+from planet.models import UserLoginApi
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
@@ -21,7 +21,7 @@ def _get_user_agent():
     user_agent = request.user_agent
     ua = str(user_agent).split()
     osversion = phonemodel = wechatversion = nettype = None
-    if not re.match(r'^(android|iphone|windows)$', str(user_agent.platform)):
+    if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
         return
     for index, item in enumerate(ua):
         if 'Android' in item:
@@ -74,22 +74,6 @@ def request_first_handler(app):
                     }
                     ula_instance = UserLoginApi.create(ula_dict1)
                     db.session.add(ula_instance)
-                    ui=UserIp.query.filter(
-                        UserIp.isdelete == False,
-                        UserIp.USTip == request.remote_addr,
-                    ).first()
-                    if ui:
-                        ui_instance = ui.update(
-                            {'USid':request.user.id}
-                        )
-                    else:
-                        ui_instance = UserIp.create({
-                            'USTip':request.remote_addr,
-                            'USid': request.user.id
-                        })
-                    current_app.logger.info('ui_instance info : {}'.format(ui_instance))
-                    db.session.add(ui_instance)
-
 
             except BadSignature as e:
                 pass

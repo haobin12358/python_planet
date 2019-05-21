@@ -64,7 +64,7 @@ class LoggerHandler():
         def framework_error(e):
             if isinstance(e, Success):
                 return e
-            gennerc_log(e)
+            # gennerc_log(e)
             if isinstance(e, BaseError):
                 return e
             else:

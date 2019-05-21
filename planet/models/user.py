@@ -62,12 +62,6 @@ class UserLoginApi(Base):
     WechatVersion = Column(String(16), comment='微信版本')
     NetType = Column(String(10), comment='用户网络')
 
-class UserIp(Base):
-    """记录最新的ip地址和用户id的对应关系，用于统计独立ip"""
-    __tablename__ = 'UserIp'
-    USTip = Column(String(64), primary_key=True,comment='登录ip地址（不重复记录IP地址）')
-    USid = Column(String(64), nullable=False, comment='用户id')
-
 class UserCommission(Base):
     """用户佣金"""
     __tablename__ = 'UserCommission'

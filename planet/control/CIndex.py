@@ -2,7 +2,7 @@
 import uuid
 import datetime
 from flask import request, current_app
-from sqlalchemy import extract
+from sqlalchemy import extract, distinct, func
 
 from planet.common.error_response import SystemError, ParamsError
 from planet.common.params_validates import parameter_required
@@ -13,7 +13,7 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner, Entry, Admin, UserLoginTime, User, UserLoginApi, UserIp
+    HypermarketIndexBanner, Entry, Admin, UserLoginApi
 from planet.service.SIndex import SIndex
 
 
@@ -48,48 +48,47 @@ class CIndex:
         return Success(data=index_banners)
 
     def visit_num(self):
-        today_uv = User.query.join(UserLoginApi, User.USid == UserLoginApi.USid).filter(
-            UserLoginApi.isdelete == False,
-            extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-            extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-            extract('day', UserLoginApi.createtime) == datetime.datetime.now().day,
-        ).order_by(
-            UserLoginApi.createtime.desc()
-        ).count()
+        uvs = db.session.query(distinct(UserLoginApi.USid)).all()
+        today_uv = yesterday_uv = 0
+        for uv in uvs:
+            is_uv = UserLoginApi.query.filter(
+                UserLoginApi.isdelete == False,
+                UserLoginApi.USid == str(uv[0]),
+                extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
+                extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
+                extract('day', UserLoginApi.createtime) <= datetime.datetime.now().day,
+                extract('day', UserLoginApi.createtime) >= datetime.datetime.now().day - 1,
+            ).order_by(
+                UserLoginApi.createtime.desc()
+            ).first()
+            if is_uv.createtime.day == datetime.datetime.now().day:
+                today_uv = today_uv + 1
+            else:
+                yesterday_uv = yesterday_uv + 1
+        ips = db.session.query(distinct(UserLoginApi.USTip)).all()
+        today_ip = yesterday_ip = 0
+        for ip in ips:
+            is_ip = UserLoginApi.query.distinct(UserLoginApi.USTip).filter(
+                UserLoginApi.isdelete == False,
+                UserLoginApi.USTip == str(ip[0]),
+                extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
+                extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
+                extract('day', UserLoginApi.createtime) <= datetime.datetime.now().day,
+                extract('day', UserLoginApi.createtime) >= datetime.datetime.now().day - 1,
+            ).order_by(
+                UserLoginApi.createtime.desc()
+            ).first()
+            if is_ip.createtime.day == datetime.datetime.now().day:
+                today_ip = today_ip + 1
+            else:
+                yesterday_ip = yesterday_ip + 1
 
-        yesterday_uv = User.query.join(UserLoginApi, User.USid == UserLoginApi.USid).filter(
-            UserLoginApi.isdelete == False,
-            extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-            extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-            extract('day', UserLoginApi.createtime) == int(datetime.datetime.now().day) - 1,
-        ).order_by(
-            UserLoginApi.createtime.desc()
-        ).count()
-
-        today_ip = UserIp.query.join(UserLoginApi, UserIp.USTip == UserLoginApi.USTip).filter(
-            UserLoginApi.isdelete == False,
-            extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-            extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-            extract('day', UserLoginApi.createtime) == datetime.datetime.now().day,
-        ).order_by(
-            UserLoginApi.createtime.desc()
-        ).count()
-
-        yesterday_ip = UserIp.query.join(UserLoginApi, UserIp.USTip == UserLoginApi.USTip).filter(
-            UserLoginApi.isdelete == False,
-            extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-            extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-            extract('day', UserLoginApi.createtime) == int(datetime.datetime.now().day) - 1,
-        ).order_by(
-            UserLoginApi.createtime.desc()
-        ).count()
-
-        current_app.logger.info('uv:{}{} ip:{}{} '.format(today_uv, yesterday_uv,today_ip, yesterday_ip))
+        current_app.logger.info('uv:{}{} ip:{}{} '.format(today_uv, yesterday_uv, today_ip, yesterday_ip))
         visitnum = {
             'today_visitnum': today_uv,
             'yesterday_visitnum': yesterday_uv,
             'today_ip': today_ip,
-            'yesterday_ip':yesterday_ip
+            'yesterday_ip': yesterday_ip
         }
         return Success(data=visitnum)
 
