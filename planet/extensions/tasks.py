@@ -269,8 +269,8 @@ def create_settlenment():
         from planet.control.COrder import COrder
         corder = COrder()
         for su in su_list:
-            # today = datetime.now()
-            today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
+            today = datetime.now()
+            # today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
             pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
             tomonth_22 = date(year=today.year, month=today.month, day=22)
             pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
