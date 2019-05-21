@@ -38,8 +38,7 @@ source ~/.bashrc
 ## 119服务器进行数据库迁移需要先进入容器
 
 ```bash
-docker ps //查看容器id
-docker attach 容器id
+ddd
 ```
 ## 数据库迁移
 

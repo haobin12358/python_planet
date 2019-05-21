@@ -1195,13 +1195,11 @@ class CUser(SUser, BASEAPPROVAL):
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
-            ipcount = db.session.query(UserLoginTime.USTip).filter(UserLoginTime.isdelete == False,
-                                                                   UserLoginTime.ULtype == UserLoginTimetype.user.value,
-                                                                   cast(UserLoginTime.createtime, Date) == day,
-                                                                   ).group_by(UserLoginTime.USTip).count()
+            ipcount = db.session.query(UserLoginApi.USTip).filter(UserLoginApi.isdelete == False,
+                                                                cast(UserLoginTime.createtime, Date) == day
+                                                                ).group_by(UserLoginTime.USTip).count()
             ip_count.append(ipcount)
-            uvcount = db.session.query(UserLoginTime.USid).filter(UserLoginTime.isdelete == False,
-                                                                  UserLoginTime.ULtype == UserLoginTimetype.user.value,
+            uvcount = db.session.query(UserLoginTime.USid).filter(UserLoginApi.isdelete == False,
                                                                   cast(UserLoginTime.createtime, Date) == day
                                                                   ).group_by(UserLoginTime.USid).count()
             uv_count.append(uvcount)

@@ -17,30 +17,29 @@ from .success_response import Success
 
 User = namedtuple('User', ('id', 'model', 'level'))
 
-def _get_user_agent():
-    user_agent = request.user_agent
-    ua = str(user_agent).split()
-    osversion = phonemodel = wechatversion = nettype = None
-    if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
-        return
-    for index, item in enumerate(ua):
-        if 'Android' in item:
-            osversion = f'Android {ua[index + 1][:-1]}'
-            phonemodel = ua[index + 2]
-            temp_index = index + 3
-            while 'Build' not in ua[temp_index]:
-                phonemodel = f'{phonemodel} {ua[temp_index]}'
-                temp_index += 1
-        elif 'OS' in item:
-            if ua[index - 1] == 'iPhone':
-                osversion = f'iOS {ua[index + 1]}'
-                phonemodel = 'iPhone'
-        if 'MicroMessenger' in item:
-            wechatversion = re.match(r'^(.*)\/(.*)\((.*)$', item).group(2)
-        if 'NetType' in item:
-            nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
-        current_app.logger.info('ula_dict1 info :  {} {} {} {} {} '.format(osversion, phonemodel, wechatversion, nettype, user_agent.string))
-    return osversion, phonemodel, wechatversion, nettype, user_agent.string
+def _get_user_agent(self):
+        user_agent = request.user_agent
+        ua = str(user_agent).split()
+        osversion=phonemodel=wechatversion=nettype=None
+        if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+            return
+        for index, item in enumerate(ua):
+            if 'Android' in item:
+                osversion = f'Android {ua[index + 1][:-1]}'
+                phonemodel = ua[index + 2]
+                temp_index = index + 3
+                while 'Build' not in ua[temp_index]:
+                    phonemodel = f'{phonemodel} {ua[temp_index]}'
+                    temp_index += 1
+            elif 'OS' in item:
+                if ua[index - 1] == 'iPhone':
+                    osversion = f'iOS {ua[index + 1]}'
+                    phonemodel = 'iPhone'
+            if 'MicroMessenger' in item:
+                wechatversion = re.match(r'^(.*)\/(.*)(\((.*))?$', item).group(2)
+            if 'NetType' in item:
+                nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+        return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
 def request_first_handler(app):
     @app.before_request
