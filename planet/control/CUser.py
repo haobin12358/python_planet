@@ -2563,13 +2563,13 @@ class CUser(SUser, BASEAPPROVAL):
         if not (user or admin or su):
             raise ParamsError('用户不存在')
 
-        user_visitor_id = get_current_user()
+        # user_visitor_id =
         with db.auto_commit():
             # if user_visitor_id != usid:
             user_home_count = UserHomeCount.create({
                 'UHCid': str(uuid.uuid1()),
-                'USid': user_visitor_id.USid,
-                'UHid': user.USid
+                'UHid': user.USid,
+                'USid': '1',
             })
             db.session.add(user_home_count)
 
