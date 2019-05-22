@@ -2589,15 +2589,6 @@ class CUser(SUser, BASEAPPROVAL):
         user_dict.setdefault('collected', collected)
         user_dict.setdefault('fens_count', fens_count)
 
-        user_visitor = self.get_user_by_id(request.user.id)
-        with db.auto_commit():
-            if user_visitor.USid != user.USid:
-                userhomecount = UserHomeCount.create({
-                    'UHCid': str(uuid.uuid1()),
-                    'USid': user_visitor.USid,
-                    'UHid': user.USid
-                })
-                db.session.add(userhomecount)
         return Success(data=user_dict)
 
     @token_required

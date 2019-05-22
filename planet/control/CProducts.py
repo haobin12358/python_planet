@@ -23,7 +23,7 @@ from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
     ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity, \
-    FreshManFirstProduct, GuessNumAwardProduct, ProductSum
+    FreshManFirstProduct, GuessNumAwardProduct
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -183,17 +183,6 @@ class CProducts(BaseController):
 
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
-            usid = request.user.id
-            if usid:
-                ps = ProductSum.create({
-                    'PRid': prid,
-                    'USid': usid
-                })
-            else:
-                ps = ProductSum.create({
-                    'PRid': prid
-                })
-            db.session.add(ps)
         product.fill('month_sale_value', month_sale_value)
         # 是否收藏
         if common_user():

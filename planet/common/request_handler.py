@@ -14,7 +14,6 @@ from planet.models import UserLoginApi
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
-
 User = namedtuple('User', ('id', 'model', 'level'))
 
 
@@ -48,6 +47,7 @@ def _get_user_agent():
             nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
     return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
+
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
@@ -72,12 +72,12 @@ def request_first_handler(app):
                         ula_dict1 = {
                             'ULAid': str(uuid.uuid1()),
                             'USid': request.user.id,
-                            'ULA':request.detail['path'],
-                            'USTip':request.remote_addr,
-                            'OSVersion':useragent[0],
-                            'PhoneModel':useragent[1],
-                            'WechatVersion':useragent[2],
-                            'NetType':useragent[3]
+                            'ULA': request.detail['path'],
+                            'USTip': request.remote_addr,
+                            'OSVersion': useragent[0],
+                            'PhoneModel': useragent[1],
+                            'WechatVersion': useragent[2],
+                            'NetType': useragent[3]
                         }
                         current_app.logger.info('ula info : {}'.format(ula_dict1))
                         ula_instance = UserLoginApi.create(ula_dict1)
@@ -100,7 +100,6 @@ def request_first_handler(app):
     #     """
     #     current_app.logger.info(end.format('end  request'))
     #     return param
-
 
 
 def error_handler(app):
