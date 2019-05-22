@@ -43,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow,UserLoginApi
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, ProductSum
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -2563,15 +2563,15 @@ class CUser(SUser, BASEAPPROVAL):
         if not (user or admin or su):
             raise ParamsError('用户不存在')
 
-        # user_visitor_id =
+        user_visitor_id = get_current_user()
         with db.auto_commit():
-            # if user_visitor_id != usid:
-            user_home_count = UserHomeCount.create({
-                'UHCid': str(uuid.uuid1()),
-                'UHid': user.USid,
-                'USid': '1',
-            })
-            db.session.add(user_home_count)
+            if user_visitor_id.USid != usid:
+                user_home_count = UserHomeCount.create({
+                    'UHCid': str(uuid.uuid1()),
+                    'UHid': user.USid,
+                    'USid': user_visitor_id.USid,
+                })
+                db.session.add(user_home_count)
 
         if user:
             user_dict.setdefault('usheader', user.USheader)
@@ -2683,10 +2683,11 @@ class CUser(SUser, BASEAPPROVAL):
         # usid = data.get('usid')
         sum_dict = dict()
         with db.auto_commit():
-            product_range = ProductSum.PRid.order_by(ProductSum.PRid.count()).all()
+            produce_query = db.session.query(ProductSum).filter_by_()
+            product_range = produce_query.order_by(ProductSum.PRid.desc()).limit(10).all()
             sum_dict.setdefault('product', product_range)
-            user_home = UserHomeCount.query.filter(
-                ).order_by(UserHomeCount.UHid.count()).all()
+            user_query = db.session.query(UserHomeCount).filter_by_()
+            user_home = user_query.order_by(UserHomeCount.UHid.desc()).limit(10).all()
             sum_dict.setdefault('user_home', user_home)
 
         return Success(data=sum_dict)
