@@ -13,7 +13,7 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner, Entry, Admin, UserLoginApi
+    HypermarketIndexBanner, Entry, Admin
 from planet.service.SIndex import SIndex
 
 
@@ -46,51 +46,6 @@ class CIndex:
         # [index_banner.fill('prtitle', Products.query.filter_by_(PRid=index_banner.PRid).first()['PRtitle'])
         #  for index_banner in index_banners]
         return Success(data=index_banners)
-
-    def visit_num(self):
-        uvs = db.session.query(distinct(UserLoginApi.USid)).all()
-        today_uv = yesterday_uv = 0
-        for uv in uvs:
-            is_uv = UserLoginApi.query.filter(
-                UserLoginApi.isdelete == False,
-                UserLoginApi.USid == str(uv[0]),
-                extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-                extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-                extract('day', UserLoginApi.createtime) <= datetime.datetime.now().day,
-                extract('day', UserLoginApi.createtime) >= datetime.datetime.now().day - 1,
-            ).order_by(
-                UserLoginApi.createtime.desc()
-            ).first()
-            if is_uv.createtime.day == datetime.datetime.now().day:
-                today_uv = today_uv + 1
-            else:
-                yesterday_uv = yesterday_uv + 1
-        ips = db.session.query(distinct(UserLoginApi.USTip)).all()
-        today_ip = yesterday_ip = 0
-        for ip in ips:
-            is_ip = UserLoginApi.query.distinct(UserLoginApi.USTip).filter(
-                UserLoginApi.isdelete == False,
-                UserLoginApi.USTip == str(ip[0]),
-                extract('year', UserLoginApi.createtime) == datetime.datetime.now().year,
-                extract('month', UserLoginApi.createtime) == datetime.datetime.now().month,
-                extract('day', UserLoginApi.createtime) <= datetime.datetime.now().day,
-                extract('day', UserLoginApi.createtime) >= datetime.datetime.now().day - 1,
-            ).order_by(
-                UserLoginApi.createtime.desc()
-            ).first()
-            if is_ip.createtime.day == datetime.datetime.now().day:
-                today_ip = today_ip + 1
-            else:
-                yesterday_ip = yesterday_ip + 1
-
-        current_app.logger.info('uv:{}{} ip:{}{} '.format(today_uv, yesterday_uv, today_ip, yesterday_ip))
-        visitnum = {
-            'today_visitnum': today_uv,
-            'yesterday_visitnum': yesterday_uv,
-            'today_ip': today_ip,
-            'yesterday_ip': yesterday_ip
-        }
-        return Success(data=visitnum)
 
     @admin_required
     def set_banner(self):
