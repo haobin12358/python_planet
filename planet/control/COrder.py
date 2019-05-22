@@ -74,7 +74,8 @@ class COrder(CPay, CCoupon):
         if omfrom is None:
             # 默认获取非活动订单
             # order_main_query = order_main_query.filter(normal_filter)
-            filter_args.add(normal_filter)
+            if not common_user():
+                filter_args.add(normal_filter)  # 05-19 前台订单合并
         else:
             filter_args.add(OrderMain.OMfrom.in_(omfrom))
             if common_user():
@@ -82,7 +83,7 @@ class COrder(CPay, CCoupon):
                 filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
-            if normal_filter in filter_args:
+            if common_user() and normal_filter in filter_args:
                 filter_args.remove(normal_filter)
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
@@ -152,6 +153,9 @@ class COrder(CPay, CCoupon):
                 # 状态
                 order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
                 order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value  # 汉字
+                if order_main.OMinRefund:
+                    order_main.OMstatus_zh = '售后中'
+
                 order_main.add('OMstatus_en', 'OMstatus_zh', 'createtime').hide('OPayno', 'USid', )
                 order_main.fill('OMfrom_zh', OrderFrom(order_main.OMfrom).zh_value)
                 # 用户
@@ -1320,7 +1324,8 @@ class COrder(CPay, CCoupon):
         """各状态订单的数量"""
         form = OrderListForm().valid_data()
         usid = form.usid.data
-        extentions = form.extentions.data  # 是否扩展的查询
+        # extentions = form.extentions.data  # 是否扩展的查询
+        extentions = 'refund'  # 是否扩展的查询
         ordertype = form.ordertype.data  # 区分活动订单
         filter_args = []
         if usid:
@@ -1387,8 +1392,8 @@ class COrder(CPay, CCoupon):
                     refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
                                                            OrderMain.USid == usid,
                                                            OrderMain.isdelete == False,
-                                                           OrderMain.OMfrom.in_(
-                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                           # OrderMain.OMfrom.in_(
+                                                           #     [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                            *filter_args).distinct().count()
                 else:
                     order_main_query = self._refund_query(OrderMain.query, None, None)
@@ -1408,9 +1413,10 @@ class COrder(CPay, CCoupon):
                     }
                 )
         else:
-            filter_args.append(
-                OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
-            )
+            if not common_user():
+                filter_args.append(
+                    OrderMain.OMfrom.in_([OrderFrom.carts.value, OrderFrom.product_info.value])
+                )
             if not is_admin() and not is_supplizer():
                 data = [  # 获取各状态的数量, '已完成'和'已取消'和'已评价'除外
                     {'count': self._get_order_count(filter_args, k),
@@ -1439,8 +1445,8 @@ class COrder(CPay, CCoupon):
                     refund_count = OrderMain.query.filter_(OrderMain.OMinRefund == True,
                                                            OrderMain.USid == usid,
                                                            OrderMain.isdelete == False,
-                                                           OrderMain.OMfrom.in_(
-                                                               [OrderFrom.carts.value, OrderFrom.product_info.value]),
+                                                           # OrderMain.OMfrom.in_(
+                                                           #     [OrderFrom.carts.value, OrderFrom.product_info.value]),
                                                            *filter_args).distinct().count()
                 else:
                     order_main_query = self._refund_query(OrderMain.query.filter(
@@ -2225,9 +2231,10 @@ class COrder(CPay, CCoupon):
                     OrderRefund.ORstatus == orstatus
                 )
         else:
-            order_main_query = order_main_query.filter(
-                OrderMain.OMinRefund == True
-            )
+            order_main_query = order_main_query.outerjoin(OrderPart,
+                                                          OrderMain.OMid == OrderPart.OMid
+                                                          ).filter(or_(OrderMain.OMinRefund == True,
+                                                                       OrderPart.OPisinORA == True))
         return order_main_query
 
     def _part_to_row(self, *args, **kwargs):
