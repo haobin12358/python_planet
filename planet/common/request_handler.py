@@ -17,29 +17,36 @@ from .success_response import Success
 
 User = namedtuple('User', ('id', 'model', 'level'))
 
-def _get_user_agent(self):
-        user_agent = request.user_agent
-        ua = str(user_agent).split()
-        osversion=phonemodel=wechatversion=nettype=None
-        if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
-            return
-        for index, item in enumerate(ua):
-            if 'Android' in item:
-                osversion = f'Android {ua[index + 1][:-1]}'
-                phonemodel = ua[index + 2]
-                temp_index = index + 3
-                while 'Build' not in ua[temp_index]:
-                    phonemodel = f'{phonemodel} {ua[temp_index]}'
-                    temp_index += 1
-            elif 'OS' in item:
-                if ua[index - 1] == 'iPhone':
-                    osversion = f'iOS {ua[index + 1]}'
-                    phonemodel = 'iPhone'
-            if 'MicroMessenger' in item:
-                wechatversion = re.match(r'^(.*)\/(.*)(\((.*))?$', item).group(2)
-            if 'NetType' in item:
-                nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
-        return osversion, phonemodel, wechatversion, nettype, user_agent.string
+
+def _get_user_agent():
+    user_agent = request.user_agent
+    ua = str(user_agent).split()
+    osversion = phonemodel = wechatversion = nettype = None
+    if not re.match(r'^(android|iphone)$', str(user_agent.platform)):
+        return
+    for index, item in enumerate(ua):
+        if 'Android' in item:
+            osversion = f'Android {ua[index + 1][:-1]}'
+            phonemodel = ua[index + 2]
+            temp_index = index + 3
+            while 'Build' not in ua[temp_index]:
+                phonemodel = f'{phonemodel} {ua[temp_index]}'
+                temp_index += 1
+        elif 'OS' in item:
+            if ua[index - 1] == 'iPhone':
+                osversion = f'iOS {ua[index + 1]}'
+                phonemodel = 'iPhone'
+        if 'MicroMessenger' in item:
+            try:
+                wechatversion = item.split('/')[1]
+                if '(' in wechatversion:
+                    wechatversion = wechatversion.split('(')[0]
+            except Exception as e:
+                current_app.logger.error('MicroMessenger:{}, error is :{}'.format(item, e))
+                wechatversion = item.split('/')[1][:3]
+        if 'NetType' in item:
+            nettype = re.match(r'^(.*)\/(.*)$', item).group(2)
+    return osversion, phonemodel, wechatversion, nettype, user_agent.string
 
 def request_first_handler(app):
     @app.before_request
@@ -72,6 +79,7 @@ def request_first_handler(app):
                             'WechatVersion':useragent[2],
                             'NetType':useragent[3]
                         }
+                        current_app.logger.info('ula info : {}'.format(ula_dict1))
                         ula_instance = UserLoginApi.create(ula_dict1)
                         db.session.add(ula_instance)
 
