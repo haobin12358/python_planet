@@ -35,6 +35,16 @@ export DXXAPPSECRET='appsecret'
 ```bash
 source ~/.bashrc
 ```
+## 119服务器进行数据库迁移需要先进入容器
+
+```bash
+ddd
+```
+## 119服务器重启
+```bash
+dss
+```
+
 ## 数据库迁移
 
 更改model后使用
