@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL, BIGINT
 from sqlalchemy.dialects.mysql import LONGTEXT
 

@@ -71,6 +71,6 @@ class AUser(Resource):
             'wx_callback': self.user.wx_callback,  # 转发回调接口
             'get_home_top': self.user.get_home_top,  # 用户主页顶部信息
             'data_overview': self.user.user_data_overview,  # 用户数据折线图概览
-            'get_user_sum': self.user.get_user_sum,  # 统计商品，用户浏览信息
+            'get_user_sum': self.user.get_user_sum,  # 统计商品用户浏览量
         }
         return apis
