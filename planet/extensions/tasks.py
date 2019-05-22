@@ -8,7 +8,7 @@ from decimal import Decimal
 import requests
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date, extract, func
+from sqlalchemy import cast, Date, extract, func, or_, and_
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
@@ -73,7 +73,7 @@ def auto_evaluate():
         # limit_time = 7
         time_now = datetime.now()
         with db.auto_commit():
-            s_list = list()
+            s_list = []
             current_app.logger.info(">>>>>>  开始检测超过{0}天未评价的商品订单  <<<<<<".format(limit_time))
             from planet.control.COrder import COrder
             corder = COrder()
@@ -102,6 +102,11 @@ def auto_evaluate():
             else:
                 for order_main in order_mains:
                     order_parts = OrderPart.query.filter_by_(OMid=order_main.OMid).all()  # 主单下所有副单
+
+                    ol = OrderLogistics.query.filter_by(OMid=order_main.OMid, isdelete=False).first()
+                    if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
+                        continue
+
                     for order_part in order_parts:
                         if order_part.OPisinORA is True:
                             continue
@@ -116,15 +121,13 @@ def auto_evaluate():
                             corder._fresh_commsion_into_count(order_part)  # 佣金到账
                             if user:  # 防止因用户不存在,进入下个方法报错停止
                                 corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
+                            count += 1
                             continue  # 已评价的订单只进行销售量统计、佣金到账，跳过下面的评价步骤
-
-                        ol = OrderLogistics.query.filter_by(OMid=order_part.OMid, isdelete=False).first()
-                        if not ol or ol.OLsignStatus != LogisticsSignStatus.already_signed.value:
-                            continue
 
                         corder._fresh_commsion_into_count(order_part)  # 佣金到账
 
-                        if user and order_main.OMfrom != OrderFrom.trial_commodity.value:
+                        if user and order_main.OMfrom not in [OrderFrom.trial_commodity.value,
+                                                              OrderFrom.integral_store.value]:
 
                             usname, usheader = user.USname, user.USheader
                             corder._tosalesvolume(order_main.OMtrueMount, user.USid)  # 销售额统计
@@ -260,37 +263,43 @@ def fix_evaluate_status_error():
 @celery.task(name='create_settlenment')
 def create_settlenment():
     """每月22号创建结算单"""
-    try:
-        current_app.logger.info("----->  开始创建供应商结算单  <-----")
-        with db.auto_commit():
-            su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
-            from planet.control.COrder import COrder
-            corder = COrder()
-            for su in su_list:
-                today = datetime.now()
-                pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
-                tomonth_22 = date(year=today.year, month=today.month, day=22)
-                pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
-                su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
-                    UserCommission.USid == su.SUid,
-                    UserCommission.isdelete == False,
-                    UserCommission.UCstatus == UserCommissionStatus.in_account.value,
-                    UserCommission.CommisionFor == ApplyFrom.supplizer.value,
-                    cast(UserCommission.createtime, Date) < tomonth_22,
-                    cast(UserCommission.createtime, Date) >= pre_month_22,
-                ).first()
-                ss_total = su_comiission[0] or 0
-                ss = SupplizerSettlement.create({
-                    'SSid': str(uuid.uuid1()),
-                    'SUid': su.SUid,
-                    'SSdealamount': float('%.2f' % float(ss_total)),
-                    'SSstatus': SupplizerSettementStatus.settlementing.value
-                })
-                db.session.add(ss)
-                db.session.flush()
-                corder._create_settlement_excel(su.SUid, ss)
-    except Exception as e:
-        current_app.logger.info('创建失败')
+    current_app.logger.info("----->  开始创建供应商结算单  <-----")
+    with db.auto_commit():
+        su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
+        from planet.control.COrder import COrder
+        corder = COrder()
+        for su in su_list:
+            today = datetime.now()
+            # today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
+            pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
+            tomonth_22 = date(year=today.year, month=today.month, day=22)
+            pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
+            su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
+                UserCommission.USid == su.SUid,
+                UserCommission.isdelete == False,
+                UserCommission.UCstatus == UserCommissionStatus.in_account.value,
+                UserCommission.CommisionFor == ApplyFrom.supplizer.value,
+                # or_(
+                #     and_(
+                #         cast(UserCommission.createtime, Date) < tomonth_22,
+                #         cast(UserCommission.createtime, Date) >= pre_month_22,),
+                #     and_(
+                cast(UserCommission.updatetime, Date) < tomonth_22,
+                cast(UserCommission.updatetime, Date) >= pre_month_22,
+                    # ))
+            ).first()
+            ss_total = su_comiission[0] or 0
+            ss = SupplizerSettlement.create({
+                'createtime': today,
+                'updatetime': today,
+                'SSid': str(uuid.uuid1()),
+                'SUid': su.SUid,
+                'SSdealamount': float('%.2f' % float(ss_total)),
+                'SSstatus': SupplizerSettementStatus.settlementing.value
+            })
+            db.session.add(ss)
+            db.session.flush()
+            corder._create_settlement_excel(su.SUid, ss)
 
 
 @celery.task(name='get_logistics')

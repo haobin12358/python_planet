@@ -24,11 +24,12 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus, ProductBrandStatus
+    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
 from planet.config.secret import BASEDIR
+from planet.control.BaseControl import BASEADMIN
 from planet.control.CCoupon import CCoupon
 from planet.control.CPay import CPay
 from planet.control.CUser import CUser
@@ -81,7 +82,8 @@ class COrder(CPay, CCoupon):
                 filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
         if omstatus == 'refund':
-            filter_args.remove(normal_filter)
+            if normal_filter in filter_args:
+                filter_args.remove(normal_filter)
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
@@ -214,8 +216,10 @@ class COrder(CPay, CCoupon):
         ).join(
             OrderRefundApply,
             or_(
-                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderMain.OMinRefund == True, OrderRefundApply.isdelete == False),
-                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderPart.OPisinORA == True, OrderRefundApply.isdelete == False)
+                and_(OrderRefundApply.OMid == OrderMain.OMid, OrderMain.OMinRefund == True,
+                     OrderRefundApply.isdelete == False),
+                and_(OrderRefundApply.OPid == OrderPart.OPid, OrderPart.OPisinORA == True,
+                     OrderRefundApply.isdelete == False)
             ),
         ).outerjoin(OrderRefund, and_(OrderRefund.ORAid == OrderRefundApply.ORAid, OrderRefund.isdelete == False)). \
             outerjoin(OrderRefundFlow,
@@ -317,6 +321,9 @@ class COrder(CPay, CCoupon):
             UserCommission.CommisionFor == ApplyFrom.supplizer.value,
             UserCommission.createtime < tomonth,
             UserCommission.createtime >= pre_month,
+            UserCommission.OMid == OrderMain.OMid,
+            OrderMain.OMstatus > OrderMainStatus.wait_send.value,
+            OrderMain.isdelete == False
         ).first()
         pre_view = su_comiission[0]
         return pre_view
@@ -524,7 +531,7 @@ class COrder(CPay, CCoupon):
                             })
                             # model_bean.append(month_sale_instance)
                             s.add(month_sale_instance)
-                            
+
                     order_part_dict = {
                         'OMid': omid,
                         'OPid': opid,
@@ -624,14 +631,14 @@ class COrder(CPay, CCoupon):
                                 str(coupon.COsubtration))
                             order_price = order_price - reduce_price
                             if order_price <= 0:
-                                order_price = 0.01
+                                order_price = Decimal(0.01)
                         else:
                             coupon_for_sum = order_old_price
                             order_price = order_price * Decimal(str(coupon.COdiscount)) / 10 - Decimal(
                                 str(coupon.COsubtration))
                             reduce_price = order_old_price - order_price
                             if order_price <= 0:
-                                order_price = 0.01
+                                order_price = Decimal(0.01)
                         # 副单按照比例计算'实际价格'
                         for order_part in order_part_list:
                             if order_part.PRid in coupon_for_in_this:
@@ -639,7 +646,7 @@ class COrder(CPay, CCoupon):
                                                             (reduce_price * coupon_for_in_this[
                                                                 order_part.PRid] / coupon_for_sum)
                                 if order_part.OPsubTrueTotal <= 0:
-                                    order_part.OPsubTrueTotal = 0.01
+                                    order_part.OPsubTrueTotal = Decimal(0.01)
                                 order_part.UseCoupon = True
                                 s.add(order_part)
                                 s.flush()
@@ -658,7 +665,8 @@ class COrder(CPay, CCoupon):
                         order_coupon_instance = OrderCoupon.create(order_coupon_dict)
                         s.add(order_coupon_instance)
                 if opaytype == PayType.mixedpay.value:  # 如果是组合支付的话，更改实际支付金额
-                    dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance, order_price)
+                    dev_mount, dev_integral = self._calculate_integral_pay_part(user, product_brand_instance,
+                                                                                order_price)
                 order_price -= dev_mount
                 # 快递费选最大
                 freight = max(freight_list)
@@ -758,7 +766,8 @@ class COrder(CPay, CCoupon):
                     assert opnum > 0
                     sku_instance = ProductSku.query.filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
                     prid = sku_instance.PRid
-                    product_instance = Products.query.filter_by_({'PRid': prid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+                    product_instance = Products.query.filter_by_({'PRid': prid}).first_(
+                        'skuid: {}对应的商品不存在'.format(skuid))
                     if product_instance.PBid != pbid:
                         raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
 
@@ -891,6 +900,8 @@ class COrder(CPay, CCoupon):
         if not is_admin() and not is_supplizer() and order_main.USid != usid:
             raise NotFound('订单订单不存在')
         self._cancle(order_main)
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('取消成功')
 
     def _cancle(self, order_main):
@@ -1134,7 +1145,8 @@ class COrder(CPay, CCoupon):
                         average_score = round(((float(sum(scores)) + float(oescore)) / (len(scores) + 1)) * 2)
                         Products.query.filter_by_(PRid=order_part_info.PRid).update({'PRaverageScore': average_score})
                     except Exception as e:
-                        gennerc_log("Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
+                        gennerc_log(
+                            "Evaluation ERROR: Update Product Score OPid >>> {0}, ERROR >>> {1}".format(opid, e))
                 # 评价中的图片
                 image_list = evaluation.get('image')
                 if image_list:
@@ -1202,7 +1214,8 @@ class COrder(CPay, CCoupon):
                         other_scores = [oe.OEscore for oe in
                                         OrderEvaluation.query.filter(OrderEvaluation.PRid == other_product_info.PRid,
                                                                      OrderEvaluation.isdelete == False).all()]
-                        other_average_score = round(((float(sum(other_scores)) + float(5.0)) / (len(other_scores) + 1)) * 2)
+                        other_average_score = round(
+                            ((float(sum(other_scores)) + float(5.0)) / (len(other_scores) + 1)) * 2)
                         Products.query.filter_by_(PRid=other_product_info.PRid).update(
                             {'PRaverageScore': other_average_score})
                     except Exception as e:
@@ -1573,7 +1586,7 @@ class COrder(CPay, CCoupon):
                                                  suid=suid),
                 'day_count': self._history_order('count', day=day, suid=suid),
                 'wai_pay_count': self._history_order('count', day=day,
-                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value, ),
+                                                     status=(OrderMain.OMstatus == OrderMainStatus.wait_pay.value,),
                                                      suid=suid),
                 'in_refund': self._inrefund(day=day, suid=suid),
                 'day': day
@@ -1779,6 +1792,8 @@ class COrder(CPay, CCoupon):
         with db.auto_commit():
             order_main.OMtrueMount = price
             db.session.add(order_main)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('修改成功')
 
     def test_to_send(self):
@@ -2265,13 +2280,14 @@ class COrder(CPay, CCoupon):
 
     def _create_settlement_excel(self, suid, ss):
         now = datetime.now()
+        # now = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
         current_app.logger.info('开始创建供应商结算表')
         pre_month = date(year=now.year, month=now.month, day=1) - timedelta(days=1)
         tomonth_22 = date(year=now.year, month=now.month, day=22)
         pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
         # form = OrderListForm().valid_data()
         # form = {}
-        list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22)
+        list_part = self._list_part(suid=suid, title='订单商品明细', tomonth=tomonth_22, pre_month=pre_month_22,)
         list_refund = self._list_refund(suid=suid, title='售后sku明细', tomonth=tomonth_22, pre_month=pre_month_22)
         confirms = self._confirm_favor(suid=suid, title='结算单汇总', tomonth=tomonth_22, pre_month=pre_month_22,
                                        settlement=ss)
@@ -2292,6 +2308,7 @@ class COrder(CPay, CCoupon):
         # return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
     def _list_part(self, *args, **kwargs):
+        # updatetime_start = kwargs.get('pre_month')
         createtime_start = kwargs.get('pre_month')
         createtime_end = kwargs.get('tomonth')
         suid = kwargs.get('suid')
@@ -2316,16 +2333,21 @@ class COrder(CPay, CCoupon):
         #     OrderMain.PRcreateId == request.user.id,
         #     # OrderMain.OMstatus == OrderMainStatus.ready.value
         # )
-        if createtime_start:
-            query = query.filter(
-                OrderMain.createtime >= createtime_start,
-            )
-        if createtime_end:
-            query = query.filter(
-                OrderMain.createtime <= createtime_end,
-                # OrderMain.updatetime <= createtime_end
-            )
+        # if createtime_start:
+        query = query.filter(
+            or_(
+                and_(
+                    createtime_end > OrderMain.createtime, OrderMain.createtime >= createtime_start,),
+                and_(createtime_end >= OrderMain.updatetime,
+                     OrderMain.updatetime >= createtime_start,
+                     OrderMain.OMstatus == OrderMainStatus.ready.value)))
+        # if createtime_end:
+        #     query = query.filter(
+        #         OrderMain.createtime <= ,
+        #         # OrderMain.updatetime <= createtime_end
+        #     )
         results = query.all()
+
         # headers = ('订单编号', '创建时间', '付款时间', '发货时间', '品牌', '订单状态',
         #            '收货人姓名', '地址详情', 'SKU-SN', '商品类目',
         #            '商品编码', '商品名称', '购买件数',

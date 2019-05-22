@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
 
@@ -41,9 +42,13 @@ class UserLoginTime(Base):
     __tablename__ = 'UserLoginTime'
     ULTid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='用户id')
-    # USTcreatetime = Column(DateTime, default=datetime.now(), comment='登录时间')
     USTip = Column(String(64), comment='登录ip地址')
     ULtype = Column(Integer, default=1, comment='登录用户类型 1: 用户，2 管理员')
+    OSVersion = Column(String(25), comment='手机系统版本')
+    PhoneModel = Column(String(16), comment='手机型号')
+    WechatVersion = Column(String(16), comment='微信版本')
+    NetType = Column(String(10), comment='用户网络')
+    UserAgent = Column(Text, comment='浏览器User-Agent')
 
 
 class UserCommission(Base):
@@ -55,7 +60,7 @@ class UserCommission(Base):
     CommisionFor = Column(Integer, default=20, comment='0 平台, 10 供应商, 20 普通用户')
     FromUsid = Column(String(64), comment='订单来源用户')
     UCstatus = Column(Integer, default=0, comment='佣金状态{-1: 异常, 0：预期到账, 1: 已到账, 2: 已提现}')
-    UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金')
+    UCtype = Column(Integer, default=0, comment='收益类型 0：佣金 1：新人商品 2：押金 3:圈子打赏')
     UCendTime = Column(DateTime, comment='预期到账时间')
     PRtitle = Column(String(255), comment='商品标题')
     SKUpic = Column(Text, url=True, comment='商品sku主图')
@@ -96,6 +101,19 @@ class Admin(Base):
     ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
+
+
+class AdminActions(Base):
+    """
+    记录管理员行为
+    """
+    __tablename__ = 'AdminAction'
+    AAid = Column(String(64), primary_key=True)
+    ADid = Column(String(64), comment='管理员id')
+    AAaction = Column(Integer, default=1, comment='管理员行为, {1: 添加, 2: 删除 3: 修改}')
+    AAmodel = Column(String(255), comment='操作的数据表')
+    AAdetail = Column(LONGTEXT, default='none', comment='请求的data')
+    AAkey = Column(String(255), comment='操作数据表的主键的值')
 
 
 class AdminNotes(Base):

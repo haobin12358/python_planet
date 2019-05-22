@@ -70,5 +70,6 @@ class AUser(Resource):
             'wx_auth': self.user.wx_auth,  # 微信登录转发接口
             'wx_callback': self.user.wx_callback,  # 转发回调接口
             'get_home_top': self.user.get_home_top,  # 用户主页顶部信息
+            'data_overview': self.user.user_data_overview,  # 用户数据折线图概览
         }
         return apis

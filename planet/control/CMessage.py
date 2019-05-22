@@ -7,7 +7,8 @@ from planet.common.error_response import AuthorityError, ParamsError, StatusErro
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_supplizer, common_user
-from planet.config.enums import ProductFrom, PlanetMessageStatus
+from planet.config.enums import ProductFrom, PlanetMessageStatus, AdminAction
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.models import ProductBrand, User
 from planet.models.message import PlatformMessage, UserPlatfromMessage
@@ -39,6 +40,8 @@ class CMessage():
                     raise ParamsError('站内信已删除')
                 pm.update({'isdelete': True})
                 db.session.add(pm)
+                if is_admin():
+                    BASEADMIN.create_action(AdminAction.delete.value, 'PlatformMessage', pmid)
                 return Success('删除成功', data={'pmid': pmid})
             pmdict = {
                 'PMtext': data.get('pmtext'),
@@ -49,11 +52,15 @@ class CMessage():
                 pmdict.setdefault('PMid', pmid)
                 pmdict.setdefault('PMfrom', pmfrom)
                 pm = PlatformMessage.create(pmdict)
+                if is_admin():
+                    BASEADMIN.create_action(AdminAction.insert.value, 'PlatformMessage', pmid)
                 msg = '创建成功'
             else:
                 if pm.PMstatus == PlanetMessageStatus.publish.value:
                     raise StatusError('已上线站内信不能修改')
                 pm.update(pmdict)
+                if is_admin():
+                    BASEADMIN.create_action(AdminAction.update.value, 'PlatformMessage', pmid)
                 msg = '更新成功'
 
             # 如果站内信为上线状态，创建用户站内信 推送 todo

@@ -18,8 +18,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, is_supplizer, token_required
 from planet.config.enums import ProductFrom, ExcelTemplateType, AdminStatus, UserStatus, OrderMainStatus, \
-    ProductBrandStatus
-from planet.control.BaseControl import BASEAPPROVAL
+    ProductBrandStatus, AdminActionS
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.extensions.tasks import get_url_local, auto_agree_task
 from planet.extensions.register_ext import db
 
@@ -69,6 +69,8 @@ class CExcel(object):
             get_url_local.apply_async(args=[self._url_list], countdown=1, expires=1 * 60, )
             self._url_list = list()
         current_app.logger.info('end add template {}'.format(datetime.now()))
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.insert.value, 'file', file_path)
         return Success('上传成功')
 
     @token_required
@@ -95,6 +97,9 @@ class CExcel(object):
 
         # 进行订单发货
         nrows = self._order_delivery(file_path)
+        if is_admin():
+            with db.auto_commit():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'file', file_path)
 
         current_app.logger.info('End Add Delivery Template {}'.format(datetime.now()))
         return Success('批量发货成功, 共发货 {} 个订单'.format(nrows - 1))

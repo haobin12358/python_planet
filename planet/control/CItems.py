@@ -7,7 +7,9 @@ from flask import request, current_app
 from sqlalchemy import func
 
 from planet.common.error_response import StatusError, DumpliError
-from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, NewsItemPostion
+from planet.control.BaseControl import BASEADMIN
+from planet.config.enums import ItemType, ItemAuthrity, ItemPostion, ProductStatus, CollectionType, NewsItemPostion, \
+    AdminAction, AdminActionS
 from planet.extensions.register_ext import db
 from planet.extensions.validates.Item import ItemCreateForm, ItemListForm, ItemUpdateForm
 from planet.service.SProduct import SProducts
@@ -161,6 +163,7 @@ class CItems:
             }
             items_instance = Items.create(item_dict)
             s_list.append(items_instance)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'Items', itid)
             # 标签场景标签表
             if psid:
                 for psi in psid:
@@ -172,6 +175,7 @@ class CItems:
                     }
                     scene_item_instance = SceneItem.create(scene_item_dict)
                     s_list.append(scene_item_instance)
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'SceneItem', psi)
             s.add_all(s_list)
         return Success('添加成功', {'itid': itid})
 
@@ -203,7 +207,7 @@ class CItems:
                          }
             # item_dict = {k: v for k, v in item_dict.items() if v is not None}
             Items.query.filter_by_(ITid=itid).update(item_dict)
-
+            BASEADMIN().create_action(AdminActionS.update.value, 'Items', itid)
             # 标签场景标签表
             if psid:
                 old_psids = list()
@@ -219,11 +223,13 @@ class CItems:
                         }
                         scene_item_instance = SceneItem.create(scene_item_dict)
                         db.session.add(scene_item_instance)
+                        BASEADMIN().create_action(AdminActionS.insert.value, 'SceneItem', psi)
                     else:
                         old_psids.remove(psi)
                 [SceneItem.query.filter_by(PSid=droped_psid, ITid=itid).delete_() for droped_psid in old_psids]
             else:
                 SceneItem.query.filter_by(ITid=itid).delete_()  # psid = [] 为空时，删除所有该标签场景的关联
+                BASEADMIN().create_action(AdminActionS.delete.value, 'SceneItem', itid)
         return Success('修改成功', {'itid': itid})
 
     def _check_itsort(self, itsort, ittype):

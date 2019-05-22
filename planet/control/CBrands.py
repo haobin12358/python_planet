@@ -5,7 +5,8 @@ from flask import current_app
 from sqlalchemy import or_
 
 from planet.common.params_validates import parameter_required
-from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType
+from planet.config.enums import ProductBrandStatus, ProductStatus, ItemType, AdminAction, AdminActionS
+from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.service.SProduct import SProducts
 from planet.models import ProductBrand, Products, Items, BrandWithItems, Supplizer
@@ -156,7 +157,7 @@ class CBrands(object):
     @token_required
     def off_shelves(self):
         """上下架"""
-        data = parameter_required(('pbid', ))
+        data = parameter_required(('pbid',))
         pbid = data.get('pbid')
         pbstatus = data.get('pbstatus', 'up')
         with self.sproduct.auto_commit() as s:
@@ -229,15 +230,15 @@ class CBrands(object):
                         s_list.append(brand_with_pbitem_instance)
                 # 删除
                 s.query(BrandWithItems).filter_(BrandWithItems.ITid.notin_(itids),
-                                                    BrandWithItems.PBid == pbid,
-                                                    BrandWithItems.isdelete == False).delete_(synchronize_session=False)
+                                                BrandWithItems.PBid == pbid,
+                                                BrandWithItems.isdelete == False).delete_(synchronize_session=False)
             s.add_all(s_list)
         return Success('更新成功')
 
     @admin_required
     def delete(self):
         # todo 记录删除操作管理员
-        data = parameter_required(('pbid', ))
+        data = parameter_required(('pbid',))
         pbid = data.get('pbid')
         with db.auto_commit():
             brand = ProductBrand.query.filter(
@@ -246,6 +247,7 @@ class CBrands(object):
             ).first_('品牌不存在')
             brand.isdelete = True
             db.session.add(brand)
+            BASEADMIN().create_action(AdminActionS.delete.value, 'ProductBrand', pbid)
             # 商品下架
             off_products = Products.query.filter(
                 Products.isdelete == False,
