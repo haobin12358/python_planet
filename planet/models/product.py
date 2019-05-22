@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL, BIGINT
 from sqlalchemy.dialects.mysql import LONGTEXT
 
@@ -295,6 +296,7 @@ class IntegralProductSku(Base):
     IPSstock = Column(BIGINT, comment='库存')
     SKUid = Column(String(64), comment='商品skuid')
     SKUprice = Column(BIGINT,  nullable=False, comment='sku星币价格')
+
 
 
 # class SupplizerBrand(Base):

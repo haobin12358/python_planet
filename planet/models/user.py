@@ -24,9 +24,9 @@ class User(Base):
     USsupper1 = Column(String(64), comment='一级代理商id')
     USsupper2 = Column(String(64), comment='二级代理商id')
     USsupper3 = Column(String(64), comment='三级代理商id')
-    USCommission1 = Column(DECIMAL(scale=2), comment='当用户作为一级时, 佣金分成')       # 一级佣金分成比例
-    USCommission2 = Column(DECIMAL(scale=2), comment='佣金分成')       # 二级佣金分成比例
-    USCommission3 = Column(DECIMAL(scale=2), comment='佣金分成')       # 三级佣金分成比例
+    USCommission1 = Column(DECIMAL(scale=2), comment='当用户作为一级时, 佣金分成')  # 一级佣金分成比例
+    USCommission2 = Column(DECIMAL(scale=2), comment='佣金分成')  # 二级佣金分成比例
+    USCommission3 = Column(DECIMAL(scale=2), comment='佣金分成')  # 三级佣金分成比例
     USintegral = Column(Integer, default=0, comment='星币')
     CommisionLevel = Column(Integer, default=1)
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
@@ -51,6 +51,19 @@ class UserLoginTime(Base):
     UserAgent = Column(Text, comment='浏览器User-Agent')
 
 
+class UserLoginApi(Base):
+    """记录访问api的信息"""
+    __tablename__ = 'UserLoginApi'
+    ULAid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户id')
+    ULA = Column(String(64), comment='请求api地址')
+    USTip = Column(String(64), comment='登录ip地址')
+    OSVersion = Column(String(25), comment='手机系统版本')
+    PhoneModel = Column(String(16), comment='手机型号')
+    WechatVersion = Column(String(16), comment='微信版本')
+    NetType = Column(String(10), comment='用户网络')
+
+
 class UserCommission(Base):
     """用户佣金"""
     __tablename__ = 'UserCommission'
@@ -73,7 +86,7 @@ class IdentifyingCode(Base):
     __tablename__ = "identifyingcode"
     ICid = Column(String(64), primary_key=True)
     ICtelphone = Column(String(14), nullable=False)  # 获取验证码的手机号
-    ICcode = Column(String(8), nullable=False)    # 获取到的验证码
+    ICcode = Column(String(8), nullable=False)  # 获取到的验证码
 
 
 class UserSearchHistory(Base):

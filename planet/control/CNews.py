@@ -692,8 +692,6 @@ class CNews(BASEAPPROVAL):
             }
             news_instance.update(news_info, null='no')
             session_list.append(news_instance)
-            if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'News', neid)
 
             if items not in self.empty:
                 item_list = list()
@@ -868,8 +866,6 @@ class CNews(BASEAPPROVAL):
                         })
                         s.add(ui)
                         user.update({'USintegral': user.USintegral + int(ui.UIintegral)})
-                        if is_admin():
-                            BASEADMIN().create_action(AdminActionS.update.value, 'UserIntegral', str(uuid.uuid1()))
                         s.add(user)
                 msg = '已赞同'
             else:
@@ -1138,7 +1134,7 @@ class CNews(BASEAPPROVAL):
             tocfrom = ApplyFrom.platform.value
         data = parameter_required(('toctitle',))
         totile = data.get('toctitle')
-        if (not totile) or (not re.sub(r' ', '', totile)):
+        if (not totile) or (not re.sub(r'\s', '', totile)):
             raise ParamsError('请输入要创建的话题')
         toc = TopicOfConversations.query.filter(TopicOfConversations.isdelete == False,
                                                 TopicOfConversations.TOCtitle == totile

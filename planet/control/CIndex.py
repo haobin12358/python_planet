@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import uuid
-
 from flask import request, current_app
 
 from planet.common.error_response import SystemError, ParamsError
