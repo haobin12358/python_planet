@@ -183,14 +183,17 @@ class CProducts(BaseController):
 
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
-            usid = request.user.id
-            if usid:
+
+            try:
+                usid = request.user.id
                 ps = ProductSum.create({
+                    'PSid': str(uuid.uuid1()),
                     'PRid': prid,
                     'USid': usid
                 })
-            else:
+            except AttributeError:
                 ps = ProductSum.create({
+                    'PSid': str(uuid.uuid1()),
                     'PRid': prid
                 })
             db.session.add(ps)
