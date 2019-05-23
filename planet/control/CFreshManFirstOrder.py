@@ -136,22 +136,22 @@ class CFreshManFirstOrder(COrder, CUser):
         # 只可以买一次
         usid = request.user.id
         user = get_current_user()
-        exists_order = OrderMain.query.filter(
-            OrderMain.USid == usid,
-            OrderMain.isdelete == False, OrderPart.isdelete == False,
-            ProductItems.isdelete == False, Items.isdelete == False,
-            # OrderMain.USid == usid,
-            # OrderMain.OMstatus == OrderMainStatus.ready.value,
-            OrderPart.PRid == ProductItems.PRid,
-            ProductItems.ITid == Items.ITid,
-            Items.ITname != '开店大礼包',
-            OrderPart.OMid == OrderMain.OMid,
-            OrderMain.OMstatus > OrderMainStatus.wait_pay.value
-        ).first()
+        # exists_order = OrderMain.query.filter(
+        #     OrderMain.USid == usid,
+        #     OrderMain.isdelete == False, OrderPart.isdelete == False,
+        #     ProductItems.isdelete == False, Items.isdelete == False,
+        #     # OrderMain.USid == usid,
+        #     # OrderMain.OMstatus == OrderMainStatus.ready.value,
+        #     OrderPart.PRid == ProductItems.PRid,
+        #     ProductItems.ITid == Items.ITid,
+        #     Items.ITname != '开店大礼包',
+        #     OrderPart.OMid == OrderMain.OMid,
+        #     OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+        # ).first()
         # cuser = CUser()
         # cuser._check_gift_order()
-        if exists_order:
-            raise StatusError('您不是新人')
+        # if exists_order:
+        #     raise StatusError('您不是新人')
         try:
             opaytype = int(data.get('opaytype'))
         except ValueError:
@@ -219,7 +219,6 @@ class CFreshManFirstOrder(COrder, CUser):
             if secret_usid:
                 try:
                     from_usid = self._base_decode(secret_usid)
-                    # 来源用户是否购买
                     current_app.logger.info('该用户直接点击了链接购买 分享人id 是 {}'.format(from_usid))
                     if from_usid == user.USid:
                         from_usid = None
@@ -240,10 +239,10 @@ class CFreshManFirstOrder(COrder, CUser):
 
             current_app.logger.info('get share user id = {}'.format(from_usid))
 
-            from_user_order = OrderMain.query.filter_by().filter(
+            from_user_order = OrderMain.query.filter(
+                OrderMain.isdelete == False,
                 OrderMain.USid == from_usid,
                 OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
-                OrderMain.OMfrom == OrderFrom.fresh_man.value,
             ).first()
 
             current_app.logger.info('get share user order = {}'.format(from_user_order))
@@ -318,10 +317,10 @@ class CFreshManFirstOrder(COrder, CUser):
                 fresh_man_join_dict['UPid'] = from_usid
             join_instance = FreshManJoinFlow.create(fresh_man_join_dict)
             db.session.add(join_instance)
-            # 删除未支付的新人订单
-            if exists_order:
-                exists_order.isdelete = True
-                db.session.add(exists_order)
+            # # 删除未支付的新人订单
+            # if exists_order:
+            #     exists_order.isdelete = True
+            #     db.session.add(exists_order)
         from planet.extensions.tasks import auto_cancle_order
 
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
