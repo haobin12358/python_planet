@@ -17,10 +17,7 @@ from .success_response import Success
 User = namedtuple('User', ('id', 'model', 'level'))
 
 
-def token_to_user_():
-    current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
-    parameter = request.args.to_dict()
-    token = parameter.get('token')
+def token_to_user_(token):
     if token:
         s = Serializer(current_app.config['SECRET_KEY'])
         try:
@@ -31,9 +28,9 @@ def token_to_user_():
             username = data.get('username', 'none')
             User = namedtuple('User', ('id', 'model', 'level', 'username'))
             user = User(id, model, level, username)
-            setattr(request, 'user', user)
+            # setattr(request, 'user', user)
             current_app.logger.info('current_user info : {}'.format(data))
-
+            return user
 
         except BadSignature as e:
             pass
@@ -78,7 +75,12 @@ def _get_user_agent():
 def request_first_handler(app):
     @app.before_request
     def token_to_user():
-        token_to_user_()
+        current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
+        parameter = request.args.to_dict()
+        token = parameter.get('token')
+        user = token_to_user_(token)
+        if user:
+            setattr(request, 'user', user)
         useragent = _get_user_agent()
         if useragent:
             with db.auto_commit():
