@@ -42,8 +42,8 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow,UserLoginApi
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -1195,15 +1195,13 @@ class CUser(SUser, BASEAPPROVAL):
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
-            ipcount = db.session.query(UserLoginTime.USTip).filter(UserLoginTime.isdelete == False,
-                                                                   UserLoginTime.ULtype == UserLoginTimetype.user.value,
-                                                                   cast(UserLoginTime.createtime, Date) == day,
-                                                                   ).group_by(UserLoginTime.USTip).count()
+            ipcount = db.session.query(UserLoginApi.USTip).filter(UserLoginApi.isdelete == False,
+                                                                  cast(UserLoginApi.createtime, Date) == day
+                                                                  ).group_by(UserLoginApi.USTip).count()
             ip_count.append(ipcount)
-            uvcount = db.session.query(UserLoginTime.USid).filter(UserLoginTime.isdelete == False,
-                                                                  UserLoginTime.ULtype == UserLoginTimetype.user.value,
-                                                                  cast(UserLoginTime.createtime, Date) == day
-                                                                  ).group_by(UserLoginTime.USid).count()
+            uvcount = db.session.query(UserLoginApi.USid).filter(UserLoginApi.isdelete == False,
+                                                                 cast(UserLoginApi.createtime, Date) == day
+                                                                 ).group_by(UserLoginApi.USid).count()
             uv_count.append(uvcount)
 
         series = [{'name': '用户数量', 'data': user_count},
@@ -2183,12 +2181,19 @@ class CUser(SUser, BASEAPPROVAL):
                 agent_time = user_agent_approval.updatetime
 
             user.fill('agenttime', agent_time)
-            userlogintime = UserLoginTime.query.filter(
-                UserLoginTime.isdelete == False,
-                UserLoginTime.USid == usid
+            userlogintime = UserLoginApi.query.filter(
+                UserLoginApi.isdelete == False,
+                UserLoginApi.USid == usid
             ).order_by(
-                UserLoginTime.createtime.desc()
+                UserLoginApi.createtime.desc()
             ).first()
+            if not userlogintime:
+                userlogintime = UserLoginTime.query.filter(
+                    UserLoginTime.isdelete == False,
+                    UserLoginTime.USid == usid
+                ).order_by(
+                    UserLoginTime.createtime.desc()
+                ).first()
             user.fill('userlogintime', userlogintime.createtime)
 
         return Success(data=users)
