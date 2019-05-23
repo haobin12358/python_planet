@@ -133,25 +133,20 @@ class CFreshManFirstOrder(COrder, CUser):
             Client(omclient)
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
-        # 只可以买一次
+        # 只可以参加一次活动
         usid = request.user.id
         user = get_current_user()
-        # exists_order = OrderMain.query.filter(
-        #     OrderMain.USid == usid,
-        #     OrderMain.isdelete == False, OrderPart.isdelete == False,
-        #     ProductItems.isdelete == False, Items.isdelete == False,
-        #     # OrderMain.USid == usid,
-        #     # OrderMain.OMstatus == OrderMainStatus.ready.value,
-        #     OrderPart.PRid == ProductItems.PRid,
-        #     ProductItems.ITid == Items.ITid,
-        #     Items.ITname != '开店大礼包',
-        #     OrderPart.OMid == OrderMain.OMid,
-        #     OrderMain.OMstatus > OrderMainStatus.wait_pay.value
-        # ).first()
-        # cuser = CUser()
-        # cuser._check_gift_order()
-        # if exists_order:
-        #     raise StatusError('您不是新人')
+        exists_order = OrderMain.query.filter(
+            OrderMain.USid == usid,
+            OrderMain.isdelete == False, OrderPart.isdelete == False,
+            OrderMain.OMfrom == OrderFrom.fresh_man.value,
+            OrderPart.OMid == OrderMain.OMid,
+            OrderMain.OMstatus > OrderMainStatus.wait_pay.value
+        ).first()
+        cuser = CUser()
+        cuser._check_gift_order()
+        if exists_order:
+            raise StatusError('您不是第一次参加此活动')
         try:
             opaytype = int(data.get('opaytype'))
         except ValueError:
@@ -242,6 +237,7 @@ class CFreshManFirstOrder(COrder, CUser):
             from_user_order = OrderMain.query.filter(
                 OrderMain.isdelete == False,
                 OrderMain.USid == from_usid,
+                OrderMain.OMfrom == OrderFrom.fresh_man.value,
                 OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
             ).first()
 
@@ -317,10 +313,10 @@ class CFreshManFirstOrder(COrder, CUser):
                 fresh_man_join_dict['UPid'] = from_usid
             join_instance = FreshManJoinFlow.create(fresh_man_join_dict)
             db.session.add(join_instance)
-            # # 删除未支付的新人订单
-            # if exists_order:
-            #     exists_order.isdelete = True
-            #     db.session.add(exists_order)
+            # 删除未支付的新人订单
+            if exists_order:
+                exists_order.isdelete = True
+                db.session.add(exists_order)
         from planet.extensions.tasks import auto_cancle_order
 
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
