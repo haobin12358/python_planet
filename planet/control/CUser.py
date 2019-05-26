@@ -2565,9 +2565,10 @@ class CUser(SUser, BASEAPPROVAL):
         user_visitor_id = get_current_user()
         with db.auto_commit():
             if user_visitor_id.USid != usid:
+                uhid = usid
                 user_home_count = UserHomeCount.create({
                     'UHCid': str(uuid.uuid1()),
-                    'UHid': user.USid,
+                    'UHid': uhid,
                     'USid': user_visitor_id.USid,
                 })
                 db.session.add(user_home_count)
@@ -2681,12 +2682,20 @@ class CUser(SUser, BASEAPPROVAL):
         # data = parameter_required(('usid',))
         # usid = data.get('usid')
         sum_dict = dict()
+        product_dict = dict()
+        # value_dict = dict()
         with db.auto_commit():
             produce_query = db.session.query(ProductSum).filter_by_()
-            product_range = produce_query.order_by(ProductSum.PRid.desc()).limit(10).all()
-            sum_dict.setdefault('product', product_range)
+            product_range = produce_query.order_by(ProductSum.PRid.desc()).all()
+            for product_value in product_range:
+                # current_app.logger.info('product', product_value)
+                key = dict(product_value).get('prid')
+                product_dict.setdefault(key, default=0)
+                product_dict[key] += 1
+            product = sorted(product_dict, key=lambda item: item[1], reverse=True)
+            sum_dict.setdefault('product', product)
             user_query = db.session.query(UserHomeCount).filter_by_()
-            user_home = user_query.order_by(UserHomeCount.UHid.desc()).limit(10).all()
+            user_home = user_query.order_by(UserHomeCount.UHid.desc()).all()
             sum_dict.setdefault('user_home', user_home)
 
         return Success(data=sum_dict)

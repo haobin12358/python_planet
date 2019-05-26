@@ -319,7 +319,7 @@ class UserLocation(Base):
 
 
 class UserHomeCount(Base):
-    __tablename__ = 'UserLocation'
+    __tablename__ = 'UserHomeCount'
     UHCid = Column(String(64), primary_key=True)
     UHid = Column(String(64), nullable=False, comment='主页用户id')
     USid = Column(String(64), nullable=False, comment='用户id')
