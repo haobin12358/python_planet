@@ -706,7 +706,6 @@ class CNews(BASEAPPROVAL):
                             'ITid': item
                         })
                         session_list.append(news_item_info)
-                        BASEADMIN().create_action(AdminActionS.insert.value, 'NewsTag', NewsTag)
                 current_app.logger.info('获取到的资讯标签为：{}'.format(item_list))
                 count = NewsTag.query.filter(NewsTag.ITid.notin_(item_list), NewsTag.NEid == neid,
                                              NewsTag.isdelete == False).delete_(synchronize_session=False)
@@ -1135,7 +1134,7 @@ class CNews(BASEAPPROVAL):
             tocfrom = ApplyFrom.platform.value
         data = parameter_required(('toctitle',))
         totile = data.get('toctitle')
-        if (not totile) or (not re.sub(r' ', '', totile)):
+        if (not totile) or (not re.sub(r'\s', '', totile)):
             raise ParamsError('请输入要创建的话题')
         toc = TopicOfConversations.query.filter(TopicOfConversations.isdelete == False,
                                                 TopicOfConversations.TOCtitle == totile

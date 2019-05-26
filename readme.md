@@ -35,15 +35,6 @@ export DXXAPPSECRET='appsecret'
 ```bash
 source ~/.bashrc
 ```
-## 119服务器进行数据库迁移需要先进入容器
-
-```bash
-ddd
-```
-## 119服务器重启
-```bash
-dss
-```
 
 ## 数据库迁移
 
@@ -66,7 +57,7 @@ alembic downgrade 上个版本号 # 可在本次迁移文件头部中找到'Revi
 ```
 
 ## 启动和关闭
--启动
+- 启动
 ```bash
 ./start.sh start
 ```
@@ -79,6 +70,11 @@ alembic downgrade 上个版本号 # 可在本次迁移文件头部中找到'Revi
 ```bash
 ./start.sh stop
 ```
+- 119测试服
+
+- 数据库迁移需要先进入容器，在任意目录下使用 `ddd` 可进入容器bash下
+
+- 容器外任意目录下使用 `dss` 可重启服务
 
 ## 日志
 

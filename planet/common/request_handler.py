@@ -79,7 +79,6 @@ def request_first_handler(app):
                             'WechatVersion': useragent[2],
                             'NetType': useragent[3]
                         }
-                        current_app.logger.info('ula info : {}'.format(ula_dict1))
                         ula_instance = UserLoginApi.create(ula_dict1)
                         db.session.add(ula_instance)
 
