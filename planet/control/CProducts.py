@@ -360,7 +360,9 @@ class CProducts(BaseController):
                     sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
                 product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
-
+            if is_admin():
+                produce_query = db.session.query(ProductSum).filter(ProductSum.PRid == product.PRid).count()
+                product.fill('prquery', produce_query)
         current_app.logger.info('start add search history {}'.format(datetime.now()))
         # 搜索记录表
         if kw != [''] and not is_tourist():

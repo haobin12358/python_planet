@@ -2195,7 +2195,9 @@ class CUser(SUser, BASEAPPROVAL):
                     UserLoginTime.createtime.desc()
                 ).first()
             user.fill('userlogintime', userlogintime.createtime)
-
+            if is_admin():
+                userquery = db.session.query(UserHomeCount).filter(UserHomeCount.UHid == usid).count()
+                user.fill('usquery', userquery)
         return Success(data=users)
 
     @admin_required
@@ -2565,7 +2567,7 @@ class CUser(SUser, BASEAPPROVAL):
         user_visitor_id = get_current_user()
         with db.auto_commit():
             if user_visitor_id.USid != usid:
-                uhid = usid
+                uhid = user.USid
                 user_home_count = UserHomeCount.create({
                     'UHCid': str(uuid.uuid1()),
                     'UHid': uhid,
@@ -2675,28 +2677,35 @@ class CUser(SUser, BASEAPPROVAL):
             return return_sort[0]
         return tuple(return_sort)
 
-    @token_required
-    def get_user_sum(self):
-        if not is_admin():
-            raise AuthorityError
-        # data = parameter_required(('usid',))
-        # usid = data.get('usid')
-        sum_dict = dict()
-        product_dict = dict()
-        # value_dict = dict()
-        with db.auto_commit():
-            produce_query = db.session.query(ProductSum).filter_by_()
-            product_range = produce_query.order_by(ProductSum.PRid.desc()).all()
-            for product_value in product_range:
-                # current_app.logger.info('product', product_value)
-                key = dict(product_value).get('prid')
-                product_dict.setdefault(key, default=0)
-                product_dict[key] += 1
-            product = sorted(product_dict, key=lambda item: item[1], reverse=True)
-            sum_dict.setdefault('product', product)
-            user_query = db.session.query(UserHomeCount).filter_by_()
-            user_home = user_query.order_by(UserHomeCount.UHid.desc()).all()
-            sum_dict.setdefault('user_home', user_home)
-
-        return Success(data=sum_dict)
+    # @token_required
+    # def get_user_sum(self):
+    #     data = parameter_required()
+    #     usid = data.get('usid')
+    #     if not is_admin():
+    #         raise AuthorityError
+    #     sum_dict = dict()
+    #     product_dict = dict()
+    #     uhid_dict = dict()
+    #     with db.auto_commit():
+    #         produce_query = db.session.query(ProductSum.PRid).filter_by_()
+    #         # product_range = produce_query.order_by(ProductSum.PRid.desc()).all()
+    #         for product_value in produce_query:
+    #             key = product_value[0]
+    #             product_dict.setdefault(key, 0)
+    #             product_dict[key] += 1
+    #         # product = sorted(product_dict.items(), key=lambda item: item[1], reverse=True)
+    #         sum_dict.setdefault('product', product_dict)
+    #
+    #         if usid:
+    #             user_query = db.session.query(UserHomeCount).filter(UserHomeCount.UHid == usid).count()
+    #             # user_home = user_query.order_by(UserHomeCount.UHid.desc()).all()
+    #             # for uhid_value in user_query:
+    #             #     key = uhid_value[0]
+    #             #     uhid_dict.setdefault(key, 0)
+    #             #     uhid_dict[key] += 1
+    #             # uhid = sorted(uhid_dict.items(), key=lambda item: item[1], reverse=True)
+    #             sum_dict.setdefault('user_home', user_query)
+    #
+    #
+    #     return Success(data=sum_dict)
 
