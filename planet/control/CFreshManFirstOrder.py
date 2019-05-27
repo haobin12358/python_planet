@@ -450,7 +450,8 @@ class CFreshManFirstOrder(COrder, CUser):
             db.session.add(apply)
             #对ParentFMFAid进行检验
             if fresh_first_apply.FMFAstatus == ApplyStatus.reject.value:
-                fresh_first_apply.delete_()
+                fresh_first_apply.update({'isdelete': True})
+                db.session.add(fresh_first_apply)
             if is_admin():
                 BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
             # 商品, 暂时只可以添加一个商品
