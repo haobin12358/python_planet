@@ -8,7 +8,7 @@ from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 from flask import request
 
 from ..common.error_response import ApiError, BaseError, SystemError
-from ..common.request_handler import gennerc_log
+# from ..common.request_handler import gennerc_log
 from ..common.success_response import Success
 
 
@@ -64,7 +64,7 @@ class LoggerHandler():
         def framework_error(e):
             if isinstance(e, Success):
                 return e
-            gennerc_log(e)
+            # gennerc_log(e)
             if isinstance(e, BaseError):
                 return e
             else:

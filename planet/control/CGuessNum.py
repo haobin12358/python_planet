@@ -404,6 +404,101 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         request.mount = total_count
         return Success(data=ad_return_list)
 
+    def reapply_award(self):
+        """修改猜数字奖品申请, 一次只能处理一天的一个商品"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        # data = parameter_required(('gnaaid', 'skuprice', 'skustock'))
+        data = parameter_required(('gnaaid', 'prid', 'prprice', 'skus'))
+        with db.auto_commit():
+            # 获取申请单
+            apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == data.get('gnaaid'),
+                                                         GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.reject.value,
+                                                                                            ApplyStatus.cancle.value])
+                                                         ).first_('只有已拒绝或撤销状态的申请可以进行修改')
+            if apply_info.SUid != request.user.id:
+                raise AuthorityError('仅可修改自己提交的申请')
+            gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+            # 解除和原商品属性的绑定
+            GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, isdelete=False).delete_()
+            # product_old.isdelete = True
+
+            # 如果没有修改时间，则用之前时间
+            gnaastarttime = data.get('gnaastarttime') or apply_info.GNAAstarttime
+            # 如果修改了时间，检测是否有冲突
+            exist_apply_list = list()
+
+            # 重新添加商品属性
+            skus = data.get('skus')
+            product = Products.query.filter_by(
+                PRid=data.get('prid'), isdelete=False, PRstatus=ProductStatus.usual.value).first_('商品未上架')
+            product_brand = ProductBrand.query.filter_by(PBid=product.PBid).first_('商品信息不全')
+            # 新的商品属性
+            gnap = GuessNumAwardProduct.create({
+                'GNAPid': str(uuid.uuid1()),
+                'GNAAid': apply_info.GNAAid,
+                'PRid': product.PRid,
+                'PRmainpic': product.PRmainpic,
+                'PRtitle': product.PRtitle,
+                'PBid': product.PBid,
+                'PBname': product_brand.PBname,
+                'PRattribute': product.PRattribute,
+                'PRdescription': product.PRdescription,
+                'PRprice': data.get('prprice')
+            })
+            db.session.add(gnap)
+            # 新的sku属性
+            for sku in skus:
+                # 冲突校验。 如果冲突，则跳过，并予以提示
+                exits_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.GNAAid != apply_info.GNAAid,
+                    GuessNumAwardApply.GNAAstarttime == gnaastarttime,
+                    GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
+                    GuessNumAwardProduct.PRid == data.get('prid'),
+                    GuessNumAwardSku.SKUid == sku.get('skuid'),
+                    GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                    GuessNumAwardProduct.isdelete == False,
+                    GuessNumAwardSku.isdelete == False,
+                    GuessNumAwardApply.isdelete == False
+                ).first()
+
+                skuid = sku.get('skuid')
+                skuprice = sku.get('skuprice')
+                skustock = sku.get('skustock')
+                SKUdiscountone = sku.get('skudiscountone')
+                SKUdiscounttwo = sku.get('skudiscounttwo')
+                SKUdiscountthree = sku.get('skudiscountthree')
+                SKUdiscountfour = sku.get('skudiscountfour')
+                SKUdiscountfive = sku.get('skudiscountfive')
+                SKUdiscountsix = sku.get('skudiscountsix')
+                sku_instance = ProductSku.query.filter_by(
+                    isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
+
+                if exits_apply:
+                    exist_apply_list.append(sku_instance)
+                    continue
+                # 库存处理
+                self._update_stock(-int(skustock), product, sku_instance)
+
+                gnas = GuessNumAwardSku.create({
+                    'GNASid': str(uuid.uuid1()),
+                    'GNAPid': gnap.GNAPid,
+                    'SKUid': skuid,
+                    'SKUprice': skuprice,
+                    'SKUstock': skustock,
+                    'SKUdiscountone': SKUdiscountone,
+                    'SKUdiscounttwo': SKUdiscounttwo,
+                    'SKUdiscountthree': SKUdiscountthree,
+                    'SKUdiscountfour': SKUdiscountfour,
+                    'SKUdiscountfive': SKUdiscountfive,
+                    'SKUdiscountsix': SKUdiscountsix,
+                })
+                db.session.add(gnas)
+                apply_info.GNAAstatus = ApplyStatus.wait_check.value
+        super(CGuessNum, self).create_approval('toguessnum', request.user.id, apply_info.GNAAid, gnaafrom)
+
+        return Success('修改成功', {'gnaaid': apply_info.GNAAid, 'skus': exist_apply_list})
+
     def apply_award(self):
         """申请添加奖品"""
         if not (is_supplizer() or is_admin()):

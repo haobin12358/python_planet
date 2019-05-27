@@ -232,7 +232,7 @@ class FreshManFirstApply(Base):
     FMFArejectReson = Column(String(255), comment='拒绝理由')
     AgreeStartime = Column(Date, default=FMFAstartTime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=FMFAendTime, comment='最终确认结束时间')
-
+    ParentFMFAid =  Column(String(64),default=None)
 
 class FreshManFirstProduct(Base):
     """新人首单申请商品"""
