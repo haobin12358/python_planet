@@ -119,6 +119,7 @@ class GuessNumAwardApply(Base):
     GNAArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, default=GNAAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=GNAAendtime, comment='最终确认结束时间')
+    ParentGNAAid = Column(String(64), default=None)
 
 
 class GuessNumAwardProduct(Base):
