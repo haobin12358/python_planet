@@ -67,7 +67,7 @@ def request_first_handler(app):
                 setattr(request, 'user', user)
                 current_app.logger.info('current_user info : {}'.format(data))
                 useragent = _get_user_agent()
-                if useragent:
+                if useragent and model == 'User':
                     with db.auto_commit():
                         ula_dict1 = {
                             'ULAid': str(uuid.uuid1()),
@@ -79,7 +79,6 @@ def request_first_handler(app):
                             'WechatVersion': useragent[2],
                             'NetType': useragent[3]
                         }
-                        current_app.logger.info('ula info : {}'.format(ula_dict1))
                         ula_instance = UserLoginApi.create(ula_dict1)
                         db.session.add(ula_instance)
 

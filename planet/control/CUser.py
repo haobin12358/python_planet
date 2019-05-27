@@ -43,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow,UserLoginApi
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, ProductSum
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -1195,14 +1195,13 @@ class CUser(SUser, BASEAPPROVAL):
             ucount = User.query.filter(User.isdelete == False,
                                        cast(User.createtime, Date) <= day).count()
             user_count.append(ucount)
-            ipcount = db.session.query(UserLoginApi.USTip).filter(
-                                                                UserLoginApi.isdelete == False,
-                                                                cast(UserLoginApi.createtime, Date) == day
-                                                                ).group_by(UserLoginApi.USTip).count()
+            ipcount = db.session.query(UserLoginApi.USTip).filter(UserLoginApi.isdelete == False,
+                                                                  cast(UserLoginApi.createtime, Date) == day
+                                                                  ).group_by(UserLoginApi.USTip).count()
             ip_count.append(ipcount)
             uvcount = db.session.query(UserLoginApi.USid).filter(UserLoginApi.isdelete == False,
-                                                                  cast(UserLoginApi.createtime, Date) == day
-                                                                  ).group_by(UserLoginApi.USid).count()
+                                                                 cast(UserLoginApi.createtime, Date) == day
+                                                                 ).group_by(UserLoginApi.USid).count()
             uv_count.append(uvcount)
 
         series = [{'name': '用户数量', 'data': user_count},
@@ -2196,7 +2195,9 @@ class CUser(SUser, BASEAPPROVAL):
                     UserLoginTime.createtime.desc()
                 ).first()
             user.fill('userlogintime', userlogintime.createtime)
-
+            if is_admin():
+                userquery = db.session.query(UserHomeCount).filter(UserHomeCount.UHid == usid).count()
+                user.fill('usquery', userquery)
         return Success(data=users)
 
     @admin_required
@@ -2562,6 +2563,18 @@ class CUser(SUser, BASEAPPROVAL):
             su = None
         if not (user or admin or su):
             raise ParamsError('用户不存在')
+
+        user_visitor_id = get_current_user()
+        with db.auto_commit():
+            if user_visitor_id.USid != usid:
+                uhid = user.USid
+                user_home_count = UserHomeCount.create({
+                    'UHCid': str(uuid.uuid1()),
+                    'UHid': uhid,
+                    'USid': user_visitor_id.USid,
+                })
+                db.session.add(user_home_count)
+
         if user:
             user_dict.setdefault('usheader', user.USheader)
             user_dict.setdefault('usname', user.USname)
@@ -2663,4 +2676,36 @@ class CUser(SUser, BASEAPPROVAL):
         if len(return_sort) == 1 :
             return return_sort[0]
         return tuple(return_sort)
+
+    # @token_required
+    # def get_user_sum(self):
+    #     data = parameter_required()
+    #     usid = data.get('usid')
+    #     if not is_admin():
+    #         raise AuthorityError
+    #     sum_dict = dict()
+    #     product_dict = dict()
+    #     uhid_dict = dict()
+    #     with db.auto_commit():
+    #         produce_query = db.session.query(ProductSum.PRid).filter_by_()
+    #         # product_range = produce_query.order_by(ProductSum.PRid.desc()).all()
+    #         for product_value in produce_query:
+    #             key = product_value[0]
+    #             product_dict.setdefault(key, 0)
+    #             product_dict[key] += 1
+    #         # product = sorted(product_dict.items(), key=lambda item: item[1], reverse=True)
+    #         sum_dict.setdefault('product', product_dict)
+    #
+    #         if usid:
+    #             user_query = db.session.query(UserHomeCount).filter(UserHomeCount.UHid == usid).count()
+    #             # user_home = user_query.order_by(UserHomeCount.UHid.desc()).all()
+    #             # for uhid_value in user_query:
+    #             #     key = uhid_value[0]
+    #             #     uhid_dict.setdefault(key, 0)
+    #             #     uhid_dict[key] += 1
+    #             # uhid = sorted(uhid_dict.items(), key=lambda item: item[1], reverse=True)
+    #             sum_dict.setdefault('user_home', user_query)
+    #
+    #
+    #     return Success(data=sum_dict)
 

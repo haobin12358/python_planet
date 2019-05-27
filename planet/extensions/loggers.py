@@ -5,7 +5,7 @@ import os
 import time
 from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 
-from flask import request
+from flask import request, current_app
 
 from ..common.error_response import ApiError, BaseError, SystemError
 # from ..common.request_handler import gennerc_log
@@ -65,6 +65,7 @@ class LoggerHandler():
             if isinstance(e, Success):
                 return e
             # gennerc_log(e)
+            current_app.logger.error(e)
             if isinstance(e, BaseError):
                 return e
             else:

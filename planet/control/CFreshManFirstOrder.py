@@ -543,7 +543,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
             # 商品, 暂时只可以添加一个商品
             fresh_first_product = FreshManFirstProduct.query.filter(
                 FreshManFirstProduct.isdelete == False,
@@ -716,7 +716,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 'AVstatus': ApplyStatus.cancle.value
             })
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
         return Success('撤销成功')
 
     def del_award(self):
@@ -733,7 +733,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.delete.value, 'FreshManFirstApply', fmfaid)
+                BASEADMIN().create_action(AdminActionS.delete.value, 'FreshManFirstApply', fmfaid)
         return Success('删除成功', {'fmfaid': fmfaid})
 
     @staticmethod
