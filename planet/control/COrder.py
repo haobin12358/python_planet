@@ -78,12 +78,12 @@ class COrder(CPay, CCoupon):
                 filter_args.add(normal_filter)  # 05-19 前台订单合并
         else:
             filter_args.add(OrderMain.OMfrom.in_(omfrom))
-            if common_user():
-                # 如果是前台用户。需要过滤掉售后订单
-                filter_args.add(OrderMain.OMinRefund == False)
+            # if common_user():
+            #     # 如果是前台用户。需要过滤掉售后订单
+            #     filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
-        if omstatus == 'refund':
-            if common_user() and normal_filter in filter_args:
+        if omstatus in ['refund', 'inrefund']:
+            if normal_filter in filter_args or (common_user() or omstatus == 'inrefund'):
                 filter_args.remove(normal_filter)
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
@@ -1690,7 +1690,7 @@ class COrder(CPay, CCoupon):
     @staticmethod
     def _get_act_order_count(arg, k):
         return OrderMain.query.filter_(OrderMain.OMfrom == getattr(ActivityOrderNavigation, k).value,
-                                       OrderMain.OMinRefund == False,
+                                       # OrderMain.OMinRefund == False,
                                        OrderMain.isdelete == False,
                                        *arg
                                        ).distinct().count()

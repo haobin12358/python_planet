@@ -40,8 +40,10 @@ class OrderListForm(BaseForm):
                     OrderMain.OMinRefund == False
                 ]
         except ValueError as e:
-            if raw.data in ['inrefund', 'refund', 40, '40']:
+            if raw.data in ['refund', 40, '40']:
                 self.omstatus.data = 'refund'  # 标志一下, 需要查售后中的订单
+            elif raw.data == 'inrefund':
+                self.omstatus.data = 'inrefund'
             #     self.omstatus.data = [
             #         OrderMain.OMinRefund == True,
             #     ]
