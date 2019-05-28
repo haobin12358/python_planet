@@ -44,8 +44,6 @@ def message_handler(*args):
     print('recive {0} data from client'.format(type(args[0])), args)
     return args
 
-sids = []
-
 
 if __name__ == '__main__':
     # app.
