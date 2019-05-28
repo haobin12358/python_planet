@@ -782,7 +782,7 @@ def start_timelimited(tlaid):
 if __name__ == '__main__':
     from planet import create_app
 
-    app, _ = create_app()
+    app = create_app()
     with app.app_context():
         # event_expired_revert()
         # deposit_to_account()

@@ -402,7 +402,7 @@ def add_uac_acaid():
         print({}.fromkeys(cratetime_list).keys())
 
 if __name__ == '__main__':
-    app,_ = create_app()
+    app = create_app()
     with app.app_context():
         # admin = PermissionType.query.first_()
         # admin_str = json.dumps(admin, cls=JSONEncoder)

@@ -1,15 +1,19 @@
+import ast
 import uuid
 
 from flask import request
 
-from flaskrun import socketio
+# from flaskrun import socketio
+from flask_socketio import SocketIO
+
+# from flaskrun import sids
 from planet.common.error_response import AuthorityError, ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_admin, is_supplizer, common_user
 from planet.config.enums import ProductFrom, PlanetMessageStatus, AdminAction
 from planet.control.BaseControl import BASEADMIN
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
 from planet.models import ProductBrand, User
 from planet.models.message import PlatformMessage, UserPlatfromMessage
 
@@ -78,7 +82,7 @@ class CMessage():
 
                 db.session.add_all(instance_list)
                 # 推送
-                socketio.on_event('getplanetmessage', self.push_platform_message)
+                # socketio.on_event('getplanetmessage', self.push_platform_message)
             return Success(msg, data={'pmid': pmid})
 
     @token_required
@@ -114,7 +118,29 @@ class CMessage():
         pm.fill('pmstatus_eh', PlanetMessageStatus(pm.PMstatus).name)
 
     def push_platform_message(self):
-        pm_list = UserPlatfromMessage.query.filter(
+        # pm_list = UserPlatfromMessage.query.filter(
+        #
+        # ).order_by(PlatformMessage.createtime.desc()).all_with_page()
+        # socketio
+        pass
 
-        ).order_by(PlatformMessage.createtime.desc()).all_with_page()
-        socketio
+    def test(self):
+        # from flaskrun import socketio
+        from planet import socketio
+        # socketio = SocketIO(message_queue='')
+        t = '后台主动请求'
+        # socketio.start_background_task(target=self.background_test, socket=socketio)
+        # conn.delete('sids')
+        sid_list = conn.get('sids') or []
+        if sid_list:
+            sid_list = ast.literal_eval(str(conn.get('sids'), encoding='utf-8'))
+
+        for sid in sid_list:
+            socketio.emit('test', {'data': t}, room=sid)
+
+        # socketio.emit('test', {'data': t}, broadcast=True)
+        return 'true'
+    #
+    # def background_test(self, socket):
+    #     t = '后台主动请求'
+    #
