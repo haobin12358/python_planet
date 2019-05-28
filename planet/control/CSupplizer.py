@@ -464,8 +464,8 @@ class CSupplizer:
         if not check_res.data.get('validated'):
             raise ParamsError('请输入正确的银行卡号')
         checked_res = cuser._verify_cardnum(data.get('sabankaccount'))
-        if not checked_res.data.get('validated'):
-            raise ParamsError('请输入正确的开票账户银行卡号')
+        # if not checked_res.data.get('validated'):
+        #     raise ParamsError('请输入正确的开票账户银行卡号')
         checked_name = cuser._verify_chinese(data.get('sacardname'))
         if not checked_name or len(checked_name[0]) < 2:
             raise ParamsError('请输入正确的开户人姓名')

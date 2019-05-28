@@ -14,7 +14,7 @@ from planet.models import UserLoginApi
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
-User = namedtuple('User', ('id', 'model', 'level'))
+# User = namedtuple('User', ('id', 'model', 'level'))
 
 
 def token_to_user_(token):
@@ -78,24 +78,25 @@ def request_first_handler(app):
         current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
         parameter = request.args.to_dict()
         token = parameter.get('token')
+
         user = token_to_user_(token)
         if user:
             setattr(request, 'user', user)
-        useragent = _get_user_agent()
-        if useragent:
-            with db.auto_commit():
-                ula_dict1 = {
-                    'ULAid': str(uuid.uuid1()),
-                    'USid': request.user.id,
-                    'ULA': request.detail['path'],
-                    'USTip': request.remote_addr,
-                    'OSVersion': useragent[0],
-                    'PhoneModel': useragent[1],
-                    'WechatVersion': useragent[2],
-                    'NetType': useragent[3]
-                }
-                ula_instance = UserLoginApi.create(ula_dict1)
-                db.session.add(ula_instance)
+            useragent = _get_user_agent()
+            if useragent and user.model == 'User':
+                with db.auto_commit():
+                    ula_dict1 = {
+                        'ULAid': str(uuid.uuid1()),
+                        'USid': request.user.id,
+                        'ULA': request.detail['path'],
+                        'USTip': request.remote_addr,
+                        'OSVersion': useragent[0],
+                        'PhoneModel': useragent[1],
+                        'WechatVersion': useragent[2],
+                        'NetType': useragent[3]
+                    }
+                    ula_instance = UserLoginApi.create(ula_dict1)
+                    db.session.add(ula_instance)
 
 
 def error_handler(app):
