@@ -1243,20 +1243,34 @@ class CProducts(BaseController):
             kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
         if usid:
             kw_query = kw_query.filter(UserSearchHistory.USid == usid)
-        kws = kw_query.all_with_page()
-        kw_list = list()
-        kw_list_rs = list()
-
-        for kw in kws:
-            if kw.USHname not in kw_list:
-                kw_list.append(kw.USHname)
-                # kw.fill('kwquery', kwquery)
-                kw_dict = dict()
-                kw_dict['USHname'] = kw.USHname
-                kw_dict['USHtype'] = UserSearchHistoryType(kw.USHtype).zh_value
-                kwquery = db.session.query(UserSearchHistory).filter(UserSearchHistory.USHname == kw.USHname).count()
-                kw_dict['kwquery'] = kwquery
-                kw_list_rs.append(kw_dict)
-
+            kws = kw_query.all_with_page()
+            kw_list = list()
+            kw_list_rs = list()
+            for kw in kws:
+                if kw.USHname not in kw_list:
+                    kw_list.append(kw.USHname)
+                    # kw.fill('kwquery', kwquery)
+                    kw_dict = dict()
+                    kw_dict['USHname'] = kw.USHname
+                    kw_dict['USHtype'] = UserSearchHistoryType(kw.USHtype).zh_value
+                    kwquery = db.session.query(UserSearchHistory).filter(
+                        UserSearchHistory.USHname == kw.USHname,
+                        UserSearchHistory.USid == usid).count()
+                    kw_dict['kwquery'] = kwquery
+                    kw_list_rs.append(kw_dict)
+        else:
+            kws = kw_query.all_with_page()
+            kw_list = list()
+            kw_list_rs = list()
+            for kw in kws:
+                if kw.USHname not in kw_list:
+                    kw_list.append(kw.USHname)
+                    kw_dict = dict()
+                    kw_dict['USHname'] = kw.USHname
+                    kw_dict['USHtype'] = UserSearchHistoryType(kw.USHtype).zh_value
+                    kwquery = db.session.query(UserSearchHistory).filter(
+                        UserSearchHistory.USHname == kw.USHname).count()
+                    kw_dict['kwquery'] = kwquery
+                    kw_list_rs.append(kw_dict)
         return Success(data=kw_list_rs)
 
