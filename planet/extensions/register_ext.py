@@ -55,7 +55,7 @@ mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
 
 
 # conn = redis.Redis(host='localhost', port=6379, db=1)
-conn = redis.Redis(host='119.3.47.90', port=6379, db=2)
+conn = redis.Redis(host='119.3.47.90', port=6379, db=2)  # todo  合并之前改回去 ！！！
 cache = Cache(config=cache_redis)
 
 

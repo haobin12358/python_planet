@@ -44,8 +44,11 @@ class CMessage():
                     raise ParamsError('站内信已删除')
                 pm.update({'isdelete': True})
                 db.session.add(pm)
+
+                # 如果有上线站内信，同时删除已经发送给用户的站内信，并更新
+
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.delete.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.delete.value, 'PlatformMessage', pmid)
                 return Success('删除成功', data={'pmid': pmid})
             pmdict = {
                 'PMtext': data.get('pmtext'),
@@ -57,14 +60,14 @@ class CMessage():
                 pmdict.setdefault('PMfrom', pmfrom)
                 pm = PlatformMessage.create(pmdict)
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.insert.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.insert.value, 'PlatformMessage', pmid)
                 msg = '创建成功'
             else:
                 if pm.PMstatus == PlanetMessageStatus.publish.value:
                     raise StatusError('已上线站内信不能修改')
                 pm.update(pmdict)
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.update.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.update.value, 'PlatformMessage', pmid)
                 msg = '更新成功'
 
             # 如果站内信为上线状态，创建用户站内信 推送 todo
