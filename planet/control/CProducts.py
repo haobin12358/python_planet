@@ -1237,9 +1237,7 @@ class CProducts(BaseController):
 
         if kw:
             kw_query = kw_query.filter(UserSearchHistory.USHname == kw)
-        if ushtype == 'all':
-            kw_query = kw_query.filter()
-        else:
+        if ushtype:
             kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
         if usid:
             kw_query = kw_query.filter(UserSearchHistory.USid == usid)
