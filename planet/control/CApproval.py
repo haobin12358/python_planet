@@ -1197,6 +1197,28 @@ class CApproval(BASEAPPROVAL):
 
     def agree_freshmanfirstproduct(self, approval_model):
         ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
+        parent_apply = ffa
+        # 将父id和其他同等级的id改为失效
+        while parent_apply.ParentFMFAid != None:
+            parent_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+                                                           FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                                                           FreshManFirstApply.isdelete == False).first()
+            if parent_apply:
+                children_apply = FreshManFirstApply.query.filter(
+                    FreshManFirstApply.ParentFMFAid == parent_apply.ParentFMFAid,
+                    FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                    FreshManFirstApply.isdelete == False).all()
+                if children_apply:
+                    for child_apply in children_apply:
+                        child_apply.update({
+                            'FMFAstatus': ApplyStatus.lose_effect.value
+                        })
+                parent_apply.update({
+                            'FMFAstatus': ApplyStatus.lose_effect.value
+                        })
+                break
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
         ffa.FMFAstatus = ApplyStatus.agree.value
 
     def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):

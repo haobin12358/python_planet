@@ -59,7 +59,7 @@ class CFreshManFirstOrder(COrder, CUser):
 
     def get(self):
         """获取单个新人商品"""
-        data = parameter_required(('fmfpid', ))
+        data = parameter_required(('fmfpid',))
         fmfpid = data.get('fmfpid')
         fresh_man_first_product = FreshManFirstProduct.query.filter_by_({
             'FMFPid': fmfpid
@@ -340,8 +340,8 @@ class CFreshManFirstOrder(COrder, CUser):
         prid = data.get('prid')
         apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                                    Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
-                                  ).first_('当前商品状态不允许进行申请')
+                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
+                                        ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
         with db.auto_commit():
             fresh_first_apply = FreshManFirstApply.create({
@@ -426,16 +426,44 @@ class CFreshManFirstOrder(COrder, CUser):
             fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid,
                                                                 FreshManFirstApply.isdelete == False).first_('申请单不存在')
             # 是否能再次申请
-            starttime = fresh_first_apply.AgreeStartime
-            endtime = fresh_first_apply.AgreeEndtime
             if fresh_first_apply.FMFAstatus == ApplyStatus.wait_check.value:
                 raise ParamsError('正在申请的活动不能再次发起申请')
             elif fresh_first_apply.FMFAstatus == ApplyStatus.shelves.value:
                 raise ParamsError('已下架的活动不能再次发起申请')
-            elif endtime < date.today:
+            starttime = fresh_first_apply.AgreeStartime
+            endtime = fresh_first_apply.AgreeEndtime
+            if endtime < date.today:
                 raise ParamsError('已结束的活动不能再次发起申请')
             elif starttime <= date.today:
                 raise ParamsError('已开始的活动不能再次发起申请')
+            # 父活动和基于父活动的所有再次申请通过的活动都不能是活动开始状态
+            parent_apply = fresh_first_apply
+            while parent_apply.ParentFMFAid != None:
+                parent_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+                                                               FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                                                               FreshManFirstApply.isdelete == False).first()
+                if parent_apply:
+                    children_apply = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == parent_apply.ParentFMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                        FreshManFirstApply.isdelete == False).all()
+                    if children_apply:
+                        for child_apply in children_apply:
+                            starttime = child_apply.AgreeStartime
+                            endtime = child_apply.AgreeEndtime
+                            if endtime < date.today:
+                                raise ParamsError('已结束的活动不能再次发起申请')
+                            elif starttime <= date.today:
+                                raise ParamsError('已开始的活动不能再次发起申请')
+                    starttime = parent_apply.AgreeStartime
+                    endtime = parent_apply.AgreeEndtime
+                    if endtime < date.today:
+                        raise ParamsError('已结束的活动不能再次发起申请')
+                    elif starttime <= date.today:
+                        raise ParamsError('已开始的活动不能再次发起申请')
+                    break
+                parent_apply = FreshManFirstApply.query.filter(
+                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
             # 创建新记录
             apply = FreshManFirstApply.create({
                 'FMFAid': str(uuid.uuid1()),
@@ -448,7 +476,7 @@ class CFreshManFirstOrder(COrder, CUser):
                 'ParentFMFAid': fmfaid
             })
             db.session.add(apply)
-            #对ParentFMFAid进行检验
+            # 对ParentFMFAid进行检验
             if fresh_first_apply.FMFAstatus == ApplyStatus.reject.value:
                 fresh_first_apply.update({'isdelete': True})
                 db.session.add(fresh_first_apply)
@@ -615,9 +643,10 @@ class CFreshManFirstOrder(COrder, CUser):
 
     def award_detail(self):
         """查看申请详情"""
-        data = parameter_required(('fmfaid', ))
+        data = parameter_required(('fmfaid',))
         fmfaid = data.get('fmfaid')
-        apply = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False, FreshManFirstApply.FMFAid == fmfaid).first_('该申请不存在')
+        apply = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False,
+                                                FreshManFirstApply.FMFAid == fmfaid).first_('该申请不存在')
         apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
         if apply.FMFAfrom == ApplyFrom.platform.value:
             admin = Admin.query.filter(Admin.ADid == apply.SUid).first()

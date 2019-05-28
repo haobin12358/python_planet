@@ -443,6 +443,76 @@ class CMagicBox(CUser, COrder):
         [self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
 
         return Success('申请添加成功', {'mbaid': mbaid_list})
+    
+    def reapply_award(self):
+        """修改魔盒申请"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('skuid', 'prid', 'skustock', 'mbastarttime', 'skuprice',
+                                   'skuminprice', 'gearsone', 'gearstwo', 'gearsthree'))
+        mbaid, skuid, prid, skustock = data.get('mbaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
+        gearsone, gearstwo, gearsthree = data.get('gearsone'), data.get('gearstwo'), data.get('gearsthree')
+        if not isinstance(gearsone, list):
+            raise ParamsError('gearsone格式错误')
+        elif not isinstance(gearstwo, list):
+            raise ParamsError('gearstwo格式错误')
+        elif not isinstance(gearsthree, list):
+            raise ParamsError('gearsthree格式错误')
+        gearsone, gearstwo, gearsthree = json.dumps(gearsone), json.dumps(gearstwo), json.dumps(gearsthree)
+        for test_str in (gearsone, gearstwo, gearsthree):
+            if not re.match(r'^\[(\"\d+\-\d+\"\,? ?)+\]$', test_str):
+                raise ParamsError('档次变化金额只能填写数字')
+        apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
+                                                MagicBoxApply.MBAstatus.in_([ApplyStatus.reject.value,
+                                                                            ApplyStatus.cancle.value])
+                                                ).first_('只有已拒绝或撤销状态下的申请可以进行修改')
+
+        if apply_info.SUid != request.user.id:
+            raise AuthorityError('仅可修改自己提交的申请')
+        mbafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+        sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
+        product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+                                        Products.PRstatus == ProductStatus.usual.value
+                                        ).first_('仅可将已上架的商品用于申请')  # 当前商品状态不允许进行申请
+        assert sku.PRid == prid, 'sku与商品信息不对应'
+        other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                      MagicBoxApply.MBAid != mbaid,
+                                                      MagicBoxApply.MBAstatus.notin_(
+                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value]),
+                                                      MagicBoxApply.OSid == apply_info.OSid,
+                                                      ).first()
+        current_app.logger.info("其他的同批次共用库存申请 --> {}".format(other_apply_info))
+        with db.auto_commit():
+            award_dict = {
+                'SUid': request.user.id,
+                'SKUid': skuid,
+                'PRid': prid,
+                'PBid': product.PBid,
+                'MBAstarttime': data.get('mbastarttime'),
+                'MBAendtime': data.get('mbastarttime'),
+                'SKUprice': float(data.get('skuprice', 0.01)),
+                'SKUminPrice': float(data.get('skuminprice', 0.01)),
+                'Gearsone': gearsone,
+                'Gearstwo': gearstwo,
+                'Gearsthree': gearsthree,
+                # 'SKUstock': int(skustock),
+                'MBAstatus': ApplyStatus.wait_check.value,
+                'MBAfrom': mbafrom,
+            }
+            award_dict = {k: v for k, v in award_dict.items() if v is not None}
+            MagicBoxApply.query.filter_by_(MBAid=mbaid).update(award_dict)
+            if is_admin():
+                BASEADMIN.create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
+            # 是否修改库存
+            if not other_apply_info:
+                # 如果没有同批正在上架或审核中的，将库存从商品中重新减出来
+                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
+                                                  ).first()
+                super(CMagicBox, self)._update_stock(-out_stock.OSnum, skuid=apply_info.SKUid)
+
+        # 重新添加到审批流
+        super(CMagicBox, self).create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
+        return Success('修改成功', {'mbaid': mbaid})
 
     def update_apply(self):
         """修改魔盒申请"""

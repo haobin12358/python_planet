@@ -32,7 +32,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         date_now = datetime.now()
         current_app.logger.info('get week is  {}'.format(date_now.weekday()))
         if date_now.hour == 14 and date_now.minute > 50:
-                raise StatusError('15点以后不开放')
+            raise StatusError('15点以后不开放')
         if date_now.hour > 15:
             raise StatusError('15点以后不开放')
         if date_now.weekday() in [5, 6]:
@@ -111,7 +111,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         year = form.year.data
         month = form.month.data
         try:
-            year_month = datetime.strptime(year + '-' + month,  '%Y-%m')
+            year_month = datetime.strptime(year + '-' + month, '%Y-%m')
         except ValueError as e:
             raise ParamsError('时间参数异常')
         usid = request.user.id
@@ -199,7 +199,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
             user = User.query.filter_by(USid=request.user.id).first_('用户信息丢失')
             # 商品品牌信息
             pbid = gnap.PBid
-            product_brand_instance = ProductBrand.query.filter_by(PBid=pbid, isdelete= False).first()
+            product_brand_instance = ProductBrand.query.filter_by(PBid=pbid, isdelete=False).first()
             # 商品分类
             product_category = ProductCategory.query.filter_by(PCid=gnap.PCid, isdelete=False).first()
             # sku详情
@@ -444,10 +444,10 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 'GNAAendtime': apply_info.AgreeEndtime,
                 'GNAAfrom': gnaafrom,
                 'GNAAstatus': ApplyStatus.wait_check.value,
-                'ParentGNAAid':apply_info.GNAAid
+                'ParentGNAAid': apply_info.GNAAid
             })
             db.session.add(gnaa)
-            #对ParentFMFAid进行检验
+            # 对ParentFMFAid进行检验
             if apply_info.FMFAstatus == ApplyStatus.reject.value:
                 apply_info.update({'isdelete': True})
                 db.session.add(apply_info)
@@ -620,7 +620,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
             # 获取申请单
             apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == data.get('gnaaid'),
                                                          GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.reject.value,
-                                                                                           ApplyStatus.cancle.value])
+                                                                                            ApplyStatus.cancle.value])
                                                          ).first_('只有已拒绝或撤销状态的申请可以进行修改')
             if apply_info.SUid != request.user.id:
                 raise AuthorityError('仅可修改自己提交的申请')
@@ -732,7 +732,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
 
             # 获取原商品属性
             gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == apply_info.GNAAid,
-                                                            GuessNumAwardProduct.isdelete == False).first()
+                                                         GuessNumAwardProduct.isdelete == False).first()
             product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
             # 获取原sku属性
             gnas_old = GuessNumAwardSku.query.filter(
@@ -775,7 +775,8 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
             apply_info = GuessNumAwardApply.query.filter_by_(GNAAid=gnaaid).first_('无此申请记录')
             if sup:
                 assert apply_info.SUid == usid, '供应商只能删除自己提交的申请'
-            if apply_info.GNAAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value, ApplyStatus.shelves.value]:
+            if apply_info.GNAAstatus not in [ApplyStatus.cancle.value, ApplyStatus.reject.value,
+                                             ApplyStatus.shelves.value]:
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
