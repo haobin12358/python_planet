@@ -195,3 +195,9 @@ def create_app():
     socketio.on_namespace(Mynamespace('/'))
     return app
 
+
+@socketio.on_error()  # Handles the default namespace
+def error_handler_socket(e):
+
+    print(e.args)
+    return e.args
