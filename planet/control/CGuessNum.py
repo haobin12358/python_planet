@@ -425,6 +425,34 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 raise ParamsError('已结束的活动不能再次发起申请')
             elif starttime <= date.today:
                 raise ParamsError('已开始的活动不能再次发起申请')
+            # 父活动和基于父活动的所有再次申请通过的活动都不能是活动开始状态
+            parent_apply = apply_info
+            while parent_apply.ParentGNAAid != None:
+                parent_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+                    GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                    GuessNumAwardApply.isdelete == False).first()
+                if parent_apply:
+                    children_apply = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.ParentGNAAid == parent_apply.ParentGNAAid,
+                        GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                        GuessNumAwardApply.isdelete == False).all()
+                    if children_apply:
+                        for child_apply in children_apply:
+                            starttime = child_apply.AgreeStartime
+                            endtime = child_apply.AgreeEndtime
+                            if endtime < date.today:
+                                raise ParamsError('已结束的活动不能再次发起申请')
+                            elif starttime <= date.today:
+                                raise ParamsError('已开始的活动不能再次发起申请')
+                    starttime = parent_apply.AgreeStartime
+                    endtime = parent_apply.AgreeEndtime
+                    if endtime < date.today:
+                        raise ParamsError('已结束的活动不能再次发起申请')
+                    elif starttime <= date.today:
+                        raise ParamsError('已开始的活动不能再次发起申请')
+                    break
+            
             gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
             # 解除和原商品属性的绑定
             GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, isdelete=False).delete_()
@@ -447,8 +475,8 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 'ParentGNAAid': apply_info.GNAAid
             })
             db.session.add(gnaa)
-            # 对ParentFMFAid进行检验
-            if apply_info.FMFAstatus == ApplyStatus.reject.value:
+            # 对ParentGNAAid进行检验
+            if apply_info.GNAAstatus == ApplyStatus.reject.value:
                 apply_info.update({'isdelete': True})
                 db.session.add(apply_info)
             # 重新添加商品属性

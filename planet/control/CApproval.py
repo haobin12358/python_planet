@@ -1123,6 +1123,28 @@ class CApproval(BASEAPPROVAL):
 
     def agree_guessnum(self, approval_model):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
+        parent_apply = gnaa
+        # 将父id和其他同等级的id改为失效
+        while parent_apply.ParentFMFAid != None:
+            parent_apply = FreshManFirstApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+                                                           GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                                                           GuessNumAwardApply.isdelete == False).first()
+            if parent_apply:
+                children_apply = GuessNumAwardApply.query.filter(
+                    FreshManFirstApply.ParentGNAAid == parent_apply.ParentGNAAid,
+                    FreshManFirstApply.GNAAstatus == ApplyStatus.agree.value,
+                    FreshManFirstApply.isdelete == False).all()
+                if children_apply:
+                    for child_apply in children_apply:
+                        child_apply.update({
+                            'GNAAstatus': ApplyStatus.lose_effect.value
+                        })
+                parent_apply.update({
+                    'GNAAstatus': ApplyStatus.lose_effect.value
+                })
+                break
+            parent_apply = GuessNumAwardApply.query.filter(
+                GuessNumAwardApply.FMFAid == parent_apply.ParentGNAAid).first()
         gnaa.GNAAstatus = ApplyStatus.agree.value
         # gnaa_other = GuessNumAwardApply.query.filter(
         #     GuessNumAwardApply.GNAAid != gnaa.GNAAid,
