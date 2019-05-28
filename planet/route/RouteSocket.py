@@ -1,17 +1,50 @@
 import ast
+import json
 import random
 from threading import Lock
 
-from flask import session, request
+from flask import request
+
+from datetime import datetime, date
+from decimal import Decimal
 
 # from flaskrun import socketio
-from flask_socketio import Namespace, emit, join_room, leave_room
+from flask_socketio import Namespace, join_room, leave_room
 
+from werkzeug.exceptions import HTTPException
+from flask.json import JSONEncoder as _JSONEncoder
+
+# from planet import JSONEncoder
+from planet.common.error_response import AuthorityError
+from planet.common.success_response import Success
+# from planet.control.BaseControl import JSONEncoder
 from planet.extensions.register_ext import conn
-from planet.models import UserPlatfromMessage
+# from planet.models import UserPlatfromMessage
 
 thread = None
 thread_lock = Lock()
+
+
+class JSONEncoder(_JSONEncoder):
+    """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
+    def default(self, o):
+
+        if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
+            res = dict(o)
+            new_res = {k.lower(): v for k, v in res.items()}
+            return new_res
+        if isinstance(o, datetime):
+            # 也可以序列化时间类型的对象
+            return o.strftime('%Y-%m-%d %H:%M:%S')
+        if isinstance(o, date):
+            return o.strftime('%Y-%m-%d')
+        if isinstance(o, type):
+            raise o()
+        if isinstance(o, HTTPException):
+            return o.get_body()
+        if isinstance(o, Decimal):
+            return round(float(o), 2)
+        raise TypeError(repr(o) + " is not JSON serializable")
 
 
 def background_thread(socketio):
@@ -39,37 +72,38 @@ class Mynamespace(Namespace):
         print(token)
         user = token_to_user_(token)
         print(user)
-        sids = conn.get('sids')
-        print('get sids', sids)
+        usersid = conn.get('usersid')
+        print('get sids', usersid)
         print('get connect sid ', request.sid)
         # from flaskrun import sids
-        if not sids:
-            conn.set('sids', [request.sid])
-        else:
-            sids = ast.literal_eval(str(sids, encoding='utf-8'))
-            print('pre append ', sids)
-            sids.append(request.sid)
-            print('after ', sids)
-            conn.set('sids', sids)
+
         # join_room(request.sid)
 
         if user:
+            sessiondict = {user.id: request.sid}
+            if not usersid:
+                conn.set('usersid', sessiondict)
+            else:
+                usersid = ast.literal_eval(str(usersid, encoding='utf-8'))
+                print('pre append ', usersid)
+                # sids.append(request.sid)
+                usersid.update(sessiondict)
+                print('after ', usersid)
+                conn.set('sids', usersid)
 
-            session['id'] = user.id
-            session['username'] = user.username
-
-            return '{} is connect '.format(user.username)
+            return json.loads(json.dumps(Success('{} is connect '.format(user.username)), cls=JSONEncoder))
             # conn.set('sid', session.sid)
-        else:
-            # session['id'] = 'random'
-            # session['username'] = 'unknown'
-            # conn.set('')
-            return '{} is connect '.format('unknown')
+        # else:
+        #     # session['id'] = 'random'
+        #     # session['username'] = 'unknown'
+        #     # conn.set('')
+        #     return '{} is connect '.format('unknown')
+        raise AuthorityError('token 失效')
 
     # @self.socketio.on('my event')  # 接收emit 的 myevent 消息
     def on_my_event(self, data):
         print(data)
-        print(session.get('id'))
+        # print(session.get('id'))
         # session['id'] = 'json'
         return 'my event received'
 
@@ -83,7 +117,7 @@ class Mynamespace(Namespace):
 
     def on_change_num(self, data):
         print(data)
-        print(session.get('id'))
+        # print(session.get('id'))
         roomid = data.get('room') or request.sid
         # global thread
         # with thread_lock:
