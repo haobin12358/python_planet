@@ -86,7 +86,8 @@
     }
 
     function setsession(){
-        var token = $('#token').value;
+        // var token = $('#token').innerText;
+        var token = document.getElementById("token").value;
 
         console.log('get token');
         console.log(token);
