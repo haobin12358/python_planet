@@ -104,6 +104,7 @@ class ApplyFrom(Enum):
 
 
 class ApplyStatus(Enum):
+    lose_agree = -50,'再次申请审核'
     lose_effect = -40, '已失效'
     shelves = -30, '已下架'
     cancle = -20, '已撤销'

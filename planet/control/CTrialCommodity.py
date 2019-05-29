@@ -494,6 +494,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         tcid = data.get('tcid')
         with db.auto_commit():
             commodity = TrialCommodity.query.filter_by_(TCid=tcid).first_('无此商品信息')
+
             if commodity.TCstatus not in [TrialCommodityStatus.cancel.value, TrialCommodityStatus.reject.value]:
                 raise StatusError('只有撤销或已下架状态的申请可以重新提交')
             if sup:

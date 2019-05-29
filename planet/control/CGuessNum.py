@@ -413,14 +413,15 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         with db.auto_commit():
             # 获取申请单
             apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == data.get('gnaaid'),
-                                                         GuessNumAwardApply.GNAAstatus != ApplyStatus.wait_check.value,
                                                          GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.agree.value,
+                                                                                            ApplyStatus.reject.value,
                                                                                             ApplyStatus.cancle.value])
                                                          ).first_('已下架或审核中的申请不可以进行修改')
             if apply_info.SUid != request.user.id:
                 raise AuthorityError('仅可修改自己提交的申请')
-            starttime = apply_info.AgreeStartime
-            endtime = apply_info.AgreeEndtime
+            # 如果没有修改时间，则用之前时间
+            gnaastarttime = data.get('gnaastarttime') or apply_info.GNAAstarttime
+            starttime = endtime = gnaastarttime
             if endtime < date.today:
                 raise ParamsError('已结束的活动不能再次发起申请')
             elif starttime <= date.today:
@@ -452,14 +453,11 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                     elif starttime <= date.today:
                         raise ParamsError('已开始的活动不能再次发起申请')
                     break
-            
+
             gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
             # 解除和原商品属性的绑定
             GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, isdelete=False).delete_()
             # product_old.isdelete = True
-
-            # 如果没有修改时间，则用之前时间
-            gnaastarttime = data.get('gnaastarttime') or apply_info.GNAAstarttime
             # 如果修改了时间，检测是否有冲突
             exist_apply_list = list()
 
@@ -469,7 +467,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 'SUid': request.user.id,
                 # 'GNAPid': data.get('prid'),
                 'GNAAstarttime': gnaastarttime,
-                'GNAAendtime': apply_info.AgreeEndtime,
+                'GNAAendtime': gnaastarttime,
                 'GNAAfrom': gnaafrom,
                 'GNAAstatus': ApplyStatus.wait_check.value,
                 'ParentGNAAid': apply_info.GNAAid

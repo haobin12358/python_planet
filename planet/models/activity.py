@@ -45,6 +45,7 @@ class TrialCommodity(Base):
     AgreeStartTime = Column(Date, default=ApplyStartTime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndTime = Column(Date, default=ApplyEndTime, comment='最终确认结束时间')
     TCrejectReason = Column(Text, comment='拒绝理由')
+    ParentTCid = Column(String(64), default=None)
 
 
 class TrialCommodityImage(Base):
@@ -175,6 +176,7 @@ class MagicBoxApply(Base):
     MBArejectReason = Column(String(64), comment='拒绝理由')
     AgreeStartime = Column(Date, default=MBAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
     AgreeEndtime = Column(Date, default=MBAendtime, comment='最终确认结束时间')
+    ParentMBAid = Column(String(64), default=None)
 
     @property
     def SKUstock(self):
@@ -319,6 +321,7 @@ class TimeLimitedProduct(Base):
     # PRdescription = Column(Text, comment='描述')
     # PRfeight = Column(Float, default=0, comment='快递费用')
     PRprice = Column(Float, nullable=False, comment='显示价格')
+    ParentTLPid = Column(String(64), default=None)
 
 
 class TimeLimitedSku(Base):
