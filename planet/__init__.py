@@ -4,7 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO as SocketIO_
 from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
@@ -51,7 +51,7 @@ from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
 from planet.extensions.loggers import LoggerHandler
-from planet.route.RouteSocket import Mynamespace
+from planet.route.RouteSocket import Mynamespace, JSONEncoder as socketjsonencoder
 
 
 class JSONEncoder(_JSONEncoder):
@@ -128,6 +128,20 @@ class Request(_Request):
 class Flask(_Flask):
     json_encoder = JSONEncoder
     request_class = Request
+
+
+class SocketIO(SocketIO_):
+    def emit(self, event, *args, **kwargs):
+        # convert_list = []
+        # for a in args:
+        #
+        #     from planet.common.base_model import Base
+        #     if isinstance(a, HTTPException) or isinstance(a, Base):
+        #         json.loads(json.dumps(a, cls=socketjsonencoder))
+        conver_list = json.loads(json.dumps(args, cls=socketjsonencoder))
+        conver_dict = json.loads(json.dumps(kwargs, cls=socketjsonencoder))
+
+        super(SocketIO, self).emit(event, *conver_list, **conver_dict)
 
 
 socketio = SocketIO()
