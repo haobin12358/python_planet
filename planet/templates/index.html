@@ -43,11 +43,17 @@
         });
 
         mysocket.on('server_response', function (res) {
-            console.log('get res data ' + res.data);
-            $('#pwd').text(res.data);
+            console.log('get res data ');
+            console.log(res);
+            $('#pwd').text(res);
             // document.getElementById('pwd').innerHTML = res.data
         });
 
+        mysocket.on('message_list', function (res) {
+            console.log('get message list');
+            console.log(res);
+            $('#pwd').text(res);
+        })
 
     });
 </script>
