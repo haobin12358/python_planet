@@ -67,7 +67,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             commoditys = TrialCommodity.query.filter(TrialCommodity.AgreeStartTime <= date.today(),
                                                      TrialCommodity.AgreeEndTime >= date.today(),
                                                      TrialCommodity.TCstocks > 0,
-                                                     TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper
+                                                     TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value
                                                      ).all()
             instance_list = []
             if commoditys:
@@ -457,6 +457,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
 
     def update_commodity(self):
         """修改试用商品"""
+        self.readd_commodity()
         if is_supplizer():
             usid = request.user.id
             sup = self._check_supplizer(usid)

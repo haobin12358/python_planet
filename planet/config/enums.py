@@ -110,7 +110,7 @@ class ApplyStatus(Enum):
     reject = -10, '已拒绝'
     wait_check = 0, '审核中'
     agree = 10, '已同意'
-    lose_agree = 20, '再次申请审核'
+    lose_agree = 20, '重新审核中'
 
 
 class OrderRefundOrstatus(Enum):

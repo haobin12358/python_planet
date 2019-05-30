@@ -1273,10 +1273,10 @@ class CApproval(BASEAPPROVAL):
         parent_apply = ffa
         # 将父id改为失效
         while parent_apply.ParentFMFAid != None:
-            parent_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+            current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
                                                            FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
                                                            FreshManFirstApply.isdelete == False).first()
-            if parent_apply:
+            if current_apply:
                 # 进行库存恢复
                 apply_skus = FreshManFirstSku.query.join(
                     FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
@@ -1286,10 +1286,11 @@ class CApproval(BASEAPPROVAL):
                     sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
                     product = Products.query.filter(Products.PRid == sku.PRid).first()
                     COrder()._update_stock(apply_sku.FMFPstock, product, sku)
-                parent_apply.FMFAstatus = ApplyStatus.lose_effect.value
+                    current_apply.FMFAstatus = ApplyStatus.lose_effect.value
                 break
-            parent_apply = FreshManFirstApply.query.filter(
-                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+            else:
+                parent_apply = FreshManFirstApply.query.filter(
+                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
         ffa.FMFAstatus = ApplyStatus.agree.value
 
     def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):
@@ -1310,14 +1311,17 @@ class CApproval(BASEAPPROVAL):
         parent_apply = ffa
         # 原同意单修改状态
         while parent_apply.ParentFMFAid != None:
-            parent_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+            current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
                                                            FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
                                                            FreshManFirstApply.isdelete == False).first()
-            if parent_apply:
-                parent_apply.FMFAstatus = ApplyStatus.agree.value
+
+            if current_apply:
+                current_app.logger.info('{}'.format(parent_apply.FMFAid))
+                current_apply.FMFAstatus = ApplyStatus.agree.value
                 break
-            parent_apply = FreshManFirstApply.query.filter(
-                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+            else:
+                parent_apply = FreshManFirstApply.query.filter(
+                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
 
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
