@@ -41,10 +41,16 @@ class JSONEncoder(_JSONEncoder):
         if isinstance(o, type):
             raise o()
         if isinstance(o, HTTPException):
-            return o.get_body()
+            return json.loads(o.get_body())
         if isinstance(o, Decimal):
             return round(float(o), 2)
         raise TypeError(repr(o) + " is not JSON serializable")
+
+
+def return_res(res):
+    if isinstance(res, HTTPException):
+        return json.loads(json.dumps(res, cls=JSONEncoder))
+    return res
 
 
 def background_thread(socketio):
@@ -90,15 +96,21 @@ class Mynamespace(Namespace):
                 usersid.update(sessiondict)
                 print('after ', usersid)
                 conn.set('sids', usersid)
+            # res = json.loads(json.dumps(Success('{} is connect '.format(user.username)), cls=JSONEncoder))
+            # print(res, type(res))
+            # res = json.loads(Success('{} is connect '.format(user.username)), cls=JSONEncoder)
+            # print(res, type(res))
+            self.socketio.emit('server_response', Success('{} is connect '.format(user.username)))
+            return return_res(Success('{} is connect '.format(user.username)))
 
-            return json.loads(json.dumps(Success('{} is connect '.format(user.username)), cls=JSONEncoder))
             # conn.set('sid', session.sid)
         # else:
         #     # session['id'] = 'random'
         #     # session['username'] = 'unknown'
         #     # conn.set('')
         #     return '{} is connect '.format('unknown')
-        raise AuthorityError('token 失效')
+        self.socketio.emit('server_response', AuthorityError('token 失效'))
+        return return_res(AuthorityError('token 失效'))
 
     # @self.socketio.on('my event')  # 接收emit 的 myevent 消息
     def on_my_event(self, data):
