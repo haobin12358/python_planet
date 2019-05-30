@@ -1126,17 +1126,17 @@ class CApproval(BASEAPPROVAL):
         parent_apply = gnaa
         # 将父id改为失效
         while parent_apply.ParentGNAAid != None:
-            parent_apply = FreshManFirstApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+            current_apply = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
                                                            GuessNumAwardApply.GNAAstatus == ApplyStatus.lose_agree.value,
                                                            GuessNumAwardApply.isdelete == False).first()
-            if parent_apply:
+            if current_apply:
                 # 获取原商品属性
-                gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == parent_apply.GNAAid,
+                gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == current_apply.GNAAid,
                                                              GuessNumAwardProduct.isdelete == False).first()
                 product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
                 # 获取原sku属性
                 gnas_old = GuessNumAwardSku.query.filter(
-                    parent_apply.GNAAid == GuessNumAwardProduct.GNAAid,
+                    current_apply.GNAAid == GuessNumAwardProduct.GNAAid,
                     GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
                     GuessNumAwardSku.isdelete == False,
                     GuessNumAwardProduct.isdelete == False,
@@ -1147,10 +1147,11 @@ class CApproval(BASEAPPROVAL):
                     sku_instance = ProductSku.query.filter_by(
                         isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
                     COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
-                parent_apply.GNAAstatus = ApplyStatus.lose_effect.value
+                    current_apply.GNAAstatus = ApplyStatus.lose_effect.value
                 break
-            parent_apply = GuessNumAwardApply.query.filter(
-                GuessNumAwardApply.FMFAid == parent_apply.ParentGNAAid).first()
+            else:
+                parent_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
         gnaa.GNAAstatus = ApplyStatus.agree.value
         # gnaa_other = GuessNumAwardApply.query.filter(
         #     GuessNumAwardApply.GNAAid != gnaa.GNAAid,
@@ -1190,13 +1191,16 @@ class CApproval(BASEAPPROVAL):
             COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
         # 修改原申请状态
         parent_apply = gnaa
-        while parent_apply.GNAAid != None:
-            parent_apply = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+        while parent_apply.ParentGNAAid != None:
+            current_apply = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
                                                            GuessNumAwardApply.GNAAstatus == ApplyStatus.lose_agree.value,
                                                            GuessNumAwardApply.isdelete == False).first()
-            if parent_apply:
-                parent_apply.GNAAstatus = ApplyStatus.agree.value
+            if current_apply:
+                current_apply.GNAAstatus = ApplyStatus.agree.value
                 break
+            else:
+                parent_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
 
     def agree_magicbox(self, approval_model):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')

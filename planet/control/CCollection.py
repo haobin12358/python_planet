@@ -23,7 +23,7 @@ class CCollection:
         try:
             c = CollectionType(c).value
         except:
-            current_app.logger.info('get colletcion type {} error '.format(c))
+            ParentGNAAid
             c = 0
 
         ctid = self._check_type_id(c, ctid)
