@@ -1,7 +1,7 @@
 import ast
 import uuid
 
-from flask import request
+from flask import request, current_app
 
 # from flaskrun import socketio
 from flask_socketio import SocketIO
@@ -71,7 +71,7 @@ class CMessage():
                 msg = '更新成功'
 
             # 如果站内信为上线状态，创建用户站内信 推送 todo
-            if pm.PMstatus == PlanetMessageStatus.publish:
+            if pm.PMstatus == PlanetMessageStatus.publish.value:
                 # 创建用户站内信
                 user_list = User.query.filter_by(isdelete=False).all()
                 instance_list = list()
@@ -84,7 +84,11 @@ class CMessage():
                     instance_list.append(upm)
 
                 db.session.add_all(instance_list)
+                db.session.flush()
                 # 推送
+                usersid = self._get_usersid()
+                for usid in usersid:
+                    self.push_platform_message(usid)
                 # socketio.on_event('getplanetmessage', self.push_platform_message)
             return Success(msg, data={'pmid': pmid})
 
@@ -120,12 +124,21 @@ class CMessage():
         pm.fill('pmstatus_zh', PlanetMessageStatus(pm.PMstatus).zh_value)
         pm.fill('pmstatus_eh', PlanetMessageStatus(pm.PMstatus).name)
 
-    def push_platform_message(self):
-        # pm_list = UserPlatfromMessage.query.filter(
-        #
-        # ).order_by(PlatformMessage.createtime.desc()).all_with_page()
-        # socketio
-        pass
+    def push_platform_message(self, usersid):
+        from planet import socketio  # 路径引用需要是局部的 而且只能引用这个
+
+        for usid in usersid:
+            pm_list = PlatformMessage.query.filter(
+                UserPlatfromMessage.isdelete == False,
+                PlatformMessage.PMid == UserPlatfromMessage.PMid,
+                PlatformMessage.isdelete == False,
+                UserPlatfromMessage.USid == usid
+            ).order_by(PlatformMessage.createtime.desc()).all()
+            for pm in pm_list:
+                self._fill_pm(pm)
+
+            socketio.emit('message_list', Success('获取站内信列表成功', data=pm_list), room=usersid.get(usid))
+            # pass
 
     def test(self):
         # from flaskrun import socketio
@@ -147,3 +160,9 @@ class CMessage():
     # def background_test(self, socket):
     #     t = '后台主动请求'
     #
+    def _get_usersid(self):
+        usersids = conn.get('usersid') or {}
+        if usersids:
+            usersids = ast.literal_eval(str(usersids, encoding='utf-8'))
+        current_app.logger.info('get usersids {}'.format(usersids))
+        return usersids
