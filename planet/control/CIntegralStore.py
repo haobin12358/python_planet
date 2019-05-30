@@ -147,7 +147,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 instance_list.append(ipsku_instance)
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', ip.IPid)
         super(CIntegralStore, self).create_approval('tointegral', uid, ip.IPid, applyfrom=ipfrom)
         return Success('更新成功', data=dict(IPid=ip.IPid))
 

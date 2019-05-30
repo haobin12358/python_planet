@@ -236,7 +236,7 @@ class CTimeLimited(COrder, CUser, BaseController):
             })
             with db.auto_commit():
                 db.session.add(tlb)
-                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedActivity', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedActivity', tla.TLAid)
 
             current_app.logger.info('增加轮播图成功')
         else:
@@ -406,7 +406,7 @@ class CTimeLimited(COrder, CUser, BaseController):
                 # prstock += skustock
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedProduct', new_tlp.TLPid)
 
         # todo  添加到审批流
         super(CTimeLimited, self).create_approval('totimelimited', request.user.id, new_tlp.TLPid, applyfrom=tlp_from)

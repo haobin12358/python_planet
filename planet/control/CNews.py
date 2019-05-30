@@ -1148,7 +1148,7 @@ class CNews(BASEAPPROVAL):
                                                           'TOCfrom': tocfrom})
             db.session.add(topic_instance)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'TopicOfConversations', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TopicOfConversations', topic_instance.TOCid)
         return Success('创建成功', data=dict(tocid=topic_instance.TOCid, toctitle=topic_instance.TOCtitle))
 
     def get_topic(self):

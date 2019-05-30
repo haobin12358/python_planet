@@ -97,7 +97,7 @@ class CApproval(BASEAPPROVAL):
             'PIname': piname,
         })
         db.session.add(pi)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', PermissionItems.PIid)
         ptn.setdefault('PNcontent', pi.PIid)
         ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
         db.session.add(PermissionNotes.create(ptn))
@@ -209,7 +209,7 @@ class CApproval(BASEAPPROVAL):
             "PELevel": pelevel
         })
         db.session.add(permission_instence)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', permission_instence.PEid)
         # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
         #     pt_after.PTname, data.get("pelevel"))
         ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
@@ -246,7 +246,7 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', AdminPermission.ADPid)
         # 校验是否有被删除的管理员
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
@@ -574,7 +574,7 @@ class CApproval(BASEAPPROVAL):
         apn_instance = ApprovalNotes.create(approvalnote_dict)
         db.session.add(apn_instance)
         if is_admin():
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', AdminActionS.ANid)
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -741,7 +741,7 @@ class CApproval(BASEAPPROVAL):
                 'PINaction': '创建权限标签{}'.format(pi.PIname),
             }
             db.session.add(pi)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', ptn_pi.PNid)
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')

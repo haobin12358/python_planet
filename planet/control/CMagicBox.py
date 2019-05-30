@@ -438,7 +438,7 @@ class CMagicBox(CUser, COrder):
                 mbaid_list.append(award_dict['MBAid'])
             db.session.add_all(award_instance_list)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.insert.value, 'MagicBoxApply', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminAction.insert.value, 'MagicBoxApply',award_instance.MBAid)
         # 添加到审批流
         [self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
 
@@ -559,7 +559,7 @@ class CMagicBox(CUser, COrder):
                 mbaid_list.append(award_dict['MBAid'])
             db.session.add_all(award_instance_list)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.insert.value, 'MagicBoxApply', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminAction.insert.value, 'MagicBoxApply', award_instance.MBAid)
         # 添加到审批流
         [self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
 
@@ -623,7 +623,7 @@ class CMagicBox(CUser, COrder):
             award_dict = {k: v for k, v in award_dict.items() if v is not None}
             MagicBoxApply.query.filter_by_(MBAid=mbaid).update(award_dict)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
+                BASEADMIN().create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
             # 是否修改库存
             if not other_apply_info:
                 # 如果没有同批正在上架或审核中的，将库存从商品中重新减出来
@@ -693,7 +693,7 @@ class CMagicBox(CUser, COrder):
                 raise AuthorityError('仅可撤销自己提交的申请')
             apply_info.MBAstatus = ApplyStatus.cancle.value
             if is_admin():
-                BASEADMIN.create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
+                BASEADMIN().create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
             # 是否修改库存
             if not other_apply_info:
                 out_stock = OutStock.query.filter(
@@ -730,7 +730,7 @@ class CMagicBox(CUser, COrder):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
-                BASEADMIN.create_action(AdminAction.delete.value, 'MagicBoxApply', mbaid)
+                BASEADMIN().create_action(AdminAction.delete.value, 'MagicBoxApply', mbaid)
         return Success('删除成功', {'mbaid': mbaid})
 
     def shelves(self):
@@ -756,7 +756,7 @@ class CMagicBox(CUser, COrder):
                 raise StatusError('只能下架已通过的申请')
             apply_info.MBAstatus = ApplyStatus.reject.value
             if is_admin():
-                BASEADMIN.create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
+                BASEADMIN().create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
         return Success('下架成功', {'mbaid': mbaid})
 
     @staticmethod

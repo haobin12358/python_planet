@@ -131,7 +131,7 @@ class CSupplizer:
                         product_brand.SUid = supperlizer.SUid
                         db.session.add(product_brand)
                 if sudeposit and is_admin():
-                    SupplizerDepositLog.create({
+                    log = SupplizerDepositLog.create({
                         'SDLid': str(uuid.uuid1()),
                         'SUid': suid,
                         'SDLnum': Decimal(sudeposit),
@@ -139,7 +139,8 @@ class CSupplizer:
                         'SDbefore': 0,
                         'SDLacid': request.user.id,
                     })
-                    BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', str(uuid.uuid1()))
+                    db.session.add(log)
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog', log.SDLid)
         except IntegrityError:
             raise ParamsError('手机号重复')
         return Success('创建成功', data={'suid': supperlizer.SUid})
@@ -192,7 +193,7 @@ class CSupplizer:
                             'SDLacid': request.user.id,
                         })
                         db.session.add(depositlog)
-                        BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog',str(uuid.uuid1()))
+                        BASEADMIN().create_action(AdminActionS.insert.value, 'SupplizerDepositLog',depositlog.SDLid)
 
             supplizer.update(supplizer_dict, null='dont ignore')
             db.session.add(supplizer)
@@ -571,5 +572,5 @@ class CSupplizer:
             })
 
             db.session.add(mn)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ManagerSystemNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ManagerSystemNotes', mn.MNid)
         return Success('创建通告成功', data=mn.MNid)

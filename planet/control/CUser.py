@@ -1360,7 +1360,7 @@ class CUser(SUser, BASEAPPROVAL):
         })
         db.session.add(an_instance)
         if is_admin():
-            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminNotes', an_instance.ANid)
         return Success("操作成功")
 
     @get_session
@@ -1984,7 +1984,7 @@ class CUser(SUser, BASEAPPROVAL):
             })
         db.session.add(cn)
         if is_admin():
-            BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', cn.CNid)
         db.session.flush()
         # 创建审批流
 

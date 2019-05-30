@@ -54,7 +54,7 @@ class CClub():
             "CMindex": CMindex
         })
         db.session.add(new_companymessage)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'CompanyMessage', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'CompanyMessage', new_companymessage.CMid)
         return Success("发布成功")
 
     @get_session

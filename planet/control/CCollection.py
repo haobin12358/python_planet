@@ -23,7 +23,6 @@ class CCollection:
         try:
             c = CollectionType(c).value
         except:
-            ParentGNAAid
             c = 0
 
         ctid = self._check_type_id(c, ctid)

@@ -41,7 +41,7 @@ class CMessage():
                 pm.update({'isdelete': True})
                 db.session.add(pm)
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.delete.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.delete.value, 'PlatformMessage', pmid)
                 return Success('删除成功', data={'pmid': pmid})
             pmdict = {
                 'PMtext': data.get('pmtext'),
@@ -53,12 +53,12 @@ class CMessage():
                 pmdict.setdefault('PMfrom', pmfrom)
                 pm = PlatformMessage.create(pmdict)
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.insert.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.insert.value, 'PlatformMessage', pmid)
                 msg = '创建成功'
             else:
                 pm.update(pmdict)
                 if is_admin():
-                    BASEADMIN.create_action(AdminAction.update.value, 'PlatformMessage', pmid)
+                    BASEADMIN().create_action(AdminAction.update.value, 'PlatformMessage', pmid)
                 msg = '更新成功'
 
             # 如果站内信为上线状态，创建用户站内信 todo
