@@ -310,14 +310,45 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
     def today_gnap(self):
         now = datetime.now()
         today = date.today()
-        gnaa_list = GuessNumAwardApply.query.filter_by(
-            GNAAstarttime=today, GNAAstatus=ApplyStatus.agree.value, isdelete=False).all()
+        gnaa_list = GuessNumAwardApply.query.filter(
+            GuessNumAwardApply.GNAAstarttime == today,
+            GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.agree.value, ApplyStatus.lose_agree.value]),
+            GuessNumAwardApply.isdelete == False).all()
         user = get_current_user()
         gn = GuessNum.query.filter_by(USid=user.USid, isdelete=False).order_by(GuessNum.createtime.desc()).first()
-
+        instance_list = []
         for gnaa in gnaa_list:
+            if gnaa.GNAAstatus == ApplyStatus.lose_agree.value:
+                gnaa.update({'GNAAstatus': ApplyStatus.agree.value})
+                instance_list.append(gnaa)
+                gna_child_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.ParentGNAAid == gnaa.GNAAid,
+                    GuessNumAwardApply.GNAAstatus == ApplyStatus.wait_check.value,
+                    GuessNumAwardApply.isdelete == False).first()
+                if gna_child_apply:
+                    gna_child_apply.update({'GNAAstatus': ApplyStatus.lose_effect.value})
+                    # 获取原商品属性
+                    gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == gna_child_apply.GNAAid,
+                                                                 GuessNumAwardProduct.isdelete == False).first()
+                    product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+                    # 获取原sku属性
+                    gnas_old = GuessNumAwardSku.query.filter(
+                        gna_child_apply.GNAAid == GuessNumAwardProduct.GNAAid,
+                        GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                        GuessNumAwardSku.isdelete == False,
+                        GuessNumAwardProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+
+                    # 遍历原sku 将库存退出去
+                    for sku in gnas_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
+                    instance_list.append(gna_child_apply)
             current_app.logger.info('获取到申请 {}'.format(gnaa.GNAAid))
             self._fill_gnaa(gnaa, gn, now)
+        db.session.add_all(instance_list)
 
         # 上方图
         activity = Activity.query.filter_by_({
@@ -408,8 +439,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         """修改猜数字奖品申请, 一次只能处理一天的一个商品"""
         if not (is_supplizer() or is_admin()):
             raise AuthorityError()
-        # data = parameter_required(('gnaaid', 'skuprice', 'skustock'))
-        data = parameter_required(('gnaaid', 'prid', 'prprice', 'skus'))
+        data = parameter_required(('prid', 'prprice', 'skus', 'gnaastarttime', 'gnaaid'))
         with db.auto_commit():
             # 获取申请单
             apply_info = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == data.get('gnaaid'),
@@ -426,40 +456,27 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 raise ParamsError('已结束的活动不能再次发起申请')
             elif starttime <= date.today:
                 raise ParamsError('已开始的活动不能再次发起申请')
-            # 父活动和基于父活动的所有再次申请通过的活动都不能是活动开始状态
+            # 父活动不能是活动开始状态
             parent_apply = apply_info
+            instance_list = []
             while parent_apply.ParentGNAAid != None:
                 parent_apply = GuessNumAwardApply.query.filter(
                     GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
                     GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
                     GuessNumAwardApply.isdelete == False).first()
                 if parent_apply:
-                    children_apply = GuessNumAwardApply.query.filter(
-                        GuessNumAwardApply.ParentGNAAid == parent_apply.ParentGNAAid,
-                        GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
-                        GuessNumAwardApply.isdelete == False).all()
-                    if children_apply:
-                        for child_apply in children_apply:
-                            starttime = child_apply.AgreeStartime
-                            endtime = child_apply.AgreeEndtime
-                            if endtime < date.today:
-                                raise ParamsError('已结束的活动不能再次发起申请')
-                            elif starttime <= date.today:
-                                raise ParamsError('已开始的活动不能再次发起申请')
                     starttime = parent_apply.AgreeStartime
                     endtime = parent_apply.AgreeEndtime
                     if endtime < date.today:
                         raise ParamsError('已结束的活动不能再次发起申请')
                     elif starttime <= date.today:
                         raise ParamsError('已开始的活动不能再次发起申请')
+                    parent_apply.update({"GNAAstatus": ApplyStatus.lose_agree.value})
+                    instance_list.append(parent_apply)
                     break
-
             gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
             # 解除和原商品属性的绑定
             GuessNumAwardProduct.query.filter_by(GNAAid=apply_info.GNAAid, isdelete=False).delete_()
-            # product_old.isdelete = True
-            # 如果修改了时间，检测是否有冲突
-            exist_apply_list = list()
 
             # 创建新记录
             gnaa = GuessNumAwardApply.create({
@@ -472,81 +489,85 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 'GNAAstatus': ApplyStatus.wait_check.value,
                 'ParentGNAAid': apply_info.GNAAid
             })
-            db.session.add(gnaa)
+            instance_list.append(gnaa)
             # 对ParentGNAAid进行检验
             if apply_info.GNAAstatus == ApplyStatus.reject.value:
                 apply_info.update({'isdelete': True})
-                db.session.add(apply_info)
-            # 重新添加商品属性
-            skus = data.get('skus')
+                instance_list.append(apply_info)
+            # 欲申请商品
             product = Products.query.filter_by(
                 PRid=data.get('prid'), isdelete=False, PRstatus=ProductStatus.usual.value).first_('商品未上架')
             product_brand = ProductBrand.query.filter_by(PBid=product.PBid).first_('商品信息不全')
-            # 新的商品属性
-            gnap = GuessNumAwardProduct.create({
-                'GNAPid': str(uuid.uuid1()),
-                'GNAAid': apply_info.GNAAid,
-                'PRid': product.PRid,
-                'PRmainpic': product.PRmainpic,
-                'PRtitle': product.PRtitle,
-                'PBid': product.PBid,
-                'PBname': product_brand.PBname,
-                'PRattribute': product.PRattribute,
-                'PRdescription': product.PRdescription,
-                'PRprice': data.get('prprice')
-            })
-            db.session.add(gnap)
-            # 新的sku属性
-            for sku in skus:
-                # 冲突校验。 如果冲突，则跳过，并予以提示
-                exits_apply = GuessNumAwardApply.query.filter(
-                    GuessNumAwardApply.GNAAid != apply_info.GNAAid,
-                    GuessNumAwardApply.GNAAstarttime == gnaastarttime,
-                    GuessNumAwardProduct.GNAAid == GuessNumAwardApply.GNAAid,
-                    GuessNumAwardProduct.PRid == data.get('prid'),
-                    GuessNumAwardSku.SKUid == sku.get('skuid'),
-                    GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
-                    GuessNumAwardProduct.isdelete == False,
-                    GuessNumAwardSku.isdelete == False,
-                    GuessNumAwardApply.isdelete == False
-                ).first()
+            # 时间列表
+            time_list = data.get('gnaastarttime')
+            # 申请的sku list
+            skus = data.get('skus')
+            with db.auto_commit():
+                # 系统实际生成的申请id列表， 按日期不同生成不同的申请单
+                gnaaid_list = list()
+                for day in time_list:
+                    # 校验是否存在已提交申请
+                    exist_apply = GuessNumAwardApply.query.filter(
+                        GuessNumAwardProduct.PRid == data.get('prid'),
+                        # GuessNumAwardProduct.GNAPid == GuessNumAwardApply.GNAPid,
+                        GuessNumAwardApply.isdelete == False,
+                        GuessNumAwardApply.SUid == request.user.id,
+                        GuessNumAwardApply.GNAAstarttime == day).first()
+                    if exist_apply:
+                        raise ParamsError('您已添加过{}日的申请'.format(day))
 
-                skuid = sku.get('skuid')
-                skuprice = sku.get('skuprice')
-                skustock = sku.get('skustock')
-                SKUdiscountone = sku.get('skudiscountone')
-                SKUdiscounttwo = sku.get('skudiscounttwo')
-                SKUdiscountthree = sku.get('skudiscountthree')
-                SKUdiscountfour = sku.get('skudiscountfour')
-                SKUdiscountfive = sku.get('skudiscountfive')
-                SKUdiscountsix = sku.get('skudiscountsix')
-                sku_instance = ProductSku.query.filter_by(
-                    isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
-
-                if exits_apply:
-                    exist_apply_list.append(sku_instance)
-                    continue
-                # 库存处理
-                self._update_stock(-int(skustock), product, sku_instance)
-
-                gnas = GuessNumAwardSku.create({
-                    'GNASid': str(uuid.uuid1()),
-                    'GNAPid': gnap.GNAPid,
-                    'SKUid': skuid,
-                    'SKUprice': skuprice,
-                    'SKUstock': skustock,
-                    'SKUdiscountone': SKUdiscountone,
-                    'SKUdiscounttwo': SKUdiscounttwo,
-                    'SKUdiscountthree': SKUdiscountthree,
-                    'SKUdiscountfour': SKUdiscountfour,
-                    'SKUdiscountfive': SKUdiscountfive,
-                    'SKUdiscountsix': SKUdiscountsix,
-                })
-                db.session.add(gnas)
-                apply_info.GNAAstatus = ApplyStatus.wait_check.value
-        super(CGuessNum, self).create_approval('toguessnum', request.user.id, apply_info.GNAAid, gnaafrom)
-
-        return Success('修改成功', {'gnaaid': apply_info.GNAAid, 'skus': exist_apply_list})
+                    db.session.add(gnaa)
+                    gnaaid_list.append(gnaa.GNAAid)
+                    # 活动商品
+                    gnap = GuessNumAwardProduct.create({
+                        'GNAPid': str(uuid.uuid1()),
+                        'GNAAid': gnaa.GNAAid,
+                        'PRid': product.PRid,
+                        'PRmainpic': product.PRmainpic,
+                        'PRtitle': product.PRtitle,
+                        'PBid': product.PBid,
+                        'PBname': product_brand.PBname,
+                        'PRattribute': product.PRattribute,
+                        'PRdescription': product.PRdescription,
+                        'PRprice': data.get('prprice')
+                    })
+                    instance_list.append(gnap)
+                    # 活动sku
+                    for sku in skus:
+                        skuid = sku.get('skuid')
+                        skuprice = sku.get('skuprice')
+                        skustock = sku.get('skustock')
+                        skudiscountone = sku.get('skudiscountone')
+                        skudiscounttwo = sku.get('skudiscounttwo')
+                        skudiscountthree = sku.get('skudiscountthree')
+                        skudiscountfour = sku.get('skudiscountfour')
+                        skudiscountfive = sku.get('skudiscountfive')
+                        skudiscountsix = sku.get('skudiscountsix')
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
+                        self._update_stock(-int(skustock), product, sku_instance)
+                        # db.session.add(sku)
+                        gnas = GuessNumAwardSku.create({
+                            'GNASid': str(uuid.uuid1()),
+                            'GNAPid': gnap.GNAPid,
+                            'SKUid': skuid,
+                            'SKUprice': skuprice,
+                            'SKUstock': skustock,
+                            'SKUdiscountone': skudiscountone,
+                            'SKUdiscounttwo': skudiscounttwo,
+                            'SKUdiscountthree': skudiscountthree,
+                            'SKUdiscountfour': skudiscountfour,
+                            'SKUdiscountfive': skudiscountfive,
+                            'SKUdiscountsix': skudiscountsix,
+                        })
+                        instance_list.append(gnas)
+            if is_admin():
+                BASEADMIN.create_action(AdminActionS.insert.value, 'GuessNumAwardApply', str(uuid.uuid1()))
+            # 添加到审批流
+            for gnaaid in gnaaid_list:
+                super(CGuessNum, self).create_approval('toguessnum', request.user.id, gnaaid, gnaafrom)
+            db.session.add_all(instance_list)
+            return Success('申请添加成功', {'gnaaid': gnaaid_list})
 
     def apply_award(self):
         """申请添加奖品"""
@@ -586,6 +607,8 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                     'GNAAstatus': ApplyStatus.wait_check.value,
                 })
                 db.session.add(gnaa)
+                if is_admin():
+                    BASEADMIN.create_action(AdminActionS.insert.value, 'GuessNumAwardApply', str(uuid.uuid1()))
                 gnaaid_list.append(gnaa.GNAAid)
                 # 活动商品
                 gnap = GuessNumAwardProduct.create({

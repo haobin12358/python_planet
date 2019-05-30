@@ -286,7 +286,7 @@ def create_settlenment():
                 #     and_(
                 cast(UserCommission.updatetime, Date) < tomonth_22,
                 cast(UserCommission.updatetime, Date) >= pre_month_22,
-                    # ))
+                # ))
             ).first()
             ss_total = su_comiission[0] or 0
             ss = SupplizerSettlement.create({
@@ -776,6 +776,36 @@ def start_timelimited(tlaid):
 
     with db.auto_commit():
         tla.TLAstatus = TimeLimitedStatus.starting.value
+        tlps = TimeLimitedProduct.query.filter(TimeLimitedProduct.TLAid == tlaid,
+                                               TimeLimitedProduct.isdelete == False,
+                                               TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value
+                                               ).all()
+        if tlps:
+            for tlp in tlps:
+                tlp.TLAstatus = TimeLimitedStatus.starting.value
+        old_tlps = TimeLimitedProduct.query.filter(TimeLimitedProduct.TLAid == tlaid,
+                                                   TimeLimitedProduct.isdelete == False,
+                                                   TimeLimitedProduct.TLAstatus == ApplyStatus.wait_check.value
+                                                   ).all()
+        if old_tlps:
+            for tlp in old_tlps:
+                tlp.TLAstatus = TimeLimitedStatus.lose_effect.value
+                # 获取原商品属性
+                product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
+                # 获取原sku属性
+                tls_old = TimeLimitedSku.query.filter(
+                    TimeLimitedSku.TLPid == tlp.TLPid,
+                    TimeLimitedSku.isdelete == False,
+                    TimeLimitedProduct.isdelete == False,
+                ).all()
+                from planet.control.COrder import COrder
+
+                # 遍历原sku 将库存退出去
+                for sku in tls_old:
+                    sku_instance = ProductSku.query.filter_by(
+                        isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                    COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+
     current_app.logger.info('修改限时活动为开始 结束')
 
 

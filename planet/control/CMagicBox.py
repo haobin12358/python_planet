@@ -445,12 +445,10 @@ class CMagicBox(CUser, COrder):
         return Success('申请添加成功', {'mbaid': mbaid_list})
 
     def reapply_award(self):
-        """修改魔盒申请"""
-        if not (is_supplizer() or is_admin()):
-            raise AuthorityError()
+        """魔盒重新申请"""
         data = parameter_required(('skuid', 'prid', 'skustock', 'mbastarttime', 'skuprice',
                                    'skuminprice', 'gearsone', 'gearstwo', 'gearsthree'))
-        mbaid, skuid, prid, skustock = data.get('mbaid'), data.get('skuid'), data.get('prid'), data.get('skustock')
+        mbaid, skuid, prid, skustock = data.get('mbaid'), data.get('skuid'), data.get('prid'), data.get('skustock', 1)
         gearsone, gearstwo, gearsthree = data.get('gearsone'), data.get('gearstwo'), data.get('gearsthree')
         if not isinstance(gearsone, list):
             raise ParamsError('gearsone格式错误')
@@ -462,20 +460,23 @@ class CMagicBox(CUser, COrder):
         for test_str in (gearsone, gearstwo, gearsthree):
             if not re.match(r'^\[(\"\d+\-\d+\"\,? ?)+\]$', test_str):
                 raise ParamsError('档次变化金额只能填写数字')
-        apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
-                                                MagicBoxApply.MBAstatus.in_([ApplyStatus.agree.value,
-                                                                             ApplyStatus.reject.value,
-                                                                            ApplyStatus.cancle.value])
-                                                     ).first_('已下架或审核中的申请不可以进行修改')
-
-        if apply_info.SUid != request.user.id:
-            raise AuthorityError('仅可修改自己提交的申请')
         mbafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         sku = ProductSku.query.filter_by_(SKUid=skuid).first_('没有该skuid信息')
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                                         Products.PRstatus == ProductStatus.usual.value
-                                        ).first_('仅可将已上架的商品用于申请')  # 当前商品状态不允许进行申请
+                                        ).first_('仅可将已上架的商品用于申请')
         assert sku.PRid == prid, 'sku与商品信息不对应'
+        apply_info = MagicBoxApply.query.filter(MagicBoxApply.MBAid == mbaid,
+                                                MagicBoxApply.MBAstatus.in_([ApplyStatus.agree.value,
+                                                                             ApplyStatus.reject.value,
+                                                                             ApplyStatus.cancle.value])
+                                                ).first_('已下架或审核中的申请不可以进行修改')
+
+        if apply_info.SUid != request.user.id:
+            raise AuthorityError('仅可修改自己提交的申请')
+        assert sku.PRid == prid, 'sku与商品信息不对应'
+        award_instance_list = list()
+        mbaid_list = list()
         other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
                                                       MagicBoxApply.MBAid != mbaid,
                                                       MagicBoxApply.MBAstatus.notin_(
@@ -489,90 +490,80 @@ class CMagicBox(CUser, COrder):
                 raise ParamsError('已结束的活动不能再次发起申请')
             elif starttime <= date.today:
                 raise ParamsError('已开始的活动不能再次发起申请')
-            # 父活动和基于父活动的所有再次申请通过的活动都不能是活动开始状态
+            # 已通过的父活动不能是活动开始状态
             parent_apply = apply_info
             while parent_apply.ParentMBAid != None:
                 parent_apply = MagicBoxApply.query.filter(MagicBoxApply.MBAid == parent_apply.ParentMBAid,
                                                           MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
                                                           MagicBoxApply.isdelete == False).first()
                 if parent_apply:
-                    children_apply = MagicBoxApply.query.filter(
-                        MagicBoxApply.ParentMBAid == parent_apply.ParentMBAid,
-                        MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                        MagicBoxApply.isdelete == False).all()
-                    if children_apply:
-                        for child_apply in children_apply:
-                            starttime = child_apply.AgreeStartime
-                            endtime = child_apply.AgreeEndtime
-                            if endtime < date.today:
-                                raise ParamsError('已结束的活动不能再次发起申请')
-                            elif starttime <= date.today:
-                                raise ParamsError('已开始的活动不能再次发起申请')
                     starttime = parent_apply.AgreeStartime
                     endtime = parent_apply.AgreeEndtime
                     if endtime < date.today:
                         raise ParamsError('已结束的活动不能再次发起申请')
                     elif starttime <= date.today:
                         raise ParamsError('已开始的活动不能再次发起申请')
+                    parent_apply.update({"MBAstatus": ApplyStatus.lose_agree.value})
+                    award_instance_list.append(parent_apply)
                     break
                 parent_apply = MagicBoxApply.query.filter(
                     MagicBoxApply.MBAid == parent_apply.ParentMBAid).first()
-            # 创建新记录
-            award_dict = {
-                'MBAid': str(uuid.uuid1()),
-                'SUid': request.user.id,
-                'SKUid': skuid,
-                'PRid': prid,
-                'PBid': product.PBid,
-                'MBAstarttime': data.get('mbastarttime'),
-                'MBAendtime': data.get('mbastarttime'),
-                'SKUprice': float(data.get('skuprice', 0.01)),
-                'SKUminPrice': float(data.get('skuminprice', 0.01)),
-                'Gearsone': gearsone,
-                'Gearstwo': gearstwo,
-                'Gearsthree': gearsthree,
-                # 'SKUstock': int(skustock),
-                "OSid": str(uuid.uuid1()),
-                'MBAstatus': ApplyStatus.wait_check.value,
-                'MBAfrom': mbafrom,
-                'ParentMBAid':mbaid
-            }
-            award_instance = MagicBoxApply.create(award_dict)
-            db.session.add(award_instance)
             # 对ParentMBAid进行检验
             if apply_info.MBAstatus == ApplyStatus.reject.value:
                 apply_info.update({'isdelete': True})
-                db.session.add(apply_info)
-            award_dict = {
-                'SUid': request.user.id,
+                award_instance_list.append(apply_info)
+            time_list = data.get('mbastarttime')
+            if not isinstance(time_list, list):
+                raise ParamsError('参数 mbastarttime 格式错误')
+            skustock = int(skustock)
+            if skustock == 0:
+                raise ParamsError('申请参与的库存数不能为0')
+            # 活动出库单
+            osid = str(uuid.uuid1())
+            db.session.add(OutStock.create({
+                'OSid': osid,
                 'SKUid': skuid,
-                'PRid': prid,
-                'PBid': product.PBid,
-                'MBAstarttime': data.get('mbastarttime'),
-                'MBAendtime': data.get('mbastarttime'),
-                'SKUprice': float(data.get('skuprice', 0.01)),
-                'SKUminPrice': float(data.get('skuminprice', 0.01)),
-                'Gearsone': gearsone,
-                'Gearstwo': gearstwo,
-                'Gearsthree': gearsthree,
-                # 'SKUstock': int(skustock),
-                'MBAstatus': ApplyStatus.wait_check.value,
-                'MBAfrom': mbafrom,
-            }
-            award_dict = {k: v for k, v in award_dict.items() if v is not None}
-            MagicBoxApply.query.filter_by_(MBAid=mbaid).update(award_dict)
+                'OSnum': skustock
+            }))
+            self._update_stock(-skustock, skuid=skuid)
+            for day in time_list:
+                # 先检测是否存在相同skuid,相同日期的申请
+                exist_apply_sku = MagicBoxApply.query.filter(MagicBoxApply.SKUid == skuid,
+                                                             MagicBoxApply.isdelete == False,
+                                                             MagicBoxApply.SUid == request.user.id,
+                                                             MagicBoxApply.MBAstarttime == day).first()
+                if exist_apply_sku:
+                    raise ParamsError('您已添加过{}日的申请'.format(day))
+                # 创建新记录
+                award_dict = {
+                    'MBAid': str(uuid.uuid1()),
+                    'SUid': request.user.id,
+                    'SKUid': skuid,
+                    'PRid': prid,
+                    'PBid': product.PBid,
+                    'MBAstarttime': data.get('mbastarttime'),
+                    'MBAendtime': data.get('mbastarttime'),
+                    'SKUprice': float(data.get('skuprice', 0.01)),
+                    'SKUminPrice': float(data.get('skuminprice', 0.01)),
+                    'Gearsone': gearsone,
+                    'Gearstwo': gearstwo,
+                    'Gearsthree': gearsthree,
+                    # 'SKUstock': int(skustock),
+                    "OSid": str(uuid.uuid1()),
+                    'MBAstatus': ApplyStatus.wait_check.value,
+                    'MBAfrom': mbafrom,
+                    'ParentMBAid': mbaid
+                }
+                award_instance = MagicBoxApply.create(award_dict)
+                award_instance_list.append(award_instance)
+                mbaid_list.append(award_dict['MBAid'])
+            db.session.add_all(award_instance_list)
             if is_admin():
-                BASEADMIN.create_action(AdminAction.update.value, 'MagicBoxApply', mbaid)
-            # 是否修改库存
-            if not other_apply_info:
-                # 如果没有同批正在上架或审核中的，将库存从商品中重新减出来
-                out_stock = OutStock.query.filter(OutStock.isdelete == False, OutStock.OSid == apply_info.OSid
-                                                  ).first()
-                super(CMagicBox, self)._update_stock(-out_stock.OSnum, skuid=apply_info.SKUid)
+                BASEADMIN.create_action(AdminAction.insert.value, 'MagicBoxApply', str(uuid.uuid1()))
+        # 添加到审批流
+        [self.create_approval('tomagicbox', request.user.id, mbaid, mbafrom) for mbaid in mbaid_list]
 
-        # 重新添加到审批流
-        super(CMagicBox, self).create_approval('tomagicbox', request.user.id, mbaid, mbafrom)
-        return Success('修改成功', {'mbaid': mbaid})
+        return Success('申请添加成功', {'mbaid': mbaid_list})
 
     def update_apply(self):
         """修改魔盒申请"""

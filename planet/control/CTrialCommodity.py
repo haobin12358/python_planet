@@ -53,7 +53,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         args = parameter_required(('page_num', 'page_size'))
         kw = args.get('kw')
         tcstatus = args.get('tcstatus', 'upper')
-        if str(tcstatus) not in ['upper', 'auditing', 'reject', 'cancel', 'sell_out', 'all']:
+        if str(tcstatus) not in ['upper', 'auditing', 'reject', 'cancel', 'sell_out', 'all', 'lose_effect',
+                                 'lose_upper']:
             raise ParamsError('tcstatus, 参数错误')
         tcstatus = getattr(TrialCommodityStatus, tcstatus).value
         commodity_query = TrialCommodity.query.filter(TrialCommodity.isdelete == False)
@@ -61,6 +62,28 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             ProductBrand.isdelete == False,
             ProductBrand.PBstatus == ProductBrandStatus.upper.value
         )
+        with db.auto_commit():
+            # 修改状态
+            commoditys = TrialCommodity.query.filter(TrialCommodity.AgreeStartTime <= date.today(),
+                                                     TrialCommodity.AgreeEndTime >= date.today(),
+                                                     TrialCommodity.TCstocks > 0,
+                                                     TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper
+                                                     ).all()
+            instance_list = []
+            if commoditys:
+                for commodity in commoditys:
+                    commodity.update({'TCstatus': TrialCommodityStatus.upper.value})
+                    instance_list.append(commodity)
+            old_commoditys = TrialCommodity.query.filter(TrialCommodity.AgreeStartTime <= date.today(),
+                                                         TrialCommodity.AgreeEndTime >= date.today(),
+                                                         TrialCommodity.TCstocks > 0,
+                                                         TrialCommodity.TCstatus == TrialCommodityStatus.auditing
+                                                         ).all()
+            if old_commoditys:
+                for commodity in old_commoditys:
+                    commodity.update({'TCstatus': TrialCommodityStatus.lose_effect.value})
+                    instance_list.append(commodity)
+
         if tcstatus is not None:
             commodity_query = commodity_query.filter(TrialCommodity.TCstatus == tcstatus)
         if time_filter:
@@ -99,7 +122,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             "banner": banner,
             "remarks": remarks,
             "commodity": commodity_list
-            }
+        }
         return Success(data=data).get_body(tourist=tourist)
 
     def get_commodity(self):
@@ -273,6 +296,158 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                 'ApplyEndTime': data.get('applyendtime')
             })
             session_list.append(commodity)
+            db.session.add_all(session_list)
+            if is_admin():
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TrialCommodity', tcid)
+            # 添加进审批流
+        super().create_approval('totrialcommodity', request.user.id, tcid, tcfrom)
+        return Success("添加成功", {'tcid': tcid})
+
+    def readd_commodity(self):
+        """添加试用商品"""
+        if is_supplizer():
+            usid = request.user.id
+            sup = self._check_supplizer(usid)
+            current_app.logger.info('Supplizer {} creat commodity'.format(sup.SUname))
+            tcfrom = ApplyFrom.supplizer.value
+        elif is_admin():
+            usid = request.user.id
+            admin = self._check_admin(usid)
+            current_app.logger.info('Admin {} creat commodity'.format(admin.ADname))
+            tcfrom = ApplyFrom.platform.value
+        else:
+            raise AuthorityError()
+        data = parameter_required(('tctitle', 'tcdescription', 'tcdeposit', 'tcdeadline', 'tcfreight',
+                                   'tcmainpic', 'tcattribute', 'tcdesc', 'pbid', 'images', 'skus',
+                                   'tskuvalue', 'applystarttime', 'applyendtime', 'tcid'
+                                   ))
+        tcattribute = data.get('tcattribute')
+        tcdescription = data.get('tcdescription')
+        tcdesc = data.get('tcdesc')
+        tcdeposit = data.get('tcdeposit')
+        tcstocks = 0
+        pbid = data.get('pbid')
+        images = data.get('images')
+        skus = data.get('skus')
+        tskuvalue = data.get('tskuvalue')
+        tcid = data.get('tcid')
+        commodity = TrialCommodity.query.filter(TrialCommodity.TCid == tcid,
+                                                TrialCommodity.TCstatus.in_([TrialCommodityStatus.upper.value,
+                                                                             TrialCommodityStatus.reject.value,
+                                                                             TrialCommodityStatus.cancle.value]),
+                                                TrialCommodity.isdelete == False
+                                                ).first_('该试用申请不能被重新申请')
+        if sup:
+            assert commodity.CreaterId == usid, '供应商只能修改自己上传的商品'
+        if not isinstance(images, list) or not isinstance(skus, list):
+            raise ParamsError('images/skus, 参数错误')
+        ProductBrand.query.filter_by_(PBid=pbid).first_('未找到该品牌信息')
+        tcid = str(uuid.uuid1())
+        pbid = data.get('pbid')
+        images = data.get('images')
+        skus = data.get('skus')
+        if not isinstance(images, list) or not isinstance(skus, list):
+            raise ParamsError('images/skus, 参数错误')
+        ProductBrand.query.filter_by_(PBid=pbid).first_('pbid 参数错误, 未找到相应品牌')
+        with db.auto_commit():
+            session_list = []
+            # 是否能再次申请
+            starttime = commodity.AgreeStartTime
+            endtime = commodity.AgreeEndtime
+            if endtime < date.today:
+                raise StatusError('已结束的活动不能再次发起申请')
+            elif starttime <= date.today:
+                raise StatusError('已开始的活动不能再次发起申请')
+            # 父活动不能是活动开始状态
+            parent_apply = commodity
+            while parent_apply.ParentFMFAid != None:
+                parent_apply = TrialCommodity.query.filter(TrialCommodity.TCid == parent_apply.ParentTCid,
+                                                           TrialCommodity.TCstatus == TrialCommodityStatus.agree.value,
+                                                           TrialCommodity.isdelete == False).first()
+                if parent_apply:
+                    starttime = parent_apply.AgreeStartime
+                    endtime = parent_apply.AgreeEndtime
+                    if endtime < date.today:
+                        raise StatusError('已结束的活动不能再次发起申请')
+                    elif starttime <= date.today:
+                        raise StatusError('已开始的活动不能再次发起申请')
+                    parent_apply.update({"TCstatus": ApplyStatus.lose_upper.value})
+                    session_list.append(parent_apply)
+                    break
+                parent_apply = TrialCommodity.query.filter(
+                    TrialCommodity.TCid == parent_apply.ParentTCid).first()
+            if commodity.TCstatus == ApplyStatus.reject.value:
+                commodity.update({'isdelete': True})
+                session_list.append(commodity)
+
+            for image in images:
+                parameter_required(('tcipic', 'tcisort'), datafrom=image)
+                image_info = TrialCommodityImage.create({
+                    'TCIid': str(uuid.uuid1()),
+                    'TCid': tcid,
+                    'TCIpic': image.get('tcipic'),
+                    'TCIsort': image.get('tcisort')
+                })
+                session_list.append(image_info)
+            # sku
+            sku_detail_list = []  # 一个临时的列表, 使用记录的sku_detail来检测sku_value是否符合规范
+            for sku in skus:
+                parameter_required(('skupic', 'skustock', 'skuattritedetail'), datafrom=sku)
+                skuattritedetail = sku.get('skuattritedetail')
+                if not isinstance(skuattritedetail, list) or len(skuattritedetail) != len(tcattribute):
+                    raise ParamsError('skuattritedetail与tcattribute不符')
+                sku_detail_list.append(skuattritedetail)
+                skustock = sku.get('skustock')
+                assert int(skustock) >= 0, '库存数量不能小于0'
+                tcstocks += int(skustock)  # 计算总库存
+                sku_info = TrialCommoditySku.create({
+                    'SKUid': image_info.TCIid,
+                    'TCid': tcid,
+                    'SKUpic': sku.get('skupic'),
+                    'SKUprice': tcdeposit,
+                    'SKUstock': int(skustock),
+                    'SKUattriteDetail': json.dumps(skuattritedetail)
+                })
+                session_list.append(sku_info)
+            if tskuvalue:
+                if not isinstance(tskuvalue, list) or len(tskuvalue) != len(tcattribute):
+                    raise ParamsError('tskuvalue与prattribute不符')
+                sku_reverce = []
+                for index in range(len(tcattribute)):
+                    value = list(set([attribute[index] for attribute in sku_detail_list]))
+                    sku_reverce.append(value)
+                    # 对应位置的列表元素应该相同
+                    if set(value) != set(tskuvalue[index]):
+                        raise ParamsError('请核对tskuvalue')
+                # sku_value表
+                sku_value_instance = TrialCommoditySkuValue.create({
+                    'TSKUid': image_info.TCIid,
+                    'TCid': tcid,
+                    'TSKUvalue': json.dumps(tskuvalue)
+                })
+                session_list.append(sku_value_instance)
+
+            new_commodity = TrialCommodity.create({
+                'TCid': tcid,
+                'TCtitle': data.get('tctitle'),
+                'TCdescription': tcdescription,
+                'TCdeposit': tcdeposit,
+                'TCdeadline': data.get('tcdeadline'),  # 暂时先按天为单位
+                'TCfreight': data.get('tcfreight'),
+                'TCstocks': tcstocks,
+                'TCstatus': TrialCommodityStatus.auditing.value,
+                'TCmainpic': data.get('tcmainpic'),
+                'TCattribute': json.dumps(tcattribute or '[]'),
+                'TCdesc': tcdesc or [],
+                'TCremarks': data.get('tcremarks'),
+                'CreaterId': request.user.id,
+                'PBid': pbid,
+                'TCfrom': tcfrom,
+                'ApplyStartTime': data.get('applystarttime'),
+                'ApplyEndTime': data.get('applyendtime'),
+                'ParentTCid': commodity.TCid
+            })
+            session_list.append(new_commodity)
             db.session.add_all(session_list)
             if is_admin():
                 BASEADMIN().create_action(AdminActionS.insert.value, 'TrialCommodity', tcid)
@@ -554,7 +729,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             raise ParamsError('客户端来源错误')
         with db.auto_commit():
             # 用户的地址信息
-            user_address_instance = db.session.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_('地址信息不存在')
+            user_address_instance = db.session.query(UserAddress).filter_by_({'UAid': uaid, 'USid': usid}).first_(
+                '地址信息不存在')
             omrecvphone = user_address_instance.UAphone
             areaid = user_address_instance.AAid
             # 地址拼接
@@ -571,17 +747,20 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             omid = str(uuid.uuid1())
             pbid = data.get('pbid')
             ommessage = data.get('ommessage')
-            product_brand_instance = db.session.query(ProductBrand).filter_by_({'PBid': pbid}).first_('品牌id: {}不存在'.format(pbid))
+            product_brand_instance = db.session.query(ProductBrand).filter_by_({'PBid': pbid}).first_(
+                '品牌id: {}不存在'.format(pbid))
 
             opid = str(uuid.uuid1())
             skuid = data.get('skuid')
             opnum = int(data.get('nums', 1))
             assert opnum > 0, 'nums <= 0, 参数错误'
-            sku_instance = db.session.query(TrialCommoditySku).filter_by_({'SKUid': skuid}).first_('skuid: {}不存在'.format(skuid))
+            sku_instance = db.session.query(TrialCommoditySku).filter_by_({'SKUid': skuid}).first_(
+                'skuid: {}不存在'.format(skuid))
             if sku_instance.TCid != tcid:
                 raise ParamsError('skuid 与 tcid, 商品不对应')
             assert int(sku_instance.SKUstock) - int(opnum) >= 0, '商品库存不足'
-            product_instance = db.session.query(TrialCommodity).filter_by_({'TCid': tcid}).first_('skuid: {}对应的商品不存在'.format(skuid))
+            product_instance = db.session.query(TrialCommodity).filter_by_({'TCid': tcid}).first_(
+                'skuid: {}对应的商品不存在'.format(skuid))
             if product_instance.PBid != pbid:
                 raise ParamsError('品牌id: {}与skuid: {}不对应'.format(pbid, skuid))
             small_total = Decimal(str(product_instance.TCdeposit)) * opnum
@@ -651,7 +830,8 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product_instance.TCtitle
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body, openid=user.USopenid1 or user.USopenid2)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body,
+                                    openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

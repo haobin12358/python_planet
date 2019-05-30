@@ -116,7 +116,7 @@ class CTimeLimited(COrder, CUser, BaseController):
             TimeLimitedProduct.isdelete == False,
         }
         if common_user():
-            filter_args.add(TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value)
+            filter_args.add(TimeLimitedProduct.TLAstatus.in_([ApplyStatus.agree.value, ApplyStatus.lose_agree.value]))
             current_app.logger.info('本次是普通用户进行查询')
         elif is_supplizer():
             current_app.logger.info('本次是供应商进行查询')
@@ -323,6 +323,8 @@ class CTimeLimited(COrder, CUser, BaseController):
 
     def reapply_award(self):
         """重新申请"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
         data = parameter_required(('tlaid', 'tlpid', 'prid', 'prprice', 'skus'))
         filter_args = {
             Products.PRid == data.get('prid'),
@@ -338,27 +340,39 @@ class CTimeLimited(COrder, CUser, BaseController):
             filter_args.add(Products.PRfrom == tlp_from)
             suid = None
         with db.auto_commit():
-            # 获取申请单b
+            # 获取申请单
             apply_info = TimeLimitedProduct.query.filter(
                 TimeLimitedProduct.TLPid == data.get('tlpid'),
                 TimeLimitedProduct.PRid == data.get('prid'),
                 TimeLimitedProduct.isdelete == False
             ).first_('商品不存在')
-            if apply_info.TLAstatus not in [ApplyStatus.reject.value, ApplyStatus.cancle.value, ApplyStatus.agree.value]:
+            if apply_info.TLAstatus not in [ApplyStatus.reject.value, ApplyStatus.cancle.value,
+                                            ApplyStatus.agree.value]:
                 raise StatusError('此申请不可以进行修改')
             if apply_info.SUid != suid:
                 raise AuthorityError('仅可修改自己提交的申请')
-            # if is_admin() and apply_info.SUid:
-            #     raise AuthorityError('仅可修改自己提交的申请')
-
-            product = Products.query.filter(*filter_args).first_('商品未上架')
-            # instance_list = list()
+            product = Products.query.filter(*filter_args).first_('只能选择自己的商品')
             skus = data.get('skus')
             tla = TimeLimitedActivity.query.filter(
                 TimeLimitedActivity.isdelete == False,
                 TimeLimitedActivity.TLAstatus == TimeLimitedStatus.waiting.value,
                 TimeLimitedActivity.TLAid == data.get('tlaid')).first_('活动已停止报名')
-            tlp = TimeLimitedProduct.create({
+            instance_list = []
+            while apply_info.ParentTLPid != None:
+                parent_apply = TimeLimitedProduct.query.filter(
+                    TimeLimitedProduct.TLPid == parent_apply.ParentTLPid,
+                    TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value,
+                    TimeLimitedProduct.isdelete == False).first()
+                if parent_apply:
+                    parent_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
+                    instance_list.append(parent_apply)
+                    break
+                parent_apply = TimeLimitedProduct.query.filter(
+                    TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
+            if apply_info.TLAstatus == ApplyStatus.reject.value:
+                apply_info.update({'isdelete': True})
+                instance_list.append(apply_info)
+            new_tlp = TimeLimitedProduct.create({
                 'TLPid': str(uuid.uuid1()),
                 'TLAid': tla.TLAid,
                 'TLAfrom': tlp_from,
@@ -370,12 +384,9 @@ class CTimeLimited(COrder, CUser, BaseController):
                 # 'PBname': product.PBname,
                 # 'PRtitle': product.PRtitle,
                 'PRprice': data.get('prprice'),
-                'ParentTLPid':tla.TLPid
+                'ParentTLPid': apply_info.TLPid
             })
-            instance_list = [tlp]
-            skuids = list()
-            new_skuid = list()
-            # todo  撤销或者拒绝时 退还库存
+            instance_list.append(new_tlp)
             for sku in skus:
                 skuid = sku.get('skuid')
                 skuprice = sku.get('skuprice')
@@ -383,53 +394,24 @@ class CTimeLimited(COrder, CUser, BaseController):
                 sku_instance = ProductSku.query.filter_by(
                     isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
                 self._update_stock(-int(skustock), product, sku_instance)
-                tls = TimeLimitedSku.query.filter(
-                    TimeLimitedSku.TLPid == apply_info.TLPid,
-                    TimeLimitedSku.SKUid == skuid,
-                    TimeLimitedSku.isdelete == False,
-                ).first()
-                if not tls:
-                    tls = TimeLimitedSku.create({
-                        'TLSid': str(uuid.uuid1()),
-                        'TLPid': apply_info.TLPid,
-                        'TLSstock': skustock,
-                        'SKUid': skuid,
-                        'SKUprice': skuprice
-                    })
-                    new_skuid.append(tls.TLSid)
-                else:
-
-                    tls.update({
-                        'TLPid': apply_info.TLPid,
-                        'TLSstock': skustock,
-                        'SKUid': skuid,
-                        'SKUprice': skuprice
-                    })
-                skuids.append(skuid)
+                tls = TimeLimitedSku.create({
+                    'TLSid': str(uuid.uuid1()),
+                    'TLPid': new_tlp.TLPid,
+                    'TLSstock': skustock,
+                    'SKUid': skuid,
+                    'SKUprice': skuprice
+                })
 
                 instance_list.append(tls)
-            delete_sku = TimeLimitedSku.query.filter(
-                TimeLimitedSku.isdelete == False,
-                TimeLimitedSku.SKUid.notin_(skuids),
-                TimeLimitedSku.TLPid == apply_info.TLPid
-            ).all()
-            for tls in delete_sku:
-                sku_instance = ProductSku.query.filter_by(
-                    isdelete=False, PRid=product.PRid, SKUid=skuid).first_('商品sku信息不存在')
-                self._update_stock(int(tls.TLSstock), product, sku_instance)
-                tls.isdelete = True
-
-            current_app.logger.info('本次修改 sku {} 个 新增 {} 删除 {} '.format(
-                len(skuids), len(new_skuid), len(delete_sku)))
-            # prstock += skustock
-
+                # prstock += skustock
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'TimeLimitedProduct', data.get('tlpid'))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'TimeLimitedProduct', str(uuid.uuid1()))
 
-        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, apply_info.TLPid,
-                                                  applyfrom=tlp_from)
-        return Success('修改成功')
+        # todo  添加到审批流
+        super(CTimeLimited, self).create_approval('totimelimited', request.user.id, new_tlp.TLPid, applyfrom=tlp_from)
+
+        return Success('申请成功', {'tlpid': new_tlp.TLPid})
 
     def update_award(self):
         """修改"""

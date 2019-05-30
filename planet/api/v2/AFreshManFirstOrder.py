@@ -25,4 +25,3 @@ class AFreshManFirstOrder(Resource):
             'delete': self.creshman.del_award,
         }
         return apis
-
