@@ -8,6 +8,7 @@ class PlatformMessage(Base):
     """站内信"""
     PMid = Column(String(64), primary_key=True)
     PMtext = Column(LONGTEXT, comment='站内信内容')
+    PMtitle = Column(Text, comment='站内信标题')
     PMcreate = Column(String(64), comment='创建人')
     PMfrom = Column(Integer, default=0, comment='0 平台发布 10 店主发布')
     PMstatus = Column(Integer, default=0, comment='0 草稿 1 上线 2 隐藏')
