@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, and_, not_, distinct
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
@@ -184,18 +184,14 @@ class CProducts(BaseController):
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
 
+            prcreate = {'PSid': str(uuid.uuid1()),
+                    'PRid': prid}
             try:
                 usid = request.user.id
-                ps = ProductSum.create({
-                    'PSid': str(uuid.uuid1()),
-                    'PRid': prid,
-                    'USid': usid
-                })
+                prcreate['USid'] = usid
+                ps = ProductSum.create(prcreate)
             except AttributeError:
-                ps = ProductSum.create({
-                    'PSid': str(uuid.uuid1()),
-                    'PRid': prid
-                })
+                ps = ProductSum.create(prcreate)
             db.session.add(ps)
         product.fill('month_sale_value', month_sale_value)
         # 是否收藏
@@ -1233,25 +1229,24 @@ class CProducts(BaseController):
         ushtype = data.get('ushtype')
         # usid = data.get('usid')
         current_app.logger.info('start get kw list {}'.format(datetime.now()))
-        kw_query = db.session.query(UserSearchHistory).filter()
-
+        kw_query = db.session.query(distinct(UserSearchHistory.USHname), UserSearchHistory.USHtype).filter()
         if kw:
             kw_query = kw_query.filter(UserSearchHistory.USHname == kw)
         if ushtype:
             kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
 
         kws = kw_query.all_with_page()
-        kw_list = list()
+        # kw_list = list()
         kw_list_rs = list()
         for kw in kws:
-            if kw.USHname not in kw_list:
-                kw_list.append(kw.USHname)
-                kw_dict = dict()
-                kw_dict['USHname'] = kw.USHname
-                kw_dict['USHtype'] = UserSearchHistoryType(kw.USHtype).zh_value
-                kwquery = db.session.query(UserSearchHistory).filter(
-                    UserSearchHistory.USHname == kw.USHname).count()
-                kw_dict['kwquery'] = kwquery
-                kw_list_rs.append(kw_dict)
+            kw_dict = dict()
+            kw_dict['USHname'] = kw[0]
+            kw_dict['USHtype'] = UserSearchHistoryType(kw[1]).zh_value
+            kwquery = db.session.query(UserSearchHistory).filter(
+                    UserSearchHistory.USHname == kw[0]).count()
+            # kw.fill('kwquery', kwquery)
+
+            kw_dict['kwquery'] = kwquery
+            kw_list_rs.append(kw_dict)
         return Success(data=kw_list_rs)
 
