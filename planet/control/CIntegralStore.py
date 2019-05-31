@@ -79,7 +79,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 instance_list.append(ipsku_instance)
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', ip_instance.IPid)
         super(CIntegralStore, self).create_approval('tointegral', uid, ip_instance.IPid, applyfrom=ipfrom)
         return Success('申请成功', data=dict(IPid=ip_instance.IPid))
 

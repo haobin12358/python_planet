@@ -789,7 +789,8 @@ def start_timelimited(tlaid):
                                                    ).all()
         if old_tlps:
             for tlp in old_tlps:
-                tlp.TLAstatus = TimeLimitedStatus.lose_effect.value
+                tlp.update({'TLAstatus': TimeLimitedStatus.lose_effect.value})
+                db.session.add(tlp)
                 # 获取原商品属性
                 product = Products.query.filter_by(PRid=tlp.PRid, isdelete=False).first()
                 # 获取原sku属性

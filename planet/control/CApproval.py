@@ -152,7 +152,7 @@ class CApproval(BASEAPPROVAL):
         ptn.setdefault('PINaction', '创建 {} 审批类型'.format(ptname))
         db.session.add(PermissionNotes.create(ptn))
         db.session.add(PermissionType.create(pt_dict))
-        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionType', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionNotes',ptn["PNid"])
         return Success('创建审批类型成功', data={'ptid': pt.PTid})
 
     @get_session
@@ -246,7 +246,7 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', AdminPermission.ADPid)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', adp.ADPid)
         # 校验是否有被删除的管理员
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
@@ -574,7 +574,7 @@ class CApproval(BASEAPPROVAL):
         apn_instance = ApprovalNotes.create(approvalnote_dict)
         db.session.add(apn_instance)
         if is_admin():
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', AdminActionS.ANid)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', apn_instance.ANid)
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -741,7 +741,7 @@ class CApproval(BASEAPPROVAL):
                 'PINaction': '创建权限标签{}'.format(pi.PIname),
             }
             db.session.add(pi)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', ptn_pi.PNid)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', pi.PIid)
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')
@@ -1389,16 +1389,16 @@ class CApproval(BASEAPPROVAL):
         tla = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first_('限时活动商品申请数据异常')
         parent_apply = tla
         while parent_apply.ParentTLPid != None:
-            parent_apply = TimeLimitedProduct.query.filter(
+            current_apply = TimeLimitedProduct.query.filter(
                 TimeLimitedProduct.TLPid == parent_apply.ParentTLPid,
                 TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value,
                 TimeLimitedProduct.isdelete == False).first()
-            if parent_apply:
+            if current_apply:
                 # 获取原商品属性
-                product = Products.query.filter_by(PRid=parent_apply.PRid, isdelete=False).first()
+                product = Products.query.filter_by(PRid=current_apply.PRid, isdelete=False).first()
                 # 获取原sku属性
                 tls_old = TimeLimitedSku.query.filter(
-                    TimeLimitedSku.TLPid == parent_apply.TLPid,
+                    TimeLimitedSku.TLPid == current_apply.TLPid,
                     TimeLimitedSku.isdelete == False,
                     TimeLimitedProduct.isdelete == False,
                 ).all()
@@ -1409,10 +1409,11 @@ class CApproval(BASEAPPROVAL):
                     sku_instance = ProductSku.query.filter_by(
                         isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
                     COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
-                parent_apply.TLAstatus = ApplyStatus.lose_effect.value
+                current_apply.TLAstatus = ApplyStatus.lose_effect.value
                 break
-            parent_apply = TimeLimitedProduct.query.filter(
-                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
+            else:
+                parent_apply = TimeLimitedProduct.query.filter(
+                    TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
         tla.TLAstatus = ApplyStatus.agree.value
 
     def refuse_timelimited(self, approval_model, refuse_abo):
@@ -1438,15 +1439,16 @@ class CApproval(BASEAPPROVAL):
             COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
         parent_apply = tlp
         while parent_apply.ParentTLPid != None:
-            parent_apply = TimeLimitedProduct.query.filter(
+            current_apply = TimeLimitedProduct.query.filter(
                 TimeLimitedProduct.TLPid == parent_apply.ParentTLPid,
                 TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value,
                 TimeLimitedProduct.isdelete == False).first()
-            if parent_apply:
-                parent_apply.TLAstatus = ApplyStatus.agree.value
+            if current_apply:
+                current_apply.TLAstatus = ApplyStatus.agree.value
                 break
-            parent_apply = TimeLimitedProduct.query.filter(
-                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
+            else:
+                parent_apply = TimeLimitedProduct.query.filter(
+                    TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
 
     def agree_tointegral(self, approval_model):
         ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first_('星币商品申请数据异常')

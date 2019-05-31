@@ -101,7 +101,7 @@ class CActivationCode(BASEAPPROVAL):
                 'ACRcash': form.acrcash.data
             })
             db.session.add(rule_instance)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ActivationCodeRule', ActivationCodeRule.ACRid)
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ActivationCodeRule', rule_instance.ACRid)
         return Success('添加成功', rule_instance.ACRid)
 
     @admin_required
