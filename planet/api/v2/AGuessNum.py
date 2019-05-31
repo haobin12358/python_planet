@@ -13,7 +13,6 @@ class AGuessNum(Resource):
             'recv_award': self.cguessnum.recv_award,
             'apply_award': self.cguessnum.apply_award,
             'update_apply': self.cguessnum.update_apply,
-            'reapply_award': self.cguessnum.reapply_award,
             'shelf_award': self.cguessnum.shelf_award,
             'delete': self.cguessnum.delete_apply,
             'shelves': self.cguessnum.shelves,

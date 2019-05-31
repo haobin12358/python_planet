@@ -19,7 +19,6 @@ class AFreshManFirstOrder(Resource):
         apis = {
             'add_order': self.creshman.add_order,
             'apply_award': self.creshman.apply_award,
-            'reapply_award': self.creshman.reapply_award,
             'update_award': self.creshman.update_award,
             'shelf_award': self.creshman.shelf_award,
             'delete': self.creshman.del_award,
