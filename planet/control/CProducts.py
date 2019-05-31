@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, and_, not_, func
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
@@ -184,19 +184,13 @@ class CProducts(BaseController):
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
 
-            try:
-                usid = request.user.id
-                ps = ProductSum.create({
-                    'PSid': str(uuid.uuid1()),
-                    'PRid': prid,
-                    'USid': usid
-                })
-            except AttributeError:
-                ps = ProductSum.create({
-                    'PSid': str(uuid.uuid1()),
-                    'PRid': prid
-                })
-            db.session.add(ps)
+            # 进行浏览记录
+            prcreate = {'PSid': str(uuid.uuid1()),
+                        'PRid': prid}
+            if not is_tourist():
+                prcreate['USid'] = request.user.id
+            db.session.add(ProductSum.create(prcreate))
+
         product.fill('month_sale_value', month_sale_value)
         # 是否收藏
         if common_user():
@@ -361,7 +355,8 @@ class CProducts(BaseController):
                 product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
             if is_admin():
-                produce_query = db.session.query(ProductSum).filter(ProductSum.PRid == product.PRid).count()
+                produce_query = ProductSum.query.filter(ProductSum.PRid == product.PRid,
+                                                        ProductSum.isdelete == False).count()
                 product.fill('prquery', produce_query)
         current_app.logger.info('start add search history {}'.format(datetime.now()))
         # 搜索记录表
@@ -1231,27 +1226,22 @@ class CProducts(BaseController):
         data = parameter_required()
         kw = data.get('ushname')
         ushtype = data.get('ushtype')
-        # usid = data.get('usid')
-        current_app.logger.info('start get kw list {}'.format(datetime.now()))
-        kw_query = db.session.query(UserSearchHistory).filter()
-
+        kw_query = db.session.query(UserSearchHistory.USHname, UserSearchHistory.USHtype,
+                                    func.count(UserSearchHistory.USHname)
+                                    ).group_by(UserSearchHistory.USHname, UserSearchHistory.USHtype
+                                               ).filter(UserSearchHistory.isdelete == False)
         if kw:
-            kw_query = kw_query.filter(UserSearchHistory.USHname == kw)
+            kw_query = kw_query.filter(UserSearchHistory.USHname.ilike('%{}%'.format(kw)))
         if ushtype:
             kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
 
         kws = kw_query.all_with_page()
-        kw_list = list()
-        kw_list_rs = list()
-        for kw in kws:
-            if kw.USHname not in kw_list:
-                kw_list.append(kw.USHname)
-                kw_dict = dict()
-                kw_dict['USHname'] = kw.USHname
-                kw_dict['USHtype'] = UserSearchHistoryType(kw.USHtype).zh_value
-                kwquery = db.session.query(UserSearchHistory).filter(
-                    UserSearchHistory.USHname == kw.USHname).count()
-                kw_dict['kwquery'] = kwquery
-                kw_list_rs.append(kw_dict)
+
+        kw_list_rs = []
+        for kwi in kws:
+            kw_list_rs.append({'ushname': kwi[0],
+                               'ushtype': UserSearchHistoryType(kwi[1]).zh_value,
+                               'kwquery': kwi[2]}
+                              )
         return Success(data=kw_list_rs)
 

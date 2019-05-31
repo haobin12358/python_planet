@@ -58,11 +58,12 @@ class Query(_Query):
             return res
         raise NotFound(error)
 
-    def order_by(self, *criterion):
+    def order_by(self, *criterion, origin=False):
         """默认在筛选条件中添加对象主键，防止与limit连用时出现获取随机位移错误"""
         # res = super(Query, self).order_by(*criterion,  self._primary_entity.mapper.primary_key[0].asc())
-        criterion = list(criterion)
-        criterion.append(self._primary_entity.mapper.primary_key[0].asc())
+        if not origin:
+            criterion = list(criterion)
+            criterion.append(self._primary_entity.mapper.primary_key[0].asc())
         res = super(Query, self).order_by(*criterion)
         return res
 
