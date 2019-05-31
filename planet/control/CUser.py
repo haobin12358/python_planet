@@ -2677,35 +2677,4 @@ class CUser(SUser, BASEAPPROVAL):
             return return_sort[0]
         return tuple(return_sort)
 
-    # @token_required
-    # def get_user_sum(self):
-    #     data = parameter_required()
-    #     usid = data.get('usid')
-    #     if not is_admin():
-    #         raise AuthorityError
-    #     sum_dict = dict()
-    #     product_dict = dict()
-    #     uhid_dict = dict()
-    #     with db.auto_commit():
-    #         produce_query = db.session.query(ProductSum.PRid).filter_by_()
-    #         # product_range = produce_query.order_by(ProductSum.PRid.desc()).all()
-    #         for product_value in produce_query:
-    #             key = product_value[0]
-    #             product_dict.setdefault(key, 0)
-    #             product_dict[key] += 1
-    #         # product = sorted(product_dict.items(), key=lambda item: item[1], reverse=True)
-    #         sum_dict.setdefault('product', product_dict)
-    #
-    #         if usid:
-    #             user_query = db.session.query(UserHomeCount).filter(UserHomeCount.UHid == usid).count()
-    #             # user_home = user_query.order_by(UserHomeCount.UHid.desc()).all()
-    #             # for uhid_value in user_query:
-    #             #     key = uhid_value[0]
-    #             #     uhid_dict.setdefault(key, 0)
-    #             #     uhid_dict[key] += 1
-    #             # uhid = sorted(uhid_dict.items(), key=lambda item: item[1], reverse=True)
-    #             sum_dict.setdefault('user_home', user_query)
-    #
-    #
-    #     return Success(data=sum_dict)
 
