@@ -538,26 +538,42 @@ class CFreshManFirstOrder(COrder, CUser):
                 raise StatusError('已结束的活动不能再次发起申请')
             elif starttime <= date.today():
                 raise StatusError('已开始的活动不能再次发起申请')
+            fresh_first_apply.update({'FMFAstatus':ApplyStatus.lose_agree.value})
+            db.session.add(fresh_first_apply)
         # 父活动不能是活动开始状态
         parent_apply = fresh_first_apply
         while parent_apply.ParentFMFAid != None:
             current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
-                                                            FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                                                            FreshManFirstApply.FMFAstatus.in_([ApplyStatus.agree.value,ApplyStatus.lose_effect.value]),
                                                             FreshManFirstApply.isdelete == False).first()
             if current_apply:
-                starttime = parent_apply.AgreeStartime
-                endtime = parent_apply.AgreeEndtime
-                current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
-                if endtime < date.today():
-                    raise StatusError('已结束的活动不能再次发起申请')
-                elif starttime <= date.today():
-                    raise StatusError('已开始的活动不能再次发起申请')
-                current_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
-                db.session.add(current_apply)
-                break
-            else:
-                parent_apply = FreshManFirstApply.query.filter(
-                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    children_apply = FreshManFirstApply.query.filter(FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                                                                     FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                                                                     FreshManFirstApply.isdelete == False).first()
+                    if children_apply:
+                        starttime = parent_apply.AgreeStartime
+                        endtime = parent_apply.AgreeEndtime
+                        current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
+                        if endtime < date.today():
+                            raise StatusError('已结束的活动不能再次发起申请')
+                        elif starttime <= date.today():
+                            raise StatusError('已开始的活动不能再次发起申请')
+                        children_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
+                        db.session.add(children_apply)
+                else:
+                    starttime = current_apply.AgreeStartime
+                    endtime = current_apply.AgreeEndtime
+                    current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
+                    if endtime < date.today():
+                        raise StatusError('已结束的活动不能再次发起申请')
+                    elif starttime <= date.today():
+                        raise StatusError('已开始的活动不能再次发起申请')
+                    current_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
+                    db.session.add(current_apply)
+                    break
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
         current_app.logger.info('正在进行重新修改{}'.format(fresh_first_apply.FMFAid))
         if fresh_first_apply.FMFAstatus==ApplyStatus.cancle.value or fresh_first_apply.FMFAstatus == ApplyStatus.reject.value:
             with db.auto_commit():

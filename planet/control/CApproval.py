@@ -1279,23 +1279,37 @@ class CApproval(BASEAPPROVAL):
         # 将父id改为失效
         while parent_apply.ParentFMFAid != None:
             current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
-                                                           FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+                                                           FreshManFirstApply.FMFAstatus.in_([ApplyStatus.lose_agree.value,ApplyStatus.lose_effect.value]),
                                                            FreshManFirstApply.isdelete == False).first()
             if current_apply:
                 # 进行库存恢复
-                apply_skus = FreshManFirstSku.query.join(
-                    FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
-                    FreshManFirstProduct.FMFAid == parent_apply.FMFAid).all()
-                from planet.control.COrder import COrder
-                for apply_sku in apply_skus:
-                    sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
-                    product = Products.query.filter(Products.PRid == sku.PRid).first()
-                    COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    child = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    child.update({"FMFAstatus": ApplyStatus.lose_effect.value})
+                    db.session.add(child)
+                    apply_skus = FreshManFirstSku.query.join(
+                        FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                        FreshManFirstProduct.FMFAid == child.FMFAid).all()
+                    from planet.control.COrder import COrder
+                    for apply_sku in apply_skus:
+                        sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                        product = Products.query.filter(Products.PRid == sku.PRid).first()
+                        COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+                else:
                     current_apply.FMFAstatus = ApplyStatus.lose_effect.value
-                break
-            else:
-                parent_apply = FreshManFirstApply.query.filter(
-                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+                    apply_skus = FreshManFirstSku.query.join(
+                        FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                        FreshManFirstProduct.FMFAid == current_apply.FMFAid).all()
+                    from planet.control.COrder import COrder
+                    for apply_sku in apply_skus:
+                        sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                        product = Products.query.filter(Products.PRid == sku.PRid).first()
+                        COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
         ffa.FMFAstatus = ApplyStatus.agree.value
 
     def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):
@@ -1314,19 +1328,24 @@ class CApproval(BASEAPPROVAL):
             product = Products.query.filter(Products.PRid == sku.PRid).first()
             COrder()._update_stock(apply_sku.FMFPstock, product, sku)
         parent_apply = ffa
-        # 原同意单修改状态
         while parent_apply.ParentFMFAid != None:
             current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
-                                                           FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
-                                                           FreshManFirstApply.isdelete == False).first()
-
+                                                            FreshManFirstApply.FMFAstatus.in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                            FreshManFirstApply.isdelete == False).first()
             if current_apply:
-                current_app.logger.info('{}'.format(parent_apply.FMFAid))
-                current_apply.FMFAstatus = ApplyStatus.agree.value
-                break
-            else:
-                parent_apply = FreshManFirstApply.query.filter(
-                    FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    child = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    child.update({"FMFAstatus": ApplyStatus.agree.value})
+                    db.session.add(child)
+                else:
+                    current_apply.FMFAstatus = ApplyStatus.agree.value
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
 
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
@@ -1396,45 +1415,44 @@ class CApproval(BASEAPPROVAL):
             if current_apply:
                 current_app.logger.info('目前正在将再次审核改为已失效的 商品为 {}'.format(current_apply.TLPid))
                 if current_apply.TLAstatus == ApplyStatus.lose_effect.value:
-                    children_apply = TimeLimitedProduct.query.filter(
+                    child = TimeLimitedProduct.query.filter(
                         TimeLimitedProduct.ParentTLPid == current_apply.TLPid,
                         TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value,
-                        TimeLimitedProduct.isdelete == False).all()
-                    for child in children_apply:
-                        current_app.logger.info('child{}'.format(child.TLPid))
-                        child.update({"TLAstatus": ApplyStatus.lose_effect.value})
-                        db.session.add(child)
-                        # 获取原商品属性
-                        product = Products.query.filter_by(PRid=child.PRid, isdelete=False).first()
-                        # 获取原sku属性
-                        tls_old = TimeLimitedSku.query.filter(
-                            TimeLimitedSku.TLPid == child.TLPid,
-                            TimeLimitedSku.isdelete == False,
-                            TimeLimitedProduct.isdelete == False,
-                        ).all()
-                        from planet.control.COrder import COrder
+                        TimeLimitedProduct.isdelete == False).first()
+                    current_app.logger.info('child{}'.format(child.TLPid))
+                    child.update({"TLAstatus": ApplyStatus.lose_effect.value})
+                    db.session.add(child)
+                    # 获取原商品属性
+                    product = Products.query.filter_by(PRid=child.PRid, isdelete=False).first()
+                    # 获取原sku属性
+                    tls_old = TimeLimitedSku.query.filter(
+                        TimeLimitedSku.TLPid == child.TLPid,
+                        TimeLimitedSku.isdelete == False,
+                        TimeLimitedProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+                    # 遍历原sku 将库存退出去
+                    for sku in tls_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+                else:
+                    current_apply.TLAstatus = ApplyStatus.lose_effect.value
+                    # 获取原商品属性
+                    product = Products.query.filter_by(PRid=current_apply.PRid, isdelete=False).first()
+                    # 获取原sku属性
+                    tls_old = TimeLimitedSku.query.filter(
+                        TimeLimitedSku.TLPid == current_apply.TLPid,
+                        TimeLimitedSku.isdelete == False,
+                        TimeLimitedProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
 
-                        # 遍历原sku 将库存退出去
-                        for sku in tls_old:
-                            sku_instance = ProductSku.query.filter_by(
-                                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
-                            COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
-                current_apply.TLAstatus = ApplyStatus.lose_effect.value
-                # 获取原商品属性
-                product = Products.query.filter_by(PRid=current_apply.PRid, isdelete=False).first()
-                # 获取原sku属性
-                tls_old = TimeLimitedSku.query.filter(
-                    TimeLimitedSku.TLPid == current_apply.TLPid,
-                    TimeLimitedSku.isdelete == False,
-                    TimeLimitedProduct.isdelete == False,
-                ).all()
-                from planet.control.COrder import COrder
-
-                # 遍历原sku 将库存退出去
-                for sku in tls_old:
-                    sku_instance = ProductSku.query.filter_by(
-                        isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
-                    COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+                    # 遍历原sku 将库存退出去
+                    for sku in tls_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
             parent_apply = TimeLimitedProduct.query.filter(
                 TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
         tla.TLAstatus = ApplyStatus.agree.value

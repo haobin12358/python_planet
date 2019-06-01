@@ -421,14 +421,15 @@ class CTimeLimited(COrder, CUser, BaseController):
                 if current_apply.TLAstatus == ApplyStatus.lose_effect.value:
                     children_apply = TimeLimitedProduct.query.filter(TimeLimitedProduct.ParentTLPid == current_apply.TLPid,
                                                                      TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value,
-                                                                     TimeLimitedProduct.isdelete == False).all()
-                    for child in children_apply:
-                        current_app.logger.info('child{}'.format(child.TLPid))
-                        child.update({"TLAstatus": ApplyStatus.lose_agree.value})
-                        db.session.add(child)
+                                                                     TimeLimitedProduct.isdelete == False).first()
+                    current_app.logger.info('child{}'.format(children_apply.TLPid))
+                    children_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
+                    db.session.add(children_apply)
+                    break
                 else:
                     current_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
                     db.session.add(current_apply)
+                    break
             parent_apply = TimeLimitedProduct.query.filter(
                 TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
         if apply_info.TLAstatus == ApplyStatus.reject.value or apply_info.TLAstatus == ApplyStatus.cancle.value:
