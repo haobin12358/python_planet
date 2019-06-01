@@ -23,7 +23,6 @@ class ATimelimited(Resource):
             'update_activity': self.ctl.update_activity,
             'shelf_award': self.ctl.shelf_award,
             'del_award': self.ctl.del_award,
-            'reapply_award':  self.ctl.reapply_award,
             'update_award': self.ctl.update_award
         }
         return apis

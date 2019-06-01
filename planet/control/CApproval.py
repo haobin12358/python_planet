@@ -1555,7 +1555,57 @@ class CApproval(BASEAPPROVAL):
 
     def agree_tointegral(self, approval_model):
         ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first_('星币商品申请数据异常')
-        ip.IPstatus = ApplyStatus.agree.value
+        ip.IPstatus = ApplyStatus.agrlee.value
+        parent_apply = ip
+        while parent_apply.ParentIpid != None:
+            current_apply = IntegralProduct.query.filter(IntegralProduct.IPid == parent_apply.ParentIpid,
+                                                         IntegralProduct.IPstatus.in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                         IntegralProduct.isdelete == False).first()
+            if current_apply:
+                if current_apply.IPstatus == ApplyStatus.lose_effect.value:
+                    child = IntegralProduct.query.filter(
+                        IntegralProduct.ParentIpid == current_apply.ParentIpid,
+                        IntegralProduct.IPstatus == ApplyStatus.lose_agree.value,
+                        IntegralProduct.isdelete == False).first()
+                    if child:
+                        child.update({"IPstatus": ApplyStatus.lose_effect.value})
+                        db.session.add(child)
+                        # 获取原商品属性
+                        product = Products.query.filter_by(PRid=child.PRid, isdelete=False).first()
+                        # 获取原sku属性
+                        ips_old = IntegralProductSku.query.filter(
+                            IntegralProductSku.IPid == child.IPid,
+                            IntegralProductSku.isdelete == False,
+                            IntegralProduct.isdelete == False,
+                        ).all()
+                        from planet.control.COrder import COrder
+                        co = COrder()
+                        # 遍历原sku 将库存退出去
+                        for sku in ips_old:
+                            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+                            co._update_stock(int(sku.IPSstock), product, sku_instance)
+                else:
+                    current_apply.IPstatus = ApplyStatus.lose_effect.value
+                    # 获取原商品属性
+                    product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first()
+                    # 获取原sku属性
+                    ips_old = IntegralProductSku.query.filter(
+                        IntegralProductSku.IPid == current_apply.IPid,
+                        IntegralProductSku.isdelete == False,
+                        IntegralProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+                    co = COrder()
+                    # 遍历原sku 将库存退出去
+                    for sku in ips_old:
+                        sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                                  SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        co._update_stock(int(sku.IPSstock), product, sku_instance)
+            parent_apply = IntegralProduct.query.filter(
+                IntegralProduct.IPid == parent_apply.ParentIpid).first()
 
     def refuse_tointegral(self, approval_model, refuse_abo):
         ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first()
@@ -1578,6 +1628,27 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
                                                       SKUid=sku.SKUid).first_('商品sku信息不存在')
             co._update_stock(int(sku.IPSstock), product, sku_instance)
+        parent_apply = ip
+        while parent_apply.ParentIpid != None:
+            current_apply = IntegralProduct.query.filter(IntegralProduct.IPid == parent_apply.ParentIpid,
+                                                         IntegralProduct.IPstatus.in_(
+                                                             [ApplyStatus.lose_agree.value,
+                                                              ApplyStatus.lose_effect.value]),
+                                                         IntegralProduct.isdelete == False).first()
+            if current_apply:
+                if current_apply.IPstatus == ApplyStatus.lose_effect.value:
+                    child = IntegralProduct.query.filter(
+                        IntegralProduct.ParentIpid == current_apply.ParentIpid,
+                        IntegralProduct.IPstatus == ApplyStatus.lose_agree.value,
+                        IntegralProduct.isdelete == False).first()
+                    if child:
+                        child.update({"IPstatus": ApplyStatus.agree.value})
+                        db.session.add(child)
+                else:
+                    current_apply.IPstatus = ApplyStatus.agree.value
+            parent_apply = IntegralProduct.query.filter(
+                IntegralProduct.IPid == parent_apply.ParentIpid).first()
+
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

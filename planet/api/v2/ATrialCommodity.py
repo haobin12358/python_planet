@@ -17,7 +17,6 @@ class ATrialCommodity(Resource):
     def post(self, commodity):
         apis = {
             'add': self.ctrialcommodity.add_commodity,
-            'readd': self.ctrialcommodity.readd_commodity,
             'create_order': self.ctrialcommodity.create_order,
             'update': self.ctrialcommodity.update_commodity,
             'del': self.ctrialcommodity.del_commodity,
