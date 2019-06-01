@@ -1387,15 +1387,24 @@ class CApproval(BASEAPPROVAL):
         tc.AgreeEndTime = tc.ApplyEndTime  # todo 同意时自动填写申请时间，后期可能需要管理同意时输入灵活时间
         parent_apply = tc
         while parent_apply.ParentTCid != None:
+            current_apply = TrialCommodity.query.filter(TrialCommodity.TCid == parent_apply.ParentTCid,
+                                                        TrialCommodity.TCstatus.in_(
+                                                                [TrialCommodityStatus.lose_upper.value,
+                                                                 TrialCommodityStatus.lose_effect.value]),
+                                                        TrialCommodity.isdelete == False).first()
+            if current_apply:
+                if current_apply.TCstatus == TrialCommodityStatus.lose_effect.value:
+                    child = TrialCommodity.query.filter(
+                        TrialCommodity.ParentTCid == current_apply.TCid,
+                        TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value,
+                        TrialCommodity.isdelete == False).first()
+                    if child:
+                        child.update({"TCstatus": TrialCommodityStatus.lose_effect.value})
+                        db.session.add(child)
+                else:
+                    current_apply.TCstatus = TrialCommodityStatus.lose_effect.value
             parent_apply = TrialCommodity.query.filter(
-                TrialCommodity.TCid == parent_apply.ParentTCid,
-                TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value,
-                TrialCommodity.isdelete == False).first()
-            if parent_apply:
-                parent_apply.TCstatus = ApplyStatus.lose_effect.value
-                break
-            parent_apply = TimeLimitedProduct.query.filter(
-                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
+                TrialCommodity.TCid == parent_apply.ParentTCid).first()
 
     def refuse_trialcommodity(self, approval_model, refuse_abo):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first()
@@ -1405,15 +1414,24 @@ class CApproval(BASEAPPROVAL):
         tc.TCrejectReason = refuse_abo
         parent_apply = tc
         while parent_apply.ParentTCid != None:
+            current_apply = TrialCommodity.query.filter(TrialCommodity.TCid == parent_apply.ParentTCid,
+                                                        TrialCommodity.TCstatus.in_(
+                                                            [TrialCommodityStatus.lose_upper.value,
+                                                             TrialCommodityStatus.lose_effect.value]),
+                                                        TrialCommodity.isdelete == False).first()
+            if current_apply:
+                if current_apply.TCstatus == TrialCommodityStatus.lose_effect.value:
+                    child = TrialCommodity.query.filter(
+                        TrialCommodity.ParentTCid == current_apply.TCid,
+                        TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value,
+                        TrialCommodity.isdelete == False).first()
+                    if child:
+                        child.update({"TCstatus": TrialCommodityStatus.upper.value})
+                        db.session.add(child)
+                else:
+                    current_apply.TCstatus = TrialCommodityStatus.upper.value
             parent_apply = TrialCommodity.query.filter(
-                TrialCommodity.TCid == parent_apply.ParentTCid,
-                TrialCommodity.TCstatus == ApplyStatus.lose_upper.value,
-                TrialCommodity.isdelete == False).first()
-            if parent_apply:
-                parent_apply.TCstatus = ApplyStatus.agree.value
-                break
-            parent_apply = TimeLimitedProduct.query.filter(
-                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
+                TrialCommodity.TCid == parent_apply.ParentTCid).first()
 
     def agree_activationcode(self, approval_model):
         aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
