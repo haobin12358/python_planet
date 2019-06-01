@@ -638,20 +638,33 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         if parent_apply.GNAAstatus == ApplyStatus.agree.value:
             if parent_apply.AgreeStartime<= date.today():
                 raise StatusError('不能在该活动时间发起申请')
+            apply_info.update({'GNAAstatus':ApplyStatus.lose_agree.value})
+            db.session.add(apply_info)
         while parent_apply.ParentGNAAid != None:
             current_apply = GuessNumAwardApply.query.filter(
                 GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
-                GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.agree.value,ApplyStatus.lose_effect.value]),
                 GuessNumAwardApply.isdelete == False).first()
             if current_apply:
-                if current_apply.AgreeStartime <= date.today():
-                    raise StatusError('不能在该活动时间段内发起申请')
-                current_apply.update({'GNAAstatus':ApplyStatus.lose_agree.value})
-                db.session.add(current_apply)
-                break
-            else:
-                parent_apply = GuessNumAwardApply.query.filter(
-                    GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
+                if current_apply.GNAAstatus == ApplyStatus.lose_effect.value:
+                    children_apply = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.ParentGNAAid == current_apply.GNAAid,
+                        GuessNumAwardApply.GNAAstatus == ApplyStatus.agree.value,
+                        GuessNumAwardApply.isdelete == False).first()
+                    if children_apply:
+                        if parent_apply.GNAAstatus == ApplyStatus.agree.value:
+                            if parent_apply.AgreeStartime <= date.today():
+                                raise StatusError('不能在该活动时间发起申请')
+                        children_apply.update({"GNAAstatus": ApplyStatus.lose_agree.value})
+                        db.session.add(children_apply)
+                else:
+                    if current_apply.AgreeStartime <= date.today():
+                        raise StatusError('不能在该活动时间段内发起申请')
+                    current_apply.update({'GNAAstatus':ApplyStatus.lose_agree.value})
+                    db.session.add(current_apply)
+            parent_apply = GuessNumAwardApply.query.filter(
+                GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
+
         if apply_info.GNAAstatus == ApplyStatus.cancle.value or apply_info.GNAAstatus == ApplyStatus.reject.value:
             gnaafrom = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
             # 解除和原商品属性的绑定

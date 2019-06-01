@@ -422,10 +422,11 @@ class CTimeLimited(COrder, CUser, BaseController):
                     children_apply = TimeLimitedProduct.query.filter(TimeLimitedProduct.ParentTLPid == current_apply.TLPid,
                                                                      TimeLimitedProduct.TLAstatus == ApplyStatus.agree.value,
                                                                      TimeLimitedProduct.isdelete == False).first()
-                    current_app.logger.info('child{}'.format(children_apply.TLPid))
-                    children_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
-                    db.session.add(children_apply)
-                    break
+                    if children_apply:
+                        current_app.logger.info('child{}'.format(children_apply.TLPid))
+                        children_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
+                        db.session.add(children_apply)
+                        break
                 else:
                     current_apply.update({"TLAstatus": ApplyStatus.lose_agree.value})
                     db.session.add(current_apply)
