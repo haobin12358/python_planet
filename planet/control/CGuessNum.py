@@ -626,13 +626,13 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         if apply_info.SUid != request.user.id:
             raise AuthorityError('仅可修改自己提交的申请')
         # 进行时间校验
-        # 更改后的时间限制
-        if data.get('gnaastarttime'):
-            gnaastarttime = datetime.strptime(data.get('gnaastarttime')[0], '%Y-%m-%d')
-        else:
-            gnaastarttime = apply_info.GNAAstarttime
-        if gnaastarttime <= datetime.today():
-            raise StatusError('不能在该活动时间发起申请')
+        # # 更改后的时间限制
+        # if data.get('gnaastarttime'):
+        #     gnaastarttime = datetime.strptime(data.get('gnaastarttime')[0], '%Y-%m-%d')
+        # else:
+        #     gnaastarttime = apply_info.GNAAstarttime
+        # if gnaastarttime <= datetime.today():
+        #     raise StatusError('不能在该活动时间发起申请')
         # 原时间限制
         parent_apply = apply_info
         if parent_apply.GNAAstatus == ApplyStatus.agree.value:

@@ -512,13 +512,13 @@ class CFreshManFirstOrder(COrder, CUser):
         data = parameter_required(('prid', 'prprice', 'skus', 'fmfaid'))
         prid = data.get('prid')
         fmfaid = data.get('fmfaid')
-        agreeStartime=datetime.strptime(data.get('fmfastarttime'), '%Y-%m-%d')
-        agreeEndtime= datetime.strptime(data.get('fmfaendtime'), '%Y-%m-%d')
-        current_app.logger.info('开始时间{} 结束时间{}'.format(agreeStartime,agreeEndtime))
-        if agreeEndtime < datetime.today():
-            raise StatusError('已结束的活动不能再次发起申请')
-        elif agreeStartime <= datetime.today():
-            raise StatusError('已开始的活动不能再次发起申请')
+        # agreeStartime=datetime.strptime(data.get('fmfastarttime'), '%Y-%m-%d')
+        # agreeEndtime= datetime.strptime(data.get('fmfaendtime'), '%Y-%m-%d')
+        # current_app.logger.info('开始时间{} 结束时间{}'.format(agreeStartime,agreeEndtime))
+        # if agreeEndtime < datetime.today():
+        #     raise StatusError('已结束的活动不能再次发起申请')
+        # elif agreeStartime <= datetime.today():
+        #     raise StatusError('已开始的活动不能再次发起申请')
         apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
                                         Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
@@ -567,8 +567,6 @@ class CFreshManFirstOrder(COrder, CUser):
                     'FMFAstatus': ApplyStatus.wait_check.value,
                     'FMFAstartTime':data.get('fmfastarttime'),
                     'FMFAendTime':data.get('fmfaendtime'),
-                    'AgreeStartime':data.get('fmfastarttime'),
-                    'AgreeEndtime':data.get('fmfaendtime'),
                 })
                 db.session.add(fresh_first_apply)
                 if is_admin():

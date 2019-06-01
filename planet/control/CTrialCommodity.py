@@ -77,7 +77,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
             old_commoditys = TrialCommodity.query.filter(TrialCommodity.AgreeStartTime <= date.today(),
                                                          TrialCommodity.AgreeEndTime >= date.today(),
                                                          TrialCommodity.TCstocks > 0,
-                                                         TrialCommodity.TCstatus == TrialCommodityStatus.auditing
+                                                         TrialCommodity.TCstatus == TrialCommodityStatus.auditing.value
                                                          ).all()
             if old_commoditys:
                 for commodity in old_commoditys:
