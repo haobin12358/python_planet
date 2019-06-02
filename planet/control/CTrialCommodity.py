@@ -80,9 +80,9 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
                                                          TrialCommodity.TCstatus == TrialCommodityStatus.auditing.value
                                                          ).all()
             if old_commoditys:
-                for commodity in old_commoditys:
-                    commodity.update({'TCstatus': TrialCommodityStatus.lose_effect.value})
-                    instance_list.append(commodity)
+                for old_commodity in old_commoditys:
+                    old_commodity.update({'TCstatus': TrialCommodityStatus.lose_effect.value})
+                    instance_list.append(old_commodity)
 
         if tcstatus is not None:
             commodity_query = commodity_query.filter(TrialCommodity.TCstatus == tcstatus)

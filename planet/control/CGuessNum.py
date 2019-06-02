@@ -403,6 +403,34 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
             GuessNumAwardApply.SUid == suid
         ).order_by(GuessNumAwardApply.GNAAstarttime.desc()).all()
         for gnaa in gnaa_list:
+            if gnaa.GNAAstatus == ApplyStatus.lose_agree.value:
+                gnaa.update({'GNAAstatus' : ApplyStatus.agree.value})
+                db.session.add(gnaa)
+                gna_child_apply = GuessNumAwardApply.query.filter(
+                    GuessNumAwardApply.ParentGNAAid == gnaa.GNAAid,
+                    GuessNumAwardApply.GNAAstatus == ApplyStatus.wait_check.value,
+                    GuessNumAwardApply.isdelete == False).first()
+                if gna_child_apply:
+                    gna_child_apply.update({'GNAAstatus' : ApplyStatus.lose_effect.value})
+                    db.session.add(gna_child_apply)
+                    # 获取原商品属性
+                    gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == gna_child_apply.GNAAid,
+                                                                 GuessNumAwardProduct.isdelete == False).first()
+                    product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+                    # 获取原sku属性
+                    gnas_old = GuessNumAwardSku.query.filter(
+                        gna_child_apply.GNAAid == GuessNumAwardProduct.GNAAid,
+                        GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                        GuessNumAwardSku.isdelete == False,
+                        GuessNumAwardProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+
+                    # 遍历原sku 将库存退出去
+                    for sku in gnas_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
             self._fill_apply(gnaa)
             if gnaa.GNAAfrom == ApplyFrom.supplizer.value:
                 sup = Supplizer.query.filter_by(SUid=gnaa.SUid).first()

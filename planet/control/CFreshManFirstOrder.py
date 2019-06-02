@@ -707,6 +707,35 @@ class CFreshManFirstOrder(COrder, CUser):
         applys = query.filter(FreshManFirstApply.FMFAstartTime >= starttime,
                               FreshManFirstApply.FMFAendTime <= endtime).order_by(
             FreshManFirstApply.createtime.desc()).all_with_page()
+        # 修改开始活动的重新审核状态
+        time_now = date.today()
+        fresh_man_applys = FreshManFirstApply.query.filter(
+            FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+            FreshManFirstApply.AgreeStartime <= time_now,
+            FreshManFirstApply.AgreeEndtime >= time_now,
+            FreshManFirstApply.isdelete == False,
+        ).all()
+        if fresh_man_applys:
+            with db.auto_commit():
+                for fresh_man_apply in fresh_man_applys:
+                    fresh_man_apply.update({'FMFAstatus': ApplyStatus.agree.value})
+                    db.session.add(fresh_man_apply)
+                    fresh_child_apply = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == fresh_man_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.wait_check.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    if fresh_child_apply:
+                        fresh_child_apply.update({'FMFAstatus': ApplyStatus.lose_effect.value})
+                        db.session.add(fresh_child_apply)
+                        # 进行库存恢复
+                        apply_skus = FreshManFirstSku.query.join(
+                            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                            FreshManFirstProduct.FMFAid == fresh_child_apply.FMFAid).all()
+                        from planet.control.COrder import COrder
+                        for apply_sku in apply_skus:
+                            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                            product = Products.query.filter(Products.PRid == sku.PRid).first()
+                            COrder()._update_stock(apply_sku.FMFPstock, product, sku)
         for apply in applys:
             # 状态中文
             apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
