@@ -658,6 +658,11 @@ class PlanetMessageStatus(Enum):
     hide = 1, '隐藏'
 
 
+class CorrectNumType(Enum):
+    composite_index = 0, '上证指数'
+    lottery_3d = 1, '福彩3D'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

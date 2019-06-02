@@ -94,6 +94,8 @@ class CorrectNum(Base):
     CNid = Column(String(64), primary_key=True)
     CNnum = Column(String(16), nullable=False, comment='正确的数字')
     CNdate = Column(Date, nullable=False, comment='日期')
+    CNtype = Column(Integer, default=0, comment='结果类型 {0: 上证指数 1: 福彩3D}')
+    CNissue = Column(String(10), comment='福彩期数')
 
 
 class GuessAwardFlow(Base):

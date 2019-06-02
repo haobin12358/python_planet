@@ -19,7 +19,7 @@ from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessA
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
     GuessNumAwardSku, User, Activity, Commision
 from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
-    ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus, AdminActionS
+    ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus, AdminActionS, CorrectNumType
 from .COrder import COrder
 
 
@@ -79,7 +79,8 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         if join_history:
             # todo 换一种查询方式, 不使用日期筛选, 而使用gnnaid筛选
             correct_num = CorrectNum.query.filter(
-                CorrectNum.CNdate == join_history.GNdate
+                CorrectNum.CNdate == join_history.GNdate,
+                CorrectNum.CNtype == CorrectNumType.composite_index.value
             ).first()
             join_history.fill('correct_num', correct_num)
             if not correct_num:
@@ -124,7 +125,8 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         today = date.today()
         for join_history in join_historys:
             correct_num = CorrectNum.query.filter(
-                CorrectNum.CNdate == join_history.GNdate
+                CorrectNum.CNdate == join_history.GNdate,
+                CorrectNum.CNtype == CorrectNumType.composite_index.value
             ).first()
             join_history.fill('correct_num', correct_num)
             if not correct_num:
@@ -185,7 +187,9 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
             elif gn.SKUid:
                 discount = 0
             else:
-                correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
+                correctnum_instance = CorrectNum.query.filter_by_(CNdate=now.date(),
+                                                                  CNtype=CorrectNumType.composite_index.value
+                                                                  ).first_('大盘结果获取中。请稍后')
                 correctnum = correctnum_instance.CNnum
                 guessnum = gn.GNnum
                 correct_count = self._compare_str(correctnum, guessnum)
@@ -867,7 +871,9 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         elif gn.SKUid:
             discount = 0
         else:
-            correctnum_instance = CorrectNum.query.filter_by(CNdate=now.date()).first_('大盘结果获取中。请稍后')
+            correctnum_instance = CorrectNum.query.filter_by_(CNdate=now.date(),
+                                                              CNtype=CorrectNumType.composite_index.value
+                                                              ).first_('大盘结果获取中。请稍后')
             correctnum = correctnum_instance.CNnum
             guessnum = gn.GNnum
             correct_count = self._compare_str(correctnum, guessnum)
