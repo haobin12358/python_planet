@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_, func, case
+from sqlalchemy import or_, and_, not_, func
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
