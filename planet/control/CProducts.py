@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_, func
+from sqlalchemy import or_, and_, not_, func, case
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
@@ -1228,14 +1228,15 @@ class CProducts(BaseController):
         ushtype = data.get('ushtype')
         kw_query = db.session.query(UserSearchHistory.USHname, UserSearchHistory.USHtype,
                                     func.count(UserSearchHistory.USHname)
-                                    ).group_by(UserSearchHistory.USHname, UserSearchHistory.USHtype
-                                               ).filter(UserSearchHistory.isdelete == False)
+                                    ).group_by(UserSearchHistory.USHname,
+                                               UserSearchHistory.USHtype
+                                    ).filter(UserSearchHistory.isdelete == False)
         if kw:
             kw_query = kw_query.filter(UserSearchHistory.USHname.ilike('%{}%'.format(kw)))
         if ushtype:
             kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
 
-        kws = kw_query.all_with_page()
+        kws = kw_query.order_by(func.count(UserSearchHistory.USHname).desc(), origin=True).all_with_page()
 
         kw_list_rs = []
         for kwi in kws:
