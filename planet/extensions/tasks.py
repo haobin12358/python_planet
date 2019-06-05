@@ -12,9 +12,11 @@ from sqlalchemy import cast, Date, extract, func, or_, and_
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
+from planet.common.welfare_lottery import WelfareLottery
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
-    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, CartFrom
+    SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
+    CartFrom, CorrectNumType
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
@@ -37,14 +39,15 @@ def fetch_share_deal():
         today = date.today()
         # 昨日结果
         db_today = CorrectNum.query.filter(
-            cast(CorrectNum.CNdate, Date) == today
+            cast(CorrectNum.CNdate, Date) == today,
+            CorrectNum.CNtype == CorrectNumType.composite_index.value
         ).first()
         # if not db_today:  # 昨日
         if not db_today and yesterday_result:  # 今日
             # current_app.logger.info('写入昨日数据')
             current_app.logger.info('写入今日数据')
             correct_instance = CorrectNum.create({
-                'CNid': str(uuid.uuid4()),
+                'CNid': str(uuid.uuid1()),
                 'CNnum': yesterday_result,
                 'CNdate': today
             })
@@ -62,6 +65,32 @@ def fetch_share_deal():
         #             s_list.append(guess_award_flow_instance)
         if s_list:
             db.session.add_all(s_list)
+
+
+@celery.task(name='welfare_lottery_3d')
+def welfare_lottery_3d():
+    """当日福彩3D开奖情况"""
+    try:
+        current_app.logger.info('>>> 获取今日福彩数据 <<<')
+        with db.auto_commit():
+            res = WelfareLottery().get_response()
+            if not res:
+                current_app.logger.error('今日无开奖数据')
+                return
+            today = res[0]
+            issue = res[1]
+            nums = ''.join(map(str, res[2:]))
+            cn_instance = CorrectNum.create({'CNid': str(uuid.uuid1()),
+                                             'CNnum': nums,
+                                             'CNdate': today,
+                                             'CNtype': CorrectNumType.lottery_3d.value,
+                                             'CNissue': issue})
+            db.session.add(cn_instance)
+        current_app.logger.info('>>> 福彩数据为：{} <<<'.format(res))
+    except Exception as e:
+        current_app.logger.error('welfare_lottery_3d : {}'.format(e))
+    finally:
+        current_app.logger.info('>>> 获取福彩数据任务结束 <<<')
 
 
 @celery.task(name='auto_evaluate')
@@ -787,10 +816,10 @@ if __name__ == '__main__':
         # event_expired_revert()
         # deposit_to_account()
         # fetch_share_deal()
-        create_settlenment()
+        # create_settlenment()
         # auto_evaluate()
         # check_for_update()
         # auto_confirm_order()
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
-        # create_settlenment()
+        welfare_lottery_3d()
