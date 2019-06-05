@@ -249,11 +249,13 @@ class CProducts(BaseController):
 
         filter_args = [
             Products.PBid == pbid,
-            or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
-                and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             Products.PRstatus == prstatus,
         ]
+        if kw != ['']:
+            filter_args.append(or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+                                   and_(*[ProductBrand.PBname.contains(x) for x in kw])))
+
         current_app.logger.info('start get product list query info {}'.format(datetime.now()))
         # 标签位置和权限筛选
         if not is_admin() and not is_supplizer():
@@ -1228,9 +1230,8 @@ class CProducts(BaseController):
         ushtype = data.get('ushtype')
         kw_query = db.session.query(UserSearchHistory.USHname, UserSearchHistory.USHtype,
                                     func.count(UserSearchHistory.USHname)
-                                    ).group_by(UserSearchHistory.USHname,
-                                               UserSearchHistory.USHtype
-                                    ).filter(UserSearchHistory.isdelete == False)
+                                    ).group_by(UserSearchHistory.USHname, UserSearchHistory.USHtype
+                                               ).filter(UserSearchHistory.isdelete == False)
         if kw:
             kw_query = kw_query.filter(UserSearchHistory.USHname.ilike('%{}%'.format(kw)))
         if ushtype:
