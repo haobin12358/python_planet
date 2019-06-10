@@ -83,8 +83,10 @@ class COrder(CPay, CCoupon):
             #     filter_args.add(OrderMain.OMinRefund == False)
             # order_main_query = order_main_query.filter(*om_filter)
         if omstatus in ['refund', 'inrefund']:
-            if normal_filter in filter_args or (common_user() or omstatus == 'inrefund'):
+            current_app.logger.info("{} | {}".format(normal_filter, filter_args))
+            if (common_user() or omstatus == 'inrefund') and (normal_filter in filter_args):
                 filter_args.remove(normal_filter)
+                current_app.logger.info("normal_filter removed from filter_args")
             order_main_query = order_main_query.filter(*filter_args)
             order_main_query = self._refund_query(order_main_query, orastatus, orstatus)
             # order_by = [OrderRefundApply.updatetime.desc()]
