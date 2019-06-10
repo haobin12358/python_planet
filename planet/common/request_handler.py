@@ -67,7 +67,7 @@ def request_first_handler(app):
                 setattr(request, 'user', user)
                 current_app.logger.info('current_user info : {}'.format(data))
                 useragent = _get_user_agent()
-                if useragent:
+                if useragent and model == 'User':
                     with db.auto_commit():
                         ula_dict1 = {
                             'ULAid': str(uuid.uuid1()),

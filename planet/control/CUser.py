@@ -43,7 +43,7 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow,UserLoginApi
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -2195,7 +2195,10 @@ class CUser(SUser, BASEAPPROVAL):
                     UserLoginTime.createtime.desc()
                 ).first()
             user.fill('userlogintime', userlogintime.createtime)
-
+            if is_admin():
+                userquery = UserHomeCount.query.filter(UserHomeCount.UHid == usid,
+                                                       UserHomeCount.isdelete == False).count()
+                user.fill('usquery', userquery)
         return Success(data=users)
 
     @admin_required
@@ -2561,6 +2564,7 @@ class CUser(SUser, BASEAPPROVAL):
             su = None
         if not (user or admin or su):
             raise ParamsError('用户不存在')
+
         if user:
             user_dict.setdefault('usheader', user.USheader)
             user_dict.setdefault('usname', user.USname)
@@ -2587,6 +2591,15 @@ class CUser(SUser, BASEAPPROVAL):
         user_dict.setdefault('follow', follow)
         user_dict.setdefault('collected', collected)
         user_dict.setdefault('fens_count', fens_count)
+
+        with db.auto_commit():
+            if request.user.id != usid:
+                user_home_count = UserHomeCount.create({
+                    'UHCid': str(uuid.uuid1()),
+                    'UHid': usid,
+                    'USid': request.user.id,
+                })
+                db.session.add(user_home_count)
 
         return Success(data=user_dict)
 
@@ -2662,4 +2675,5 @@ class CUser(SUser, BASEAPPROVAL):
         if len(return_sort) == 1 :
             return return_sort[0]
         return tuple(return_sort)
+
 

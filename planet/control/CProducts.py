@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, and_, not_, func
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
@@ -23,7 +23,7 @@ from planet.extensions.tasks import auto_agree_task
 from planet.models import Products, ProductBrand, ProductItems, ProductSku, ProductImage, Items, UserSearchHistory, \
     SupplizerProduct, ProductScene, Supplizer, ProductSkuValue, ProductCategory, Approval, Commision, SceneItem, \
     ProductMonthSaleValue, UserCollectionLog, Coupon, CouponFor, TimeLimitedProduct, TimeLimitedActivity, \
-    FreshManFirstProduct, GuessNumAwardProduct
+    FreshManFirstProduct, GuessNumAwardProduct, ProductSum
 from planet.service.SProduct import SProducts
 from planet.extensions.validates.product import ProductOffshelvesForm, ProductOffshelvesListForm, ProductApplyAgreeForm
 
@@ -183,6 +183,14 @@ class CProducts(BaseController):
 
             if salevolume_dict:
                 db.session.add(ProductMonthSaleValue.create(salevolume_dict))
+
+            # 进行浏览记录
+            prcreate = {'PSid': str(uuid.uuid1()),
+                        'PRid': prid}
+            if not is_tourist():
+                prcreate['USid'] = request.user.id
+            db.session.add(ProductSum.create(prcreate))
+
         product.fill('month_sale_value', month_sale_value)
         # 是否收藏
         if common_user():
@@ -241,11 +249,13 @@ class CProducts(BaseController):
 
         filter_args = [
             Products.PBid == pbid,
-            or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
-                and_(*[ProductBrand.PBname.contains(x) for x in kw])),
             Products.PCid.in_(pcids),
             Products.PRstatus == prstatus,
         ]
+        if kw != ['']:
+            filter_args.append(or_(and_(*[Products.PRtitle.contains(x) for x in kw]),
+                                   and_(*[ProductBrand.PBname.contains(x) for x in kw])))
+
         current_app.logger.info('start get product list query info {}'.format(datetime.now()))
         # 标签位置和权限筛选
         if not is_admin() and not is_supplizer():
@@ -346,7 +356,10 @@ class CProducts(BaseController):
                     sku.SKUattriteDetail = json.loads(sku.SKUattriteDetail)
                 product.fill('skus', skus)
             # product.PRdesc = json.loads(getattr(product, 'PRdesc') or '[]')
-
+            if is_admin():
+                produce_query = ProductSum.query.filter(ProductSum.PRid == product.PRid,
+                                                        ProductSum.isdelete == False).count()
+                product.fill('prquery', produce_query)
         current_app.logger.info('start add search history {}'.format(datetime.now()))
         # 搜索记录表
         if kw != [''] and not is_tourist():
@@ -1206,3 +1219,31 @@ class CProducts(BaseController):
         if not tp:
             return None
         return tp.TLPid
+
+    @token_required
+    def get_kw_list(self):
+        """获取关键字列表"""
+        if not is_admin():
+            raise AuthorityError
+        data = parameter_required()
+        kw = data.get('ushname')
+        ushtype = data.get('ushtype')
+        kw_query = db.session.query(UserSearchHistory.USHname, UserSearchHistory.USHtype,
+                                    func.count(UserSearchHistory.USHname)
+                                    ).group_by(UserSearchHistory.USHname, UserSearchHistory.USHtype
+                                               ).filter(UserSearchHistory.isdelete == False)
+        if kw:
+            kw_query = kw_query.filter(UserSearchHistory.USHname.ilike('%{}%'.format(kw)))
+        if ushtype:
+            kw_query = kw_query.filter(UserSearchHistory.USHtype == ushtype)
+
+        kws = kw_query.order_by(func.count(UserSearchHistory.USHname).desc(), origin=True).all_with_page()
+
+        kw_list_rs = []
+        for kwi in kws:
+            kw_list_rs.append({'ushname': kwi[0],
+                               'ushtype': UserSearchHistoryType(kwi[1]).zh_value,
+                               'kwquery': kwi[2]}
+                              )
+        return Success(data=kw_list_rs)
+
