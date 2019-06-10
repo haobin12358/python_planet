@@ -24,9 +24,11 @@ def mes():
     #     return 'ok'
     event_name = 'test'
     data = request.args.get("msg")
+    roomid = request.args.get('room')
     broadcasted_data = {'data': data}
     print("publish msg==>", broadcasted_data)
-    socketio.emit(event_name, broadcasted_data, broadcast=True)
+    # socketio.emit(event_name, broadcasted_data, broadcast=True)
+    socketio.emit(event_name, broadcasted_data, room=roomid)
     return 'send msg successful!'
 
 
