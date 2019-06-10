@@ -3,13 +3,13 @@ import json
 import random
 from threading import Lock
 
-from flask import request
+from flask import request, session, current_app
 
 from datetime import datetime, date
 from decimal import Decimal
 
 # from flaskrun import socketio
-from flask_socketio import Namespace, join_room, leave_room
+from flask_socketio import Namespace, join_room, leave_room, emit, disconnect
 
 from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
@@ -61,18 +61,11 @@ def background_thread(socketio):
         t = random.randint(1, 100)
         # print(session.get('id'), t)
         print(t)
-        # self.socketio.emit('server_response', {'data': t})
+        # emit('server_response', {'data': t})
         socketio.emit('server_response', {'data': t}, )
 
 
 class Mynamespace(Namespace):
-    # def __init__(self, socketio):
-    #     self.socketio = socketio
-    #
-    #     self.socketio.on_event('setsession', self.connect)
-    #     self.socketio.on_event('my event', self.my_event)
-    #     self.socketio.on_event('change num', self.change_num)
-
     def on_setsession(self, token):
         from planet.common.request_handler import token_to_user_
         print(token)
@@ -82,11 +75,15 @@ class Mynamespace(Namespace):
         print('get sids', usersid)
         print('get connect sid ', request.sid)
         # from flaskrun import sids
+        print('request ', request.headers,)
 
         # join_room(request.sid)
 
         if user:
             sessiondict = {user.id: request.sid}
+            # 创建session
+            session.update({'id': user.id})
+
             if not usersid:
                 conn.set('usersid', sessiondict)
             else:
@@ -95,12 +92,14 @@ class Mynamespace(Namespace):
                 # sids.append(request.sid)
                 usersid.update(sessiondict)
                 print('after ', usersid)
-                conn.set('sids', usersid)
+                conn.set('usersid', usersid)
             # res = json.loads(json.dumps(Success('{} is connect '.format(user.username)), cls=JSONEncoder))
             # print(res, type(res))
             # res = json.loads(Success('{} is connect '.format(user.username)), cls=JSONEncoder)
             # print(res, type(res))
-            self.socketio.emit('server_response', Success('{} is connect '.format(user.username)))
+            # self.socketio.emit('server_response', Success('{} is connect '.format(user.username)))
+            emit('server_response', Success('{} is connect '.format(user.username)))
+
             return return_res(Success('{} is connect '.format(user.username)))
 
             # conn.set('sid', session.sid)
@@ -109,7 +108,8 @@ class Mynamespace(Namespace):
         #     # session['username'] = 'unknown'
         #     # conn.set('')
         #     return '{} is connect '.format('unknown')
-        self.socketio.emit('server_response', AuthorityError('token 失效'))
+        # self.socketio.emit('server_response', AuthorityError('token 失效'))
+        emit('server_response', AuthorityError('token 失效'))
         return return_res(AuthorityError('token 失效'))
 
     # @self.socketio.on('my event')  # 接收emit 的 myevent 消息
@@ -137,25 +137,30 @@ class Mynamespace(Namespace):
         #         thread = self.socketio.start_background_task(target=background_thread, socketio=self.socketio)
 
         t = random.randint(1, 100)
+        # emit('server_response', {'data': t}, room=roomid)
         self.socketio.emit('server_response', {'data': t}, room=roomid)
 
-    # def on_disconnect(self, data):
-    #     print('get data')
-    #     print(session.get('id'))
-    #     sid = request.sid
-    #     from flaskrun import sids
-    #     if sid in sids:
-    #         sids.remove(sid)
-    #     # leave_room(sid)
-    #     username = session.get('username')
-    #     return '{} is dis connect'.format(username)
+    def on_get_message(self):
+        from planet.control.CMessage import CMessage
+        cmsg = CMessage()
+        userid = session.get('id')
+        current_app.logger.info('get current user {}'.format(userid))
+        usersids = cmsg.get_usersid()
+        usersid = usersids.get(userid)
+        if usersid != request.sid:
+            # todo 重新连接更新redis
+            pass
+        cmsg.push_platform_message(userid, usersid)
 
-# @app.route('/api/v2/mes')
-# def mes():
-#     #     return 'ok'
-#     event_name = 'test'
-#     data = request.args.get("msg")
-#     broadcasted_data = {'data': data}
-#     print("publish msg==>", broadcasted_data)
-#     socketio.emit(event_name, broadcasted_data, broadcast=True)
-#     return 'send msg successful!'
+    def on_disconnect(self):
+        print(session.get('id'))
+        return return_res('{} is dis connect'.format(session.get('id')))
+
+    def on_my_ping(self):
+        emit('my_pong')
+
+    def on_disconnect_request(self):
+        session['receive_count'] = session.get('receive_count', 0) + 1
+        emit('my_response',
+             {'data': 'Disconnected!', 'count': session['receive_count']})
+        disconnect()
