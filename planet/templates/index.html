@@ -25,6 +25,7 @@
     <input type="button" value="改数字" onclick="return changenum()"/>
     <input type="button" value="创建session" onclick="return setsession()"/>
     <input type="button" value="测试命名事件" onclick="return myevent()"/>
+    <input type="button" value="测试消息列表" onclick="return get_message()"/>
 
 
 </form>
@@ -110,6 +111,13 @@
          mysocket.emit('my_event', {data: 'I\'m connected!'}, function (res) {
             console.log('my event :', res)
         });
+    }
+
+    function get_message() {
+        mysocket.emit('get_message', function (res) {
+            console.log('get message list');
+            console.log(res)
+        })
     }
 </script>
 </body>
