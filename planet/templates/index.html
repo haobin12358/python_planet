@@ -17,8 +17,10 @@
 <h1 id="t">hi</h1>
 <form>
     u:<input type="text" id="token"/><br>
-    p:<H1 id="pwd"></h1> <br>
+    p:<H1 id="pwd"></h1> <br/>
     t:<span id="test"></span> <br/>
+    m:<input type="text" id="msg"/>  to:<input type="text" id="to"><br> 
+    room: <span id="room"></span><br/>
 
     <div id="te"></div>
     <input type="button" value="测试匿名事件" onclick="return send()"/>
@@ -26,13 +28,16 @@
     <input type="button" value="创建session" onclick="return setsession()"/>
     <input type="button" value="测试命名事件" onclick="return myevent()"/>
     <input type="button" value="测试消息列表" onclick="return get_message()"/>
-
+    <input type="button" value="发消息" onclick="return send_message()"/>
+    <input type="button" value="加入房间" onclick="return join_room()"/>
+    
+    msg:<div id="msglist"></div>
 
 </form>
 <script>
     $(document).ready(function () {
         // namespace = '/test';
-        var mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+        mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
         mysocket.on('test', function (res) {
             var t = res.data;
@@ -54,19 +59,27 @@
             console.log('get message list');
             console.log(res);
             $('#pwd').text(res);
-        })
+        });
+        
+        mysocket.on('new_message', function (res) {
+            console.log('get new_message list');
+            console.log(res);
+            var message = document.getElementById('msglist').innerText;
+            message += res.umsgtext;
+            document.getElementById('msglist').innerText = message
+        });
 
+        mysocket.on('notice', function (res) {
+            console.log('get notice message');
+            console.log(res);
+        })
     });
 </script>
 
 
 <script type="text/javascript">
-    var mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
-    // function $(id) {
-    //     return document.getElementById(id).value;
-    // }
-
-    // $(document).ready(function () {
+    // var mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+   
     function send() {
 
         // }
@@ -118,6 +131,29 @@
             console.log('get message list');
             console.log(res)
         })
+    }
+    
+    function send_message() {
+        var message = document.getElementById("msg").value;
+        // var usid = document.getElementById("to").value;
+        var roomid = document.getElementById("room").innerText;
+        console.log('get roomid');
+        console.log(roomid);        
+        mysocket.emit('send_msg', {'roomid': roomid, 'umsgtext': message},function (res) {
+            console.log('get send res');
+            console.log(res)
+
+        })
+    }
+    
+    function join_room() {
+        var usid = document.getElementById("to").value;
+        mysocket.emit('join_room', {'usid': usid}, function (res) {
+            console.log('get roomid');
+            console.log(res);
+            document.getElementById('room').innerText = res.data;
+        });
+
     }
 </script>
 </body>
