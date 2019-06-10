@@ -10,12 +10,15 @@ class AMessage(Resource):
         apis = {
             'test': self.cmessage.test,
             'get': self.cmessage.get_platform_message,
-            'read': self.cmessage.read
+            'read': self.cmessage.read,
+            'get_room_list': self.cmessage.get_room_list,
+            'get_message_list': self.cmessage.get_message_list,
         }
         return apis
 
     def post(self, message):
         apis = {
-            'set': self.cmessage.set_message
+            'set': self.cmessage.set_message,
+            'create_room': self.cmessage.create_room
         }
         return apis
