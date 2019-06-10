@@ -16,7 +16,8 @@ from planet.common.token_handler import token_required, is_admin, is_supplizer, 
 from planet.config.enums import ProductFrom, PlanetMessageStatus, AdminActionS, UserPlanetMessageStatus
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
-from planet.models import ProductBrand, User, UserPlatfromMessageLog, PlatformMessage, UserPlatfromMessage
+from planet.models import ProductBrand, User, UserPlatfromMessageLog, PlatformMessage, UserPlatfromMessage, Admin, News, \
+    Supplizer, UserRoom, Room, UserMessage
 
 
 class CMessage():
@@ -46,7 +47,7 @@ class CMessage():
                 # 如果有上线站内信，同时删除已经发送给用户的站内信，并更新
                 if pm.PMstatus == PlanetMessageStatus.publish.value:
                     UserPlatfromMessage.query.filter_by(PMid=pm.PMid).delete_()
-                    self._push_platform_message_all()
+                    # self._push_platform_message_all()
 
                 if is_admin():
                     BASEADMIN().create_action(AdminActionS.delete.value, 'PlatformMessage', pmid)
@@ -98,7 +99,7 @@ class CMessage():
                 db.session.flush()
                 # current_app.logger.info('结束 创建/用户站内信 {}'.format(datetime.now()))
                 # 推送
-                self._push_platform_message_all()
+                self._push_platform_message_all(pmid)
 
         # current_app.logger.info('结束创建/ 更新站内信 {}'.format(datetime.now()))
         return Success(msg, data={'pmid': pmid})
@@ -109,6 +110,8 @@ class CMessage():
         filter_args = {
             PlatformMessage.isdelete == False
         }
+        if common_user():
+            filter_args.add(PlatformMessage.PMstatus == PlanetMessageStatus.publish.value)
         if is_supplizer():
             filter_args.add(PlatformMessage.PMcreate == request.user.id)
 
@@ -118,20 +121,22 @@ class CMessage():
         pm_list = PlatformMessage.query.filter(*filter_args).order_by(PlatformMessage.createtime.desc()).all_with_page()
         for pm in pm_list:
             self._fill_pm(pm)
-            um_read_count = UserPlatfromMessage.query.filter(
-                UserPlatfromMessage.isdelete == False,
-                UserPlatfromMessage.PMid == pm.PMid,
-                UserPlatfromMessage.UPMstatus == UserPlanetMessageStatus.read.value
-            ).count()
-            pm.fill('pmreadcount', um_read_count)
-
+            if common_user():
+                self._fill_um(pm, request.user.id)
+            else:
+                um_read_count = UserPlatfromMessage.query.filter(
+                    UserPlatfromMessage.isdelete == False,
+                    UserPlatfromMessage.PMid == pm.PMid,
+                    UserPlatfromMessage.UPMstatus == UserPlanetMessageStatus.read.value
+                ).count()
+                pm.fill('pmreadcount', um_read_count)
 
         return Success(data=pm_list)
 
     @token_required
     def read(self):
         data = parameter_required(('pmid',))
-        if not is_tourist():
+        if not common_user():
             raise AuthorityError
         user = get_current_user()
         with db.auto_commit():
@@ -147,24 +152,28 @@ class CMessage():
 
             db.session.add(upml)
             db.session.add(upm)
-        usersids = self.get_usersid()
-        self.push_platform_message(usid=user.USid, usersid=usersids.get(user.USid))
+        # usersids = self.get_usersid()
+        # self.push_platform_message(usid=user.USid, usersid=usersids.get(user.USid))
         return Success()
 
-    def push_platform_message(self, usid, usersid):
+    def push_platform_message(self, pmid, usid, usersid):
         from planet import socketio  # 路径引用需要是局部的 而且只能引用这个
 
-        pm_list = PlatformMessage.query.filter(
+        filter_args = {
             UserPlatfromMessage.isdelete == False,
             PlatformMessage.PMid == UserPlatfromMessage.PMid,
             PlatformMessage.isdelete == False,
+            PlatformMessage.PMstatus == PlanetMessageStatus.publish.value,
             UserPlatfromMessage.USid == usid
-        ).order_by(PlatformMessage.createtime.desc()).all()
-        for pm in pm_list:
-            self._fill_pm(pm)
-            self._fill_um(pm, usid)
+        }
+        if pmid:
+            filter_args.add(PlatformMessage.PMid == pmid)
+        pm = PlatformMessage.query.filter(*filter_args).order_by(PlatformMessage.createtime.desc()).first()
+        # for pm in pm_list:
+        self._fill_pm(pm)
+        self._fill_um(pm, usid)
 
-        socketio.emit('message_list', Success('获取站内信列表成功', data=pm_list), room=usersid)
+        socketio.emit('message_list', Success('获取站内信列表成功', data=pm), room=usersid)
 
     def test(self):
         # from flaskrun import socketio
@@ -195,12 +204,13 @@ class CMessage():
 
     def _fill_pm(self, pm):
         if pm.PMfrom == ProductFrom.supplizer:
-            pb = ProductBrand.query.filter(ProductBrand.SUid == request.user.id, ProductBrand.isdelete == False).first()
+            pb = ProductBrand.query.filter(ProductBrand.SUid == pm.PMcreate, ProductBrand.isdelete == False).first()
             pmhead = pb.PBlogo
             pmname = pb.PBname
 
         else:
-            pmhead = ''
+            admin = Admin.query.filter_by(ADid=pm.PMcreate, isdelete=False).first()
+            pmhead = admin['ADheader'] if admin else 'https://pre2.bigxingxing.com/img/logo.png'
             pmname = '大行星官方'
         pm.fill('pmhead', pmhead)
         pm.fill('pmname', pmname)
@@ -217,9 +227,141 @@ class CMessage():
         pm.fill('umstatus_en', UserPlanetMessageStatus(um.UPMstatus).name)
         # pm.fill('umstatus', um.UPMstatus)
 
-    def _push_platform_message_all(self):
+    def _push_platform_message_all(self, pmid):
         usersid = self.get_usersid()
         # current_app.logger.info('开始推送 {}'.format(datetime.now()))
         for usid in usersid:
-            self.push_platform_message(usid, usersid.get(usid))
+            self.push_platform_message(pmid, usid, usersid.get(usid))
         # current_app.logger.info('结束推送 {}'.format(datetime.now()))
+
+    @token_required
+    def create_room(self):
+        if not common_user():
+            raise AuthorityError
+        user = get_current_user()
+        data = parameter_required()
+        roomid = self.get_room(data, user)
+        return Success(data=roomid)
+
+    @token_required
+    def get_room_list(self):
+        # if common_user():
+            user_room_list = UserRoom.query.join(Room, Room.ROid == UserRoom.ROid).filter(
+                UserRoom.USid == request.user.id,
+                UserRoom.isdelete == False,
+                Room.isdelete == False).order_by(
+                Room.updatetime.desc()).all_with_page()
+            for user_room in user_room_list:
+                room = Room.query.filter_by(ROid=user_room.ROid, isdelete=False).first()
+
+                user_message = UserMessage.query.filter(
+                    UserMessage.ROid == user_room.ROid,
+                    UserMessage.isdelete == False
+                ).order_by(UserMessage.createtime.desc()).first()
+                other_list = UserRoom.query.filter(
+                    UserRoom.ROid==user_room.ROid, UserRoom.isdelete==False, UserRoom.USid != user_room.USid).all()
+                roomname = ""
+                head_list = list()
+                for other in other_list:
+                    user = User.query.filter_by(USid=other.USid, isdelete=False).first()
+                    if user:
+                        roomname += user.USname
+                        head_list.append(user['USheader'])
+                    else:
+                        roomname += '未知'
+                        head_list.append('https://pre2.bigxingxing.com/img/logo.png')
+                    # other_dict_list.append({'usname', })
+                user_room.fill('umsgtext', user_message.UMSGtext if user_message else "")
+                user_room.fill('headlist', head_list)
+                user_room.fill('roomname', roomname)
+                user_room.fill('updatetime', room.updatetime if room else user_room.updatetime)
+                user_room.hide('USid')
+
+            return Success(data=user_room_list)
+
+    def get_room(self, data, userid):
+        neid = data.get('neid')
+        usid = data.get('usid')
+        if neid:
+            news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
+            usid = news.USid
+
+        room_list = UserRoom.query.filter_by(USid=userid, isdelete=False).all()
+        roomid = None
+        for room in room_list:
+            other_user = UserRoom.query.filter(
+                UserRoom.ROid == room.ROid,
+                UserRoom.USid != userid,
+                UserRoom.isdelete == False).all()
+            other_user_id = [other.USid for other in other_user]
+            if usid in other_user_id and len(other_user_id) == 1:
+                roomid = room.ROid
+        with db.auto_commit():
+            if not roomid:
+                roomid = str(uuid.uuid1())
+                # room =
+                db.session.add(Room.create({'ROid': roomid}))
+            userroom = UserRoom.query.filter_by(USid=userid, ROid=roomid).first()
+            if not userroom:
+
+                db.session.add(UserRoom.create({
+                    "URid": str(uuid.uuid1()),
+                    'USid': userid,
+                    'ROid': roomid
+                }))
+                db.session.add(UserRoom.create({
+                    "URid": str(uuid.uuid1()),
+                    'USid': usid,
+                    'ROid': roomid
+                }))
+        return roomid
+
+    def send_msg(self, umsgtext, roomid, userid):
+        umsg = UserMessage.create({
+            'UMSGid': str(uuid.uuid1()),
+            'USid': userid,
+            'ROid': roomid,
+            'UMSGtext': umsgtext,
+        })
+
+
+        from planet import socketio
+        with db.auto_commit():
+            db.session.add(umsg)
+            self._fill_umsg(umsg)
+            room = Room.query.filter_by(ROid=roomid, isdelete=False).first()
+            um_list = UserRoom.query.filter(
+                UserRoom.ROid == roomid,
+                UserRoom.USid != userid,
+                UserRoom.isdelete == False
+            ).all()
+            usersid = self.get_usersid()
+            for um in um_list:
+                socketio.emit('notice', umsg, room=usersid.get(um.USid))
+            room.updatetime = datetime.now()
+        return umsg
+
+    def get_message_list(self):
+        data = parameter_required()
+        roomid = data.get('roid')
+        umsg_list = UserMessage.query.filter(UserMessage.ROid == roomid, UserMessage.isdelete == False).order_by(
+            UserMessage.createtime.desc()).all_with_page()
+        for umsg in umsg_list:
+            self._fill_umsg(umsg)
+
+        return Success(data=umsg_list)
+
+    def _fill_umsg(self, umsg):
+        user = User.query.filter_by(USid=umsg.USid).first()
+        admin = Admin.query.filter_by(ADid=umsg.USid).first()
+        # supplizer = Supplizer.query.filter_by(SUid=umsg.USid).first()
+        if not (user or admin):
+            head = 'https://pre2.bigxingxing.com/img/logo.png'
+            name = '大行星官方'
+        else:
+            head = user['USheader'] if user else admin['ADheader']
+            name = user.USname if user else admin.ADname
+
+        umsg.fill('head', head)
+        umsg.fill('name', name)
+        umsg.add('createtime')

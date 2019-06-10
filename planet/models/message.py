@@ -43,7 +43,6 @@ class UserMessage(Base):
     UMSGtext = Column(LONGTEXT, comment='内容')
 
 
-
 class UserRoom(Base):
     """用户对话房间"""
     __tablename__ = 'UserRoom'

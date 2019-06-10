@@ -15,7 +15,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 
 # from planet import JSONEncoder
-from planet.common.error_response import AuthorityError
+from planet.common.error_response import AuthorityError, ParamsError
 from planet.common.success_response import Success
 # from planet.control.BaseControl import JSONEncoder
 from planet.extensions.register_ext import conn
@@ -68,14 +68,14 @@ def background_thread(socketio):
 class Mynamespace(Namespace):
     def on_setsession(self, token):
         from planet.common.request_handler import token_to_user_
-        print(token)
+        current_app.logger.info(token)
         user = token_to_user_(token)
-        print(user)
+        current_app.logger.info(user)
         usersid = conn.get('usersid')
-        print('get sids', usersid)
-        print('get connect sid ', request.sid)
+        current_app.logger.info('get sids', usersid)
+        current_app.logger.info('get connect sid ', request.sid)
         # from flaskrun import sids
-        print('request ', request.headers,)
+        current_app.logger.info('request ', request.headers,)
 
         # join_room(request.sid)
 
@@ -88,15 +88,15 @@ class Mynamespace(Namespace):
                 conn.set('usersid', sessiondict)
             else:
                 usersid = ast.literal_eval(str(usersid, encoding='utf-8'))
-                print('pre append ', usersid)
+                current_app.logger.info('pre append ', usersid)
                 # sids.append(request.sid)
                 usersid.update(sessiondict)
-                print('after ', usersid)
+                current_app.logger.info('after ', usersid)
                 conn.set('usersid', usersid)
             # res = json.loads(json.dumps(Success('{} is connect '.format(user.username)), cls=JSONEncoder))
-            # print(res, type(res))
+            # current_app.logger.info(res, type(res))
             # res = json.loads(Success('{} is connect '.format(user.username)), cls=JSONEncoder)
-            # print(res, type(res))
+            # current_app.logger.info(res, type(res))
             # self.socketio.emit('server_response', Success('{} is connect '.format(user.username)))
             emit('server_response', Success('{} is connect '.format(user.username)))
 
@@ -114,7 +114,7 @@ class Mynamespace(Namespace):
 
     # @self.socketio.on('my event')  # 接收emit 的 myevent 消息
     def on_my_event(self, data):
-        print(data)
+        current_app.logger.info(data)
         # print(session.get('id'))
         # session['id'] = 'json'
         return 'my event received'
@@ -128,7 +128,7 @@ class Mynamespace(Namespace):
     # @socketio.on('connect', namespace='/change_num')
 
     def on_change_num(self, data):
-        print(data)
+        current_app.logger.info(data)
         # print(session.get('id'))
         roomid = data.get('room') or request.sid
         # global thread
@@ -150,10 +150,10 @@ class Mynamespace(Namespace):
         if usersid != request.sid:
             # todo 重新连接更新redis
             pass
-        cmsg.push_platform_message(userid, usersid)
+        cmsg.push_platform_message(None, userid, usersid)
 
     def on_disconnect(self):
-        print(session.get('id'))
+        current_app.logger.info(session.get('id'))
         return return_res('{} is dis connect'.format(session.get('id')))
 
     def on_my_ping(self):
@@ -164,3 +164,35 @@ class Mynamespace(Namespace):
         emit('my_response',
              {'data': 'Disconnected!', 'count': session['receive_count']})
         disconnect()
+
+    def on_join_room(self, data):
+        # data 是roomid
+        current_app.logger.info(data)
+        userid = session.get('id')
+        current_app.logger.info('start join room', userid)
+        if not userid:
+            return return_res(AuthorityError)
+        from planet.control.CMessage import CMessage
+        cmsg = CMessage()
+        roomid = cmsg.get_room(data, userid)
+        join_room(roomid, request.sid)
+        return return_res(Success(data=roomid))
+
+    def on_send_msg(self, data):
+        current_app.logger.info(data)
+        userid = session.get('id')
+
+        current_app.logger.info('send message', userid)
+        if not userid:
+            return return_res(AuthorityError)
+        roomid = data.get('roomid')
+        message = data.get('umsgtext')
+        if message == "":
+            return return_res(ParamsError('内容不能为空'))
+        from planet.control.CMessage import CMessage
+        cmsg = CMessage()
+        umsg = cmsg.send_msg(message, roomid, userid)
+
+        emit('new_message', umsg, room=roomid)
+
+    # def on_notice(self):
