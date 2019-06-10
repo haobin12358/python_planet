@@ -9,7 +9,8 @@ class AMessage(Resource):
     def get(self, message):
         apis = {
             'test': self.cmessage.test,
-            'get': self.cmessage.get_platform_message
+            'get': self.cmessage.get_platform_message,
+            'read': self.cmessage.read
         }
         return apis
 

@@ -18,6 +18,7 @@ from .success_response import Success
 
 
 def token_to_user_(token):
+    user = None
     if token:
         s = Serializer(current_app.config['SECRET_KEY'])
         try:
@@ -30,7 +31,7 @@ def token_to_user_(token):
             user = User(id, model, level, username)
             # setattr(request, 'user', user)
             current_app.logger.info('current_user info : {}'.format(data))
-            return user
+
 
         except BadSignature as e:
             pass
@@ -39,6 +40,7 @@ def token_to_user_(token):
         except Exception as e:
             current_app.logger.info(e)
     current_app.logger.info(request.detail)
+    return user
 
 
 def _get_user_agent():

@@ -657,6 +657,9 @@ class PlanetMessageStatus(Enum):
     publish = 1, '已发布',
     hide = 10, '隐藏'
 
+class UserPlanetMessageStatus(Enum):
+    unread = 0, '未读'
+    read = 1, '已读'
 
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
