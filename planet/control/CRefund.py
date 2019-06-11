@@ -435,6 +435,8 @@ class CRefund(object):
                 raise DumpliError('主订单已在售后中, 请勿重复申请')
             if order_main.OMfrom == OrderFrom.integral_store.value:
                 raise StatusError('星币商城订单暂不支持退换货，如有问题请及时联系客服')
+            elif order_main.OMfrom == OrderFrom.integral_store.value:
+                raise StatusError('试用商品订单暂不支持退换货，如有问题请及时联系客服')
             apply = OrderRefundApply.query.filter(
                 OrderRefundApply.OPid == opid,
                 OrderRefundApply.isdelete == False,
@@ -457,7 +459,7 @@ class CRefund(object):
             oramount = data.get('oramount')
             if oramount:
                 oramount = Decimal(str((oramount)))
-            if not oramount or oramount > order_part.OPsubTrueTotal:
+            if not oramount or oramount > order_part.OPsubTrueTotal:  # todo 组合支付时OPsubTrueTotal，扣除星币抵扣的钱
                 raise ParamsError('退款金额不正确')
             oraddtionvoucher = data.get('oraddtionvoucher')
             if oraddtionvoucher and isinstance(oraddtionvoucher, list):
@@ -509,6 +511,8 @@ class CRefund(object):
                 raise DumpliError('已经在售后中')
             if order_main.OMfrom == OrderFrom.integral_store.value:
                 raise StatusError('星币商城订单暂不支持退换货，如有问题请及时联系客服')
+            elif order_main.OMfrom == OrderFrom.trial_commodity.value:
+                raise StatusError('试用商品订单暂不支持退换货，如有问题请及时联系客服')
             # 之前的申请
             apply = OrderRefundApply.query.filter(
                 OrderRefundApply.isdelete == False,
