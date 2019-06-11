@@ -286,6 +286,7 @@ class IntegralProduct(Base):
     IPprice = Column(BIGINT, comment='商品星币价格')
     IPsaleVolume = Column(BIGINT, default=0, comment='销量')
     IPaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
+    ParentIpid = Column(String(64), default=None)
 
 
 class IntegralProductSku(Base):

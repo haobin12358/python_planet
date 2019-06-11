@@ -13,7 +13,7 @@ from planet.common.base_service import get_session
 from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
     UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
-    SupplizerSettementStatus, CashFor,  AdminActionS
+    SupplizerSettementStatus, CashFor, AdminActionS
 
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -97,7 +97,7 @@ class CApproval(BASEAPPROVAL):
             'PIname': piname,
         })
         db.session.add(pi)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', PermissionItems.PIid)
         ptn.setdefault('PNcontent', pi.PIid)
         ptn.setdefault('PINaction', '创建权限标签 {} 成功'.format(piname))
         db.session.add(PermissionNotes.create(ptn))
@@ -152,7 +152,7 @@ class CApproval(BASEAPPROVAL):
         ptn.setdefault('PINaction', '创建 {} 审批类型'.format(ptname))
         db.session.add(PermissionNotes.create(ptn))
         db.session.add(PermissionType.create(pt_dict))
-        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionType', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionNotes',ptn["PNid"])
         return Success('创建审批类型成功', data={'ptid': pt.PTid})
 
     @get_session
@@ -209,7 +209,7 @@ class CApproval(BASEAPPROVAL):
             "PELevel": pelevel
         })
         db.session.add(permission_instence)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'Permission', permission_instence.PEid)
         # ptn['ANaction'] = '创建 权限 {0} 等级 {1}'.format(
         #     pt_after.PTname, data.get("pelevel"))
         ptn.setdefault('PINaction', '创建 {2} 权限 {0} 等级 {1}'.format(
@@ -246,7 +246,7 @@ class CApproval(BASEAPPROVAL):
                 # 'PTid': data.get('ptid')
             })
             db.session.add(adp)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'AdminPermission', adp.ADPid)
         # 校验是否有被删除的管理员
         check_adp_list = AdminPermission.query.filter_by_(PIid=data.get('piid')).all()
         for check_adp in check_adp_list:
@@ -574,7 +574,7 @@ class CApproval(BASEAPPROVAL):
         apn_instance = ApprovalNotes.create(approvalnote_dict)
         db.session.add(apn_instance)
         if is_admin():
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ApprovalNotes', apn_instance.ANid)
 
         if int(data.get("anaction")) == ApprovalAction.agree.value:
             # 审批操作是否为同意
@@ -741,7 +741,7 @@ class CApproval(BASEAPPROVAL):
                 'PINaction': '创建权限标签{}'.format(pi.PIname),
             }
             db.session.add(pi)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'PermissionItems', pi.PIid)
             db.session.add(PermissionNotes.create(ptn_pi))
         pe = Permission.query.filter_by_(PTid=pt.PTid, PELevel=data.get('pelevel'), PIid=pi.PIid).first()
         pelevel = data.get('pelevel')
@@ -1123,6 +1123,59 @@ class CApproval(BASEAPPROVAL):
 
     def agree_guessnum(self, approval_model):
         gnaa = GuessNumAwardApply.query.filter_by_(GNAAid=approval_model.AVcontent).first_('猜数字商品申请数据异常')
+        parent_apply = gnaa
+        # 将父id改为失效
+        while parent_apply.ParentGNAAid != None:
+            current_apply = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+                                                           GuessNumAwardApply.GNAAstatus.in_([ApplyStatus.lose_agree.value,ApplyStatus.lose_effect.value]),
+                                                           GuessNumAwardApply.isdelete == False).first()
+            if current_apply:
+                if current_apply.GNAAstatus == ApplyStatus.lose_effect.value:
+                    child = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.ParentGNAAid == current_apply.GNAAid,
+                        GuessNumAwardApply.GNAAstatus == ApplyStatus.lose_agree.value,
+                        GuessNumAwardApply.isdelete == False).first()
+                    if child:
+                        child.update({"GNAAstatus": ApplyStatus.lose_effect.value})
+                        db.session.add(child)
+                        # 获取原商品属性
+                        gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == child.GNAAid,
+                                                                     GuessNumAwardProduct.isdelete == False).first()
+                        product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+                        # 获取原sku属性
+                        gnas_old = GuessNumAwardSku.query.filter(
+                            current_apply.GNAAid == GuessNumAwardProduct.GNAAid,
+                            GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                            GuessNumAwardSku.isdelete == False,
+                            GuessNumAwardProduct.isdelete == False,
+                        ).all()
+                        from planet.control.COrder import COrder
+                        # 遍历原sku 将库存退出去
+                        for sku in gnas_old:
+                            sku_instance = ProductSku.query.filter_by(
+                                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                            COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
+                else:
+                    current_apply.GNAAstatus = ApplyStatus.lose_effect.value
+                    # 获取原商品属性
+                    gnap_old = GuessNumAwardProduct.query.filter(GuessNumAwardProduct.GNAAid == current_apply.GNAAid,
+                                                                 GuessNumAwardProduct.isdelete == False).first()
+                    product = Products.query.filter_by(PRid=gnap_old.PRid, isdelete=False).first_('商品信息出错')
+                    # 获取原sku属性
+                    gnas_old = GuessNumAwardSku.query.filter(
+                        current_apply.GNAAid == GuessNumAwardProduct.GNAAid,
+                        GuessNumAwardSku.GNAPid == GuessNumAwardProduct.GNAPid,
+                        GuessNumAwardSku.isdelete == False,
+                        GuessNumAwardProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+                    # 遍历原sku 将库存退出去
+                    for sku in gnas_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
+            parent_apply = GuessNumAwardApply.query.filter(
+                GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
         gnaa.GNAAstatus = ApplyStatus.agree.value
         # gnaa_other = GuessNumAwardApply.query.filter(
         #     GuessNumAwardApply.GNAAid != gnaa.GNAAid,
@@ -1160,9 +1213,54 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(
                 isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
             COrder()._update_stock(int(sku.SKUstock), product, sku_instance)
+        parent_apply = gnaa
+        while parent_apply.ParentGNAAid != None:
+            current_apply = GuessNumAwardApply.query.filter(GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid,
+                                                           GuessNumAwardApply.GNAAstatus .in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                           GuessNumAwardApply.isdelete == False).first()
+            if current_apply:
+                if current_apply.GNAAstatus == ApplyStatus.lose_effect.value:
+                    child = GuessNumAwardApply.query.filter(
+                        GuessNumAwardApply.ParentGNAAid == current_apply.GNAAid,
+                        GuessNumAwardApply.GNAAstatus == ApplyStatus.lose_agree.value,
+                        GuessNumAwardApply.isdelete == False).first()
+                    if child:
+                        child.update({"GNAAstatus": ApplyStatus.agree.value})
+                else:
+                    current_apply.GNAAstatus = ApplyStatus.agree.value
+            parent_apply = GuessNumAwardApply.query.filter(
+                GuessNumAwardApply.GNAAid == parent_apply.ParentGNAAid).first()
 
     def agree_magicbox(self, approval_model):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        parent_apply = mba
+        # 将父id改为失效
+        while parent_apply.ParentMBAid != None:
+            current_apply = MagicBoxApply.query.filter(MagicBoxApply.MBAid == parent_apply.ParentMBAid,
+                                                       MagicBoxApply.MBAstatus .in_([ApplyStatus.lose_agree.value,ApplyStatus.lose_effect.value]),
+                                                       MagicBoxApply.isdelete == False).first()
+            if current_apply:
+                other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                              MagicBoxApply.MBAid != current_apply.MBAid,
+                                                              MagicBoxApply.MBAstatus.notin_(
+                                                                  [ApplyStatus.cancle.value, ApplyStatus.reject.value,
+                                                                   ApplyStatus.lose_effect.value]),
+                                                              MagicBoxApply.OSid == current_apply.OSid,
+                                                              ).first()
+                if not other_apply_info:
+                    out_stock = OutStock.query.filter(OutStock.isdelete == False,
+                                                      OutStock.OSid == current_apply.OSid
+                                                      ).first()
+                    from planet.control.COrder import COrder
+                    COrder()._update_stock(out_stock.OSnum, skuid=parent_apply.SKUid)
+                parent_apply.MBAstatus = ApplyStatus.lose_effect.value
+                break
+            else:
+                parent_apply = MagicBoxApply.query.filter(
+                    MagicBoxApply.MBAid == parent_apply.ParentMBAid).first()
+
         mba.MBAstatus = ApplyStatus.agree.value
         mba_other = MagicBoxApply.query.filter(
             MagicBoxApply.isdelete == False,
@@ -1185,7 +1283,7 @@ class CApproval(BASEAPPROVAL):
         other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
                                                       MagicBoxApply.MBAid != mba.MBAid,
                                                       MagicBoxApply.MBAstatus.notin_(
-                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value]),
+                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value,ApplyStatus.lose_effect.value]),
                                                       MagicBoxApply.OSid == mba.OSid,
                                                       ).first()
         if not other_apply_info:
@@ -1194,9 +1292,56 @@ class CApproval(BASEAPPROVAL):
                                               ).first()
             from planet.control.COrder import COrder
             COrder()._update_stock(out_stock.OSnum, skuid=mba.SKUid)
+        parent_apply = mba
+        while parent_apply.ParentMBAid != None:
+            current_apply = MagicBoxApply.query.filter(MagicBoxApply.MBAid == current_apply.ParentMBAid,
+                                                      MagicBoxApply.MBAstatus == ApplyStatus.lose_agree.value,
+                                                      MagicBoxApply.isdelete == False).first()
+            if current_apply:
+                current_apply.MBAstatus = ApplyStatus.agree.value
+                break
+            else:
+                parent_apply = MagicBoxApply.query.filter(
+                    MagicBoxApply.MBAid == parent_apply.ParentMBAid).first()
 
     def agree_freshmanfirstproduct(self, approval_model):
         ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
+        parent_apply = ffa
+        # 将父id改为失效
+        while parent_apply.ParentFMFAid != None:
+            current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+                                                           FreshManFirstApply.FMFAstatus.in_([ApplyStatus.lose_agree.value,ApplyStatus.lose_effect.value]),
+                                                           FreshManFirstApply.isdelete == False).first()
+            if current_apply:
+                # 进行库存恢复
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    child = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    if child:
+                        child.update({"FMFAstatus": ApplyStatus.lose_effect.value})
+                        db.session.add(child)
+                        apply_skus = FreshManFirstSku.query.join(
+                            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                            FreshManFirstProduct.FMFAid == child.FMFAid).all()
+                        from planet.control.COrder import COrder
+                        for apply_sku in apply_skus:
+                            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                            product = Products.query.filter(Products.PRid == sku.PRid).first()
+                            COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+                else:
+                    current_apply.FMFAstatus = ApplyStatus.lose_effect.value
+                    apply_skus = FreshManFirstSku.query.join(
+                        FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                        FreshManFirstProduct.FMFAid == current_apply.FMFAid).all()
+                    from planet.control.COrder import COrder
+                    for apply_sku in apply_skus:
+                        sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                        product = Products.query.filter(Products.PRid == sku.PRid).first()
+                        COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
         ffa.FMFAstatus = ApplyStatus.agree.value
 
     def refuse_freshmanfirstproduct(self, approval_model, refuse_abo):
@@ -1214,12 +1359,52 @@ class CApproval(BASEAPPROVAL):
             sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
             product = Products.query.filter(Products.PRid == sku.PRid).first()
             COrder()._update_stock(apply_sku.FMFPstock, product, sku)
+        parent_apply = ffa
+        while parent_apply.ParentFMFAid != None:
+            current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+                                                            FreshManFirstApply.FMFAstatus.in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                            FreshManFirstApply.isdelete == False).first()
+            if current_apply:
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    child = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    if child:
+                        child.update({"FMFAstatus": ApplyStatus.agree.value})
+                        db.session.add(child)
+                else:
+                    current_apply.FMFAstatus = ApplyStatus.agree.value
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
 
     def agree_trialcommodity(self, approval_model):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first_('试用商品申请数据异常')
         tc.TCstatus = TrialCommodityStatus.upper.value
         tc.AgreeStartTime = tc.ApplyStartTime
         tc.AgreeEndTime = tc.ApplyEndTime  # todo 同意时自动填写申请时间，后期可能需要管理同意时输入灵活时间
+        parent_apply = tc
+        while parent_apply.ParentTCid != None:
+            current_apply = TrialCommodity.query.filter(TrialCommodity.TCid == parent_apply.ParentTCid,
+                                                        TrialCommodity.TCstatus.in_(
+                                                                [TrialCommodityStatus.lose_upper.value,
+                                                                 TrialCommodityStatus.lose_effect.value]),
+                                                        TrialCommodity.isdelete == False).first()
+            if current_apply:
+                if current_apply.TCstatus == TrialCommodityStatus.lose_effect.value:
+                    child = TrialCommodity.query.filter(
+                        TrialCommodity.ParentTCid == current_apply.TCid,
+                        TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value,
+                        TrialCommodity.isdelete == False).first()
+                    if child:
+                        child.update({"TCstatus": TrialCommodityStatus.lose_effect.value})
+                        db.session.add(child)
+                else:
+                    current_apply.TCstatus = TrialCommodityStatus.lose_effect.value
+            parent_apply = TrialCommodity.query.filter(
+                TrialCommodity.TCid == parent_apply.ParentTCid).first()
 
     def refuse_trialcommodity(self, approval_model, refuse_abo):
         tc = TrialCommodity.query.filter_by_(TCid=approval_model.AVcontent).first()
@@ -1227,6 +1412,26 @@ class CApproval(BASEAPPROVAL):
             return
         tc.TCstatus = TrialCommodityStatus.reject.value
         tc.TCrejectReason = refuse_abo
+        parent_apply = tc
+        while parent_apply.ParentTCid != None:
+            current_apply = TrialCommodity.query.filter(TrialCommodity.TCid == parent_apply.ParentTCid,
+                                                        TrialCommodity.TCstatus.in_(
+                                                            [TrialCommodityStatus.lose_upper.value,
+                                                             TrialCommodityStatus.lose_effect.value]),
+                                                        TrialCommodity.isdelete == False).first()
+            if current_apply:
+                if current_apply.TCstatus == TrialCommodityStatus.lose_effect.value:
+                    child = TrialCommodity.query.filter(
+                        TrialCommodity.ParentTCid == current_apply.TCid,
+                        TrialCommodity.TCstatus == TrialCommodityStatus.lose_upper.value,
+                        TrialCommodity.isdelete == False).first()
+                    if child:
+                        child.update({"TCstatus": TrialCommodityStatus.upper.value})
+                        db.session.add(child)
+                else:
+                    current_apply.TCstatus = TrialCommodityStatus.upper.value
+            parent_apply = TrialCommodity.query.filter(
+                TrialCommodity.TCid == parent_apply.ParentTCid).first()
 
     def agree_activationcode(self, approval_model):
         aca = ActivationCodeApply.query.filter_by_(ACAid=approval_model.AVcontent).first_('激活码申请数据异常')
@@ -1253,6 +1458,55 @@ class CApproval(BASEAPPROVAL):
 
     def agree_timelimited(self, approval_model):
         tla = TimeLimitedProduct.query.filter_by_(TLPid=approval_model.AVcontent).first_('限时活动商品申请数据异常')
+        parent_apply = tla
+        while parent_apply.ParentTLPid != None:
+            current_apply = TimeLimitedProduct.query.filter(TimeLimitedProduct.TLPid == parent_apply.ParentTLPid,
+                                                            TimeLimitedProduct.TLAstatus.in_([ApplyStatus.lose_agree.value,ApplyStatus.lose_effect.value]),
+                                                            TimeLimitedProduct.isdelete == False).first()
+            if current_apply:
+                current_app.logger.info('目前正在将再次审核改为已失效的 商品为 {}'.format(current_apply.TLPid))
+                if current_apply.TLAstatus == ApplyStatus.lose_effect.value:
+                    child = TimeLimitedProduct.query.filter(
+                        TimeLimitedProduct.ParentTLPid == current_apply.TLPid,
+                        TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value,
+                        TimeLimitedProduct.isdelete == False).first()
+                    if child:
+                        current_app.logger.info('child{}'.format(child.TLPid))
+                        child.update({"TLAstatus": ApplyStatus.lose_effect.value})
+                        db.session.add(child)
+                        # 获取原商品属性
+                        product = Products.query.filter_by(PRid=child.PRid, isdelete=False).first()
+                        # 获取原sku属性
+                        tls_old = TimeLimitedSku.query.filter(
+                            TimeLimitedSku.TLPid == child.TLPid,
+                            TimeLimitedSku.isdelete == False,
+                            TimeLimitedProduct.isdelete == False,
+                        ).all()
+                        from planet.control.COrder import COrder
+                        # 遍历原sku 将库存退出去
+                        for sku in tls_old:
+                            sku_instance = ProductSku.query.filter_by(
+                                isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                            COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+                else:
+                    current_apply.TLAstatus = ApplyStatus.lose_effect.value
+                    # 获取原商品属性
+                    product = Products.query.filter_by(PRid=current_apply.PRid, isdelete=False).first()
+                    # 获取原sku属性
+                    tls_old = TimeLimitedSku.query.filter(
+                        TimeLimitedSku.TLPid == current_apply.TLPid,
+                        TimeLimitedSku.isdelete == False,
+                        TimeLimitedProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+
+                    # 遍历原sku 将库存退出去
+                    for sku in tls_old:
+                        sku_instance = ProductSku.query.filter_by(
+                            isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+            parent_apply = TimeLimitedProduct.query.filter(
+                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
         tla.TLAstatus = ApplyStatus.agree.value
 
     def refuse_timelimited(self, approval_model, refuse_abo):
@@ -1276,10 +1530,82 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(
                 isdelete=False, PRid=product.PRid, SKUid=sku.SKUid).first_('商品sku信息不存在')
             COrder()._update_stock(int(sku.TLSstock), product, sku_instance)
+        parent_apply = tlp
+        while parent_apply.ParentTLPid != None:
+            current_apply = TimeLimitedProduct.query.filter(TimeLimitedProduct.TLPid == parent_apply.ParentTLPid,
+                                                            TimeLimitedProduct.TLAstatus.in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                            TimeLimitedProduct.isdelete == False).first()
+            if current_apply:
+                current_app.logger.info('目前正在将再次审核改为已失效的 商品为 {}'.format(current_apply.TLPid))
+                if current_apply.TLAstatus == ApplyStatus.lose_effect.value:
+                    child = TimeLimitedProduct.query.filter(
+                        TimeLimitedProduct.ParentTLPid == current_apply.TLPid,
+                        TimeLimitedProduct.TLAstatus == ApplyStatus.lose_agree.value,
+                        TimeLimitedProduct.isdelete == False).order_by(TimeLimitedProduct.createtime.desc()).first()
+                    current_app.logger.info('child{}'.format(child.TLPid))
+                    child.update({"TLAstatus": ApplyStatus.agree.value})
+                    db.session.add(child)
+                else:
+                    current_apply.TLAstatus = ApplyStatus.agree.value
+                    break
+            parent_apply = TimeLimitedProduct.query.filter(
+                TimeLimitedProduct.TLPid == parent_apply.ParentTLPid).first()
 
     def agree_tointegral(self, approval_model):
         ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first_('星币商品申请数据异常')
-        ip.IPstatus = ApplyStatus.agree.value
+        ip.IPstatus = ApplyStatus.agrlee.value
+        parent_apply = ip
+        while parent_apply.ParentIpid != None:
+            current_apply = IntegralProduct.query.filter(IntegralProduct.IPid == parent_apply.ParentIpid,
+                                                         IntegralProduct.IPstatus.in_(
+                                                                [ApplyStatus.lose_agree.value,
+                                                                 ApplyStatus.lose_effect.value]),
+                                                         IntegralProduct.isdelete == False).first()
+            if current_apply:
+                if current_apply.IPstatus == ApplyStatus.lose_effect.value:
+                    child = IntegralProduct.query.filter(
+                        IntegralProduct.ParentIpid == current_apply.ParentIpid,
+                        IntegralProduct.IPstatus == ApplyStatus.lose_agree.value,
+                        IntegralProduct.isdelete == False).first()
+                    if child:
+                        child.update({"IPstatus": ApplyStatus.lose_effect.value})
+                        db.session.add(child)
+                        # 获取原商品属性
+                        product = Products.query.filter_by(PRid=child.PRid, isdelete=False).first()
+                        # 获取原sku属性
+                        ips_old = IntegralProductSku.query.filter(
+                            IntegralProductSku.IPid == child.IPid,
+                            IntegralProductSku.isdelete == False,
+                            IntegralProduct.isdelete == False,
+                        ).all()
+                        from planet.control.COrder import COrder
+                        co = COrder()
+                        # 遍历原sku 将库存退出去
+                        for sku in ips_old:
+                            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+                            co._update_stock(int(sku.IPSstock), product, sku_instance)
+                else:
+                    current_apply.IPstatus = ApplyStatus.lose_effect.value
+                    # 获取原商品属性
+                    product = Products.query.filter_by(PRid=ip.PRid, isdelete=False).first()
+                    # 获取原sku属性
+                    ips_old = IntegralProductSku.query.filter(
+                        IntegralProductSku.IPid == current_apply.IPid,
+                        IntegralProductSku.isdelete == False,
+                        IntegralProduct.isdelete == False,
+                    ).all()
+                    from planet.control.COrder import COrder
+                    co = COrder()
+                    # 遍历原sku 将库存退出去
+                    for sku in ips_old:
+                        sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                                  SKUid=sku.SKUid).first_('商品sku信息不存在')
+                        co._update_stock(int(sku.IPSstock), product, sku_instance)
+            parent_apply = IntegralProduct.query.filter(
+                IntegralProduct.IPid == parent_apply.ParentIpid).first()
 
     def refuse_tointegral(self, approval_model, refuse_abo):
         ip = IntegralProduct.query.filter_by_(IPid=approval_model.AVcontent).first()
@@ -1302,6 +1628,27 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
                                                       SKUid=sku.SKUid).first_('商品sku信息不存在')
             co._update_stock(int(sku.IPSstock), product, sku_instance)
+        parent_apply = ip
+        while parent_apply.ParentIpid != None:
+            current_apply = IntegralProduct.query.filter(IntegralProduct.IPid == parent_apply.ParentIpid,
+                                                         IntegralProduct.IPstatus.in_(
+                                                             [ApplyStatus.lose_agree.value,
+                                                              ApplyStatus.lose_effect.value]),
+                                                         IntegralProduct.isdelete == False).first()
+            if current_apply:
+                if current_apply.IPstatus == ApplyStatus.lose_effect.value:
+                    child = IntegralProduct.query.filter(
+                        IntegralProduct.ParentIpid == current_apply.ParentIpid,
+                        IntegralProduct.IPstatus == ApplyStatus.lose_agree.value,
+                        IntegralProduct.isdelete == False).first()
+                    if child:
+                        child.update({"IPstatus": ApplyStatus.agree.value})
+                        db.session.add(child)
+                else:
+                    current_apply.IPstatus = ApplyStatus.agree.value
+            parent_apply = IntegralProduct.query.filter(
+                IntegralProduct.IPid == parent_apply.ParentIpid).first()
+
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

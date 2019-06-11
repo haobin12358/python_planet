@@ -53,7 +53,7 @@ class CSigninSetting():
             delete_sia.isdelete = True
 
         db.session.add_all(sia_in_list)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'SignInAward', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'SignInAward', sia_in.SIAid)
         return Success('签到设置成功')
 
     @get_session

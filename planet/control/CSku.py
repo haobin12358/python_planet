@@ -42,7 +42,7 @@ class CSku(object):
             })
             s.add(sku_instance)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'ProductSku', str(uuid.uuid4()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'ProductSku', sku_instance.SKUid)
         return Success('添加成功', {'skuid': sku_instance.SKUid})
 
     @token_required

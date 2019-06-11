@@ -5,6 +5,7 @@ from datetime import datetime, date, timedelta
 from flask import request, current_app
 from sqlalchemy import or_, and_
 
+from planet.common.base_service import get_session
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, get_current_user, is_supplizer, is_admin
@@ -27,10 +28,37 @@ class CFreshManFirstOrder(COrder, CUser):
     def list(self):
         """获取列表"""
         time_now = date.today()
+        # 修改一开始的待审核活动状态
+        fresh_man_applys = FreshManFirstApply.query.filter(
+            FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+            FreshManFirstApply.AgreeStartime <= time_now,
+            FreshManFirstApply.AgreeEndtime >= time_now,
+            FreshManFirstApply.isdelete == False,
+        ).all()
+        with db.auto_commit():
+            for fresh_man_apply in fresh_man_applys:
+                fresh_man_apply.update({'FMFAstatus':ApplyStatus.agree.value})
+                db.session.add(fresh_man_apply)
+                fresh_child_apply = FreshManFirstApply.query.filter(
+                    FreshManFirstApply.ParentFMFAid == fresh_man_apply.FMFAid,
+                    FreshManFirstApply.FMFAstatus == ApplyStatus.wait_check.value,
+                    FreshManFirstApply.isdelete == False).first()
+                if fresh_child_apply:
+                    fresh_child_apply.update({'FMFAstatus':ApplyStatus.lose_effect.value})
+                    db.session.add(fresh_child_apply)
+                    # 进行库存恢复
+                    apply_skus = FreshManFirstSku.query.join(
+                        FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                        FreshManFirstProduct.FMFAid == fresh_child_apply.FMFAid).all()
+                    from planet.control.COrder import COrder
+                    for apply_sku in apply_skus:
+                        sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                        product = Products.query.filter(Products.PRid == sku.PRid).first()
+                        COrder()._update_stock(apply_sku.FMFPstock, product, sku)
         fresh_man_products = FreshManFirstProduct.query.join(
             FreshManFirstApply, FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid
         ).filter_(
-            FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+            FreshManFirstApply.FMFAstatus==ApplyStatus.agree.value,
             FreshManFirstApply.AgreeStartime <= time_now,
             FreshManFirstApply.AgreeEndtime >= time_now,
             FreshManFirstApply.isdelete == False,
@@ -59,7 +87,7 @@ class CFreshManFirstOrder(COrder, CUser):
 
     def get(self):
         """获取单个新人商品"""
-        data = parameter_required(('fmfpid', ))
+        data = parameter_required(('fmfpid',))
         fmfpid = data.get('fmfpid')
         fresh_man_first_product = FreshManFirstProduct.query.filter_by_({
             'FMFPid': fmfpid
@@ -133,25 +161,20 @@ class CFreshManFirstOrder(COrder, CUser):
             Client(omclient)
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
-        # 只可以买一次
+        # 只可以参加一次活动
         usid = request.user.id
         user = get_current_user()
         exists_order = OrderMain.query.filter(
             OrderMain.USid == usid,
             OrderMain.isdelete == False, OrderPart.isdelete == False,
-            ProductItems.isdelete == False, Items.isdelete == False,
-            # OrderMain.USid == usid,
-            # OrderMain.OMstatus == OrderMainStatus.ready.value,
-            OrderPart.PRid == ProductItems.PRid,
-            ProductItems.ITid == Items.ITid,
-            Items.ITname != '开店大礼包',
+            OrderMain.OMfrom == OrderFrom.fresh_man.value,
             OrderPart.OMid == OrderMain.OMid,
             OrderMain.OMstatus > OrderMainStatus.wait_pay.value
         ).first()
-        # cuser = CUser()
-        # cuser._check_gift_order()
+        cuser = CUser()
+        cuser._check_gift_order()
         if exists_order:
-            raise StatusError('您不是新人')
+            raise StatusError('您不是第一次参加此活动')
         try:
             opaytype = int(data.get('opaytype'))
         except ValueError:
@@ -219,7 +242,6 @@ class CFreshManFirstOrder(COrder, CUser):
             if secret_usid:
                 try:
                     from_usid = self._base_decode(secret_usid)
-                    # 来源用户是否购买
                     current_app.logger.info('该用户直接点击了链接购买 分享人id 是 {}'.format(from_usid))
                     if from_usid == user.USid:
                         from_usid = None
@@ -240,10 +262,11 @@ class CFreshManFirstOrder(COrder, CUser):
 
             current_app.logger.info('get share user id = {}'.format(from_usid))
 
-            from_user_order = OrderMain.query.filter_by().filter(
+            from_user_order = OrderMain.query.filter(
+                OrderMain.isdelete == False,
                 OrderMain.USid == from_usid,
-                OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
                 OrderMain.OMfrom == OrderFrom.fresh_man.value,
+                OrderMain.OMstatus > OrderMainStatus.wait_pay.value,
             ).first()
 
             current_app.logger.info('get share user order = {}'.format(from_user_order))
@@ -345,8 +368,8 @@ class CFreshManFirstOrder(COrder, CUser):
         prid = data.get('prid')
         apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                                    Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
-                                  ).first_('当前商品状态不允许进行申请')
+                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
+                                        ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
         with db.auto_commit():
             fresh_first_apply = FreshManFirstApply.create({
@@ -360,7 +383,7 @@ class CFreshManFirstOrder(COrder, CUser):
             })
             db.session.add(fresh_first_apply)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'FreshManFirstApply', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'FreshManFirstApply', fresh_first_apply.FMFAid)
             # 商品, 暂时只可以添加一个商品
             check_product = FreshManFirstProduct.query.filter(
                 FreshManFirstApply.FMFAid == FreshManFirstProduct.FMFAid,
@@ -415,42 +438,36 @@ class CFreshManFirstOrder(COrder, CUser):
                                        fresh_first_apply.FMFAid, apply_from)
         return Success('申请添加成功', data=fresh_first_apply.FMFAid)
 
-    def update_award(self):
-        """修改"""
-        if not (is_supplizer() or is_admin()):
-            raise AuthorityError()
-        data = parameter_required(('prid', 'prprice', 'skus', 'fmfaid'))
-        prid = data.get('prid')
-        fmfaid = data.get('fmfaid')
-        apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
-        product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
-                                        ).first_('当前商品状态不允许进行申请')
-        product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
+    def reapply_award(self,fresh_first_apply):
+        """重新申请添加奖品"""
+        data = parameter_required(('prid', 'fmfaendtime', 'fmfastarttime', 'prprice', 'skus', 'fmfaid'))
         with db.auto_commit():
-            fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid,
-                                                                FreshManFirstApply.isdelete == False).first_('申请单不存在')
-            fresh_first_apply.update({
+            prid = data.get('prid')
+            fmfaid = data.get('fmfaid')
+            apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+            current_app.logger.info('获取到参数{}'.format(data))
+            # 创建新记录
+            apply = FreshManFirstApply.create({
+                'FMFAid': str(uuid.uuid1()),
                 'SUid': request.user.id,
+                'FMFAstartTime': data.get('fmfastarttime'),
+                'FMFAendTime': data.get('fmfaendtime'),
                 'FMFAfrom': apply_from,
-                'FMFAstatus': ApplyStatus.wait_check.value
+                'AgreeStartime': data.get('fmfastarttime'),
+                'AgreeEndtime': data.get('fmfaendtime'),
+                'ParentFMFAid': fmfaid
             })
-            db.session.add(fresh_first_apply)
-            if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
+            db.session.add(apply)
+            apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+            product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+                                            Products.PRstatus.in_(
+                                                [ProductStatus.usual.value, ProductStatus.auditing.value])
+                                            ).first_('当前商品状态不允许进行申请')
+            product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
             # 商品, 暂时只可以添加一个商品
-            fresh_first_product = FreshManFirstProduct.query.filter(
-                FreshManFirstProduct.isdelete == False,
-                FreshManFirstProduct.FMFAid == fmfaid,
-                FreshManFirstProduct.PRid == prid,
-            ).first()
-            if not fresh_first_product:
-                # 如果没有查找到, 则说明是更换了参与商品, 因此删除旧的
-                FreshManFirstProduct.query.filter(FreshManFirstProduct.FMFAid == fmfaid).delete_()
-                fresh_first_product = FreshManFirstProduct()
-                fresh_first_product.FMFPid = str(uuid.uuid1())
-            fresh_first_product = fresh_first_product.update({
-                # 'FMFAid': fresh_first_apply.FMFAid,
+            fresh_first_product = FreshManFirstProduct.create({
+                'FMFPid': str(uuid.uuid1()),
+                'FMFAid': apply.FMFAid,
                 'PRid': prid,
                 'PRmainpic': product.PRmainpic,
                 'PRtitle': product.PRtitle,
@@ -461,28 +478,20 @@ class CFreshManFirstOrder(COrder, CUser):
                 'PRprice': data.get('prprice')
             })
             db.session.add(fresh_first_product)
+            fresh_first_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
+            db.session.add(fresh_first_apply)
             skus = data.get('skus')
-            skuids = []
             for sku in skus:
                 skuid = sku.get('skuid')
-                skuids.append(skuid)
                 skuprice = sku.get('skuprice')
                 skustock = sku.get('skustock')
-                sku = ProductSku.query.filter(
+                sku_instance = ProductSku.query.filter(
                     ProductSku.isdelete == False,
                     ProductSku.PRid == prid,
                     ProductSku.SKUid == skuid
                 ).first_('商品sku信息不存在')
-                fresh_first_sku = FreshManFirstSku.query.filter(
-                    FreshManFirstApply.isdelete == False,
-                    FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
-                    FreshManFirstSku.SKUid == skuid
-                ).first()
-                self._update_stock(-int(skustock), product, sku)
-                if not fresh_first_sku:
-                    fresh_first_sku = FreshManFirstSku()
-                    fresh_first_sku.FMFSid = str(uuid.uuid1())
-                fresh_first_sku.update({
+                self._update_stock(-int(skustock), product, sku_instance)
+                fresh_first_sku = FreshManFirstSku.create({
                     'FMFSid': str(uuid.uuid1()),
                     'FMFPid': fresh_first_product.FMFPid,
                     'FMFPstock': skustock,
@@ -490,27 +499,171 @@ class CFreshManFirstOrder(COrder, CUser):
                     'SKUprice': float(skuprice),
                 })
                 db.session.add(fresh_first_sku)
-                # self._update_stock()
-            # 删除其他的不需要的新人首单sku
-            FreshManFirstSku.query.filter(
-                FreshManFirstSku.isdelete == False,
-                FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
-                FreshManFirstSku.SKUid.notin_(skuids)
-            ).delete_(synchronize_session=False)
-
-        Approval.query.filter(
-            Approval.isdelete == False,
-            Approval.AVcontent == fmfaid
-        ).delete_()
+        if is_admin():
+            BASEADMIN().create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
         BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
-                                       fresh_first_apply.FMFAid, apply_from)
-        return Success('申请单修改成功', data=fresh_first_apply.FMFAid)
+                                       apply.FMFAid, apply_from)
+        return apply
+
+    def update_award(self):
+        """修改"""
+        if not (is_supplizer() or is_admin()):
+            raise AuthorityError()
+        data = parameter_required(('prid', 'prprice', 'skus', 'fmfaid'))
+        prid = data.get('prid')
+        fmfaid = data.get('fmfaid')
+        # agreeStartime=datetime.strptime(data.get('fmfastarttime'), '%Y-%m-%d')
+        # agreeEndtime= datetime.strptime(data.get('fmfaendtime'), '%Y-%m-%d')
+        # current_app.logger.info('开始时间{} 结束时间{}'.format(agreeStartime,agreeEndtime))
+        # if agreeEndtime < datetime.today():
+        #     raise StatusError('已结束的活动不能再次发起申请')
+        # elif agreeStartime <= datetime.today():
+        #     raise StatusError('已开始的活动不能再次发起申请')
+        apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
+        product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
+                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
+                                        ).first_('当前商品状态不允许进行申请')
+        product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
+        fresh_first_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == fmfaid,
+                                                            FreshManFirstApply.FMFAstatus.in_(
+                                                                [ApplyStatus.cancle.value, ApplyStatus.reject.value,
+                                                                 ApplyStatus.agree.value]),
+                                                            FreshManFirstApply.isdelete == False).first_('已下架或审核中的申请不可以进行修改')
+        # 是否能再次申请
+        if fresh_first_apply.FMFAstatus == ApplyStatus.agree.value:
+            starttime = fresh_first_apply.AgreeStartime
+            endtime = fresh_first_apply.AgreeEndtime
+            current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
+            if endtime < date.today():
+                raise StatusError('已结束的活动不能再次发起申请')
+            elif starttime <= date.today():
+                raise StatusError('已开始的活动不能再次发起申请')
+            fresh_first_apply.update({'FMFAstatus':ApplyStatus.lose_agree.value})
+            db.session.add(fresh_first_apply)
+        # 父活动不能是活动开始状态
+        parent_apply = fresh_first_apply
+        while parent_apply.ParentFMFAid != None:
+            current_apply = FreshManFirstApply.query.filter(FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid,
+                                                            FreshManFirstApply.FMFAstatus.in_([ApplyStatus.agree.value,ApplyStatus.lose_effect.value]),
+                                                            FreshManFirstApply.isdelete == False).first()
+            if current_apply:
+                if current_apply.FMFAstatus == ApplyStatus.lose_effect.value:
+                    children_apply = FreshManFirstApply.query.filter(FreshManFirstApply.ParentFMFAid == current_apply.FMFAid,
+                                                                     FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
+                                                                     FreshManFirstApply.isdelete == False).first()
+                    if children_apply:
+                        starttime = parent_apply.AgreeStartime
+                        endtime = parent_apply.AgreeEndtime
+                        current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
+                        if endtime < date.today():
+                            raise StatusError('已结束的活动不能再次发起申请')
+                        elif starttime <= date.today():
+                            raise StatusError('已开始的活动不能再次发起申请')
+                        children_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
+                        db.session.add(children_apply)
+                else:
+                    starttime = current_apply.AgreeStartime
+                    endtime = current_apply.AgreeEndtime
+                    current_app.logger.info('开始时间{} 结束时间{}'.format(starttime, endtime))
+                    if endtime < date.today():
+                        raise StatusError('已结束的活动不能再次发起申请')
+                    elif starttime <= date.today():
+                        raise StatusError('已开始的活动不能再次发起申请')
+                    current_apply.update({"FMFAstatus": ApplyStatus.lose_agree.value})
+                    db.session.add(current_apply)
+                    break
+            parent_apply = FreshManFirstApply.query.filter(
+                FreshManFirstApply.FMFAid == parent_apply.ParentFMFAid).first()
+        current_app.logger.info('正在进行重新修改{}'.format(fresh_first_apply.FMFAid))
+        if fresh_first_apply.FMFAstatus==ApplyStatus.cancle.value or fresh_first_apply.FMFAstatus == ApplyStatus.reject.value:
+            with db.auto_commit():
+                fresh_first_apply.update({
+                    'SUid': request.user.id,
+                    'FMFAfrom': apply_from,
+                    'FMFAstatus': ApplyStatus.wait_check.value,
+                    'FMFAstartTime':data.get('fmfastarttime'),
+                    'FMFAendTime':data.get('fmfaendtime'),
+                })
+                db.session.add(fresh_first_apply)
+                if is_admin():
+                    BASEADMIN().create_action(AdminActionS.update.value, 'FreshManFirstApply', fmfaid)
+                # 商品, 暂时只可以添加一个商品
+                fresh_first_product = FreshManFirstProduct.query.filter(
+                    FreshManFirstProduct.isdelete == False,
+                    FreshManFirstProduct.FMFAid == fmfaid,
+                    FreshManFirstProduct.PRid == prid,
+                ).first()
+                if not fresh_first_product:
+                    # 如果没有查找到, 则说明是更换了参与商品, 因此删除旧的
+                    FreshManFirstProduct.query.filter(FreshManFirstProduct.FMFAid == fmfaid).delete_()
+                    fresh_first_product = FreshManFirstProduct()
+                    fresh_first_product.FMFPid = str(uuid.uuid1())
+                fresh_first_product = fresh_first_product.update({
+                    # 'FMFAid': fresh_first_apply.FMFAid,
+                    'PRid': prid,
+                    'PRmainpic': product.PRmainpic,
+                    'PRtitle': product.PRtitle,
+                    'PBid': product.PBid,
+                    'PBname': product_brand.PBname,
+                    'PRattribute': product.PRattribute,
+                    'PRdescription': product.PRdescription,
+                    'PRprice': data.get('prprice')
+                })
+                db.session.add(fresh_first_product)
+                skus = data.get('skus')
+                skuids = []
+                for sku in skus:
+                    skuid = sku.get('skuid')
+                    skuids.append(skuid)
+                    skuprice = sku.get('skuprice')
+                    skustock = sku.get('skustock')
+                    sku = ProductSku.query.filter(
+                        ProductSku.isdelete == False,
+                        ProductSku.PRid == prid,
+                        ProductSku.SKUid == skuid
+                    ).first_('商品sku信息不存在')
+                    fresh_first_sku = FreshManFirstSku.query.filter(
+                        FreshManFirstApply.isdelete == False,
+                        FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
+                        FreshManFirstSku.SKUid == skuid
+                    ).first()
+                    self._update_stock(-int(skustock), product, sku)
+                    if not fresh_first_sku:
+                        fresh_first_sku = FreshManFirstSku()
+                        fresh_first_sku.FMFSid = str(uuid.uuid1())
+                    fresh_first_sku.update({
+                        'FMFSid': str(uuid.uuid1()),
+                        'FMFPid': fresh_first_product.FMFPid,
+                        'FMFPstock': skustock,
+                        'SKUid': skuid,
+                        'SKUprice': float(skuprice),
+                    })
+                    db.session.add(fresh_first_sku)
+                    # self._update_stock()
+                # 删除其他的不需要的新人首单sku
+                FreshManFirstSku.query.filter(
+                    FreshManFirstSku.isdelete == False,
+                    FreshManFirstSku.FMFPid == fresh_first_product.FMFPid,
+                    FreshManFirstSku.SKUid.notin_(skuids)
+                ).delete_(synchronize_session=False)
+
+            Approval.query.filter(
+                Approval.isdelete == False,
+                Approval.AVcontent == fmfaid
+            ).delete_()
+            BASEAPPROVAL().create_approval('tofreshmanfirstproduct', request.user.id,
+                                           fresh_first_apply.FMFAid, apply_from)
+            return Success('申请单修改成功', data=fresh_first_apply.FMFAid)
+        else:
+            apply = self.reapply_award(fresh_first_apply)
+            return Success('申请单修改成功', data=apply.FMFAid)
 
     def award_detail(self):
         """查看申请详情"""
-        data = parameter_required(('fmfaid', ))
+        data = parameter_required(('fmfaid',))
         fmfaid = data.get('fmfaid')
-        apply = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False, FreshManFirstApply.FMFAid == fmfaid).first_('该申请不存在')
+        apply = FreshManFirstApply.query.filter(FreshManFirstApply.isdelete == False,
+                                                FreshManFirstApply.FMFAid == fmfaid).first_('该申请不存在')
         apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
         if apply.FMFAfrom == ApplyFrom.platform.value:
             admin = Admin.query.filter(Admin.ADid == apply.SUid).first()
@@ -554,6 +707,35 @@ class CFreshManFirstOrder(COrder, CUser):
         applys = query.filter(FreshManFirstApply.FMFAstartTime >= starttime,
                               FreshManFirstApply.FMFAendTime <= endtime).order_by(
             FreshManFirstApply.createtime.desc()).all_with_page()
+        # 修改开始活动的重新审核状态
+        time_now = date.today()
+        fresh_man_applys = FreshManFirstApply.query.filter(
+            FreshManFirstApply.FMFAstatus == ApplyStatus.lose_agree.value,
+            FreshManFirstApply.AgreeStartime <= time_now,
+            FreshManFirstApply.AgreeEndtime >= time_now,
+            FreshManFirstApply.isdelete == False,
+        ).all()
+        if fresh_man_applys:
+            with db.auto_commit():
+                for fresh_man_apply in fresh_man_applys:
+                    fresh_man_apply.update({'FMFAstatus': ApplyStatus.agree.value})
+                    db.session.add(fresh_man_apply)
+                    fresh_child_apply = FreshManFirstApply.query.filter(
+                        FreshManFirstApply.ParentFMFAid == fresh_man_apply.FMFAid,
+                        FreshManFirstApply.FMFAstatus == ApplyStatus.wait_check.value,
+                        FreshManFirstApply.isdelete == False).first()
+                    if fresh_child_apply:
+                        fresh_child_apply.update({'FMFAstatus': ApplyStatus.lose_effect.value})
+                        db.session.add(fresh_child_apply)
+                        # 进行库存恢复
+                        apply_skus = FreshManFirstSku.query.join(
+                            FreshManFirstProduct, FreshManFirstProduct.FMFPid == FreshManFirstSku.FMFPid).filter(
+                            FreshManFirstProduct.FMFAid == fresh_child_apply.FMFAid).all()
+                        from planet.control.COrder import COrder
+                        for apply_sku in apply_skus:
+                            sku = ProductSku.query.filter(ProductSku.SKUid == apply_sku.SKUid).first()
+                            product = Products.query.filter(Products.PRid == sku.PRid).first()
+                            COrder()._update_stock(apply_sku.FMFPstock, product, sku)
         for apply in applys:
             # 状态中文
             apply.fill('FMFAstatus_zh', ApplyStatus(apply.FMFAstatus).zh_value)
