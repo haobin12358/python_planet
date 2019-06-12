@@ -237,7 +237,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             if not sku:
                 current_app.logger.info('该sku已删除 skuid = {0}'.format(ips.SKUid))
                 continue
-            sku.hide('SKUstock', 'SkudevideRate', 'PRid', 'SKUid')
+            sku.hide('SKUstock', 'SkudevideRate', 'PRid')
             sku.fill('skuprice', ips.SKUprice)
             sku.fill('ipsstock', ips.IPSstock)
             sku.fill('ipsid', ips.IPSid)
