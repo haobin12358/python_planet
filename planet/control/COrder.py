@@ -24,7 +24,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS
+    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS, GuessGroupStatus, GuessRecordStatus
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -40,7 +40,8 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     UserSalesVolume, OutStock, OrderRefundNotes, OrderRefundFlow, Supplizer, SupplizerAccount, SupplizerSettlement, \
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
-    OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog, UserIntegral
+    OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog, UserIntegral, GuessGroup, \
+    GuessRecord, GroupGoodsProduct, GroupGoodsSku
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
@@ -172,6 +173,11 @@ class COrder(CPay, CCoupon):
                     omid = order_main.OMid
                     order_refund_apply_instance = self._get_refund_apply({'OMid': omid})
                     self._fill_order_refund(order_main, order_refund_apply_instance, False)
+
+                # 拼团竞猜 更改状态文字
+                if order_main.OMfrom == OrderFrom.guess_group.value:
+                    self.change_status_name_for_guess_group(order_main)
+
         if form.export_xls.data:
             now = datetime.now()
             data = tablib.Dataset(*rows, headers=headers, title='订单导出页面')
@@ -872,6 +878,11 @@ class COrder(CPay, CCoupon):
         order_main.OMstatus_en = OrderMainStatus(order_main.OMstatus).name
         order_main.OMstatus_zh = OrderMainStatus(order_main.OMstatus).zh_value
         order_main.add('OMstatus_en', 'createtime', 'OMstatus_zh').hide('OPayno', 'USid', )
+
+        # 拼团竞猜 更改状态文字
+        if order_main.OMfrom == OrderFrom.guess_group.value:
+            self.change_status_name_for_guess_group(order_main)
+
         now = datetime.now()
         if order_main.OMstatus == OrderMainStatus.wait_pay.value:
             duration = order_main.createtime + timedelta(minutes=30) - now
@@ -1059,7 +1070,16 @@ class COrder(CPay, CCoupon):
                                                                  ).first()
                     ip = IntegralProduct.query.filter_by_(IPid=order_part.PRid).first()
                     if not ips or not ip:
-                        current_app.logger.info('星币商品或sku不在上架状态, ipid:{}'.format(ip.IPid))
+                        current_app.logger.info('星币商品或sku不在上架状态, ipid:{}'.format(prid))
+                        sku_instance = ProductSku.query.outerjoin(IntegralProductSku,
+                                                                  IntegralProductSku.SKUid == ProductSku.SKUid
+                                                                  ).filter(IntegralProductSku.IPSid == skuid).first()
+                        product = Products.query.outerjoin(IntegralProduct,
+                                                           IntegralProduct.PRid == Products.PRid
+                                                           ).filter(IntegralProduct.IPid == prid,
+                                                                    Products.isdelete == False,
+                                                                    Products.PRstatus == ProductStatus.usual.value
+                                                                    ).first()
                         if product and sku_instance:
                             current_app.logger.info('原商品存在，返还库存到原商品sku')
                             self._update_stock(int(opnum), skuid=skuid)
@@ -1068,6 +1088,33 @@ class COrder(CPay, CCoupon):
                     current_app.logger.info('星币商品状态正常，返还库存ipsid:{}'.format(ips.IPSid))
                     ips.IPSstock += opnum
                     ip.IPsaleVolume -= opnum
+                elif omfrom == OrderFrom.guess_group.value:
+                    current_app.logger.info('正在取消一个拼团竞猜订单')
+                    gp = GroupGoodsProduct.query.filter(GroupGoodsProduct.GPid == prid,
+                                                        GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
+                                                        GroupGoodsProduct.isdelete == False).first()
+                    gps = GroupGoodsSku.query.filter_by_(GSid=skuid).first()
+
+                    pr_sku = ProductSku.query.outerjoin(GroupGoodsSku,
+                                                        GroupGoodsSku.SKUid == ProductSku.SKUid
+                                                        ).filter(GroupGoodsSku.GSid == skuid,
+                                                                 ProductSku.isdelete == False).first()
+                    pr = Products.query.outerjoin(GroupGoodsProduct,
+                                                  GroupGoodsProduct.PRid == Products.PRid
+                                                  ).filter(GroupGoodsProduct.GPid == prid,
+                                                           Products.isdelete == False,
+                                                           Products.PRstatus == ProductStatus.usual.value
+                                                           ).first()
+                    if not gp or not gps:
+                        current_app.logger.info('拼团商品或sku不在上架状态, gpid:{}'.format(prid))
+                        if pr and pr_sku:
+                            current_app.logger.info('原商品存在，返还库存到原商品sku')
+                            self._update_stock(int(opnum), product=pr, sku=pr_sku)
+                    else:
+                        current_app.logger.info('拼团商品库存 {} + {}'.format(gps.GSstock, opnum))
+                        gps.GSstock += opnum
+                    current_app.logger.info('商品销量 {} - {}'.format(pr.PRsalesValue, opnum))
+                    pr.PRsalesValue -= opnum
 
     @token_required
     def delete(self):
@@ -1801,6 +1848,32 @@ class COrder(CPay, CCoupon):
             if is_admin():
                 BASEADMIN().create_action(AdminActionS.update.value, 'OrderMain', omid)
         return Success('修改成功')
+
+    @staticmethod
+    def change_status_name_for_guess_group(order_main):
+        guess_group = GuessGroup.query.outerjoin(
+            GuessRecord,
+            GuessRecord.GGid == GuessGroup.GGid
+        ).outerjoin(
+            OrderPart,
+            OrderPart.PRid == GuessGroup.GPid
+        ).outerjoin(OrderMain,
+                    OrderMain.OMid == OrderPart.OMid
+                    ).filter(OrderMain.isdelete == False,
+                             OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                             GuessRecord.OMid == order_main.OMid,
+                             GuessRecord.isdelete == False,
+                             GuessRecord.GRstatus == GuessRecordStatus.valid.value
+                             ).first()
+        if order_main.OMstatus == OrderMainStatus.wait_send.value and not order_main.OMinRefund:
+            if guess_group:
+                if guess_group.GGstatus == GuessGroupStatus.pending.value:
+                    order_main.OMstatus_zh = '拼团待竞猜'
+                elif guess_group.GGstatus == GuessGroupStatus.waiting.value:
+                    order_main.OMstatus_zh = '拼团待开奖'
+            else:
+                order_main.OMstatus_zh = '待参与拼团'
+        return
 
     def test_to_send(self):
         data = parameter_required(('phone',))
