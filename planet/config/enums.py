@@ -64,6 +64,7 @@ class OrderFrom(Enum):
     trial_commodity = 60, '试用商品'
     time_limited = 70, '限时特惠',
     integral_store = 80, '星币商城'
+    guess_group = 90, '拼团竞猜'
 
 
 class OrderMainStatus(Enum):
@@ -85,6 +86,7 @@ class ActivityOrderNavigation(Enum):
     trial_commodity = 60, '免费试用'
     time_limited = 70, '限时特惠'
     integral_store = 80, '星币商城'
+    guess_grou = 90, '拼团竞猜'
 
 
 class OrderEvaluationScore(Enum):
@@ -295,6 +297,28 @@ class ActivityType(Enum):
     magic_box = 2, '魔术礼盒'
     free_use = 3, '免费试用'
     time_limited = 4, '限时活动'
+    guess_group = 5, '竞猜拼团'
+
+
+class GuessGroupStatus(Enum):
+    """拼团状态"""
+    failed = -10, '拼团失败'
+    pending = 0, '等待分享'
+    waiting = 10, '等待开奖'
+    completed = 20, '拼团完成'
+
+
+class GuessRecordStatus(Enum):
+    """拼团记录状态"""
+    invalid = -10, '失效'
+    valid = 0, '有效'
+
+
+class GuessRecordDigits(Enum):
+    """竞猜记录位数"""
+    singleDigits = 0, '个位'
+    tenDigits = 10, '十位'
+    hundredDigits = 20, '百位'
 
 
 class QuestAnswerNoteType(Enum):
@@ -522,6 +546,7 @@ class UserCommissionType(Enum):
     fresh_man = 1, '新人商品'
     deposit = 2, '押金'
     news_award = 3, '圈子打赏'
+    group_refund = 4, '拼团退款'
 
 
 class UserCommissionStatus(Enum):
