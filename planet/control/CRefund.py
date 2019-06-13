@@ -14,19 +14,23 @@ from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
 from planet.config.enums import OrderMainStatus, ORAproductStatus, ApplyStatus, OrderRefundORAstate, \
-    DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType
+    DisputeTypeType, OrderRefundOrstatus, PayType, UserCommissionStatus, OrderFrom, UserCommissionType, \
+    GuessRecordStatus, GuessGroupStatus, ApplyFrom
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import wx_pay, alipay, db
 from planet.extensions.validates.trade import RefundSendForm, RefundConfirmForm, RefundConfirmRecvForm
-from planet.models import UserCommission, FreshManJoinFlow, Products, ProductMonthSaleValue
+from planet.models import UserCommission, FreshManJoinFlow, Products, ProductMonthSaleValue, GuessRecord, GuessGroup, \
+    UserWallet
 from planet.models.trade import OrderRefundApply, OrderMain, OrderPart, DisputeType, OrderRefund, LogisticsCompnay, \
     OrderRefundFlow, OrderPay, OrderRefundNotes
 from planet.service.STrade import STrade
+from planet.control.COrder import COrder
 
 
 class CRefund(object):
     def __init__(self):
         self.strade = STrade()
+        self.corder = COrder()
 
     @token_required
     def create(self):
@@ -513,6 +517,73 @@ class CRefund(object):
                 raise StatusError('星币商城订单暂不支持退换货，如有问题请及时联系客服')
             elif order_main.OMfrom == OrderFrom.trial_commodity.value:
                 raise StatusError('试用商品订单暂不支持退换货，如有问题请及时联系客服')
+            elif order_main.OMfrom == OrderFrom.guess_group.value:  # 拼团竞猜申请退款时
+                guess_record = GuessRecord.query.filter(GuessRecord.isdelete == False,
+                                                        GuessRecord.OMid == order_main.OMid,
+                                                        GuessRecord.GRstatus == GuessRecordStatus.valid.value
+                                                        ).first()
+                if guess_record:
+                    current_app.logger.info('拼团订单申请售后，GRid {}'.format(guess_record.GRid))
+
+                    guess_record.GRstatus = GuessRecordStatus.invalid.value  # 拼团记录改为失效
+                    guess_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
+                                                          GuessGroup.GGid == guess_record.GGid).first()
+                    if guess_group and guess_group.GGstatus in (GuessGroupStatus.pending.value,
+                                                                GuessGroupStatus.waiting.value):
+                        if guess_group.USid == order_main.USid:
+                            current_app.logger.info('拼团GGid {} ；发起人申请售后'.format(guess_group.GGid))
+                            guess_group.GGstatus = GuessGroupStatus.failed.value  # 如果是拼团发起人，该团直接拼团失败
+                            # 退还其余两人押金
+                            grs = GuessRecord.query.filter(GuessRecord.isdelete == False,
+                                                           GuessRecord.USid != order_main.USid,
+                                                           GuessRecord.GGid == guess_group.GGid,
+                                                           GuessRecord.GRstatus == GuessRecordStatus.valid.value
+                                                           ).all()
+                            for gr in grs:
+                                # gr.GRstatus = GuessRecordStatus.invalid.value
+                                current_app.logger.info('退还参与者 {} 的押金'.format(gr.USid))
+                                order_part = OrderPart.query.filter_by_(OMid=gr.OMid).first()  # 参与者的副单
+                                tem_order_main = OrderMain.query.filter_by_(OMid=gr.OMid).first()  # 参与者主单
+                                self.corder._cancle(tem_order_main)  # 参与者主单改为取消
+                                # 参与者退还押金
+                                price = order_part.OPsubTrueTotal
+                                user_commision_dict = {
+                                    'UCid': str(uuid.uuid1()),
+                                    'UCcommission': Decimal(price).quantize(Decimal('0.00')),
+                                    'USid': tem_order_main.USid,
+                                    'UCstatus': UserCommissionStatus.in_account.value,
+                                    'UCtype': UserCommissionType.group_refund.value,
+                                    'PRtitle': f'[拼团押金]{order_part.PRtitle}',
+                                    'SKUpic': order_part.PRmainpic,
+                                    'OMid': order_part.OMid,
+                                    'OPid': order_part.OPid
+                                }
+                                db.session.add(UserCommission.create(user_commision_dict))
+
+                                user_wallet = UserWallet.query.filter_by_(USid=tem_order_main.USid).first()
+
+                                if user_wallet:
+                                    user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(
+                                        str(price))
+                                    user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(price))
+                                    user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(price))
+                                    db.session.add(user_wallet)
+                                else:
+                                    user_wallet_instance = UserWallet.create({
+                                        'UWid': str(uuid.uuid1()),
+                                        'USid': tem_order_main.USid,
+                                        'UWbalance': Decimal(price).quantize(Decimal('0.00')),
+                                        'UWtotal': Decimal(price).quantize(Decimal('0.00')),
+                                        'UWcash': Decimal(price).quantize(Decimal('0.00')),
+                                        # 'UWexpect': user_commision.UCcommission,
+                                        'CommisionFor': ApplyFrom.user.value
+                                    })
+                                    db.session.add(user_wallet_instance)
+                        else:
+                            if guess_group.GGstatus == GuessGroupStatus.waiting.value:
+                                current_app.logger.info('拼团等待开奖中，改为正在拼')
+                                guess_group.GGstatus = GuessGroupStatus.pending.value
+
             # 之前的申请
             apply = OrderRefundApply.query.filter(
                 OrderRefundApply.isdelete == False,
