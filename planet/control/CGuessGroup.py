@@ -262,11 +262,15 @@ class CGuessGroup(COrder, BASEAPPROVAL):
         if common_user() or is_tourist():
             headers, numbers = self._fill_number_and_headers(gg)
             status = getattr(gg, 'GGstatus', None)
-            ggstatus_zh = None
-            if isinstance(status, int):
-                ggstatus_zh = GuessGroupStatus(status).zh_value
-                if status == GuessGroupStatus.completed.value:
-                    ggstatus_zh = '本期正确结果: {}'.format(getattr(gg, 'GGcorrectNum', None))
+            ggstatus_zh = GuessGroupStatus(status).zh_value if isinstance(status, int) else None
+            tradeprice = None
+            if gg and status == GuessGroupStatus.completed.value:
+                tradeprice = db.session.query(OrderMain.OMtrueMount).outerjoin(
+                    GuessRecord, GuessRecord.OMid == OrderMain.OMid
+                ).filter(OrderMain.isdelete == False, GuessRecord.isdelete == False, GuessRecord.GGid == gg.GGid,
+                         OrderMain.USid == request.user.id, GuessRecord.GRstatus == GuessRecordStatus.valid.value,
+                         ).scalar() if common_user() else None
+                ggstatus_zh = '本期正确结果: {}'.format(gg.GGcorrectNum) if common_user() else ggstatus_zh
 
             guess_group = {'ggid': getattr(gg, 'GGid', None),
                            'ggstatus': status,
@@ -274,6 +278,7 @@ class CGuessGroup(COrder, BASEAPPROVAL):
                            'ggstatus_zh': ggstatus_zh,
                            'headers': headers,
                            'numbers': numbers,
+                           'tradeprice': tradeprice,
                            'rules': db.session.query(Activity.ACdesc
                                                      ).filter_by_(ACtype=ActivityType.guess_group.value).scalar()
                            }

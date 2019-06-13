@@ -168,7 +168,7 @@ def guess_group_draw():
                         else:
                             continue
 
-                    if correct_num == 1:
+                    if correct_count == 1:
                         current_app.logger.info('该团{}猜中一位数'.format(group.GGid))
                         one_point += 1
                         for gri in grs:
@@ -180,15 +180,16 @@ def guess_group_draw():
                                 current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
                                 continue
                             order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
-                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GSid=order_part.SKUid).first()
                             price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUFirstLevelPrice), 2)
+                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUFirstLevelPrice}')
                             if price > 0:  # 退钱
                                 current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
                                 group_refund_to_wallet(order_main, order_part, price=price)
                                 # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
                                 order_main.OMtrueMount = gg_sku.SKUFirstLevelPrice
                                 order_part.OPsubTrueTotal = gg_sku.SKUFirstLevelPrice
-                    elif correct_num == 2:
+                    elif correct_count == 2:
                         current_app.logger.info('该团{}猜中两位数'.format(group.GGid))
                         two_point += 1
                         for gri in grs:
@@ -200,15 +201,16 @@ def guess_group_draw():
                                 current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
                                 continue
                             order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
-                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GSid=order_part.SKUid).first()
                             price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUSecondLevelPrice), 2)
+                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUFirstLevelPrice}')
                             if price > 0:  # 退钱
                                 current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
                                 group_refund_to_wallet(order_main, order_part, price=price)
                                 # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
                                 order_main.OMtrueMount = gg_sku.SKUSecondLevelPrice
                                 order_part.OPsubTrueTotal = gg_sku.SKUSecondLevelPrice
-                    elif correct_num == 3:
+                    elif correct_count == 3:
                         current_app.logger.info('该团{}猜中三位数'.format(group.GGid))
                         three_point += 1
                         for gri in grs:
@@ -220,22 +222,24 @@ def guess_group_draw():
                                 current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
                                 continue
                             order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
-                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GSid=order_part.SKUid).first()
                             price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUThirdLevelPrice), 2)
+                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUFirstLevelPrice}')
                             if price > 0:  # 退钱
                                 current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
                                 group_refund_to_wallet(order_main, order_part, price=price)
                                 # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
                                 order_main.OMtrueMount = gg_sku.SKUThirdLevelPrice
                                 order_part.OPsubTrueTotal = gg_sku.SKUThirdLevelPrice
-                    elif correct_num == 0:
+                    elif correct_count == 0:
                         zero_point += 1
                     else:
-                        current_app.logger.error('异常团 GPid {} 待开奖，但猜中记录数为{}'.format(group.GGid, correct_num))
+                        current_app.logger.error('异常团 GPid {} 待开奖，但猜中记录数为{}'.format(group.GGid, correct_count))
     except Exception as e:
         current_app.logger.error('>>> 拼团开奖错误: {}<<<'.format(e))
     finally:
-        current_app.logger.info('>>> 拼团今日开奖结束 <<<')
+        current_app.logger.info('>>> 拼团开奖结束，共有{}个团猜中一位数，{}个团猜中两位，'
+                                '{}个团全中，{}团全未中<<<'.format(one_point, two_point, three_point, zero_point))
 
 
 def group_refund_to_wallet(order_main, order_part, price=None):
@@ -1059,7 +1063,7 @@ def start_timelimited(tlaid):
 if __name__ == '__main__':
     from planet import create_app
 
-    app, _ = create_app()
+    app = create_app()
     with app.app_context():
         # event_expired_revert()
         # deposit_to_account()
