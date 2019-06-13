@@ -283,21 +283,27 @@ class CMessage():
     def get_room(self, data, userid):
         neid = data.get('neid')
         usid = data.get('usid')
-        if neid:
-            news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
-            usid = news.USid
-        # 获取当前用户有的房间
-        room_list = UserRoom.query.filter_by(USid=userid, isdelete=False).all()
-        roomid = None
-        for room in room_list:
-            other_user = UserRoom.query.filter(
-                UserRoom.ROid == room.ROid,
-                UserRoom.USid != userid,
-                UserRoom.isdelete == False).all()
-            other_user_id = [other.USid for other in other_user]
-            # 如果有和对方聊天的双人房间 返回房间id
-            if usid in other_user_id and len(other_user_id) == 1:
-                roomid = room.ROid
+        roid = data.get('roid')
+        if roid:
+            roomid = roid
+        else:
+
+            if neid:
+                news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
+                usid = news.USid
+
+            # 获取当前用户有的房间
+            room_list = UserRoom.query.filter_by(USid=userid, isdelete=False).all()
+            roomid = None
+            for room in room_list:
+                other_user = UserRoom.query.filter(
+                    UserRoom.ROid == room.ROid,
+                    UserRoom.USid != userid,
+                    UserRoom.isdelete == False).all()
+                other_user_id = [other.USid for other in other_user]
+                # 如果有和对方聊天的双人房间 返回房间id
+                if usid in other_user_id and len(other_user_id) == 1:
+                    roomid = room.ROid
         with db.auto_commit():
             if not roomid:
                 # 如果不存在和对方的聊天房间 则创建房间
@@ -332,7 +338,7 @@ class CMessage():
         from planet import socketio
         with db.auto_commit():
             db.session.add(umsg)
-            unread = self._fill_umsg(umsg)
+            self._fill_umsg(umsg)
             room = Room.query.filter_by(ROid=roomid, isdelete=False).first()
             um_list = UserRoom.query.filter(
                 UserRoom.ROid == roomid,
@@ -341,9 +347,22 @@ class CMessage():
             ).all()
             usersid = self.get_usersid()
             for um in um_list:
-                umsg.fill('usunread', unread)
+                user = User.query.filter_by(USid=um.USid, isdelete=False).first()
+                admin = Admin.query.filter_by(ADid=um.USid, isdelete=False).first()
+                usunread = 0
+                if user:
+                    user.USunread = (user.USunread or 0) + 1
+                    usunread = user.USunread
+                if admin:
+                    admin.ADunread = (admin.ADunread or 0) + 1
+                    usunread = admin.ADunread
+
+                um.URunread = (um.URunread or 0) + 1
+                umsg.fill('usunread', usunread)
+                umsg.fill('urunread', um.URunread)
+
                 socketio.emit('notice', umsg, room=usersid.get(um.USid))
-                um.URunread = um.URunread or 0 + 1
+
             room.updatetime = datetime.now()
         return umsg
 
@@ -355,17 +374,16 @@ class CMessage():
             UserMessage.createtime.desc()).all_with_page()
         um = UserRoom.query.filter_by(USid=request.user.id, ROid=roomid).first()
         with db.auto_commit():
-            um.URunread = 0
-
             for umsg in umsg_list:
-                self._fill_umsg(umsg, is_get=True)
+                self._fill_umsg(umsg, is_get=True, urunread=um.URunread)
+            um.URunread = 0
 
         return Success(data=umsg_list)
 
-    def _fill_umsg(self, umsg, is_get=False):
+    def _fill_umsg(self, umsg, is_get=False, urunread=0):
         user = User.query.filter_by(USid=umsg.USid).first()
         admin = Admin.query.filter_by(ADid=umsg.USid).first()
-        unread = 0
+        # unread = 0
         # supplizer = Supplizer.query.filter_by(SUid=umsg.USid).first()
         if not (user or admin):
             head = 'https://pre2.bigxingxing.com/img/logo.png'
@@ -375,25 +393,29 @@ class CMessage():
                 head = user['USheader']
                 name = user.USname
                 if is_get:
-                    user.USunread = 0
-                else:
-                    user.USunread = user.USunread or 0 + 1
-                    unread = user.USunread
+                    user.USunread -= urunread
+                    if user.USunread < 0:
+                        user.USunread = 0
+                # else:
+                    # user.USunread = (user.USunread or 0) + 1
+                    # unread = user.USunread
             else:
                 head = admin['ADheader']
                 name = admin.ADname
                 if is_get:
-                    admin.ADunread = 0
-                else:
-                    admin.ADunread = admin.ADunread or 0 + 1
-                    unread = admin.ADunread
+                    admin.ADunread -= urunread
+                    if admin.ADunread < 0:
+                        admin.ADunread = 0
+                # else:
+                    # admin.ADunread = (admin.ADunread or 0) + 1
+                    # unread = admin.ADunread
 
         umsg.fill('head', head)
         if not is_tourist():
             umsg.fill('isself', user.USid == request.user.id)
         umsg.fill('name', name)
         umsg.add('createtime')
-        return unread
+        # return unread
 
     @token_required
     def del_room(self):
