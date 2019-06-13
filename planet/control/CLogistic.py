@@ -11,8 +11,9 @@ from planet.common.params_validates import parameter_required
 from planet.common.request_handler import gennerc_log
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required
-from planet.config.enums import OrderMainStatus, LogisticsSignStatus
+from planet.config.enums import OrderMainStatus, LogisticsSignStatus, OrderFrom, GuessGroupStatus
 from planet.extensions.register_ext import db
+from planet.models import GuessGroup, OrderPart
 from planet.models.trade import LogisticsCompnay, OrderLogistics, OrderMain
 from planet.service.STrade import STrade
 
@@ -46,6 +47,20 @@ class CLogistic:
             order_main_instance = s.query(OrderMain).filter_by_({
                 'OMid': omid,
             }).first_('订单不存在')
+
+            if order_main_instance.OMfrom == OrderFrom.guess_group.value:
+                guess_group = GuessGroup.query.outerjoin(
+                    OrderPart,
+                    OrderPart.PRid == GuessGroup.GPid
+                ).outerjoin(OrderMain,
+                            OrderMain.OMid == OrderPart.OMid
+                            ).filter(OrderMain.isdelete == False,
+                                     OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                     OrderPart.OMid == order_main_instance.OMid,
+                                     ).first()
+                if not guess_group or (guess_group.GGstatus != GuessGroupStatus.completed.value):
+                    raise StatusError('该拼团订单尚未完成, 不能提前发货')
+
             # if order_main_instance.OMstatus != OrderMainStatus.wait_send.value:
             #     raise StatusError('订单状态不正确')
             if order_main_instance.OMinRefund is True:
