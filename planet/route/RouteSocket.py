@@ -194,7 +194,7 @@ class Mynamespace(Namespace):
         cmsg = CMessage()
         umsg = cmsg.send_msg(message, umsgtype, roomid, userid)
         current_app.logger.info('写入成功')
-        emit('new_message', umsg, room=roomid)
+        self.socketio.emit('new_message', umsg, room=roomid)
         current_app.logger.info('发送成功')
         return return_res(Success('发送成功'))
 
