@@ -471,7 +471,9 @@ class CGuessGroup(COrder, BASEAPPROVAL):
 
         all_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
                                             GuessGroup.GGendtime >= datetime.datetime.now(),
-                                            *filter_args
+                                            GuessGroup.GGstatus.in_((GuessGroupStatus.pending.value,
+                                                                     GuessGroupStatus.waiting.value)),
+                                            * filter_args
                                             ).order_by(func.field(GuessGroup.GGstatus, 0, 10, 20, -10),
                                                        GuessGroup.createtime.desc())
         return all_group
