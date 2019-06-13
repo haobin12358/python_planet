@@ -734,6 +734,8 @@ class CGuessGroup(COrder, BASEAPPROVAL):
         uaid = data.get('uaid')
         gpid = data.get('gpid')
         opaytype = data.get('opaytype', 0)  # 支付方式
+        if datetime.datetime.now().hour >= 21:
+            raise StatusError(' ^_^  正在等待今日开奖 (每日21:00后停止竞猜，请明日再来)')
         try:
             omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
             Client(omclient)
