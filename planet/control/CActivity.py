@@ -11,7 +11,8 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.activty import ActivityUpdateForm, ActivityGetForm, ParamsError
 from planet.models import Activity, OrderMain, GuessNumAwardApply, MagicBoxApply, ProductSku, Products, MagicBoxJoin, \
-    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply, OutStock, GuessNumAwardProduct
+    MagicBoxOpen, TrialCommodity, FreshManFirstProduct, FreshManFirstApply, OutStock, GuessNumAwardProduct, \
+    GroupGoodsProduct
 from .CUser import CUser
 
 
@@ -80,7 +81,7 @@ class CActivity(CUser):
                     TrialCommodity.TCstocks > 0
                 ).count()
                 act.fill('prcount', free_use_count)
-            else:
+            elif ActivityType(act.ACtype).name == 'fresh_man':
                 fresh_man_count = FreshManFirstProduct.query.join(
                     FreshManFirstApply, FreshManFirstProduct.FMFAid == FreshManFirstApply.FMFAid
                 ).filter_(
@@ -90,6 +91,14 @@ class CActivity(CUser):
                     FreshManFirstApply.FMFAstatus == ApplyStatus.agree.value,
                 ).count()
                 act.fill('prcount', fresh_man_count)
+            elif ActivityType(act.ACtype).name == 'guess_group':
+                gg_count = GroupGoodsProduct.query.filter(GroupGoodsProduct.isdelete == False,
+                                                          GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
+                                                          GroupGoodsProduct.GPday == today
+                                                          ).count()
+                act.fill('prcount', gg_count)
+            else:
+                act.fill('prcount', 0)
             if is_admin():
                 result = activitys
             else:
