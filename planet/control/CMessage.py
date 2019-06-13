@@ -245,39 +245,40 @@ class CMessage():
 
     @token_required
     def get_room_list(self):
-        # if common_user():
-            user_room_list = UserRoom.query.join(Room, Room.ROid == UserRoom.ROid).filter(
-                UserRoom.USid == request.user.id,
-                UserRoom.isdelete == False,
-                Room.isdelete == False).order_by(
-                Room.updatetime.desc()).all_with_page()
-            for user_room in user_room_list:
-                room = Room.query.filter_by(ROid=user_room.ROid, isdelete=False).first()
+        user_room_list = UserRoom.query.join(Room, Room.ROid == UserRoom.ROid).filter(
+            UserRoom.USid == request.user.id,
+            UserRoom.isdelete == False,
+            UserRoom.URshow == True,
+            Room.isdelete == False).order_by(
+            Room.updatetime.desc()).all_with_page()
+        for user_room in user_room_list:
+            room = Room.query.filter_by(ROid=user_room.ROid, isdelete=False).first()
 
-                user_message = UserMessage.query.filter(
-                    UserMessage.ROid == user_room.ROid,
-                    UserMessage.isdelete == False
-                ).order_by(UserMessage.createtime.desc()).first()
-                other_list = UserRoom.query.filter(
-                    UserRoom.ROid==user_room.ROid, UserRoom.isdelete==False, UserRoom.USid != user_room.USid).all()
-                roomname = ""
-                head_list = list()
-                for other in other_list:
-                    user = User.query.filter_by(USid=other.USid, isdelete=False).first()
-                    if user:
-                        roomname += user.USname
-                        head_list.append(user['USheader'])
-                    else:
-                        roomname += '未知'
-                        head_list.append('https://pre2.bigxingxing.com/img/logo.png')
-                    # other_dict_list.append({'usname', })
-                user_room.fill('umsgtext', user_message.UMSGtext if user_message else "")
-                user_room.fill('headlist', head_list)
-                user_room.fill('roomname', roomname)
-                user_room.fill('updatetime', room.updatetime if room else user_room.updatetime)
-                user_room.hide('USid')
+            user_message = UserMessage.query.filter(
+                UserMessage.ROid == user_room.ROid,
+                UserMessage.isdelete == False
+            ).order_by(UserMessage.createtime.desc()).first()
+            other_list = UserRoom.query.filter(
+                UserRoom.ROid==user_room.ROid, UserRoom.isdelete==False, UserRoom.USid != user_room.USid).all()
+            roomname = ""
+            head_list = list()
+            for other in other_list:
+                user = User.query.filter_by(USid=other.USid, isdelete=False).first()
+                if user:
+                    roomname += user.USname
+                    head_list.append(user['USheader'])
+                else:
+                    roomname += '未知'
+                    head_list.append('https://pre2.bigxingxing.com/img/logo.png')
+                # other_dict_list.append({'usname', })
+            user_room.fill('umsgtext', user_message.UMSGtext if user_message else "")
+            user_room.fill('umsgtype', user_message.UMSGtype if user_message else 0)
+            user_room.fill('headlist', head_list)
+            user_room.fill('roomname', roomname)
+            user_room.fill('updatetime', room.updatetime if room else user_room.updatetime)
+            user_room.hide('USid')
 
-            return Success(data=user_room_list)
+        return Success(data=user_room_list)
 
     def get_room(self, data, userid):
         neid = data.get('neid')
@@ -285,7 +286,7 @@ class CMessage():
         if neid:
             news = News.query.filter_by(NEid=neid, isdelete=False).first_('用户不存在')
             usid = news.USid
-
+        # 获取当前用户有的房间
         room_list = UserRoom.query.filter_by(USid=userid, isdelete=False).all()
         roomid = None
         for room in room_list:
@@ -294,16 +295,16 @@ class CMessage():
                 UserRoom.USid != userid,
                 UserRoom.isdelete == False).all()
             other_user_id = [other.USid for other in other_user]
+            # 如果有和对方聊天的双人房间 返回房间id
             if usid in other_user_id and len(other_user_id) == 1:
                 roomid = room.ROid
         with db.auto_commit():
             if not roomid:
+                # 如果不存在和对方的聊天房间 则创建房间
                 roomid = str(uuid.uuid1())
                 # room =
                 db.session.add(Room.create({'ROid': roomid}))
-            userroom = UserRoom.query.filter_by(USid=userid, ROid=roomid).first()
-            if not userroom:
-
+                # 同时添加双方信息
                 db.session.add(UserRoom.create({
                     "URid": str(uuid.uuid1()),
                     'USid': userid,
@@ -314,21 +315,24 @@ class CMessage():
                     'USid': usid,
                     'ROid': roomid
                 }))
+            else:
+                UserRoom.query.filter_by(ROid=roomid, isdelete=False).update({'URshow': True})
+
         return roomid
 
-    def send_msg(self, umsgtext, roomid, userid):
+    def send_msg(self, umsgtext, umsgtype, roomid, userid):
         umsg = UserMessage.create({
             'UMSGid': str(uuid.uuid1()),
             'USid': userid,
             'ROid': roomid,
             'UMSGtext': umsgtext,
+            'UMSGtype': umsgtype,
         })
-
 
         from planet import socketio
         with db.auto_commit():
             db.session.add(umsg)
-            self._fill_umsg(umsg)
+            unread = self._fill_umsg(umsg)
             room = Room.query.filter_by(ROid=roomid, isdelete=False).first()
             um_list = UserRoom.query.filter(
                 UserRoom.ROid == roomid,
@@ -337,31 +341,72 @@ class CMessage():
             ).all()
             usersid = self.get_usersid()
             for um in um_list:
+                umsg.fill('usunread', unread)
                 socketio.emit('notice', umsg, room=usersid.get(um.USid))
+                um.URunread = um.URunread or 0 + 1
             room.updatetime = datetime.now()
         return umsg
 
+    @token_required
     def get_message_list(self):
         data = parameter_required()
         roomid = data.get('roid')
         umsg_list = UserMessage.query.filter(UserMessage.ROid == roomid, UserMessage.isdelete == False).order_by(
             UserMessage.createtime.desc()).all_with_page()
-        for umsg in umsg_list:
-            self._fill_umsg(umsg)
+        um = UserRoom.query.filter_by(USid=request.user.id, ROid=roomid).first()
+        with db.auto_commit():
+            um.URunread = 0
+
+            for umsg in umsg_list:
+                self._fill_umsg(umsg, is_get=True)
 
         return Success(data=umsg_list)
 
-    def _fill_umsg(self, umsg):
+    def _fill_umsg(self, umsg, is_get=False):
         user = User.query.filter_by(USid=umsg.USid).first()
         admin = Admin.query.filter_by(ADid=umsg.USid).first()
+        unread = 0
         # supplizer = Supplizer.query.filter_by(SUid=umsg.USid).first()
         if not (user or admin):
             head = 'https://pre2.bigxingxing.com/img/logo.png'
             name = '大行星官方'
         else:
-            head = user['USheader'] if user else admin['ADheader']
-            name = user.USname if user else admin.ADname
+            if user:
+                head = user['USheader']
+                name = user.USname
+                if is_get:
+                    user.USunread = 0
+                else:
+                    user.USunread = user.USunread or 0 + 1
+                    unread = user.USunread
+            else:
+                head = admin['ADheader']
+                name = admin.ADname
+                if is_get:
+                    admin.ADunread = 0
+                else:
+                    admin.ADunread = admin.ADunread or 0 + 1
+                    unread = admin.ADunread
 
         umsg.fill('head', head)
+        if not is_tourist():
+            umsg.fill('isself', user.USid == request.user.id)
         umsg.fill('name', name)
         umsg.add('createtime')
+        return unread
+
+    @token_required
+    def del_room(self):
+        data = parameter_required(('roid',))
+        roid = data.get('roid')
+        usid = request.user.id
+        ur = UserRoom.query.filter_by(USid=usid, ROid=roid, URshow=True).first()
+        if not ur:
+            return Success('已经删除')
+        with db.auto_commit():
+            ur.URshow = False
+
+        return Success('删除成功')
+
+
+

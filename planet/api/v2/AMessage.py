@@ -19,6 +19,7 @@ class AMessage(Resource):
     def post(self, message):
         apis = {
             'set': self.cmessage.set_message,
+            'del_room': self.cmessage.del_room,
             'create_room': self.cmessage.create_room
         }
         return apis
