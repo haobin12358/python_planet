@@ -203,7 +203,7 @@ def guess_group_draw():
                             order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
                             gg_sku = GroupGoodsSku.query.filter_by_(GSid=order_part.SKUid).first()
                             price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUSecondLevelPrice), 2)
-                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUFirstLevelPrice}')
+                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUSecondLevelPrice}')
                             if price > 0:  # 退钱
                                 current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
                                 group_refund_to_wallet(order_main, order_part, price=price)
@@ -224,7 +224,7 @@ def guess_group_draw():
                             order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
                             gg_sku = GroupGoodsSku.query.filter_by_(GSid=order_part.SKUid).first()
                             price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUThirdLevelPrice), 2)
-                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUFirstLevelPrice}')
+                            current_app.logger.info(f'price = {order_part.OPsubTrueTotal}-{gg_sku.SKUThirdLevelPrice}')
                             if price > 0:  # 退钱
                                 current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
                                 group_refund_to_wallet(order_main, order_part, price=price)
