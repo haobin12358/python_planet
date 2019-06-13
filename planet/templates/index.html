@@ -139,7 +139,7 @@
         var roomid = document.getElementById("room").innerText;
         console.log('get roomid');
         console.log(roomid);        
-        mysocket.emit('send_msg', {'roomid': roomid, 'umsgtext': message},function (res) {
+        mysocket.emit('send_msg', {'roid': roomid, 'umsgtext': message, 'umsgtype': 0},function (res) {
             console.log('get send res');
             console.log(res)
 

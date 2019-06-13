@@ -59,8 +59,8 @@ def background_thread(socketio):
         socketio.sleep(5)
 
         t = random.randint(1, 100)
-        # print(session.get('id'), t)
-        print(t)
+        # current_app.logger.info(session.get('id'), t)
+        current_app.logger.info(t)
         # emit('server_response', {'data': t})
         socketio.emit('server_response', {'data': t}, )
 
@@ -100,7 +100,7 @@ class Mynamespace(Namespace):
             # self.socketio.emit('server_response', Success('{} is connect '.format(user.username)))
             emit('server_response', Success('{} is connect '.format(user.username)))
 
-            return return_res(Success('{} is connect '.format(user.username)))
+            return return_res(Success('{} is connect '.format(user.username), data=user.id))
 
             # conn.set('sid', session.sid)
         # else:
@@ -115,7 +115,7 @@ class Mynamespace(Namespace):
     # @self.socketio.on('my event')  # 接收emit 的 myevent 消息
     def on_my_event(self, data):
         current_app.logger.info(data)
-        # print(session.get('id'))
+        # current_app.logger.info(session.get('id'))
         # session['id'] = 'json'
         return 'my event received'
 
@@ -129,7 +129,7 @@ class Mynamespace(Namespace):
 
     def on_change_num(self, data):
         current_app.logger.info(data)
-        # print(session.get('id'))
+        # current_app.logger.info(session.get('id'))
         roomid = data.get('room') or request.sid
         # global thread
         # with thread_lock:
@@ -185,14 +185,17 @@ class Mynamespace(Namespace):
         current_app.logger.info('send message', userid)
         if not userid:
             return return_res(AuthorityError)
-        roomid = data.get('roomid')
+        roomid = data.get('roid')
         message = data.get('umsgtext')
+        umsgtype = data.get('umsgtype') or 0
         if message == "":
             return return_res(ParamsError('内容不能为空'))
         from planet.control.CMessage import CMessage
         cmsg = CMessage()
-        umsg = cmsg.send_msg(message, roomid, userid)
-
+        umsg = cmsg.send_msg(message, umsgtype, roomid, userid)
+        current_app.logger.info('写入成功')
         emit('new_message', umsg, room=roomid)
+        current_app.logger.info('发送成功')
+        return return_res(Success('发送成功'))
 
     # def on_notice(self):
