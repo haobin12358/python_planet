@@ -41,6 +41,7 @@ class UserMessage(Base):
     USid = Column(String(64), comment='发送人')
     ROid = Column(String(64), comment='房间号')
     UMSGtext = Column(LONGTEXT, comment='内容')
+    UMSGtype = Column(Integer, default=0, comment='数据类型')
 
 
 class UserRoom(Base):
@@ -49,6 +50,8 @@ class UserRoom(Base):
     URid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='参加用户')
     ROid = Column(String(64), comment='房间号')
+    URshow = Column(Boolean, default=True, comment='是否在列表展示')
+    URunread = Column(Integer, default=0, comment='未读数')
 
 
 class Room(Base):
