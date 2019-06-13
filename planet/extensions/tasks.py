@@ -16,14 +16,15 @@ from planet.common.welfare_lottery import WelfareLottery
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
-    CartFrom, CorrectNumType
+    CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
-    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner
+    SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct
 
 celery = Celery()
 
@@ -91,6 +92,253 @@ def welfare_lottery_3d():
         current_app.logger.error('welfare_lottery_3d : {}'.format(e))
     finally:
         current_app.logger.info('>>> 获取福彩数据任务结束 <<<')
+
+
+@celery.task(name='guess_group_draw')
+def guess_group_draw():
+    """拼团竞猜开奖"""
+    from planet.control.COrder import COrder
+    corder = COrder()
+    now = datetime.now()
+    zero_point, one_point, two_point, three_point = 0, 0, 0, 0
+    try:
+        current_app.logger.info('>>> 拼团今日开奖 <<<')
+
+        # 获取正确结果
+        correct_res = CorrectNum.query.filter(CorrectNum.isdelete == False,
+                                              CorrectNum.CNtype == CorrectNumType.lottery_3d.value,
+                                              CorrectNum.CNdate == now.date()
+                                              ).first()
+        if not correct_res or not correct_res.CNnum:
+            current_app.logger.error('数据库中没有获取到正确结果')
+        correct_num = correct_res.CNnum
+
+        with db.auto_commit():
+            timeout = GuessGroup.query.filter(GuessGroup.isdelete == False,
+                                              GuessGroup.GGstatus == GuessGroupStatus.pending.value,
+                                              GuessGroup.GGendtime < now)
+            wait_draw = GuessGroup.query.filter(GuessGroup.isdelete == False,
+                                                GuessGroup.GGstatus == GuessGroupStatus.waiting.value)
+            guess_groups = timeout.union(wait_draw).all()
+            current_app.logger.info('共有{}个拼团待处理'.format(len(guess_groups)))
+            for group in guess_groups:
+                if group.GGstatus == GuessGroupStatus.pending.value:  # 超时还在拼团状态
+                    group.GGstatus = GuessGroupStatus.failed.value  # 拼团状态改为失败
+                    grs = GuessRecord.query.filter_by(isdelete=False,
+                                                      GGid=group.GGid,
+                                                      GRstatus=GuessRecordStatus.valid.value).all()
+                    if len(grs) > 3:
+                        current_app.logger.error('该团 GGid:{} 有效竞猜记录为 {}'.format(group.GGid, len(grs)))
+                        continue
+                    for gr in grs:
+                        order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                                            OrderMain.OMid == gr.OMid,
+                                                            OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                                            ).first()
+                        if not order_main:
+                            current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
+                            continue
+                        corder._cancle(order_main)  # 更改主单状态为取消 退库存 减销量
+                        order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
+
+                        # 增加佣金记录，更改用户钱包余额
+                        group_refund_to_wallet(order_main, order_part)
+                else:  # 等待开奖的
+                    group.GGstatus = GuessGroupStatus.completed.value  # 拼团状态改为完成
+                    group.GGcorrectNum = correct_num  # 记录当期的正确结果
+                    grs = GuessRecord.query.filter_by(isdelete=False,
+                                                      GGid=group.GGid,
+                                                      GRstatus=GuessRecordStatus.valid.value).all()
+                    if len(grs) > 3:
+                        current_app.logger.error('该团异常 GGid:{} ，竞猜记录数量为 {}'.format(group.GGid, len(grs)))
+                        continue
+
+                    # 该团猜中数字位数
+                    correct_count = 0
+                    for gr in grs:
+                        if gr.GRdigits == GuessRecordDigits.hundredDigits.value:
+                            if str(gr.GRnumber) == str(correct_num[0]):
+                                correct_count += 1
+                        elif gr.GRdigits == GuessRecordDigits.tenDigits.value:
+                            if str(gr.GRnumber) == str(correct_num[1]):
+                                correct_count += 1
+                        elif gr.GRdigits == GuessRecordDigits.singleDigits.value:
+                            if str(gr.GRnumber) == str(correct_num[2]):
+                                correct_count += 1
+                        else:
+                            continue
+
+                    if correct_num == 1:
+                        current_app.logger.info('该团{}猜中一位数'.format(group.GGid))
+                        one_point += 1
+                        for gri in grs:
+                            order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                                                OrderMain.OMid == gri.OMid,
+                                                                OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                                                ).first()
+                            if not order_main:
+                                current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
+                                continue
+                            order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUFirstLevelPrice), 2)
+                            if price > 0:  # 退钱
+                                current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
+                                group_refund_to_wallet(order_main, order_part, price=price)
+                                # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
+                                order_main.OMtrueMount = gg_sku.SKUFirstLevelPrice
+                                order_part.OPsubTrueTotal = gg_sku.SKUFirstLevelPrice
+                    elif correct_num == 2:
+                        current_app.logger.info('该团{}猜中两位数'.format(group.GGid))
+                        two_point += 1
+                        for gri in grs:
+                            order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                                                OrderMain.OMid == gri.OMid,
+                                                                OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                                                ).first()
+                            if not order_main:
+                                current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
+                                continue
+                            order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUSecondLevelPrice), 2)
+                            if price > 0:  # 退钱
+                                current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
+                                group_refund_to_wallet(order_main, order_part, price=price)
+                                # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
+                                order_main.OMtrueMount = gg_sku.SKUSecondLevelPrice
+                                order_part.OPsubTrueTotal = gg_sku.SKUSecondLevelPrice
+                    elif correct_num == 3:
+                        current_app.logger.info('该团{}猜中三位数'.format(group.GGid))
+                        three_point += 1
+                        for gri in grs:
+                            order_main = OrderMain.query.filter(OrderMain.isdelete == False,
+                                                                OrderMain.OMid == gri.OMid,
+                                                                OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                                                ).first()
+                            if not order_main:
+                                current_app.logger.error('竞猜记录 GRid:{} 未找到相应订单'.format(gr.GRid))
+                                continue
+                            order_part = OrderPart.query.filter_by_(OMid=order_main.OMid).first()
+                            gg_sku = GroupGoodsSku.query.filter_by_(GPid=order_part.PRid).first()
+                            price = round(float(order_part.OPsubTrueTotal - gg_sku.SKUThirdLevelPrice), 2)
+                            if price > 0:  # 退钱
+                                current_app.logger.info('GGid {} 退钱 {}'.format(group.GGid, price))
+                                group_refund_to_wallet(order_main, order_part, price=price)
+                                # 退钱后更改订单中的实付金额，防止申请售后时 退钱过多
+                                order_main.OMtrueMount = gg_sku.SKUThirdLevelPrice
+                                order_part.OPsubTrueTotal = gg_sku.SKUThirdLevelPrice
+                    elif correct_num == 0:
+                        zero_point += 1
+                    else:
+                        current_app.logger.error('异常团 GPid {} 待开奖，但猜中记录数为{}'.format(group.GGid, correct_num))
+    except Exception as e:
+        current_app.logger.error('>>> 拼团开奖错误: {}<<<'.format(e))
+    finally:
+        current_app.logger.info('>>> 拼团今日开奖结束 <<<')
+
+
+def group_refund_to_wallet(order_main, order_part, price=None):
+    """拼团退款到钱包"""
+    current_app.logger.info(f'竞猜订单退还押金 OMid {order_main.OMid}')
+    if not price:
+        price = order_part.OPsubTrueTotal
+    user_commision_dict = {
+        'UCid': str(uuid.uuid1()),
+        'UCcommission': Decimal(price).quantize(Decimal('0.00')),
+        'USid': order_main.USid,
+        'UCstatus': UserCommissionStatus.in_account.value,
+        'UCtype': UserCommissionType.group_refund.value,
+        'PRtitle': f'[拼团押金]{order_part.PRtitle}',
+        'SKUpic': order_part.PRmainpic,
+        'OMid': order_part.OMid,
+        'OPid': order_part.OPid
+    }
+    db.session.add(UserCommission.create(user_commision_dict))
+
+    user_wallet = UserWallet.query.filter_by_(USid=order_main.USid).first()
+
+    if user_wallet:
+        user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(price))
+        user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(price))
+        user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(price))
+        db.session.add(user_wallet)
+    else:
+        user_wallet_instance = UserWallet.create({
+            'UWid': str(uuid.uuid1()),
+            'USid': order_main.USid,
+            'UWbalance': Decimal(price).quantize(Decimal('0.00')),
+            'UWtotal': Decimal(price).quantize(Decimal('0.00')),
+            'UWcash': Decimal(price).quantize(Decimal('0.00')),
+            # 'UWexpect': user_commision.UCcommission,
+            'CommisionFor': ApplyFrom.user.value
+        })
+        db.session.add(user_wallet_instance)
+
+
+@celery.task(name='paid_but_not_guess_refund')
+def paid_but_not_guess_refund():
+    """未竞猜的订单 退还押金"""
+    current_app.logger.info('>>> 今日未竞猜订单退还 <<<')
+    count = 0
+    try:
+        from planet.control.COrder import COrder
+        corder = COrder()
+        oms = OrderMain.query.filter(OrderMain.isdelete == False,
+                                     OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                     OrderMain.OMfrom == OrderFrom.guess_group.value,
+                                     ).all()
+        for om in oms:
+            gr = GuessRecord.query.filter(GuessRecord.isdelete == False,
+                                          GuessRecord.GRstatus == GuessRecordStatus.valid.value,
+                                          GuessRecord.OMid == om.OMid).first()
+            if not gr and not om.OMinRefund:  # 订单未关联任何有效记录且不在售后中
+                current_app.logger.info(f'OMid {om.OMid} 未关联有效竞猜')
+                op = OrderPart.query.filter_by_(OMid=om.OMid).first()
+                # 退钱
+                group_refund_to_wallet(om, op)
+                # 取消订单
+                corder._cancle(om)
+                count += 1
+    except Exception as e:
+        current_app.logger.error('>>> 未竞猜订单退还错误: {}<<<'.format(e))
+    finally:
+        current_app.logger.info(f'>>> 未竞猜订单退还结束，共修改 {count} 条数据<<<')
+
+
+@celery.task(name='guess_group_expired_revert')
+def guess_group_expired_revert():
+    """过期拼团商品退还库存"""
+    current_app.logger.info(">>> 开始过期拼团商品退还库存 <<<")
+    from planet.control.COrder import COrder
+    corder = COrder()
+    today = datetime.now().date()
+    count, pending_count = 0, 0
+    try:
+        group_product = GroupGoodsProduct.query.filter(GroupGoodsProduct.isdelete == False,
+                                                       GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
+                                                       GroupGoodsProduct.GPday < today).all()
+        for gp in group_product:
+            continue_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
+                                                     GuessGroup.GGstatus.in_((GuessGroupStatus.pending.value,
+                                                                              GuessGroupStatus.waiting.value)),
+                                                     GuessGroup.GPid == gp.GPid
+                                                     ).first()
+            if continue_group:
+                current_app.logger.info(f'商品GPid:{gp.GPid} 仍有进行中的拼团 {continue_group.GGid}')
+                pending_count += 1
+                continue
+
+            current_app.logger.info(f'拼团商品GPid:{gp.GPid} 开始退还')
+            gps = GroupGoodsSku.query.filter_by_(GPid=gp.GPid).all()
+            for gsku in gps:
+                corder._update_stock(int(gsku.GSstock), skuid=gsku.SKUid)
+            count += 1
+            gp.GPstatus = ApplyStatus.shelves.value  # 已退库存的商品改为下架状态
+    except Exception as e:
+        current_app.logger.error('>>> 过期拼团商品退还库存错误: {}<<<'.format(e))
+    finally:
+        current_app.logger.info(f'>>> 过期拼团商品退还库存结束，共{count}个商品退还库存，仍有{pending_count}个商品在进行拼团<<<')
 
 
 @celery.task(name='auto_evaluate')
@@ -822,4 +1070,5 @@ if __name__ == '__main__':
         # auto_confirm_order()
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
-        welfare_lottery_3d()
+        # welfare_lottery_3d()
+        guess_group_draw()
