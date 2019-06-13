@@ -8,6 +8,7 @@ from flask import current_app
 class WelfareLottery(object):
     url = 'http://www.cwl.gov.cn/cwl_admin/kjxx/findDrawNotice'
     url_backup = 'http://kaijiang.zhcw.com/zhcw/html/3d/list_1.html'
+    kaicai_url = 'http://f.apiplus.net/fc3d-1.json'
 
     # today = datetime.date.today() - datetime.timedelta(days=1)
     today = datetime.date.today()
@@ -40,6 +41,9 @@ class WelfareLottery(object):
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
                       " Chrome/74.0.3729.131 Safari/537.3"}
 
+    base_headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
+                                  " Chrome/74.0.3729.131 Safari/537.3"}
+
     def fetch(self, url, headers, data=None, json=False):
         try:
             response = requests.get(url=url, headers=headers, params=data, timeout=60)
@@ -58,11 +62,11 @@ class WelfareLottery(object):
                 "issueCount": '',
                 "issueStart": "",
                 "issueEnd": "",
-                "dayStart": "2019-06-11",
-                "dayEnd": "2019-06-11",
+                "dayStart": str(self.today),
+                "dayEnd": str(self.today),
                 "pageNo": ""
                 }
-        res = self.fetch(self.url.format(self.today, self.today), self.headers, data, json=True)
+        res = self.fetch(self.url, self.headers, data, json=True)
         if not res:
             current_app.logger.error('今日福彩官网连接异常：{}'.format(self.today))
             return self.back_up_response()
@@ -81,10 +85,11 @@ class WelfareLottery(object):
         return resp
 
     def back_up_response(self):
+        current_app.logger.info('>>> 尝试从中彩网获取数据 <<<')
         res = self.fetch(self.url_backup, self.headers_backup)
         if not res:
             current_app.logger.error('今日中彩网连接异常：{}'.format(self.today))
-            return
+            return self.kaicai_api()
         res = re.sub(r'\s', '', res)
         reg = re.compile(r'^.*<tr><tdalign="center">({})</td><tdalign="center">(.*?)</td><tdalign="center"'
                          r'style="padding-left:20px;"><em>(.?)</em><em>(.?)</em><em>(.?)</em></td>.*$'.format(self.today
@@ -93,9 +98,28 @@ class WelfareLottery(object):
 
         if not result:
             current_app.logger.error('中彩网数据异常：{}'.format(result))
-            return
+            return self.kaicai_api()
         result = result[0]
         return result
+
+    def kaicai_api(self):
+        current_app.logger.info('>>> 尝试从开彩网获取数据 <<<')
+        res = self.fetch(self.kaicai_url, self.base_headers, json=True)
+        if not res:
+            current_app.logger.error('今日开彩网连接异常：{}'.format(self.today))
+            return
+        data = res.get('data')
+        if not (isinstance(data, list) and len(data) > 0):
+            return
+        expect = data[0].get('expect')
+        opencode = data[0].get('opencode')
+        opentime = data[0].get('opentime')
+        if opentime[:10] == str(self.today):
+            resp = [opentime[:10], expect]
+            resp.extend(opencode.split(','))
+            print(resp)
+            return resp
+        return
 
 
 if __name__ == '__main__':
@@ -104,4 +128,5 @@ if __name__ == '__main__':
     app, _ = create_app()
     with app.app_context():
         # WelfareLottery().get_response()
-        WelfareLottery().back_up_response()
+        # WelfareLottery().back_up_response()
+        WelfareLottery().kaicai_api()
