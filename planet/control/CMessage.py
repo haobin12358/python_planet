@@ -430,5 +430,34 @@ class CMessage():
 
         return Success('删除成功')
 
+    @token_required
+    def read_message(self):
+        data = parameter_required(('umsgid',))
+        umsgid = data.get('umsgid')
 
+        self._read_message(umsgid, request.user.id)
+        return Success('已读')
 
+    def _read_message(self, umsgid, userid):
+        with db.auto_commit():
+            umsg = UserMessage.query.filter(UserMessage.UMSGid == umsgid, UserMessage.isdelete == False).first()
+            if not umsg:
+                return
+            if umsg.USid == userid:
+                return
+            um = UserRoom.query.filter_by(USid=userid, ROid=umsg.ROid).first()
+            if not um:
+                return
+            um.URunread = (um.URunread or 0) - 1
+            if um.URunread < 0:
+                um.URunread = 0
+            user = User.query.filter_by(USid=userid, isdelete=False).first()
+            admin = Admin.query.filter_by(ADid=userid, isdelete=False).first()
+            if user:
+                user.USunread = (user.USunread or 0) -1
+                if user.USunread < 0:
+                    user.USunread = 0
+            if admin:
+                admin.ADunread = (admin.ADunread or 0) - 1
+                if admin.ADunread < 0:
+                    admin.ADunread = 0

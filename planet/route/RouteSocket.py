@@ -199,3 +199,15 @@ class Mynamespace(Namespace):
         return return_res(Success('发送成功'))
 
     # def on_notice(self):
+    def on_read_message(self, data):
+        current_app.logger.info(data)
+        userid = session.get('id')
+
+        current_app.logger.info('send message', userid)
+        if not userid:
+            return return_res(AuthorityError)
+        umsgid = data.get('umsgid')
+        from planet.control.CMessage import CMessage
+        cmsg = CMessage()
+        cmsg._read_message(umsgid, userid)
+        return return_res(Success('已读'))

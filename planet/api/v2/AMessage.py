@@ -20,6 +20,7 @@ class AMessage(Resource):
         apis = {
             'set': self.cmessage.set_message,
             'del_room': self.cmessage.del_room,
+            'read_message': self.cmessage.read_message,
             'create_room': self.cmessage.create_room
         }
         return apis
