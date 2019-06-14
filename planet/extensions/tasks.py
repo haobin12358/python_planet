@@ -286,24 +286,25 @@ def paid_but_not_guess_refund():
     current_app.logger.info('>>> 今日未竞猜订单退还 <<<')
     count = 0
     try:
-        from planet.control.COrder import COrder
-        corder = COrder()
-        oms = OrderMain.query.filter(OrderMain.isdelete == False,
-                                     OrderMain.OMstatus == OrderMainStatus.wait_send.value,
-                                     OrderMain.OMfrom == OrderFrom.guess_group.value,
-                                     ).all()
-        for om in oms:
-            gr = GuessRecord.query.filter(GuessRecord.isdelete == False,
-                                          GuessRecord.GRstatus == GuessRecordStatus.valid.value,
-                                          GuessRecord.OMid == om.OMid).first()
-            if not gr and not om.OMinRefund:  # 订单未关联任何有效记录且不在售后中
-                current_app.logger.info(f'OMid {om.OMid} 未关联有效竞猜')
-                op = OrderPart.query.filter_by_(OMid=om.OMid).first()
-                # 退钱
-                group_refund_to_wallet(om, op)
-                # 取消订单
-                corder._cancle(om)
-                count += 1
+        with db.auto_commit():
+            from planet.control.COrder import COrder
+            corder = COrder()
+            oms = OrderMain.query.filter(OrderMain.isdelete == False,
+                                         OrderMain.OMstatus == OrderMainStatus.wait_send.value,
+                                         OrderMain.OMfrom == OrderFrom.guess_group.value,
+                                         ).all()
+            for om in oms:
+                gr = GuessRecord.query.filter(GuessRecord.isdelete == False,
+                                              GuessRecord.GRstatus == GuessRecordStatus.valid.value,
+                                              GuessRecord.OMid == om.OMid).first()
+                if not gr and not om.OMinRefund:  # 订单未关联任何有效记录且不在售后中
+                    current_app.logger.info(f'OMid {om.OMid} 未关联有效竞猜')
+                    op = OrderPart.query.filter_by_(OMid=om.OMid).first()
+                    # 退钱
+                    group_refund_to_wallet(om, op)
+                    # 取消订单
+                    corder._cancle(om)
+                    count += 1
     except Exception as e:
         current_app.logger.error('>>> 未竞猜订单退还错误: {}<<<'.format(e))
     finally:
@@ -319,26 +320,27 @@ def guess_group_expired_revert():
     today = datetime.now().date()
     count, pending_count = 0, 0
     try:
-        group_product = GroupGoodsProduct.query.filter(GroupGoodsProduct.isdelete == False,
-                                                       GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
-                                                       GroupGoodsProduct.GPday < today).all()
-        for gp in group_product:
-            continue_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
-                                                     GuessGroup.GGstatus.in_((GuessGroupStatus.pending.value,
-                                                                              GuessGroupStatus.waiting.value)),
-                                                     GuessGroup.GPid == gp.GPid
-                                                     ).first()
-            if continue_group:
-                current_app.logger.info(f'商品GPid:{gp.GPid} 仍有进行中的拼团 {continue_group.GGid}')
-                pending_count += 1
-                continue
+        with db.auto_commit():
+            group_product = GroupGoodsProduct.query.filter(GroupGoodsProduct.isdelete == False,
+                                                           GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
+                                                           GroupGoodsProduct.GPday < today).all()
+            for gp in group_product:
+                continue_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
+                                                         GuessGroup.GGstatus.in_((GuessGroupStatus.pending.value,
+                                                                                  GuessGroupStatus.waiting.value)),
+                                                         GuessGroup.GPid == gp.GPid
+                                                         ).first()
+                if continue_group:
+                    current_app.logger.info(f'商品GPid:{gp.GPid} 仍有进行中的拼团 {continue_group.GGid}')
+                    pending_count += 1
+                    continue
 
-            current_app.logger.info(f'拼团商品GPid:{gp.GPid} 开始退还')
-            gps = GroupGoodsSku.query.filter_by_(GPid=gp.GPid).all()
-            for gsku in gps:
-                corder._update_stock(int(gsku.GSstock), skuid=gsku.SKUid)
-            count += 1
-            gp.GPstatus = ApplyStatus.shelves.value  # 已退库存的商品改为下架状态
+                current_app.logger.info(f'拼团商品GPid:{gp.GPid} 开始退还')
+                gps = GroupGoodsSku.query.filter_by_(GPid=gp.GPid).all()
+                for gsku in gps:
+                    corder._update_stock(int(gsku.GSstock), skuid=gsku.SKUid)
+                count += 1
+                gp.GPstatus = ApplyStatus.shelves.value  # 已退库存的商品改为下架状态
     except Exception as e:
         current_app.logger.error('>>> 过期拼团商品退还库存错误: {}<<<'.format(e))
     finally:
