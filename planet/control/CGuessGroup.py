@@ -19,7 +19,7 @@ from planet.control.COrder import COrder
 from planet.extensions.register_ext import db
 from planet.models import Admin, Supplizer, GroupGoodsProduct, Products, ProductSku, GroupGoodsSku, ProductBrand, \
     ProductImage, Approval, User, OrderPay, OrderMain, UserAddress, AddressArea, AddressCity, AddressProvince, \
-    OrderPart, GuessGroup, GuessRecord, Activity
+    OrderPart, GuessGroup, GuessRecord, Activity, ProductCategory
 
 
 class CGuessGroup(COrder, BASEAPPROVAL):
@@ -484,7 +484,7 @@ class CGuessGroup(COrder, BASEAPPROVAL):
             gpstatus = getattr(ApplyStatus, gpstatus).value
         except Exception:
             gpstatus = None
-        if gpstatus:
+        if isinstance(gpstatus, int):
             filter_args.append(GroupGoodsProduct.GPstatus == gpstatus)
 
         if is_supplizer():
@@ -785,6 +785,7 @@ class CGuessGroup(COrder, BASEAPPROVAL):
                                                      Products.PRid == group_product.PRid,
                                                      Products.PRstatus == ProductStatus.usual.value
                                                      ).first_("该商品已下架")
+            product_category = ProductCategory.query.filter_by(PCid=product_instance.PCid).first()
             if product_instance.PBid != pbid:
                 raise ParamsError('品牌id {} 与商品id {} 不对应'.format(pbid, gsid))
             small_total = Decimal(sku_instance.SKUPrice) * Decimal(opnum)
@@ -795,12 +796,21 @@ class CGuessGroup(COrder, BASEAPPROVAL):
                 'SKUid': gsid,  # 拼团商品的gsid
                 'PRattribute': product_instance.PRattribute,
                 'SKUattriteDetail': product_sku.SKUattriteDetail,
-                'PRtitle': product_instance.PRtitle,
                 'SKUprice': sku_instance.SKUPrice,
+                'PRtitle': product_instance.PRtitle,
+                'SKUsn': product_sku.SKUsn,
+                'PCname': product_category.PCname,
                 'PRmainpic': product_instance.PRmainpic,
                 'OPnum': opnum,
                 'OPsubTotal': small_total,
                 'PRfrom': product_instance.PRfrom,
+                'SkudevideRate': product_sku.SkudevideRate,
+                'UPperid': user.USsupper1,
+                'UPperid2': user.USsupper2,
+                'UPperid3': user.USsupper3,
+                'USCommission1': user.USCommission1,
+                'USCommission2': user.USCommission2,
+                'USCommission3': user.USCommission3
             }
             order_part_instance = OrderPart.create(order_part_dict)
             model_bean.append(order_part_instance)
