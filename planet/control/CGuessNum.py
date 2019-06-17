@@ -18,7 +18,7 @@ from planet.models import GuessNum, CorrectNum, ProductSku, ProductItems, GuessA
     UserAddress, AddressArea, AddressCity, AddressProvince, OrderMain, OrderPart, OrderPay, GuessNumAwardApply, \
     ProductSkuValue, ProductImage, Approval, Supplizer, Admin, OutStock, ProductCategory, GuessNumAwardProduct, \
     GuessNumAwardSku, User, Activity, Commision
-from planet.config.enums import ActivityRecvStatus, OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
+from planet.config.enums import  OrderFrom, Client, PayType, ProductStatus, GuessNumAwardStatus, \
     ApprovalType, ApplyStatus, ApplyFrom, ActivityType, HistoryStatus, AdminActionS, CorrectNumType
 from .COrder import COrder
 
@@ -639,7 +639,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                                                       AVstatus=ApplyStatus.wait_check.value).first()
             approval_info.AVstatus = ApplyStatus.cancle.value
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.update.value, 'GuessNumAwardApply', gnaaid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'GuessNumAwardApply', gnaaid)
         return Success('取消成功', {'gnaaid': gnaaid})
 
     def delete_apply(self):
@@ -665,7 +665,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 raise StatusError('只能删除已拒绝或已撤销状态下的申请')
             apply_info.isdelete = True
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.delete.value, 'GuessNumAwardApply', gnaaid)
+                BASEADMIN().create_action(AdminActionS.delete.value, 'GuessNumAwardApply', gnaaid)
         return Success('删除成功', {'gnaaid': gnaaid})
 
     def shelves(self):
@@ -691,7 +691,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
                 raise StatusError('只能下架已通过的申请')
             apply_info.GNAAstatus = ApplyStatus.shelves.value
             if is_admin():
-                BASEADMIN.create_action(AdminActionS.update.value, 'GuessNumAwardApply', gnaaid)
+                BASEADMIN().create_action(AdminActionS.update.value, 'GuessNumAwardApply', gnaaid)
         return Success('下架成功', {'mbaid': gnaaid})
 
     @staticmethod

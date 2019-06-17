@@ -14,11 +14,24 @@ class Activity(Base):
     ACbackGround = Column(String(255), nullable=False, url=True, comment='列表页背景图')
     ACtopPic = Column(String(255), nullable=False, url=True, comment='顶部图 ')
     ACbutton = Column(String(16), default='立即参与', comment='按钮文字')
-    ACtype = Column(Integer, default=0, unique=True, index=True, comment='类型 0: 新人 1 猜数字 2 魔术礼盒 3 免费试用')
+    ACtype = Column(Integer, default=0, unique=True, index=True, comment='类型 0: 新人 1 猜数字 2 魔术礼盒 3 免费试用 4 限时活动 5 拼团竞猜')
     ACshow = Column(Boolean, default=True, comment='是否开放')
     ACdesc = Column(Text, comment='活动描述')
     ACname = Column(String(16), nullable=False, comment='名字')
     ACsort = Column(Integer, comment='顺序标志')
+
+
+class ActivityDeposit(Base):
+    __tablename__ = 'ActivityDeposit'
+    """活动押金"""
+    ACDid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='用户')
+    ACtype = Column(Integer, default=2, comment='活动类型 {0,1,2,3,4,5}')
+    ACDdeposit = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='押金金额')
+    ACDcontentId = Column(String(64), nullable=False, comment='具体活动的id, 如魔盒商品id')
+    ACDstatus = Column(Integer, default=-20, comment='押金的状态, -20：无效 -10:已退还 0:已支付 10：已扣除')
+    SKUid = Column(String(64), comment='购买的具体活动商品skuid')
+    OPayno = Column(String(64), nullable=False, comment='支付流水号')
 
 
 class TrialCommodity(Base):
@@ -155,49 +168,49 @@ class GuessNumAwardSku(Base):
 
 
 class MagicBoxApply(Base):
+    """魔盒商品"""
     __tablename__ = 'MagicBoxApply'
     MBAid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='发布者id')
-    SKUid = Column(String(64), nullable=False, comment='申请参与的sku')
-    # SKUstock = Column(Integer, comment='库存')
-    OSid = Column(String(64), comment='出库单id')  # 新增库存计数方式
-    MBAfrom = Column(Integer, comment='申请来源')
     PRid = Column(String(64), nullable=False, comment='商品id')
-    PBid = Column(String(64), nullable=False, comment='品牌id')
-    MBAstarttime = Column(Date, nullable=False, comment='申请参与的起始时间')
-    MBAendtime = Column(Date, nullable=False, comment='申请参与的结束时间')
-    SKUprice = Column(Float, nullable=False, comment='原价')
-    SKUminPrice = Column(Float, nullable=False, comment='最低价')
-    Gearsone = Column(String(64), nullable=False, comment='第一档 [2-1, 230-3]')
-    Gearstwo = Column(String(64), nullable=False, comment='第二档 [2-1, 230-3]')
-    Gearsthree = Column(String(64), nullable=False, comment='第三档 [2-1, 230-3]')
-    MBAstatus = Column(Integer, default=0, comment='申请状态, 0: 未处理, -10: 拒绝, 10: 通过')
-    ADid = Column(String(64), comment='处理人')
+    MBAday = Column(Date, nullable=False, comment='上架日')
+    MBAfreight = Column(DECIMAL(precision=10, scale=2), default=0, comment='运费')
+    Gearsone = Column(String(64), nullable=False, comment='第一档 [10-20]')
+    Gearstwo = Column(String(64), nullable=False, comment='第二档 [10-20, 20-90]')
+    Gearsthree = Column(String(64), nullable=False, comment='第三档 [10-20, 30-90]')
+    MBAstatus = Column(Integer, default=0, comment='申请状态, -10: 拒绝 0: 待审核, 10: 通过')
     MBArejectReason = Column(String(64), comment='拒绝理由')
-    AgreeStartime = Column(Date, default=MBAstarttime, comment='最终确认起始时间')  # 同意之后不可为空
-    AgreeEndtime = Column(Date, default=MBAendtime, comment='最终确认结束时间')
 
-    @property
-    def SKUstock(self):
-        from flask import current_app
-        current_app.logger.info('注意: 调用了skustock<<<')
-        out_stock = OutStock.query.filter(
-            OutStock.OSid == self.OSid,
-            OutStock.isdelete == False,
-        ).first()
-        if out_stock:
-            return out_stock.OSnum
+
+class MagicBoxApplySku(Base):
+    """魔盒商品sku"""
+    __tablename__ = 'MagicBoxApplySku'
+    MBSid = Column(String(64), primary_key=True)
+    MBAid = Column(String(64), nullable=False, comment='魔盒商品id')
+    SKUid = Column(String(64), nullable=False, comment='原商品skuid')
+    SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
+    MBSstock = Column(BIGINT, comment='库存')
+    HighestPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='最高可购价格')
+    LowestPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='最低可购价格')
 
 
 class MagicBoxJoin(Base):
-    """参与活动"""
+    """魔盒"""
     __tablename__ = 'MagicBoxJoin'
     MBJid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='参与用户')
-    MBAid = Column(String(64), nullable=False, comment='魔盒活动唯一标志')
-    MBJprice = Column(Float, nullable=False, comment='原价格')
-    MBJstatus = Column(Integer, default=0, comment=' 0 待领奖, 10 已领取 20 过期')
-    MBJcurrentPrice = Column(Float, default=MBJprice, comment='当前价格')
+    MBAid = Column(String(64), nullable=False, comment='魔盒商品id')
+    MBSid = Column(String(64), nullable=False, comment='所选魔盒skuid')
+    PRtitle = Column(String(255), nullable=False, comment='标题')
+    PRmainpic = Column(String(255), comment='主图', url=True)
+    MBJstatus = Column(Integer, default=0, comment='-10:失效 0: 正在进行, 10 已完成')
+    MBJprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='原价格')
+    MBJcurrentPrice = Column(DECIMAL(precision=28, scale=2), default=MBJprice, comment='当前价格')
+    HighestPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='最高价格')
+    LowestPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='最低价格')
+    MBSendtime = Column(Date, nullable=False, comment='结束日')
+    OMid = Column(String(64), comment='购买后的订单id')
+    ACDid = Column(String(64), comment='活动押金id')
 
 
 class MagicBoxOpen(Base):
@@ -206,19 +219,12 @@ class MagicBoxOpen(Base):
     MBOid = Column(String(64), primary_key=True)
     USid = Column(String(64), nullable=False, comment='拆盒子之人')
     USname = Column(String(64), nullable=False, comment='拆盒子之人的用户名')
-    MBJid = Column(String(64), nullable=False, comment='来源参与')
-    MBOgear = Column(Integer, nullable=False, comment='选择档位')
-    MBOresult = Column(Float, nullable=False, comment='结果, 如 -0.25')
+    USheader = Column(Text, default='用户头像', url=True)
+    MBJid = Column(String(64), nullable=False, comment='所拆盒子')
+    MBOgear = Column(Integer, nullable=False, comment='选择档位 {1,2,3}')
+    MBOresult = Column(Float, nullable=False, comment='本次拆盒结果变动金额, 如 0.25')
+    MBOaction = Column(Integer, default=0, comment='拆盒结果 {0: 减少 10：增加}')
     MBOprice = Column(Float, nullable=False, comment='此时价格')
-    MBOhasShare = Column(Boolean, default=False, comment='是否分享出去, 待用字段')
-
-
-class MagicBoxFlow(Base):
-    """领取记录"""
-    __tablename__ = 'MagicBoxFlow'
-    MBFid = Column(String(64), primary_key=True)
-    OMid = Column(String(64), nullable=False)
-    MBJid = Column(String(64), nullable=False, comment='来源参与')
 
 
 class FreshManFirstApply(Base):

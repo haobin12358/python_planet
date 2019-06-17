@@ -57,22 +57,12 @@ class CActivity(CUser):
                 ).count()
                 act.fill('prcount', guess_num_count)
             elif ActivityType(act.ACtype).name == 'magic_box':
-                magic_box_count = MagicBoxApply.query.join(OutStock, OutStock.OSid == MagicBoxApply.OSid).filter(
-                    OutStock.isdelete == False,
+                magic_box_count = MagicBoxApply.query.filter(
                     MagicBoxApply.isdelete == False,
                     MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                    MagicBoxApply.AgreeStartime <= today,
-                    MagicBoxApply.AgreeEndtime >= today,
+                    MagicBoxApply.MBAday <= today
                 ).count()
                 act.fill('prcount', magic_box_count)
-                stock = OutStock.query.join(MagicBoxApply, MagicBoxApply.OSid == OutStock.OSid).filter(
-                    OutStock.isdelete == False,
-                    MagicBoxApply.isdelete == False,
-                    MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                    MagicBoxApply.AgreeStartime <= today,
-                    MagicBoxApply.AgreeEndtime >= today
-                ).first()
-                act.fill('stock', getattr(stock, 'OSnum', ''))
             elif ActivityType(act.ACtype).name == 'free_use':
                 free_use_count = TrialCommodity.query.filter(
                     TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,
@@ -112,13 +102,10 @@ class CActivity(CUser):
                     if lasting:
                         result.append(act)
                 elif ActivityType(act.ACtype).name == 'magic_box':
-                    lasting = MagicBoxApply.query.join(OutStock, OutStock.OSid == MagicBoxApply.OSid).filter(
-                        OutStock.isdelete == False,
-                        OutStock.OSnum > 0,
+                    lasting = MagicBoxApply.query.filter(
                         MagicBoxApply.isdelete == False,
                         MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                        MagicBoxApply.AgreeStartime <= today,
-                        MagicBoxApply.AgreeEndtime >= today,
+                        MagicBoxApply.MBAday <= today
                     ).first()
                     if lasting:
                         result.append(act)

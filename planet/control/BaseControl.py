@@ -319,15 +319,11 @@ class BASEAPPROVAL():
         return start_model, content
 
     def __fill_magicbox(self, startid, contentid):
-        # done 魔术礼盒
         start_model = Supplizer.query.filter_by_(SUid=startid).first() or Admin.query.filter_by_(ADid=startid).first()
         content = MagicBoxApply.query.filter_by_(MBAid=contentid).first()
-        if not start_model or not content:
-            return None, None
-        product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid, content=content)
-        content.fill('product', product)
-        return start_model, content
+        fill_gp_child_method = getattr(self, '_fill_mba')
+        product = fill_gp_child_method(content)
+        return start_model, product
 
     def __fill_trialcommodity(self, startid, contentid):
         # done 使用商品

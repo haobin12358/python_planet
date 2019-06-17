@@ -19,13 +19,13 @@ from planet.common.token_handler import token_required
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import PayType, Client, OrderMainStatus, OrderFrom, UserCommissionType, OMlogisticTypeEnum, \
     LogisticsSignStatus, UserIdentityStatus, UserCommissionStatus, ApplyFrom, UserIntegralAction, UserIntegralType, \
-    WexinBankCode
+    WexinBankCode, ActivityType, ActivityDepositStatus, ApplyStatus, MagicBoxJoinStatus
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import wx_pay, db, alipay
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import User, UserCommission, ProductBrand, ProductItems, Items, TrialCommodity, OrderLogistics, \
     Products, Supplizer, SupplizerDepositLog, OrderMain, OrderPart, OrderPay, FreshManJoinFlow, FreshManFirstProduct, \
-    ProductSku, UserIntegral
+    ProductSku, UserIntegral, ActivityDeposit, MagicBoxJoin, MagicBoxApplySku, MagicBoxApply
 from planet.models import OrderMain, OrderPart, OrderPay, FreshManJoinFlow, ProductSku
 from planet.models.commision import Commision
 from planet.service.STrade import STrade
@@ -73,6 +73,17 @@ class CPay():
                 cuser = CUser()
                 cuser._check_gift_order('重复购买开店大礼包')
             db.session.add(order_main)
+            pay_price = order_main.OMtrueMount
+
+            # 魔术礼盒订单
+            if order_main.OMfrom == OrderFrom.magic_box.value:
+                magic_box_join = MagicBoxJoin.query.filter(MagicBoxJoin.isdelete == False,
+                                                           MagicBoxJoin.OMid == order_main.OMid,
+                                                           MagicBoxJoin.MBJstatus == MagicBoxJoinStatus.pending.value
+                                                           ).first()
+                pay_price = float(order_main.OMtrueMount) - float(magic_box_join.MBJcurrentPrice)
+                if pay_price <= 0:
+                    pay_price = 0.01
             # 新建支付流水
             if order_main.OMintegralpayed and order_main.OMintegralpayed > 0:
                 db.session.add(OrderPay.create({
@@ -85,14 +96,14 @@ class CPay():
                 'OPayid': str(uuid.uuid1()),
                 'OPayno': opayno,
                 'OPayType': opaytype,
-                'OPayMount': order_main.OMtrueMount
+                'OPayMount': pay_price,
             })
             # 付款时候的body信息
             order_parts = OrderPart.query.filter_by_({'OMid': omid}).all()
             body = ''.join([getattr(x, 'PRtitle', '') for x in order_parts])
             db.session.add(order_pay_instance)
         user = User.query.filter(User.USid == order_main.USid).first()
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(order_main.OMtrueMount), body,
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(pay_price), body,
                                     openid=user.USopenid1 or user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
@@ -144,6 +155,16 @@ class CPay():
             order_pay_instance.OPaytime = data.get('time_end')
             order_pay_instance.OPaysn = data.get('transaction_id')  # 微信支付订单号
             order_pay_instance.OPayJson = json.dumps(data)
+
+            # 魔术礼盒押金 创建盒子
+            deposit = ActivityDeposit.query.filter_by_(OPayno=out_trade_no,
+                                                       ACtype=ActivityType.magic_box.value,
+                                                       ACDstatus=ActivityDepositStatus.failed.value
+                                                       ).first()
+            if deposit:
+                current_app.logger.info('magic_box deposit found, ACDid: {}'.format(deposit.ACDid))
+                self._create_magic_box(deposit)
+
             # 更改主单
             order_mains = OrderMain.query.filter_by_({'OPayno': out_trade_no}).all()
             for order_main in order_mains:
@@ -151,6 +172,9 @@ class CPay():
                 order_main.update({
                     'OMstatus': OrderMainStatus.wait_send.value
                 })
+                if order_main.OMfrom == OrderFrom.magic_box.value:
+                    current_app.logger.info('find a magic_box order')
+                    self._change_box_status(order_main)  # 魔盒订单
                 # 添加佣金记录
                 current_app.logger.info('微信支付成功')
                 self._insert_usercommision(order_main)
@@ -159,6 +183,68 @@ class CPay():
                     self._trade_add_integral(order_main, user)  # 购物加星币
 
         return self.wx_pay.reply("OK", True).decode()
+
+    @staticmethod
+    def _change_box_status(ordermain):
+        """付款成功后更改魔盒相应状态"""
+        current_app.logger.info('change magic box status, omid {}'.format(ordermain.OMid))
+        order_part = OrderPart.query.filter_by_(OMid=ordermain.OMid).first()
+        mbj = MagicBoxJoin.query.filter(MagicBoxJoin.MBAid == order_part.PRid,
+                                        MagicBoxJoin.MBSid == order_part.SKUid,
+                                        MagicBoxJoin.USid == ordermain.USid,
+                                        MagicBoxJoin.isdelete == False,
+                                        MagicBoxJoin.OMid == ordermain.OMid,
+                                        MagicBoxJoin.MBJstatus == MagicBoxJoinStatus.pending.value
+                                        ).first()
+        current_app.logger.info('find a magic_box_join, MBJid:{}'.format([mbj.MBJid if mbj else None]))
+        # 完成盒子
+        mbj.update({'MBJstatus': MagicBoxJoinStatus.completed.value})
+        db.session.add(mbj)
+        # 扣除押金
+        deposit = ActivityDeposit.query.filter_by_(ACDid=mbj.ACDid,
+                                                   ACDstatus=ActivityDepositStatus.valid.value).first()
+        current_app.logger.info('deduct a magic box deposit, ACDid:{}'.format([deposit.ACDid if deposit else None]))
+        deposit.update({'ACDstatus': ActivityDepositStatus.deduct.value})
+        db.session.add(deposit)
+
+    @staticmethod
+    def _create_magic_box(deposit):
+        """创建魔盒"""
+        # 押金状态生效
+        current_app.logger.info('change deposit status')
+        deposit.update({'ACDstatus': ActivityDepositStatus.valid.value})
+        db.session.add(deposit)
+        mbaid, mbsid = deposit.ACDcontentId, deposit.SKUid
+        mba = MagicBoxApply.query.filter_by_(MBAid=mbaid).first()
+        mbs = MagicBoxApplySku.query.filter_by_(MBSid=mbsid).first()
+        product = Products.query.filter_by_(PRid=mba.PRid).first()
+        current_app.logger.info('wechat_notify, create box')
+
+        day = datetime.now().date() + timedelta(days=1)
+        while MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                         MagicBoxApply.PRid == mba.PRid,
+                                         MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                                         MagicBoxApply.MBAday == day
+                                         ).first():
+            day = day + timedelta(days=1)
+        endtime = day - timedelta(days=1)
+
+        magic_box = MagicBoxJoin.create({
+            'MBJid': str(uuid.uuid1()),
+            'USid': deposit.USid,
+            'MBAid': mbaid,
+            'MBSid': mbsid,
+            'PRtitle': product.PRtitle,
+            'PRmainpic': product.PRmainpic,
+            'MBJstatus': MagicBoxJoinStatus.pending.value,
+            'MBJprice': mbs.SKUprice,
+            'MBJcurrentPrice': mbs.SKUprice,
+            'HighestPrice': mbs.HighestPrice,
+            'LowestPrice': mbs.LowestPrice,
+            'MBSendtime': endtime,
+            'ACDid': deposit.ACDid
+        })
+        db.session.add(magic_box)
 
     def _notify_payed_integral(self, om, user, opayno):
         """扣除组合支付时的星币"""

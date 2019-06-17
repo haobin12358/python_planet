@@ -16,7 +16,8 @@ from planet.common.welfare_lottery import WelfareLottery
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
-    CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits
+    CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits, MagicBoxJoinStatus, \
+    ActivityDepositStatus
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
@@ -24,7 +25,7 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit
 
 celery = Celery()
 
@@ -282,7 +283,7 @@ def group_refund_to_wallet(order_main, order_part, price=None):
 
 @celery.task(name='paid_but_not_guess_refund')
 def paid_but_not_guess_refund():
-    """未竞猜的订单 退还押金"""
+    """拼团竞猜 未竞猜的订单 退还押金"""
     current_app.logger.info('>>> 今日未竞猜订单退还 <<<')
     count = 0
     try:
@@ -311,6 +312,77 @@ def paid_but_not_guess_refund():
         current_app.logger.info(f'>>> 未竞猜订单退还结束，共修改 {count} 条数据<<<')
 
 
+@celery.task(name='magic_box_join_expired')
+def magic_box_join_expired():
+    """礼盒到期 未下单 退还押金"""
+    current_app.logger.info('>>> 检测到期后仍未下单的盒子 <<<')
+    count = 0
+    today = datetime.now().date()
+    try:
+        with db.auto_commit():
+            from planet.control.COrder import COrder
+            corder = COrder()
+            magic_box_joins = MagicBoxJoin.query.filter(MagicBoxJoin.isdelete == False,
+                                                        MagicBoxJoin.MBJstatus == MagicBoxJoinStatus.pending.value,
+                                                        MagicBoxJoin.MBSendtime < today,
+                                                        MagicBoxJoin.OMid.is_(None)
+                                                        ).all()
+            current_app.logger.info('共 {} 个盒子 到期后未下单'.format(len(magic_box_joins)))
+            for mbj in magic_box_joins:
+                deposit = ActivityDeposit.query.filter(ActivityDeposit.isdelete == False,
+                                                       ActivityDeposit.ACDid == mbj.ACDid,
+                                                       ActivityDeposit.ACDstatus == ActivityDepositStatus.valid.value
+                                                       ).first()
+                if deposit:
+                    current_app.logger.info('存在有效押金ACDid:{}，开始退还'.format(deposit.ACDid))
+                    # 押金状态改为已退还
+                    deposit.update({'ACDstatus': ActivityDepositStatus.revert.value})
+                    db.session.add(deposit)
+
+                    # 开始退押金
+                    price = deposit.ACDdeposit
+                    user_commision_dict = {
+                        'UCid': str(uuid.uuid1()),
+                        'UCcommission': Decimal(price).quantize(Decimal('0.00')),
+                        'USid': deposit.USid,
+                        'UCstatus': UserCommissionStatus.in_account.value,
+                        'UCtype': UserCommissionType.box_deposit.value,
+                        'PRtitle': '[礼盒押金]{}'.format(mbj.PRtitle),
+                        'SKUpic': mbj.PRmainpic,
+                        # 'OMid': order_part.OMid,
+                        # 'OPid': order_part.OPid
+                    }
+                    db.session.add(UserCommission.create(user_commision_dict))
+
+                    user_wallet = UserWallet.query.filter_by_(USid=deposit.USid).first()
+
+                    if user_wallet:
+                        user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(price))
+                        user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(price))
+                        user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(price))
+                        db.session.add(user_wallet)
+                    else:
+                        user_wallet_instance = UserWallet.create({
+                            'UWid': str(uuid.uuid1()),
+                            'USid': deposit.USid,
+                            'UWbalance': Decimal(price).quantize(Decimal('0.00')),
+                            'UWtotal': Decimal(price).quantize(Decimal('0.00')),
+                            'UWcash': Decimal(price).quantize(Decimal('0.00')),
+                            # 'UWexpect': user_commision.UCcommission,
+                            'CommisionFor': ApplyFrom.user.value
+                        })
+                        db.session.add(user_wallet_instance)
+
+                    count += 1
+                else:
+                    current_app.logger.error('该盒子未找到有效押金记录 MBJid:{}'.format(mbj.MBJid))
+
+    except Exception as e:
+        current_app.logger.error('>>> 到期未下单盒子退还押金错误: {}<<<'.format(e))
+    finally:
+        current_app.logger.info(f'>>> 到期未下单盒子退还押金结束，共修改 {count} 条数据<<<')
+
+
 @celery.task(name='guess_group_expired_revert')
 def guess_group_expired_revert():
     """过期拼团商品退还库存"""
@@ -324,6 +396,7 @@ def guess_group_expired_revert():
             group_product = GroupGoodsProduct.query.filter(GroupGoodsProduct.isdelete == False,
                                                            GroupGoodsProduct.GPstatus == ApplyStatus.agree.value,
                                                            GroupGoodsProduct.GPday < today).all()
+            current_app.logger.info('共{}个已到期'.format(len(group_product)))
             for gp in group_product:
                 continue_group = GuessGroup.query.filter(GuessGroup.isdelete == False,
                                                          GuessGroup.GGstatus.in_((GuessGroupStatus.pending.value,
@@ -345,6 +418,43 @@ def guess_group_expired_revert():
         current_app.logger.error('>>> 过期拼团商品退还库存错误: {}<<<'.format(e))
     finally:
         current_app.logger.info(f'>>> 过期拼团商品退还库存结束，共{count}个商品退还库存，仍有{pending_count}个商品在进行拼团<<<')
+        
+        
+@celery.task(name='magic_box_expired_revert')
+def magic_box_expired_revert():
+    """过期魔术礼盒"""
+    current_app.logger.info(">>> 开始过期拼团商品退还库存 <<<")
+    from planet.control.COrder import COrder
+    corder = COrder()
+    today = datetime.now().date()
+    count, pending_count = 0, 0
+    try:
+        with db.auto_commit():
+            magic_box_applys = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
+                                                          MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
+                                                          MagicBoxApply.MBAday < today,
+                                                          ).all()
+            current_app.logger.info('> 到期的魔盒商品有 {} 个 < '.format(len(magic_box_applys)))
+            for magic_box_apply in magic_box_applys:
+                pending_box = MagicBoxJoin.query.filter(MagicBoxJoin.isdelete == False,
+                                                        MagicBoxJoin.MBJstatus == MagicBoxJoinStatus.pending.value,
+                                                        MagicBoxJoin.MBAid == magic_box_apply.MBAid,
+                                                        MagicBoxJoin.MBSendtime >= today).first()
+                if pending_box:
+                    current_app.logger.info(f'商品MBAid:{magic_box_apply.MBAid} 仍有未完成盒子MBJid:{pending_box.MBJid}')
+                    pending_count += 1
+                    continue
+                current_app.logger.info(' 魔术礼盒MBAid : {} 开始退还'.format(magic_box_apply.MBAid))
+                mbs = MagicBoxApplySku.query.filter(MagicBoxApplySku.isdelete == False,
+                                                    MagicBoxApplySku.MBAid == magic_box_apply.MBAid).all()
+                for mbsku in mbs:
+                    corder._update_stock(int(mbsku.MBSstock), skuid=mbsku.SKUid)
+                count += 1
+                magic_box_apply.MBAstatus = ApplyStatus.shelves.value  # 已退回库存的商品改为已下架
+    except Exception as e:
+        current_app.logger.error('>>> 过期魔盒商品退还库存错误: {}<<<'.format(e))
+    finally:
+        current_app.logger.info(f'>>> 退还库存结束，共{count}个商品退还库存，仍有{pending_count}个商品仍有在分享的盒子<<<')
 
 
 @celery.task(name='auto_evaluate')
@@ -806,36 +916,6 @@ def event_expired_revert():
                     # 加库存
                     current_app.logger.info(' 恢复库存的猜数字SKUid >> {} '.format(gna_sku.SKUid))
                     corder._update_stock(gna_sku.SKUstock, skuid=gna_sku.SKUid)
-
-            # 魔术礼盒
-            magic_box_applys = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
-                                                          MagicBoxApply.MBAstatus == ApplyStatus.agree.value,
-                                                          MagicBoxApply.AgreeStartime < today,
-                                                          MagicBoxApply.AgreeEndtime < today,
-                                                          ).all()
-            current_app.logger.info('>>> 到期的魔术礼盒有 {} 个 <<< '.format(len(magic_box_applys)))
-            for magic_box_apply in magic_box_applys:
-                other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
-                                                              MagicBoxApply.MBAid != magic_box_apply.MBAid,
-                                                              MagicBoxApply.MBAstatus.in_(
-                                                                  [ApplyStatus.wait_check.value,
-                                                                   ApplyStatus.agree.value]),
-                                                              MagicBoxApply.OSid == magic_box_apply.OSid,
-                                                              MagicBoxApply.AgreeEndtime >= today,
-                                                              ).first()  # 是否存在同用库存还没到期的
-                if other_apply_info:
-                    current_app.logger.info(' MBAid "{}" 存在同批次库存还在上架或审核状态，跳过'.format(magic_box_apply.MBAid))
-                    continue
-                current_app.logger.info(' 过期魔术礼盒进行下架 >> MBAid : {} '.format(magic_box_apply.MBAid))
-                magic_box_apply.MBAstatus = ApplyStatus.shelves.value  # 改为已下架
-                try:
-                    out_stock = OutStock.query.filter(OutStock.isdelete == False,
-                                                      OutStock.OSid == magic_box_apply.OSid).first()
-                    current_app.logger.info(' 恢复库存的魔盒SKUid >> {} '.format(magic_box_apply.SKUid))
-                    corder._update_stock(out_stock.OSnum, skuid=magic_box_apply.SKUid)
-                    out_stock.OSnum = 0
-                except Exception as err:
-                    current_app.logger.error('MBAid "{}" , 魔盒库存单出错 >> {}'.format(magic_box_apply.MBAid, err))
 
             # 试用商品
             trialcommoditys = TrialCommodity.query.filter(TrialCommodity.TCstatus == TrialCommodityStatus.upper.value,

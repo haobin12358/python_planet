@@ -23,8 +23,9 @@ from planet.common.token_handler import token_required, is_admin, is_tourist, is
 from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, OrderRefundORAstate, \
     ApplyStatus, OrderRefundOrstatus, LogisticsSignStatus, DisputeTypeType, OrderEvaluationScore, \
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
-    UserIdentityStatus, ActivityRecvStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
-    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS, GuessGroupStatus, GuessRecordStatus
+    UserIdentityStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
+    TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS, GuessGroupStatus, GuessRecordStatus, \
+    MagicBoxJoinStatus
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -41,11 +42,11 @@ from planet.models import ProductSku, Products, ProductBrand, AddressCity, Produ
     ProductCategory, GuessNumAwardSku, GuessNumAwardProduct, TrialCommoditySku, FreshManJoinFlow, FreshManFirstSku, \
     FreshManFirstApply, FreshManFirstProduct, TimeLimitedSku, TimeLimitedProduct, TimeLimitedActivity, \
     OrderPartContentActivity, IntegralProduct, IntegralProductSku, SupplizerDepositLog, UserIntegral, GuessGroup, \
-    GuessRecord, GroupGoodsProduct, GroupGoodsSku
+    GuessRecord, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku
 
 from planet.models import OrderMain, OrderPart, OrderPay, Carts, OrderRefundApply, LogisticsCompnay, \
     OrderLogistics, CouponUser, Coupon, OrderEvaluation, OrderCoupon, OrderEvaluationImage, OrderEvaluationVideo, \
-    OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxFlow, MagicBoxOpen, MagicBoxApply, \
+    OrderRefund, UserWallet, GuessAwardFlow, GuessNum, GuessNumAwardApply, MagicBoxOpen, MagicBoxApply, \
     MagicBoxJoin
 
 
@@ -1003,31 +1004,47 @@ class COrder(CPay, CCoupon):
                         fmfs.FMFPstock = int(fmfs.FMFPstock) + int(opnum)
 
                 elif omfrom == OrderFrom.magic_box.value:
-                    current_app.logger.info('活动魔盒订单')
-                    magic_box_flow = MagicBoxFlow.query.filter(
-                        MagicBoxFlow.OMid == omid,
-                    ).first()
+                    current_app.logger.info('正在取消一个魔术礼盒订单')
                     magic_box_join = MagicBoxJoin.query.filter(
-                        MagicBoxJoin.MBJid == magic_box_flow.MBJid
+                        MagicBoxJoin.OMid == omid,
+                        MagicBoxJoin.MBJstatus == MagicBoxJoinStatus.pending.value,
+                        MagicBoxJoin.isdelete == False
                     ).first()
-                    magic_box_join.MBJstatus = ActivityRecvStatus.wait_recv.value
+                    if not magic_box_join:
+                        current_app.logger.error('该订单相应的魔盒不存在 OMid{}'.format(omid))
+                        continue
+
+                    # 重新将 盒子关联的主单清空
+                    magic_box_join.update({'OMid': None})
                     db.session.add(magic_box_join)
-                    current_app.logger.info('改魔盒的领取状态{}'.format(dict(magic_box_join)))
-                    db.session.add(magic_box_join)
+
                     magic_box_apply = MagicBoxApply.query.filter(
                         MagicBoxApply.isdelete == False,
-                        MagicBoxApply.MBAid == magic_box_join.MBAid
+                        MagicBoxApply.MBAid == magic_box_join.MBAid,
+                        MagicBoxApply.MBAstatus == ApplyStatus.agree.value
                     ).first()
-                    current_app.logger.info('osid is {}'.format(magic_box_apply.OSid))
-                    out_stock = OutStock.query.filter(OutStock.isdelete == False,
-                                                      OutStock.OSid == magic_box_apply.OSid).first()
-                    if out_stock:
-                        out_stock.update({
-                            'OSnum': OutStock.OSnum + opnum
-                        })
-                        current_app.logger.info('魔盒取消订单, 增加库存{}, 当前 {}'.format(opnum, out_stock.OSnum))
-                        db.session.add(out_stock)
-                    db.session.flush()
+                    current_app.logger.info('mbaid is {}'.format(magic_box_apply.MBAid))
+                    magic_box_sku = MagicBoxApplySku.query.filter_by_(MBSid=magic_box_join.MBSid).first()
+                    pr_sku = ProductSku.query.outerjoin(MagicBoxApplySku,
+                                                        MagicBoxApplySku.SKUid == ProductSku.SKUid
+                                                        ).filter(MagicBoxApplySku.MBSid == magic_box_join.MBSid,
+                                                                 ProductSku.isdelete == False).first()
+                    pr = Products.query.outerjoin(MagicBoxApply,
+                                                  MagicBoxApply.PRid == Products.PRid
+                                                  ).filter(MagicBoxApply.MBAid == magic_box_join.MBAid,
+                                                           Products.isdelete == False,
+                                                           Products.PRstatus == ProductStatus.usual.value
+                                                           ).first()
+                    if not magic_box_apply or not magic_box_sku:
+                        current_app.logger.info('魔盒商品或sku不在上架状态, mbaid:{}'.format(prid))
+                        if pr and pr_sku:
+                            current_app.logger.info('原商品存在，返还库存到原商品sku')
+                            self._update_stock(int(opnum), product=pr, sku=pr_sku)
+                    else:
+                        current_app.logger.info('魔盒商品库存 {} + {}'.format(magic_box_sku.MBSstock, opnum))
+                        magic_box_sku.MBSstock += opnum
+                    current_app.logger.info('商品销量 {} - {}'.format(pr.PRsalesValue, opnum))
+                    pr.PRsalesValue -= opnum
 
                 elif omfrom == OrderFrom.trial_commodity.value:
                     current_app.logger.info('正在取消一个试用商品订单')

@@ -424,7 +424,7 @@ class CFreshManFirstOrder(COrder, CUser):
         fmfaid = data.get('fmfaid')
         apply_from = ApplyFrom.supplizer.value if is_supplizer() else ApplyFrom.platform.value
         product = Products.query.filter(Products.PRid == prid, Products.isdelete == False,
-                                        Products.PRstatus.in_([ProductStatus.usual.value, ProductStatus.auditing.value])
+                                        Products.PRstatus.notin_([ProductStatus.usual.value, ProductStatus.auditing.value])
                                         ).first_('当前商品状态不允许进行申请')
         product_brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first_('商品所在信息不全')
         with db.auto_commit():
