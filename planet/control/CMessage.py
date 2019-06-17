@@ -393,7 +393,7 @@ class CMessage():
                 head = user['USheader']
                 name = user.USname
                 if is_get:
-                    user.USunread -= urunread
+                    user.USunread = (user.USunread or 0) - urunread
                     if user.USunread < 0:
                         user.USunread = 0
                 # else:
@@ -403,7 +403,7 @@ class CMessage():
                 head = admin['ADheader']
                 name = admin.ADname
                 if is_get:
-                    admin.ADunread -= urunread
+                    admin.ADunread =(admin.ADunread or 0) - urunread
                     if admin.ADunread < 0:
                         admin.ADunread = 0
                 # else:
