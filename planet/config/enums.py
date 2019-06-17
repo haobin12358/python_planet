@@ -265,11 +265,23 @@ class AdminAction(Enum):
     ADtelphone = '手机号码'
 
 
-class ActivityRecvStatus(Enum):
-    """活动领奖状态"""
-    wait_recv = 0, '待领取'
-    ready_recv = 10, '已领取'
-    expired = 20, '已过期'
+class MagicBoxJoinStatus(Enum):
+    """魔盒状态"""
+    expired = -10, '已过期'
+    pending = 0, '进行中'
+    completed = 10, '已购买'
+
+
+class MagicBoxOpenAction(Enum):
+    reduce = 0, '减少'
+    increase = 10, '增加'
+
+
+class ActivityDepositStatus(Enum):
+    failed = -20, '无效'
+    revert = -10, '已退还'
+    valid = 0, '有效'
+    deduct = 10, '已扣除'
 
 
 class GuessNumAwardStatus(Enum):
@@ -547,6 +559,7 @@ class UserCommissionType(Enum):
     deposit = 2, '押金'
     news_award = 3, '圈子打赏'
     group_refund = 4, '拼团退款'
+    box_deposit = 5, '礼盒押金'
 
 
 class UserCommissionStatus(Enum):
@@ -680,7 +693,7 @@ class UserGrade(Enum):
 class PlanetMessageStatus(Enum):
     draft = 0, '草稿'
     publish = 1, '已发布',
-    hide = 1, '隐藏'
+    hide = 10, '隐藏'
 
 
 class CorrectNumType(Enum):
