@@ -94,6 +94,8 @@ class CorrectNum(Base):
     CNid = Column(String(64), primary_key=True)
     CNnum = Column(String(16), nullable=False, comment='正确的数字')
     CNdate = Column(Date, nullable=False, comment='日期')
+    CNtype = Column(Integer, default=0, comment='结果类型 {0: 上证指数 1: 福彩3D}')
+    CNissue = Column(String(10), comment='福彩期数')
 
 
 class GuessAwardFlow(Base):
@@ -328,3 +330,68 @@ class TimeLimitedSku(Base):
     TLSstock = Column(String(64), comment='库存')
     SKUid = Column(String(64), comment='skuid')
     SKUprice = Column(DECIMAL(precision=28, scale=2), comment='sku价格')
+
+
+class GuessGroup(Base):
+    """竞猜团"""
+    __tablename__ = 'GuessGroup'
+    GGid = Column(String(64), primary_key=True)
+    USid = Column(String(64), nullable=False, comment='发起人')
+    GPid = Column(String(64), comment='拼团商品')
+    PRtitle = Column(String(255), nullable=False, comment='标题')
+    PRmainpic = Column(String(255), comment='主图', url=True)
+    GPdeposit = Column(DECIMAL(precision=10, scale=2), comment='押金')
+    GGstarttime = Column(DateTime, nullable=False, comment='拼团开始时间')
+    GGendtime = Column(DateTime, nullable=False, comment='拼团结束时间')
+    GGstatus = Column(Integer, default=0, comment='拼团状态 {拼团失败:-10, 等待分享:0, 等待开奖:10 购买成功:20}')
+    GGcorrectNum = Column(Integer, comment='开奖时的正确数字')
+
+
+class GuessRecord(Base):
+    """竞猜拼团记录"""
+    __tablename__ = 'GuessRecord'
+    GRid = Column(String(64), primary_key=True)
+    GGid = Column(String(64), nullable=False, comment='拼团id')
+    GPid = Column(String(64), nullable=False, comment='商品id')
+    GRnumber = Column(Integer, nullable=False, comment='竞猜数字')
+    GRdigits = Column(Integer, comment='数字位数 个位:0 十位:10 百位:20')
+    USid = Column(String(64), nullable=False, comment='竞猜者')
+    UShead = Column(Text, url=True, comment='用户头像')
+    USname = Column(Text, comment='用户昵称')
+    OMid = Column(String(64), comment='订单id')
+    GRstatus = Column(Integer, default=0, comment='竞猜状态 {失效:-10 ; 有效: 0 ')
+
+
+class GroupGoodsProduct(Base):
+    """拼团商品"""
+    __tablename__ = 'GroupGoodsProduct'
+    GPid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), nullable=False, comment='发布者id')
+    PRid = Column(String(64), comment='商品id')
+    GPfreight = Column(DECIMAL(precision=10, scale=2), default=0, comment='运费')
+    GPstatus = Column(Integer, default=0, comment='申请状态, -10: 拒绝 0: 待审核, 10: 通过')
+    GPrejectReason = Column(String(255), comment='拒绝理由')
+    GPday = Column(Date, comment='开始日期')
+
+
+class GroupGoodsSku(Base):
+    """拼团商品sku"""
+    __tablename__ = 'GroupGoodsSku'
+    GSid = Column(String(64), primary_key=True)
+    GPid = Column(String(64), comment='拼团商品id')
+    SKUid = Column(String(64), comment='普通商品skuid')
+    GSstock = Column(BIGINT, comment='拼团库存')
+    SKUPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='sku原价格')
+    SKUFirstLevelPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='猜对一个数字时的价格')
+    SKUSecondLevelPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='猜对两个数字时的价格')
+    SKUThirdLevelPrice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='猜对三个数字时的价格')
+    # OSid = Column(String(64), nullable=False, comment='库存单')
+    #
+    # @property
+    # def GSstock(self):
+    #     from flask import current_app
+    #     current_app.logger.info('>>> 调用了GSstock<<<')
+    #     out_stock = OutStock.query.filter(OutStock.OSid == self.OSid,
+    #                                       OutStock.isdelete == False, ).first()
+    #     if out_stock:
+    #         return out_stock.OSnum
