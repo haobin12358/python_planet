@@ -181,11 +181,21 @@ class CGuessGroup(COrder, BASEAPPROVAL):
                                          # GuessGroup.GGendtime >= datetime.datetime.now()
                                          ).first_('该拼团已结束')
             gpid = gg.GPid
+        agree_status = GroupGoodsProduct.GPstatus == ApplyStatus.agree.value
         filter_args = [GroupGoodsProduct.isdelete == False, GroupGoodsProduct.GPid == gpid]
+
         if common_user() or is_tourist():
-            filter_args.append(GroupGoodsProduct.GPstatus == ApplyStatus.agree.value)
-        gp = GroupGoodsProduct.query.filter(*filter_args).first_("没有找到该商品")
-        product = self._fill_gp(gp, gg)
+            filter_args.append(agree_status)
+
+        try:
+            if gg and gg.GGstatus == GuessGroupStatus.completed.value and agree_status in filter_args:
+                filter_args.remove(agree_status)
+
+            gp = GroupGoodsProduct.query.filter(*filter_args).first_()
+            product = self._fill_gp(gp, gg)
+        except Exception as e :
+            current_app.logger.error('The error is {}'.format(e))
+            raise StatusError("该拼团活动已结束")
         return Success('获取成功', data=product)
 
     def _fill_gp(self, gp, gg=None):
@@ -385,6 +395,8 @@ class CGuessGroup(COrder, BASEAPPROVAL):
                 if gg.USid == request.user.id:
                     type = '我发起的'
                 gg.fill('type', type)
+            if gg.GGstatus == GuessGroupStatus.failed.value:
+                gg.fill('type', '拼团失败')
 
     def list(self):
         """拼团/商品列表"""
