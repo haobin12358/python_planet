@@ -1015,7 +1015,7 @@ class COrder(CPay, CCoupon):
                         continue
 
                     # 重新将 盒子关联的主单清空
-                    magic_box_join.update({'OMid': None})
+                    magic_box_join.OMid = None
                     db.session.add(magic_box_join)
 
                     magic_box_apply = MagicBoxApply.query.filter(

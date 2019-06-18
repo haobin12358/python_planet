@@ -14,7 +14,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_supplizer, is_admin, common_user, is_tourist
 from planet.config.enums import ApplyStatus, ActivityType, OrderFrom, PayType, ProductStatus, \
     ApplyFrom, AdminActionS, ProductFrom, ProductBrandStatus, MagicBoxJoinStatus, MagicBoxOpenAction, \
-    ActivityDepositStatus, Client
+    ActivityDepositStatus, Client, OrderMainStatus
 from planet.control.BaseControl import BASEADMIN, BASEAPPROVAL
 from planet.extensions.register_ext import db, wx_pay
 from planet.models import MagicBoxJoin, MagicBoxApply, MagicBoxOpen, User, Activity, ProductBrand, \
@@ -79,7 +79,7 @@ class CMagicBox(COrder, BASEAPPROVAL):
                 spreadprice = float(currentprice) - float(mbj.LowestPrice)
                 lowest = True if spreadprice <= 0 else False
                 trade = True if currentprice <= mbj.HighestPrice else False
-                spreadprice = 0.01 if spreadprice <= 0 else round(spreadprice, 2)
+                spreadprice = 0 if spreadprice <= 0 else round(spreadprice, 2)
 
             product.fill('spreadprice', spreadprice)  # 需要补的差价
 
@@ -488,11 +488,13 @@ class CMagicBox(COrder, BASEAPPROVAL):
         with db.auto_commit():
             prid = mba.PRid
             skuid = mbs.SKUid
-            price = mbj.MBJcurrentPrice
-            true_price = round(float(mbj.MBJcurrentPrice) - float(acdeposit.ACDdeposit), 2)
+            price = mbj.MBJcurrentPrice if float(mbj.MBJcurrentPrice) - float(acdeposit.ACDdeposit) >= 0 else acdeposit.ACDdeposit
+            true_price = round(float(mbj.MBJcurrentPrice) - float(acdeposit.ACDdeposit), 2)  # 要补的差价
+            redirect = False
             if true_price <= 0:
-                true_price = 0.01
-                price = round(float(acdeposit.ACDdeposit), 2) + 0.01
+                # true_price = 0.01
+                true_price = 0
+                # price = round(float(acdeposit.ACDdeposit), 2) + 0.01
             product = Products.query.filter_by(PRid=prid, isdelete=False, PRstatus=ProductStatus.usual.value).first()
             pbid = product.PBid
             product_brand = ProductBrand.query.filter_by({"PBid": pbid}).first()
@@ -529,7 +531,7 @@ class CMagicBox(COrder, BASEAPPROVAL):
                 'PBid': pbid,
                 'OMclient': omclient,
                 'OMfreight': 0,  # 运费暂时为0
-                'OMmount': price,
+                'OMmount': mbs.SKUprice,
                 'OMmessage': ommessage,
                 'OMtrueMount': price,
                 # 收货信息
@@ -538,6 +540,12 @@ class CMagicBox(COrder, BASEAPPROVAL):
                 'OMrecvAddress': omrecvaddress,
                 'PRcreateId': product.CreaterId
             }
+            if true_price <= 0:  # 不用支付差价时，直接生成订单并扣除押金
+                order_main_dict['OMstatus'] = OrderMainStatus.wait_send.value
+                mbj.update({'MBJstatus': MagicBoxJoinStatus.completed.value})
+                acdeposit.update({'ACDstatus': ActivityDepositStatus.deduct.value})
+                db.session.add(acdeposit)
+                redirect = True
             order_main_instance = OrderMain.create(order_main_dict)
             db.session.add(order_main_instance)
             # 订单副单
@@ -548,7 +556,7 @@ class CMagicBox(COrder, BASEAPPROVAL):
                 'PRid': mba.MBAid,  # 魔盒商品id
                 'PRattribute': product.PRattribute,
                 'SKUattriteDetail': sku.SKUattriteDetail,
-                'SKUprice': price,
+                'SKUprice': mbs.SKUprice,
                 'PRtitle': product.PRtitle,
                 'SKUsn': sku.SKUsn,
                 'PCname': product_category.PCname,
@@ -591,7 +599,8 @@ class CMagicBox(COrder, BASEAPPROVAL):
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
-            'args': pay_args
+            'args': pay_args,
+            'redirect': redirect
         }
         return Success('创建订单成功', data=response)
 
