@@ -64,6 +64,7 @@ class OrderFrom(Enum):
     trial_commodity = 60, '试用商品'
     time_limited = 70, '限时特惠',
     integral_store = 80, '星币商城'
+    guess_group = 90, '拼团竞猜'
 
 
 class OrderMainStatus(Enum):
@@ -85,6 +86,7 @@ class ActivityOrderNavigation(Enum):
     trial_commodity = 60, '免费试用'
     time_limited = 70, '限时特惠'
     integral_store = 80, '星币商城'
+    guess_grou = 90, '拼团竞猜'
 
 
 class OrderEvaluationScore(Enum):
@@ -263,11 +265,23 @@ class AdminAction(Enum):
     ADtelphone = '手机号码'
 
 
-class ActivityRecvStatus(Enum):
-    """活动领奖状态"""
-    wait_recv = 0, '待领取'
-    ready_recv = 10, '已领取'
-    expired = 20, '已过期'
+class MagicBoxJoinStatus(Enum):
+    """魔盒状态"""
+    expired = -10, '已过期'
+    pending = 0, '进行中'
+    completed = 10, '已购买'
+
+
+class MagicBoxOpenAction(Enum):
+    reduce = 0, '减少'
+    increase = 10, '增加'
+
+
+class ActivityDepositStatus(Enum):
+    failed = -20, '无效'
+    revert = -10, '已退还'
+    valid = 0, '有效'
+    deduct = 10, '已扣除'
 
 
 class GuessNumAwardStatus(Enum):
@@ -295,6 +309,28 @@ class ActivityType(Enum):
     magic_box = 2, '魔术礼盒'
     free_use = 3, '免费试用'
     time_limited = 4, '限时活动'
+    guess_group = 5, '竞猜拼团'
+
+
+class GuessGroupStatus(Enum):
+    """拼团状态"""
+    failed = -10, '拼团失败'
+    pending = 0, '等待分享'
+    waiting = 10, '等待开奖'
+    completed = 20, '拼团完成'
+
+
+class GuessRecordStatus(Enum):
+    """拼团记录状态"""
+    invalid = -10, '失效'
+    valid = 0, '有效'
+
+
+class GuessRecordDigits(Enum):
+    """竞猜记录位数"""
+    singleDigits = 0, '个位'
+    tenDigits = 10, '十位'
+    hundredDigits = 20, '百位'
 
 
 class QuestAnswerNoteType(Enum):
@@ -522,6 +558,8 @@ class UserCommissionType(Enum):
     fresh_man = 1, '新人商品'
     deposit = 2, '押金'
     news_award = 3, '圈子打赏'
+    group_refund = 4, '拼团退款'
+    box_deposit = 5, '礼盒押金'
 
 
 class UserCommissionStatus(Enum):
@@ -529,6 +567,7 @@ class UserCommissionStatus(Enum):
     preview = 0, '预计到账'
     in_account = 1, '已到账'
     out_count = 2, '已提现'
+
 
 #
 # class ApprovalStatus(Enum):
@@ -657,9 +696,16 @@ class PlanetMessageStatus(Enum):
     publish = 1, '已发布',
     hide = 10, '隐藏'
 
+
+class CorrectNumType(Enum):
+    composite_index = 0, '上证指数'
+    lottery_3d = 1, '福彩3D'
+
+
 class UserPlanetMessageStatus(Enum):
     unread = 0, '未读'
     read = 1, '已读'
+
 
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)

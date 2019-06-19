@@ -24,7 +24,7 @@ from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFi
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
     GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku, \
-    CashFlow, NewsAward, NewsTag, UserCommission
+    CashFlow, NewsAward, NewsTag, UserCommission, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -431,10 +431,10 @@ class CApproval(BASEAPPROVAL):
             # 四个活动可通过申请时间筛选
             if pt.PTid == 'tomagicbox':
                 ap_list = ap_querry.outerjoin(MagicBoxApply, MagicBoxApply.MBAid == Approval.AVcontent
-                                              ).filter_(MagicBoxApply.MBAstarttime >= filter_starttime,
-                                                        MagicBoxApply.MBAstarttime <= filter_endtime
+                                              ).filter_(MagicBoxApply.MBAday >= filter_starttime,
+                                                        MagicBoxApply.MBAday <= filter_endtime
                                                         ).order_by(Approval.AVstatus.desc(),
-                                                                   MagicBoxApply.MBAstarttime.desc()).all_with_page()
+                                                                   MagicBoxApply.MBAday.desc()).all_with_page()
             elif pt.PTid == 'toguessnum':
                 ap_list = ap_querry.outerjoin(GuessNumAwardApply, GuessNumAwardApply.GNAAid == Approval.AVcontent
                                               ).filter_(GuessNumAwardApply.GNAAstarttime >= filter_starttime,
@@ -542,11 +542,24 @@ class CApproval(BASEAPPROVAL):
         """管理员处理审批流"""
         if is_admin():
             admin = Admin.query.filter_by_(ADid=request.user.id).first_("该管理员已被删除")
+            sup = None
         elif is_supplizer():
             sup = Supplizer.query.filter_by_(SUid=request.user.id).first_("账号状态错误，请重新登录")
+            admin = None
         else:
             raise AuthorityError('权限不足')
-        data = parameter_required(('avid', 'anaction', 'anabo'))
+
+        receive_data = request.json
+        if isinstance(receive_data, list):
+            for data in receive_data:
+                self.deal_single_approval(data, admin, sup)
+        else:
+            self.deal_single_approval(receive_data, admin, sup)
+
+        return Success("审批操作完成")
+
+    def deal_single_approval(self, data, admin=None, sup=None):
+        parameter_required(('avid', 'anaction', 'anabo'), datafrom=data)
         approval_model = Approval.query.filter_by_(AVid=data.get('avid'),
                                                    AVstatus=ApplyStatus.wait_check.value).first_('审批已处理')
         if is_admin():
@@ -594,8 +607,6 @@ class CApproval(BASEAPPROVAL):
             # 审批操作为拒绝
             approval_model.AVstatus = ApplyStatus.reject.value
             self.refuse_action(approval_model, data.get('anabo'))
-
-        return Success("审批操作完成")
 
     @get_session
     @token_required
@@ -885,6 +896,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_tointegral(approval_model)
         elif approval_model.PTid == 'tonewsaward':
             self.agree_newsaward(approval_model)
+        elif approval_model.PTid == 'togroupgoods':
+            self.agree_groupgoods(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -921,6 +934,8 @@ class CApproval(BASEAPPROVAL):
             self.refuse_tointegral(approval_model, refuse_abo)
         elif approval_model.PTid == 'tonewsaward':
             self.refuse_newsaward(approval_model, refuse_abo)
+        elif approval_model.PTid == 'togroupgoods':
+            self.refuse_groupgoods(approval_model, refuse_abo)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -1163,16 +1178,9 @@ class CApproval(BASEAPPROVAL):
 
     def agree_magicbox(self, approval_model):
         mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
+        if mba.MBAday < datetime.date.today():
+            raise ParamsError('不允许通过申请日期小于当前日期的申请')
         mba.MBAstatus = ApplyStatus.agree.value
-        mba_other = MagicBoxApply.query.filter(
-            MagicBoxApply.isdelete == False,
-            MagicBoxApply.MBAid != mba.MBAid,
-            MagicBoxApply.MBAstarttime == mba.MBAstarttime,
-            MagicBoxApply.MBAendtime == mba.MBAendtime
-        ).all()
-        for other in mba_other:
-            other.MBAstatus = ApplyStatus.reject.value
-            other.MBArejectReason = '您的商品未被抽中为{0}这一天的奖品'.format(mba.MBAstarttime)
 
     def refuse_magicbox(self, approval_model, refuse_abo):
         # mba = MagicBoxApply.query.filter_by_(MBAid=approval_model.AVcontent).first_('魔盒商品申请数据异常')
@@ -1181,19 +1189,18 @@ class CApproval(BASEAPPROVAL):
             return
         mba.MBAstatus = ApplyStatus.reject.value
         mba.MBArejectReason = refuse_abo
-        # 是否进行库存变化
-        other_apply_info = MagicBoxApply.query.filter(MagicBoxApply.isdelete == False,
-                                                      MagicBoxApply.MBAid != mba.MBAid,
-                                                      MagicBoxApply.MBAstatus.notin_(
-                                                          [ApplyStatus.cancle.value, ApplyStatus.reject.value]),
-                                                      MagicBoxApply.OSid == mba.OSid,
-                                                      ).first()
-        if not other_apply_info:
-            out_stock = OutStock.query.filter(OutStock.isdelete == False,
-                                              OutStock.OSid == mba.OSid
-                                              ).first()
-            from planet.control.COrder import COrder
-            COrder()._update_stock(out_stock.OSnum, skuid=mba.SKUid)
+
+        # 获取原商品属性
+        product = Products.query.filter_by(PRid=mba.PRid, isdelete=False).first()
+        # 获取原sku属性
+        mbs_sku = MagicBoxApplySku.query.filter(MagicBoxApplySku.MBAid == mba.MBAid, MagicBoxApplySku.isdelete == False).all()
+        from planet.control.COrder import COrder
+        co = COrder()
+        # 遍历原sku 将库存退出去
+        for sku in mbs_sku:
+            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+            co._update_stock(int(sku.MBSstock), product, sku_instance)
 
     def agree_freshmanfirstproduct(self, approval_model):
         ffa = FreshManFirstApply.query.filter_by_(FMFAid=approval_model.AVcontent).first_('新人商品申请数据异常')
@@ -1302,6 +1309,30 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
                                                       SKUid=sku.SKUid).first_('商品sku信息不存在')
             co._update_stock(int(sku.IPSstock), product, sku_instance)
+
+    def agree_groupgoods(self, approval_model):
+        gp = GroupGoodsProduct.query.filter_by_(GPid=approval_model.AVcontent).first_('拼团商品申请数据异常')
+        if gp.GPday < datetime.date.today():
+            raise ParamsError('不允许通过申请日期小于当前日期的申请')
+        gp.GPstatus = ApplyStatus.agree.value
+
+    def refuse_groupgoods(self, approval_model, refuse_abo):
+        gp = GroupGoodsProduct.query.filter_by_(GPid=approval_model.AVcontent).first()
+        if not gp:
+            return
+        gp.GPstatus = ApplyStatus.reject.value
+        gp.GPrejectReason = refuse_abo
+        # 获取原商品属性
+        product = Products.query.filter_by(PRid=gp.PRid, isdelete=False).first()
+        # 获取原sku属性
+        gps_old = GroupGoodsSku.query.filter(GroupGoodsSku.GPid == gp.GPid, GroupGoodsSku.isdelete == False).all()
+        from planet.control.COrder import COrder
+        co = COrder()
+        # 遍历原sku 将库存退出去
+        for sku in gps_old:
+            sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                      SKUid=sku.SKUid).first_('商品sku信息不存在')
+            co._update_stock(int(sku.GSstock), product, sku_instance)
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

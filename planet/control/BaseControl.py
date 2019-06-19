@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -319,15 +319,11 @@ class BASEAPPROVAL():
         return start_model, content
 
     def __fill_magicbox(self, startid, contentid):
-        # done 魔术礼盒
         start_model = Supplizer.query.filter_by_(SUid=startid).first() or Admin.query.filter_by_(ADid=startid).first()
         content = MagicBoxApply.query.filter_by_(MBAid=contentid).first()
-        if not start_model or not content:
-            return None, None
-        product = Products.query.filter_by_(PRid=content.PRid).first()
-        self.__fill_product_detail(product, content.SKUid, content=content)
-        content.fill('product', product)
-        return start_model, content
+        fill_gp_child_method = getattr(self, '_fill_mba')
+        product = fill_gp_child_method(content)
+        return start_model, product
 
     def __fill_trialcommodity(self, startid, contentid):
         # done 使用商品
@@ -499,6 +495,13 @@ class BASEAPPROVAL():
 
         return start_model, product
 
+    def __fill_groupgoods(self, startid, contentid):
+        start_model = Supplizer.query.filter_by_(SUid=startid).first()
+        gp = GroupGoodsProduct.query.filter_by(GPid=contentid, isdelete=False).first()
+        fill_gp_child_method = getattr(self, '_fill_gp')
+        product = fill_gp_child_method(gp)
+        return start_model, product
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -529,6 +532,8 @@ class BASEAPPROVAL():
             return self.__fill_timelimited(start, content)
         elif pt.PTid == 'tointegral':
             return self.__fill_integral(start, content)
+        elif pt.PTid == 'togroupgoods':
+            return self.__fill_groupgoods(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
