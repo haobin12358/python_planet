@@ -154,15 +154,16 @@ class Mynamespace(Namespace):
 
     def on_disconnect(self):
         current_app.logger.info(session.get('id'))
-        return return_res('{} is dis connect'.format(session.get('id')))
+        current_app.logger.info('{} is dis connect'.format(session.get('id')))
+        disconnect()
 
     def on_my_ping(self):
-        emit('my_pong')
+        self.socketio.emit('my_pong', Success)
 
     def on_disconnect_request(self):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': 'Disconnected!', 'count': session['receive_count']})
+        # session['receive_count'] = session.get('receive_count', 0) + 1
+        # emit('my_response',
+        #      {'data': 'Disconnected!', 'count': session['receive_count']})
         disconnect()
 
     def on_join_room(self, data):
