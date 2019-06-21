@@ -232,6 +232,7 @@ class AdminLevel(Enum):
     super_admin = 1, '超级管理员'
     common_admin = 2, '普通管理员'
     agent = 3, '供应商'
+    finance = 4, '财务'
 
 
 class AdminStatus(Enum):
@@ -616,6 +617,7 @@ class UserMediaType(Enum):
 
 
 class SupplizerSettementStatus(Enum):
+    checking = -2, '财务审核中'
     settlementing = 0, '结算中'
     settlemented = 1, '已结算'
     approvaling = -1, '结算异常处理中'

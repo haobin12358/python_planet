@@ -25,7 +25,7 @@ from planet.config.enums import PayType, Client, OrderFrom, OrderMainStatus, Ord
     ActivityOrderNavigation, UserActivationCodeStatus, OMlogisticTypeEnum, ProductStatus, UserCommissionStatus, \
     UserIdentityStatus, ApplyFrom, SupplizerSettementStatus, UserCommissionType, CartFrom, \
     TimeLimitedStatus, ProductBrandStatus, AdminAction, AdminActionS, GuessGroupStatus, GuessRecordStatus, \
-    MagicBoxJoinStatus
+    MagicBoxJoinStatus, AdminLevel
 
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.http_config import HTTP_HOST
@@ -2404,6 +2404,11 @@ class COrder(CPay, CCoupon):
         current_app.logger.info('结束创建供应商结算表 表名为 {}'.format(xls_name))
         # return send_from_directory(abs_dir, xls_name, as_attachment=True)
 
+    def create_tar(self, filename, source_dir):
+        import tarfile
+        with tarfile.open(filename, 'w:gz') as tar:
+            tar.add(source_dir, arcname="结算单")
+
     def _list_part(self, *args, **kwargs):
         # updatetime_start = kwargs.get('pre_month')
         createtime_start = kwargs.get('pre_month')
@@ -2510,3 +2515,18 @@ class COrder(CPay, CCoupon):
             items.append(item)
         data = tablib.Dataset(*items, headers=headers, title=kwargs.get('title'))
         return data
+
+    def export_xls_all(self):
+        if not is_admin() and request.user.level != AdminLevel.finance.value:
+            raise AuthorityError
+
+        time_now = datetime.now()
+        data = parameter_required()
+        month = int(data.get('month', 0)) or time_now.month
+        year = int(data.get('year', 0)) or time_now.year
+        excel_path = os.path.join(BASEDIR, 'img', 'xls', str(year), str(month))
+        # filename = '{}.xls'.format(suid)
+        filename = r'{}-{}.tar.gz'.format(year, month)
+        if not os.path.isfile(os.path.join(excel_path, filename)):
+            raise ParamsError('供应商当月没有结算单')
+        return send_from_directory(excel_path, filename, as_attachment=True, cache_timeout=-1)

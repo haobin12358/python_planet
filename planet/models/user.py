@@ -111,7 +111,7 @@ class Admin(Base):
     ADfirstpwd = Column(Text, comment=' 初始密码 明文保存')
     ADfirstname = Column(Text, comment=' 初始用户名')
     ADheader = Column(Text, comment='头像', url=True)
-    ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
+    ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商 4: 财务}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
 
