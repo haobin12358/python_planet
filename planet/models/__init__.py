@@ -9,3 +9,5 @@ from .trade import *
 from .questanswer import *
 from .commision import *
 from .club import *
+from .join import *
+from .play import *
