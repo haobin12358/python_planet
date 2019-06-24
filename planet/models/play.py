@@ -57,3 +57,12 @@ class Cost(Base):
     COSname = Column(String(256), comment='费用名')
     COSsubtotal = Column(DECIMAL, comment='费用小计')
     COSdetail = Column(Text, comment='费用说明')
+
+class Gather(Base):
+    """集合"""
+    __tablename__ = 'Gather'
+    GAid = Column(String(64), primary_key=True)
+    PLid = Column(String(64), comment='活动id')
+    GAlon = Column(String(64), comment='经度')
+    GAlat = Column(String(64), comment='维度')
+    GAcreate = Column(String(64), comment='发起人')

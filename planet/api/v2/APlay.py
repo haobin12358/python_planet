@@ -3,7 +3,7 @@ from planet.common.base_resource import Resource
 from planet.control.CPlay import CPlay
 
 
-class Aplay(Resource):
+class APlay(Resource):
     def __init__(self):
         cplay = CPlay()
 
