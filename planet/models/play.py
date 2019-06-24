@@ -58,6 +58,7 @@ class Cost(Base):
     COSsubtotal = Column(DECIMAL, comment='费用小计')
     COSdetail = Column(Text, comment='费用说明')
 
+
 class Gather(Base):
     """集合"""
     __tablename__ = 'Gather'

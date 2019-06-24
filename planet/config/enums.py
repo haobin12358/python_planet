@@ -701,6 +701,13 @@ class CorrectNumType(Enum):
     lottery_3d = 1, '福彩3D'
 
 
+class PlayStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '组队中'
+    activity = 2, '活动中'
+    close = 3, '已关闭'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
