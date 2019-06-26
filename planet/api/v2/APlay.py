@@ -9,7 +9,11 @@ class APlay(Resource):
 
     def get(self, play):
         apis = {
-
+            'get_cost': self.cplay.get_cost,
+            'get_all_play': self.cplay.get_all_play,
+            'get_insurance': self.cplay.get_insurance,
+            'get_play': self.cplay.get_play,
+            'get_play_list': self.cplay.get_play_list,
         }
         return apis
 
