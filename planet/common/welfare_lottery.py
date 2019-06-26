@@ -71,7 +71,7 @@ class WelfareLottery(object):
         res = self.fetch(self.url, self.headers, data, json=True)
         if not res:
             current_app.logger.error('今日福彩官网连接异常：{}'.format(self.today))
-            return self.back_up_response()
+            return self.kaicai_api()
         current_app.logger.info('Welfare Lottery 3D {} ：{}'.format(self.today, res.get('message')))
         result = res.get('result') or {}
         if result:
@@ -81,7 +81,7 @@ class WelfareLottery(object):
         code = result.get('code')
         if not (date and code and nums):
             current_app.logger.error('福彩官网数据异常: {}'.format(result))
-            return self.back_up_response()
+            return self.kaicai_api()
         resp = [date, code]
         resp.extend(nums.split(','))
         return resp
@@ -109,11 +109,11 @@ class WelfareLottery(object):
         res = self.fetch(self.kaicai_url, self.base_headers, json=True)
         if not res:
             current_app.logger.error('今日开彩网连接异常：{}'.format(self.today))
-            time.sleep(3)
+            time.sleep(5)
             return self.back_up_response()
         data = res.get('data')
         if not (isinstance(data, list) and len(data) > 0):
-            time.sleep(3)
+            time.sleep(5)
             return self.back_up_response()
         expect = data[0].get('expect')
         opencode = data[0].get('opencode')
@@ -123,7 +123,8 @@ class WelfareLottery(object):
             resp.extend(opencode.split(','))
             print(resp)
             return resp
-        return
+        time.sleep(5)
+        return self.back_up_response()
 
 
 if __name__ == '__main__':

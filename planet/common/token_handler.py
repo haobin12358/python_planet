@@ -2,7 +2,7 @@
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from flask import current_app, request
 
-from .error_response import AuthorityError, TokenError
+from .error_response import AuthorityError, TokenError, NeedPhone
 
 
 def usid_to_token(id, model='User', level=0, expiration='', username='none'):
@@ -21,6 +21,11 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
         'level': level,
 
     }).decode()
+
+
+def binded_phone():
+    """是否已绑定手机号"""
+    return common_user() and hasattr(get_current_user, 'UStelphone')
 
 
 def is_admin():
@@ -65,6 +70,14 @@ def token_required(func):
         if not is_tourist():
             return func(self, *args, **kwargs)
         raise TokenError()
+    return inner
+
+
+def phone_required(func):
+    def inner(self, *args, **kwargs):
+        if binded_phone():
+            return func(self, *args, **kwargs)
+        raise NeedPhone()
     return inner
 
 

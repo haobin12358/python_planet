@@ -345,9 +345,10 @@ class UserLoginTimetype(Enum):
 
 
 class WXLoginFrom(Enum):
-    service = 0, '服务号'
-    subscribe = 1, '订阅号'
-    app = 2, '移动端'
+    service = 0, '订阅号'
+    subscribe = 1, '服务号'
+    miniprogram = 2, '小程序'
+    app = 3, '移动端'
 
 
 class BankName(Enum):
