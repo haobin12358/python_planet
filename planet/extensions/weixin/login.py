@@ -129,3 +129,24 @@ class WeixinLogin(object):
         args.setdefault("js_code", js_code)
         args.setdefault("grant_type", "authorization_code")
         return self._get(url, args)
+
+    def base_access_token(self):
+        """服务端可生成的基础accesstoken"""
+        url = 'https://api.weixin.qq.com/cgi-bin/token'
+        args = dict()
+        args.setdefault("grant_type", "client_credential")
+        args.setdefault("appid", self.app_id)
+        args.setdefault("secret", self.app_secret)
+        return self._get(url, args)
+
+    def base_user_info(self, access_token, openid):
+        """
+        服务端使用base_access_token可主动获取的用户信息
+        需用户关注公众号
+        """
+        url = "https://api.weixin.qq.com/cgi-bin/user/info"
+        args = dict()
+        args.setdefault("access_token", access_token)
+        args.setdefault("openid", openid)
+        args.setdefault("lang", "zh_CN")
+        return self._get(url, args)
