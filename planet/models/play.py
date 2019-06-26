@@ -46,7 +46,7 @@ class Insurance(Base):
     INname = Column(String(1024), comment='保险名')
     INcontent = Column(LONGTEXT, comment='保险详情')
     INtype = Column(Integer, default=0, comment='保险类型 0 非必选 1 必选')
-    INcost = Column(DECIMAL, comment='保险费')
+    INcost = Column(DECIMAL(precision=28, scale=2), comment='保险费')
 
 
 class Cost(Base):
@@ -55,7 +55,7 @@ class Cost(Base):
     COSid = Column(String(64), primary_key=True)
     PLid = Column(String(64), comment='活动id')
     COSname = Column(String(256), comment='费用名')
-    COSsubtotal = Column(DECIMAL, comment='费用小计')
+    COSsubtotal = Column(DECIMAL(precision=28, scale=2), comment='费用小计')
     COSdetail = Column(Text, comment='费用说明')
 
 

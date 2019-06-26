@@ -24,8 +24,11 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
 
 
 def binded_phone():
-    """是否已绑定手机号"""
-    return common_user() and hasattr(get_current_user, 'UStelphone')
+    # """是否已绑定手机号"""
+    # current_app.logger.info('common user {}'.format(common_user()))
+    # current_app.logger.info('current user {}', get_current_user())
+    # current_app.logger.info('user telphone', hasattr(get_current_user, 'UStelphone'))
+    return common_user() and hasattr(get_current_user(), 'UStelphone')
 
 
 def is_admin():

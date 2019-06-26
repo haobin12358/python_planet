@@ -1,7 +1,6 @@
-# 小程序 用来创建活动 管理活动
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import current_app, request
@@ -10,9 +9,10 @@ from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import get_current_user
+from planet.common.token_handler import get_current_user, phone_required
 from planet.config.enums import PlayStatus
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
+from planet.extensions.tasks import start_play, end_play, celery
 from planet.models import Cost, Insurance, Play
 
 
@@ -22,6 +22,7 @@ class CPlay():
         self.split_item = '!@##@!'
         self.connect_item = '-'
 
+    @phone_required
     def set_play(self):
         data = parameter_required()
         plid = data.get('plid')
@@ -39,14 +40,19 @@ class CPlay():
                     db.session.add(play)
                     return Success('删除成功', data=plid)
                 update_dict = self._get_update_dict(play, data)
+                if update_dict.get('PLlocation'):
+                    update_dict.update(PLlocation=self.split_item.join(update_dict.get('PLlocation')))
                 if update_dict.get('PLproducts'):
                     update_dict.update(PLproducts=self.split_item.join(update_dict.get('PLproducts')))
                 if update_dict.get('PLcreate'):
                     update_dict.pop('PLcreate')
+                if update_dict.get('PLcontent'):
+                    update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
 
                 play.update(update_dict)
                 db.session.add(play)
                 self._update_cost_and_insurance(data, plid)
+                self.auto_playstatus(play)
                 return Success('更新成功', data=plid)
             data = parameter_required(
                 ('plimg', 'plstarttime', 'plendtime', 'pllocation', 'plnum', 'pltitle', 'plcontent'))
@@ -67,8 +73,10 @@ class CPlay():
                 'PLproducts': self.split_item.join(data.get('plproducts')),
             })
             db.session.add(play)
+            self.auto_playstatus(play)
         return Success(data=plid)
 
+    @phone_required
     def set_cost(self):
         data = parameter_required(('costs',))
         with db.auto_commit():
@@ -100,6 +108,8 @@ class CPlay():
                         if self._check_activity_play(cost_instance):
                             raise StatusError('进行中活动无法修改')
                         update_dict = self._get_update_dict(cost_instance, cost)
+                        if update_dict.get('COSsubtotal'):
+                            update_dict.update(COSsubtotal=subtotal)
                         cost_instance.update(update_dict)
                         instance_list.append(cost_instance)
                         cosid_list.append(cosid)
@@ -125,6 +135,7 @@ class CPlay():
         costs_list = Cost.query.filter_by(PLid=plid, isdelete=False).order_by(Cost.createtime.asc()).all()
         return Success(data=costs_list)
 
+    @phone_required
     def set_insurance(self):
         data = parameter_required()
         with db.auto_commit():
@@ -134,6 +145,10 @@ class CPlay():
             for ins in insurance_list:
                 current_app.logger.info('get Insurance {} '.format(ins))
                 inid = data.get('inid')
+                incost = Decimal(str(data.get('incost', '0')))
+                if incost < Decimal('0'):
+                    incost = Decimal('0')
+
                 if data.get('delete'):
                     current_app.logger.info('删除 Insurance {} '.format(inid))
                     ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
@@ -148,7 +163,10 @@ class CPlay():
                     if ins_instance:
                         if self._check_activity_play(ins_instance):
                             raise StatusError('进行中活动无法修改')
-                        ins_instance.update(self._get_update_dict(ins_instance, ins))
+                        update_dict = self._get_update_dict(ins_instance, ins)
+                        if update_dict.get('INcost'):
+                            update_dict.update(INcost=incost)
+                        ins_instance.update()
                         instance_list.append(ins_instance)
                         inid_list.append(inid)
                         continue
@@ -158,7 +176,7 @@ class CPlay():
                     'INname': ins.get('inname'),
                     'INcontent': ins.get('incontent'),
                     'INtype': int(ins.get('intype')),
-                    'INcost': Decimal(ins.get('incost')),
+                    'INcost': incost,
                 })
                 instance_list.append(ins_instance)
                 inid_list.append(inid)
@@ -177,21 +195,21 @@ class CPlay():
         instance_list = list()
         error_dict = {'costs': list(), 'insurances': list()}
 
-        costs_list = data.get('costs')
-        ins_list = data.get('insurances')
+        costs_list = data.get('costs') or list()
+        ins_list = data.get('insurances') or list()
         for costid in costs_list:
             cost = Cost.query.filter_by(COSid=costid, isdelete=False).first()
             if not cost:
                 error_dict.get('costs').append(costid)
                 continue
-            cost.update(PLid=plid)
+            cost.update({"PLid": plid})
             instance_list.append(cost)
         for inid in ins_list:
             insurance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
             if not insurance:
                 error_dict.get('insurances').append(inid)
                 continue
-            insurance.update(PLid=plid)
+            insurance.update({"PLid": plid})
             instance_list.append(insurance)
         db.session.add_all(instance_list)
         current_app.logger.info('the error in this updating {}'.format(error_dict))
@@ -289,3 +307,21 @@ class CPlay():
             self._fill_play(play)
 
         return Success(data=plays_list)
+
+    def auto_playstatus(self, play):
+        if play.PLstatus == PlayStatus.publish.value:
+            start_connid = 'startplay{}'.format(play.PLid)
+            end_connid = 'endplay{}'.format(play.PLid)
+            self._cancle_celery(start_connid)
+            self._cancle_celery(end_connid)
+            start_task_id = start_play.apply_async(args=(play.PLid,), eta=play.PLstartTime - timedelta(hours=8))
+            end_task_id = end_play.apply_async(args=(play.PLid,), eta=play.PLendTime - timedelta(hours=8))
+            conn.set(start_connid, start_task_id)
+            conn.set(end_connid, end_task_id)
+
+    def _cancle_celery(self, conid):
+        exist_task = conn.get(conid)
+        if exist_task:
+            exist_task = str(exist_task, encoding='utf-8')
+            current_app.logger.info('已有任务id: {}'.format(exist_task))
+            celery.AsyncResult(exist_task).revoke()

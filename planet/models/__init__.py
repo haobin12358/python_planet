@@ -11,3 +11,4 @@ from .commision import *
 from .club import *
 from .join import *
 from .play import *
+from .scenicspot import *
