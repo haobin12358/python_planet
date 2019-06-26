@@ -1732,14 +1732,15 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
 
+
+
+
     @staticmethod
     def _decrypt_encrypted_user_data(encrypteddata, session_key, iv):
         """小程序信息解密"""
-        import base64
-        from Crypto.Cipher import AES
-        decode = base64.b64decode(encrypteddata)
-        cryptor = AES.new(base64.b64decode(session_key), AES.MODE_CBC, base64.b64decode(iv))
-        plain_text = cryptor.decrypt(decode)
+        from planet.common.WXBizDataCrypt import WXBizDataCrypt
+        pc = WXBizDataCrypt(MiniProgramAppId, session_key)
+        plain_text = pc.decrypt(encrypteddata, iv)
         return plain_text
 
     @get_session
@@ -1762,7 +1763,14 @@ class CUser(SUser, BASEAPPROVAL):
         except Exception as e:
             current_app.logger.error('mp_login_error : {}'.format(e))
             raise WXLoginError
-        user = User.query.filter_by_(USopenid1=openid).first() or User.query.filter_by_(USunionid=unionid).first()
+        user = User.query.filter_by_(USopenid1=openid).first()
+        if user:
+            current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
+        elif unionid:
+            user = User.query.filter_by_(USunionid=unionid).first()
+            if user:
+                current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
+
         head = self._get_local_head(userinfo.get("avatarUrl"), openid)
         sex = int(userinfo.get('gender', 1)) - 1
 
@@ -1782,7 +1790,6 @@ class CUser(SUser, BASEAPPROVAL):
 
         if user:
             usid = user.USid
-            current_app.logger.info('exist user is {}'.format(user.__dict__))
             user.USheader = head
             user.USname = userinfo.get('nickName')
             user.USopenid1 = openid
@@ -1854,7 +1861,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         phone = data.get('phonenumber')
         session_key = data.get('session_key')
-        current_app.logger.info('手机号加密数据为{}'.format(phone))
+        current_app.logger.info('手机加密数据为{}'.format(phone))
         encrypteddata = phone.get('encryptedData')
         iv = phone.get('iv')
 
@@ -1864,7 +1871,7 @@ class CUser(SUser, BASEAPPROVAL):
             current_app.logger.error('手机号解密失败: {}'.format(e))
             raise WXLoginError()
 
-        current_app.logger.info(f'plain_text: {encrypted_user_info.decode()}')
+        current_app.logger.info(f'plain_text: {encrypted_user_info}')
         phonenumber = encrypted_user_info.get('phoneNumber')
 
         user.UStelphone = phonenumber
@@ -1882,8 +1889,9 @@ class CUser(SUser, BASEAPPROVAL):
             res_user = phone_binded_user
 
         token = usid_to_token(res_user.USid, level=res_user.USlevel, username=res_user.USname)  # 更换token
-
-        return Success('绑定成功', {'phonenumber': phonenumber, 'token': token})
+        response = {'phonenumber': str(phonenumber).replace(str(phonenumber)[3:7], '*'*4), 'token': token}
+        current_app.logger.info('return_data: {}'.format(response))
+        return Success('绑定成功', response)
 
     @staticmethod
     def _get_user_agent():
