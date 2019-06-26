@@ -9,6 +9,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v2.APlay import APlay
 from planet.api.v2.AGuessGroup import AGuessGroup
 from planet.api.v2.AIntegral import AIntegral
 from planet.api.v2.ACollection import ACollection
@@ -55,6 +56,7 @@ from planet.extensions.loggers import LoggerHandler
 
 class JSONEncoder(_JSONEncoder):
     """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
+
     def default(self, o):
 
         if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
@@ -168,6 +170,7 @@ def register(app):
     v2.add_url_rule('/setsupper/<string:setsupper>', view_func=ASetSupper.as_view('setsupper'))  # 设置邀请人
     v2.add_url_rule('/collection/<string:collection>', view_func=ACollection.as_view('collection'))  # 设置收藏
     v2.add_url_rule('/guessgroup/<string:guessgroup>', view_func=AGuessGroup.as_view('guessgroup'))  # 拼团竞猜
+    v2.add_url_rule('/play/<string:play>', view_func=APlay.as_view('play'))  # 拼团竞猜
 
     # v2.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v2.add_url_rule.....
@@ -184,4 +187,3 @@ def create_app():
     register_ext(app)
     error_handler(app)
     return app, socket
-
