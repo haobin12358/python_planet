@@ -5,12 +5,18 @@ from planet.control.CPlay import CPlay
 
 class APlay(Resource):
     def __init__(self):
-        cplay = CPlay()
+        self.cplay = CPlay()
 
     def get(self, play):
-        apis = {}
+        apis = {
+
+        }
         return apis
 
     def post(self, play):
-        apis = {}
+        apis = {
+            'set_play': self.cplay.set_play,
+            'set_cost': self.cplay.set_cost,
+            'set_insurance': self.cplay.set_insurance,
+        }
         return apis
