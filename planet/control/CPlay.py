@@ -1,9 +1,10 @@
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from flask import current_app, request
+from sqlalchemy import Date
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError
@@ -13,7 +14,7 @@ from planet.common.token_handler import get_current_user, phone_required
 from planet.config.enums import PlayStatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play, PlayRequire
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog
 
 
 class CPlay():
@@ -48,7 +49,13 @@ class CPlay():
                     update_dict.pop('PLcreate')
                 if update_dict.get('PLcontent'):
                     update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
-
+                playname = {
+                    'pllocation': update_dict.get('PLlocation') or play.PLlocation,
+                    'plstarttime': update_dict.get('PLstarttime') or play.PLstartTime,
+                    'plendtime': update_dict.get('PLendTime') or play.PLendTime,
+                }
+                plname = self._update_plname(playname)
+                update_dict.update(PLname=plname)
                 play.update(update_dict)
                 db.session.add(play)
                 self._update_cost_and_insurance(data, plid)
@@ -242,10 +249,18 @@ class CPlay():
         current_app.logger.info('the error in this updating {}'.format(error_dict))
 
     def _update_plname(self, data):
-        pllocation = self.connect_item.join(data.get('pllocation'))
+        pllocation = data.get('pllocation')
+        if isinstance(data.get('pllocation'), list):
+            pllocation = self.connect_item.join(data.get('pllocation'))
+
         try:
-            plstart = datetime.strptime(data.get('plstarttime'), '%Y-%m-%d %H:%M:%S')
-            plend = datetime.strptime(data.get('plendtime'), '%Y-%m-%d %H:%M:%S')
+            plstart = data.get('plstarttime')
+            plend = data.get('plendtime')
+            if not isinstance(plstart, datetime):
+                plstart = datetime.strptime(data.get('plstarttime'), '%Y-%m-%d %H:%M')
+
+            if not isinstance(plend, datetime):
+                plend = datetime.strptime(data.get('plendtime'), '%Y-%m-%d %H:%M')
         except:
             current_app.logger.error('转时间失败  开始时间 {}  结束时间 {}'.format(data.get('plstarttime'), data.get('plendtime')))
             raise ParamsError
@@ -311,9 +326,38 @@ class CPlay():
         play.fill('playsum', playsum)
 
     def get_play_list(self):
+        data = parameter_required()
         user = get_current_user()
-        plays_list = Play.query.filter_by(PLcreate=user.USid, isdelete=False).order_by(
-            Play.createtime.desc()).all_with_page()
+        join_or_create = int(data.get('playtype', 0))
+
+        filter_args = set()
+        filter_args.add(Play.isdelete == False)
+        if data.get('createtime'):
+            createtime = data.get('createtime')
+            try:
+                if isinstance(createtime, str):
+                    createtime = datetime.strptime(createtime, '%Y-%m-%d').date()
+                elif isinstance(createtime, datetime):
+                    createtime = createtime.date()
+            except:
+                current_app.logger.info('时间筛选格式不对 时间 {} 类型{}'.format(createtime, type(createtime)))
+                raise ParamsError
+
+            filter_args.add(Play.createtime.cast(Date) == createtime)
+        if data.get('plstatus') or data.get('plstatus') == 0:
+            try:
+                filter_args.add(Play.PLstatus == PlayStatus(int(data.get('plstatus'))).value)
+            except:
+                current_app.logger.info('状态筛选数据不对 状态{}'.format(data.get('plstatus')))
+                raise ParamsError
+        if join_or_create:
+            filter_args.add(EnterLog.USid == user.USid)
+            filter_args.add(EnterLog.isdelete == False)
+            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(*filter_args).order_by(
+                Play.createtime.desc()).all_with_page()
+        else:
+            plays_list = Play.query.filter(*filter_args, Play.PLcreate == user.USid).order_by(
+                Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
 
@@ -329,7 +373,7 @@ class CPlay():
         #
         # }
         if plstatus is not None:
-            filter_args.add(Play.PLstatus == plstatus)
+            filter_args.add(Play.PLstatus == int(plstatus))
         # if
 
         plays_list = Play.query.filter(*filter_args).order_by(
@@ -345,8 +389,14 @@ class CPlay():
             end_connid = 'endplay{}'.format(play.PLid)
             self._cancle_celery(start_connid)
             self._cancle_celery(end_connid)
-            start_task_id = start_play.apply_async(args=(play.PLid,), eta=play.PLstartTime - timedelta(hours=8))
-            end_task_id = end_play.apply_async(args=(play.PLid,), eta=play.PLendTime - timedelta(hours=8))
+            starttime = play.PLstartTime
+            endtime = play.PLendTime
+            if not isinstance(starttime, datetime):
+                starttime = datetime.strptime(starttime, '%Y-%m-%d %H:%M')
+            if not isinstance(endtime, datetime):
+                endtime = datetime.strptime(endtime, '%Y-%m-%d %H:%M')
+            start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
+            end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
             conn.set(start_connid, start_task_id)
             conn.set(end_connid, end_task_id)
 
