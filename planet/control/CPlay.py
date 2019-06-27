@@ -373,7 +373,7 @@ class CPlay():
         #
         # }
         if plstatus is not None:
-            filter_args.add(Play.PLstatus == plstatus)
+            filter_args.add(Play.PLstatus == int(plstatus))
         # if
 
         plays_list = Play.query.filter(*filter_args).order_by(
