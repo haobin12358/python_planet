@@ -328,9 +328,10 @@ class CPlay():
     def get_play_list(self):
         data = parameter_required()
         user = get_current_user()
-        join_or_create = data.get('playtype', 0)
+        join_or_create = int(data.get('playtype', 0))
 
         filter_args = set()
+        filter_args.add(Play.isdelete == False)
         if data.get('createtime'):
             createtime = data.get('createtime')
             try:
@@ -343,17 +344,19 @@ class CPlay():
                 raise ParamsError
 
             filter_args.add(Play.createtime.cast(Date) == createtime)
-        if data.get('plstatus'):
+        if data.get('plstatus') or data.get('plstatus') == 0:
             try:
-                filter_args.add(Play.PLstatus == PlayStatus(data.get('plstatus')).value)
+                filter_args.add(Play.PLstatus == PlayStatus(int(data.get('plstatus'))).value)
             except:
                 current_app.logger.info('状态筛选数据不对 状态{}'.format(data.get('plstatus')))
                 raise ParamsError
         if join_or_create:
-            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
-                *filter_args, EnterLog.USid == user.USid).order_by(Play.createtime.desc()).all_with_page()
+            filter_args.add(EnterLog.USid == user.USid)
+            filter_args.add(EnterLog.isdelete == False)
+            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(*filter_args).order_by(
+                Play.createtime.desc()).all_with_page()
         else:
-            plays_list = Play.query.filter_by(PLcreate=user.USid, isdelete=False).order_by(
+            plays_list = Play.query.filter(*filter_args, Play.PLcreate == user.USid).order_by(
                 Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
