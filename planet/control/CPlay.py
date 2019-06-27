@@ -13,7 +13,7 @@ from planet.common.token_handler import get_current_user, phone_required
 from planet.config.enums import PlayStatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play
+from planet.models import Cost, Insurance, Play, PlayRequire
 
 
 class CPlay():
@@ -73,6 +73,8 @@ class CPlay():
                 'PLproducts': self.split_item.join(data.get('plproducts')),
             })
             db.session.add(play)
+            self._update_cost_and_insurance(data, plid)
+
             self.auto_playstatus(play)
         return Success(data=plid)
 
@@ -193,10 +195,11 @@ class CPlay():
 
     def _update_cost_and_insurance(self, data, plid):
         instance_list = list()
-        error_dict = {'costs': list(), 'insurances': list()}
+        error_dict = {'costs': list(), 'insurances': list(), 'playrequires': list()}
 
         costs_list = data.get('costs') or list()
         ins_list = data.get('insurances') or list()
+        prs_list = data.get('playrequires') or list()
         for costid in costs_list:
             cost = Cost.query.filter_by(COSid=costid, isdelete=False).first()
             if not cost:
@@ -211,6 +214,30 @@ class CPlay():
                 continue
             insurance.update({"PLid": plid})
             instance_list.append(insurance)
+
+        presort = 1
+        preid_list = list()
+        for prename in prs_list:
+
+            pre = PlayRequire.query.filter_by(PREname=prename, PLid=plid, isdelete=False).first()
+            if pre:
+                pre.update({'PLid': plid, 'PREsort': presort})
+            else:
+                pre = PlayRequire.create({
+                    'PREid': str(uuid.uuid1()),
+                    'PREname': prename,
+                    'PLid': plid,
+                    'PREsort': presort
+                })
+            preid_list.append(pre.PREid)
+            instance_list.append(pre)
+            presort += 1
+
+        PlayRequire.query.filter(
+            PlayRequire.PLid == plid,
+            PlayRequire.PREid.notin_(preid_list),
+            PlayRequire.isdelete == False
+        ).delete_(synchronize_session=False)
         db.session.add_all(instance_list)
         current_app.logger.info('the error in this updating {}'.format(error_dict))
 
@@ -262,6 +289,10 @@ class CPlay():
         play.fill('PLcontent', json.loads(play.PLcontent))
         play.fill('plstatus_zh', PlayStatus(play.PLstatus).zh_value)
         play.fill('plstatus_en', PlayStatus(play.PLstatus).name)
+        playrequires = PlayRequire.query.filter_by(PLid=play.PLid, isdelete=False).order_by(
+            PlayRequire.PREsort.asc()).all()
+
+        play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
 
     def _fill_costs(self, play):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
