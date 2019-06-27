@@ -1851,7 +1851,7 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     def bind_phone(self):
         """小程序绑定手机号更新用户"""
-        data = parameter_required(('phonenumber', ))
+        data = parameter_required(('phonenumber', 'session_key'))
 
         user = User.query.filter(User.USid == request.user.id,
                                  User.isdelete == False,
