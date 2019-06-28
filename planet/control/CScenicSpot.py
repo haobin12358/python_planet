@@ -10,7 +10,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin
 from planet.extensions.register_ext import db
-from planet.models import AddressArea, AddressCity, AddressProvince, Admin
+from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin
 from planet.models.scenicspot import ScenicSpot
 
 
@@ -29,7 +29,7 @@ class CScenicSpot(object):
             raise ParamsError('已添加过该景区')
         if parentid:
             ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == False,
-                                    ScenicSpot.ParentID.is_(None)).first_('关联景区填写错误')
+                                    ScenicSpot.ParentID.is_(None)).first_('关联景区选择错误')
         # 地址拼接
         address = db.session.query(AddressProvince.APname, AddressCity.ACname, AddressArea.AAname).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
@@ -62,6 +62,13 @@ class CScenicSpot(object):
         scenic_instance = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         sspname = data.get('sspname')
         parentid = data.get('parentid')
+
+        if parentid == sspid:
+            raise ParamsError('关联景区不能选择自身')
+        associated = ScenicSpot.query.filter_by_(ParentID=scenic_instance.SSPid).first()
+        if not scenic_instance.ParentID and associated and parentid:
+            raise ParamsError('该景区作为顶级景区已被其他景区关联，不允许再将此景区关联到其他景区下')
+
         exsit_other = ScenicSpot.query.filter(ScenicSpot.isdelete == False,
                                               ScenicSpot.SSPname == sspname,
                                               ScenicSpot.SSPid != sspid).first()
@@ -69,7 +76,8 @@ class CScenicSpot(object):
             raise ParamsError('景区名称重复')
         if parentid:
             ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == False,
-                                    ScenicSpot.ParentID.is_(None)).first_('关联景区填写错误')
+                                    ScenicSpot.ParentID.is_(None)).first_('关联景区选择错误')
+
         # 地址拼接
         address = db.session.query(AddressProvince.APname, AddressCity.ACname, AddressArea.AAname).filter(
             AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
@@ -172,6 +180,7 @@ class CScenicSpot(object):
             address_info = [{'apid': address[0], 'apname': address[1]},
                             {'acid': address[2], 'acname': address[3]},
                             {'aaid': address[4], 'aaname': address[5]}]
+            # 关联景区
             if scenicspot.ParentID:
                 parent_scenicspot = ScenicSpot.query.filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
