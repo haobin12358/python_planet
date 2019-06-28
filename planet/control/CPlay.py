@@ -244,7 +244,8 @@ class CPlay():
                 Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
-
+            self._fill_costs(play,show=False)
+            self._fill_insurances(play, show=False)
         return Success(data=plays_list)
 
     def get_all_play(self):
@@ -389,21 +390,25 @@ class CPlay():
             PlayRequire.PREsort.asc()).all()
 
         play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
+        enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
+        play.fill('enternum', enter_num)
 
-    def _fill_costs(self, play):
+    def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
         playsum = getattr(play, 'playsum', 0)
         costsum = sum([cost.COSsubtotal for cost in costs_list])
         playsum = Decimal(str(playsum)) + costsum
-        play.fill('costs', costs_list)
+        if show:
+            play.fill('costs', costs_list)
         play.fill('playsum', playsum)
 
-    def _fill_insurances(self, play):
+    def _fill_insurances(self, play, show=True):
         ins_list = Insurance.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Insurance.createtime.asc()).all()
         playsum = getattr(play, 'playsum', 0)
         inssum = sum([ins.INcost for ins in ins_list])
         playsum = Decimal(str(playsum)) + inssum
-        play.fill('insurances', ins_list)
+        if show:
+            play.fill('insurances', ins_list)
         play.fill('playsum', playsum)
 
     @phone_required
@@ -412,13 +417,16 @@ class CPlay():
         plid = data.get('plid')
 
         elid = data.get('elid')
+        user = get_current_user()
         # todo 用户只能参加一个活动
+        self.check_plid(user, plid)
 
         if elid:
-            el = EnterLog.query.filter_by(ELid=elid, PLid=plid, isdelete=False).first()
+            el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
             if el:
                 # 校验修改
-
+                if el.PLid != plid:
+                    raise ParamsError('同一时间只能参加一个活动')
                 # 更新费用明细
                 self.update_enter_cost(el, data)
 
@@ -461,3 +469,7 @@ class CPlay():
         })
         db.session.add(ecmodel)
         return ecmodel
+
+    def check_plid(self, user, plid):
+        user_enter = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid).filter(
+            EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False)
