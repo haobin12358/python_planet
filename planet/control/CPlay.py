@@ -1,8 +1,7 @@
 import json
-import re
 import uuid
 import re
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import current_app, request
@@ -22,7 +21,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
 
 
-class CPlay():
+class CPlay(object):
 
     def __init__(self):
         self.split_item = '!@##@!'
