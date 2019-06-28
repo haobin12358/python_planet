@@ -715,6 +715,11 @@ class PlayStatus(Enum):
     close = 3, '已关闭'
 
 
+class EnterCostType(Enum):
+    cost = 0, '费用'
+    insurance = 1, '保险'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

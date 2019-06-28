@@ -36,6 +36,7 @@ class EnterCost(Base):
     __tablename__ = 'EnterCost'
     ECid = Column(String(64), primary_key=True)
     ELid = Column(String(64), comment='报名记录id')
+    ECcontent = Column(String(64), comment='保险或费用id')
     ECtype = Column(Integer, default=0, comment='费用类型 0 费用 1 保险')
     ECcost = Column(DECIMAL(precision=28, scale=2), comment='费用小计')
 

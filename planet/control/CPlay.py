@@ -11,10 +11,10 @@ from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
-from planet.config.enums import PlayStatus
+from planet.config.enums import PlayStatus, EnterCostType
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost
 
 
 class CPlay():
@@ -253,9 +253,7 @@ class CPlay():
         filter_args = {
             Play.isdelete == False
         }
-        # order_args = {
-        #
-        # }
+
         if plstatus is not None:
             filter_args.add(Play.PLstatus == int(plstatus))
         # if
@@ -264,7 +262,8 @@ class CPlay():
             Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
-
+            self._fill_costs(play)
+            self._fill_insurances(play)
         return Success(data=plays_list)
 
     def auto_playstatus(self, play):
@@ -409,14 +408,56 @@ class CPlay():
 
     @phone_required
     def join(self):
-        data = parameter_required(('plid', ))
+        data = parameter_required(('plid',))
         plid = data.get('plid')
+
+        elid = data.get('elid')
+        # todo 用户只能参加一个活动
+
+        if elid:
+            el = EnterLog.query.filter_by(ELid=elid, PLid=plid, isdelete=False).first()
+            if el:
+                # 校验修改
+
+                # 更新费用明细
+                self.update_enter_cost(el, data)
+
+    def update_enter_cost(self, el, data):
         costs = data.get('costs')
         insurances = data.get('insurances')
+        ecid = list()
         for cost in costs:
-            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False,).first()
-            if not cost_model:
-                raise ParamsError
+            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False, ).first_(
+                '费用项已修改，请刷新重新选择')
+
+            ecmodel = EnterCost.query.filter_by(
+                ELid=el.ELid, ECcontent=cost_model.COSid, ECtype=EnterCostType.cost.value, isdelete=False).first()
+            if not ecmodel:
+                ecmodel = self._create_entercost(el.ELid, cost_model.COSid, EnterCostType.cost.value,
+                                                 cost_model.COSsubtotal)
+            ecid.append(ecmodel.ECid)
 
         for insurance in insurances:
-            pass
+            ins_model = Insurance.query.filter_by(INid=insurance.get('inid'), isdelete=False).first_(
+                '保险项有修改，请刷新重新选择')
+            ecmodel = EnterCost.query.filter_by(
+                ELid=el.ELid, ECcontent=insurance.INid, ECtype=EnterCostType.insurance.value, isdelete=False).first()
+            if not ecmodel:
+                ecmodel = self._create_entercost(
+                    el.ELid, ins_model.INid, EnterCostType.insurance.value, ins_model.INcost)
+            ecid.append(ecmodel.ECid)
+
+        # 删除不用的
+        EnterCost.query.filter(EnterCost.ECid.notin_(ecid), EnterCost.isdelete == False).delete_(
+            synchronize_session=False)
+
+    def _create_entercost(self, elid, eccontent, ectype, eccost):
+        ecmodel = EnterCost.create({
+            'ECid': str(uuid.uuid1()),
+            'ELid': elid,
+            'ECcontent': eccontent,
+            'ECtype': ectype,
+            'ECcost': eccost
+        })
+        db.session.add(ecmodel)
+        return ecmodel
