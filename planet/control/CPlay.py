@@ -297,23 +297,16 @@ class CPlay(object):
         my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
         now = datetime.now()
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        can_post, gather_location, my_location, res = False, None, None, []
+        can_post, gather_location, my_location, res, location = False, None, None, [], []
         if my_lat and my_long:
             my_location = self.init_location_dict(my_lat, my_long, '我的位置')
+            location.append(my_location)
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
                                             Play.PLstartTime <= now,
                                             Play.PLendTime >= now,
                                             Play.PLcreate == user.USid).first()
-        my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
-                                             ).filter(Play.isdelete == false(),
-                                                      Play.PLstatus == PlayStatus.activity.value,
-                                                      Play.PLstartTime <= now,
-                                                      Play.PLendTime >= now,
-                                                      EnterLog.isdelete == false(),
-                                                      EnterLog.USid == user.USid,
-                                                      EnterLog.ELstatus == EnterLogStatus.success.value,
-                                                      ).first()
+
         if my_created_play:  # 是领队，显示上次定位点，没有为null
             can_post = True
             last_anchor_point = Gather.query.filter(Gather.isdelete == false(),
@@ -325,6 +318,15 @@ class CPlay(object):
                                                           last_anchor_point.GAlon,
                                                           '上次集合 {}'.format(last_anchor_point.GAtime)[11:16])
         else:  # 非领队
+            my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
+                                                 ).filter(Play.isdelete == false(),
+                                                          Play.PLstatus == PlayStatus.activity.value,
+                                                          Play.PLstartTime <= now,
+                                                          Play.PLendTime >= now,
+                                                          EnterLog.isdelete == false(),
+                                                          EnterLog.USid == user.USid,
+                                                          EnterLog.ELstatus == EnterLogStatus.success.value,
+                                                          ).first()
             if my_joined_play:  # 存在参加的进行中的活动
                 gather_point = Gather.query.filter(Gather.isdelete == false(),
                                                    Gather.PLid == my_joined_play.PLid,
@@ -332,8 +334,11 @@ class CPlay(object):
                 gather_location = self.init_location_dict(gather_point.GAlat,
                                                           gather_point.GAlon,
                                                           str(gather_point.GAtime)[11:16])
+        if gather_location:
+            location.append(gather_location)
 
-        res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
+        # res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
+        res = {'can_post': can_post, 'location': location}
         return Success(data=res)
 
     @staticmethod
@@ -354,12 +359,12 @@ class CPlay(object):
                 raise ParamsError('经度错误，范围 -180 ~ 180')
         except (TypeError, ValueError):
             raise ParamsError('经纬度应为合适范围内的浮点数')
-        return float(lat), float(long)
+        return str(lat), str(long)
 
     @phone_required
     def set_gather(self):
         """发起集合点"""
-        data = phone_required(('latitude', 'longitude', 'time'))
+        data = parameter_required(('latitude', 'longitude', 'time'))
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
         # if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
