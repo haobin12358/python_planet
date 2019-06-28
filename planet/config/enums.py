@@ -715,6 +715,20 @@ class PlayStatus(Enum):
     close = 3, '已关闭'
 
 
+class EnterCostType(Enum):
+    cost = 0, '费用'
+    insurance = 1, '保险'
+
+
+class EnterLogStatus(Enum):
+    wait_pay = 0, '待支付'
+    success = 1, '成功'
+    cancel = 2, '用户取消'
+    canceled = 3, '领队取消'
+    error = -1, '异常'
+
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

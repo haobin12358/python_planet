@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from flask import current_app, request
-from sqlalchemy import Date
+from sqlalchemy import Date, or_, and_
 from sqlalchemy.sql.expression import false
 
 from planet.common.chinesenum import to_chinese4
@@ -13,12 +13,11 @@ from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
-from planet.config.enums import PlayStatus
-from planet.models.user import User
 from planet.models.play import Gather
+from planet.config.enums import PlayStatus, EnterCostType
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User
 
 
 class CPlay():
@@ -31,6 +30,7 @@ class CPlay():
     def set_play(self):
         data = parameter_required()
         plid = data.get('plid')
+        # todo  增加用户状态判断
         with db.auto_commit():
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
@@ -248,7 +248,8 @@ class CPlay():
                 Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
-
+            self._fill_costs(play, show=False)
+            self._fill_insurances(play, show=False)
         return Success(data=plays_list)
 
     def get_all_play(self):
@@ -257,9 +258,7 @@ class CPlay():
         filter_args = {
             Play.isdelete == False
         }
-        # order_args = {
-        #
-        # }
+
         if plstatus is not None:
             filter_args.add(Play.PLstatus == int(plstatus))
         # if
@@ -268,7 +267,8 @@ class CPlay():
             Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
-
+            self._fill_costs(play)
+            self._fill_insurances(play)
         return Success(data=plays_list)
 
     def auto_playstatus(self, play):
@@ -480,7 +480,7 @@ class CPlay():
         return update_dict
 
     def _fill_play(self, play):
-        play.hide('PLcreate')
+        # play.hide('PLcreate')
         play.fill('PLlocation', str(play.PLlocation).split(self.split_item))
         play.fill('PLproducts', str(play.PLproducts).split(self.split_item))
         play.fill('PLcontent', json.loads(play.PLcontent))
@@ -490,33 +490,110 @@ class CPlay():
             PlayRequire.PREsort.asc()).all()
 
         play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
+        enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
+        play.fill('enternum', enter_num)
+        user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+        name = user.USname if user else '大行星官方'
+        play.fill('PLcreate', name)
 
-    def _fill_costs(self, play):
+    def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
         playsum = getattr(play, 'playsum', 0)
         costsum = sum([cost.COSsubtotal for cost in costs_list])
         playsum = Decimal(str(playsum)) + costsum
-        play.fill('costs', costs_list)
+        if show:
+            play.fill('costs', costs_list)
         play.fill('playsum', playsum)
 
-    def _fill_insurances(self, play):
+    def _fill_insurances(self, play, show=True):
         ins_list = Insurance.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Insurance.createtime.asc()).all()
         playsum = getattr(play, 'playsum', 0)
         inssum = sum([ins.INcost for ins in ins_list])
         playsum = Decimal(str(playsum)) + inssum
-        play.fill('insurances', ins_list)
+        if show:
+            play.fill('insurances', ins_list)
         play.fill('playsum', playsum)
 
     @phone_required
     def join(self):
-        data = parameter_required(('plid', ))
+        data = parameter_required(('plid',))
         plid = data.get('plid')
+
+        elid = data.get('elid')
+        user = get_current_user()
+
+        if self.check_plid(user, plid):
+            raise StatusError('同一时间只能参加一个活动')
+
+        if elid:
+            el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
+            if el:
+                # 校验修改
+                if el.PLid != plid:
+                    raise ParamsError('同一时间只能参加一个活动')
+                # 更新费用明细
+                self.update_enter_cost(el, data)
+                update_dict = dict()
+                if data.get('elstatus'):
+                    pass
+
+
+
+    def update_enter_cost(self, el, data):
         costs = data.get('costs')
         insurances = data.get('insurances')
+        ecid = list()
         for cost in costs:
-            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False,).first()
-            if not cost_model:
-                raise ParamsError
+            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False, ).first_(
+                '费用项已修改，请刷新重新选择')
+
+            ecmodel = EnterCost.query.filter_by(
+                ELid=el.ELid, ECcontent=cost_model.COSid, ECtype=EnterCostType.cost.value, isdelete=False).first()
+            if not ecmodel:
+                ecmodel = self._create_entercost(el.ELid, cost_model.COSid, EnterCostType.cost.value,
+                                                 cost_model.COSsubtotal)
+            ecid.append(ecmodel.ECid)
 
         for insurance in insurances:
-            pass
+            ins_model = Insurance.query.filter_by(INid=insurance.get('inid'), isdelete=False).first_(
+                '保险项有修改，请刷新重新选择')
+            ecmodel = EnterCost.query.filter_by(
+                ELid=el.ELid, ECcontent=insurance.INid, ECtype=EnterCostType.insurance.value, isdelete=False).first()
+            if not ecmodel:
+                ecmodel = self._create_entercost(
+                    el.ELid, ins_model.INid, EnterCostType.insurance.value, ins_model.INcost)
+            ecid.append(ecmodel.ECid)
+
+        # 删除不用的
+        EnterCost.query.filter(EnterCost.ECid.notin_(ecid), EnterCost.isdelete == False).delete_(
+            synchronize_session=False)
+
+    def _create_entercost(self, elid, eccontent, ectype, eccost):
+        ecmodel = EnterCost.create({
+            'ECid': str(uuid.uuid1()),
+            'ELid': elid,
+            'ECcontent': eccontent,
+            'ECtype': ectype,
+            'ECcost': eccost
+        })
+        db.session.add(ecmodel)
+        return ecmodel
+
+    def check_plid(self, user, plid):
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        # 查询同一时间是否有其他已参与活动
+        user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
+            or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
+                and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
+            EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False,
+            Play.PLstatus < PlayStatus.close.value, Play.PLid != plid).all()
+        return bool(user_enter)
+
+#    # def
+# self._get_update_dict(el, data)
+# if update_dict.get('ELid'):
+#     update_dict.pop('ELid')
+# if update_dict.get('PLid'):
+#     update_dict.pop('PLid')
+# if update_dict.get('USid'):
+#     update_dict.pop('USid')
