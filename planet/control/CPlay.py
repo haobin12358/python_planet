@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 import re
 from datetime import datetime, timedelta, date
@@ -13,11 +14,12 @@ from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
-from planet.models.play import Gather
+
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus
+
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
 
 
 class CPlay():
@@ -454,8 +456,10 @@ class CPlay():
             plstart = data.get('plstarttime')
             plend = data.get('plendtime')
             if not isinstance(plstart, datetime):
-                plstart = datetime.strptime(data.get('plstarttime'), '%Y-%m-%d %H:%M')
-
+                if re.match(r'^.*(:\d{2}){2}$', plstart):
+                    plstart = datetime.strptime(plstart, '%Y-%m-%d %H:%M:%S')
+                else:
+                    plstart = datetime.strptime(plstart, '%Y-%m-%d %H:%M')
             if not isinstance(plend, datetime):
                 plend = datetime.strptime(data.get('plendtime'), '%Y-%m-%d %H:%M')
         except:
@@ -539,9 +543,20 @@ class CPlay():
                     raise ParamsError('同一时间只能参加一个活动')
                 # 更新费用明细
                 self.update_enter_cost(el, data)
-                update_dict = dict()
-                if data.get('elstatus'):
-                    pass
+                if data.get('elvalue'):
+                    el.update({'ELvalue': json.dumps(data.get('elvalue'))})
+                db.session.add(el)
+                return Success('修改成功')
+
+        elid = str(uuid.uuid1())
+        el = EnterLog.create({
+            'ELid': elid,
+            'PLid': plid,
+            'USid': user.USid,
+            'ELstatus': EnterLogStatus.wait_pay.value,
+            'ELvalue': json.dumps(data.get('elvalue', {}))
+        })
+        db.session.add(el)
 
     def update_enter_cost(self, el, data):
         costs = data.get('costs')
