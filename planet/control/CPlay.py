@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from flask import current_app, request
-from sqlalchemy import Date
+from sqlalchemy import Date, or_, and_
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError
@@ -422,8 +422,9 @@ class CPlay():
 
         elid = data.get('elid')
         user = get_current_user()
-        # todo 用户只能参加一个活动
-        self.check_plid(user, plid)
+
+        if self.check_plid(user, plid):
+            raise StatusError('同一时间只能参加一个活动')
 
         if elid:
             el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
@@ -433,6 +434,11 @@ class CPlay():
                     raise ParamsError('同一时间只能参加一个活动')
                 # 更新费用明细
                 self.update_enter_cost(el, data)
+                update_dict = dict()
+                if data.get('elstatus'):
+                    pass
+
+
 
     def update_enter_cost(self, el, data):
         costs = data.get('costs')
@@ -476,13 +482,19 @@ class CPlay():
 
     def check_plid(self, user, plid):
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        # 查询同一时间是否有其他已参与活动
         user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
+            or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
+                and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
             EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False,
             Play.PLstatus < PlayStatus.close.value, Play.PLid != plid).all()
+        return bool(user_enter)
 
-        if user_enter:
-            return True
-        for enter in user_enter:
-            if play.enter.PLstartTime:
-                pass
-
+#    # def
+# self._get_update_dict(el, data)
+# if update_dict.get('ELid'):
+#     update_dict.pop('ELid')
+# if update_dict.get('PLid'):
+#     update_dict.pop('PLid')
+# if update_dict.get('USid'):
+#     update_dict.pop('USid')
