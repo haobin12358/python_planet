@@ -728,7 +728,6 @@ class EnterLogStatus(Enum):
     error = -1, '异常'
 
 
-
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

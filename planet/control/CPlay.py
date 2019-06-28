@@ -14,7 +14,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
 from planet.models.play import Gather
-from planet.config.enums import PlayStatus, EnterCostType
+from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User
@@ -311,7 +311,7 @@ class CPlay():
                                                       Play.PLendTime >= now,
                                                       EnterLog.isdelete == false(),
                                                       EnterLog.USid == user.USid,
-                                                      EnterLog.ELstatus == '已通过的报名状态'
+                                                      EnterLog.ELstatus == EnterLogStatus.success.value,
                                                       ).first()
         if my_created_play:  # 是领队，显示上次定位点，没有为null
             can_post = True
@@ -493,7 +493,7 @@ class CPlay():
         enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
         play.fill('enternum', enter_num)
         user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
-        name = user.USname if user else '大行星官方'
+        name = user.USname if user else '旗行平台'
         play.fill('PLcreate', name)
 
     def _fill_costs(self, play, show=True):
@@ -536,8 +536,6 @@ class CPlay():
                 update_dict = dict()
                 if data.get('elstatus'):
                     pass
-
-
 
     def update_enter_cost(self, el, data):
         costs = data.get('costs')
