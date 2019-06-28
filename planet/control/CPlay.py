@@ -305,6 +305,7 @@ class CPlay(CPay):
         now = datetime.now()
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         can_post, gather_location, my_location, res, location = False, None, None, [], []
+        button_name = '暂无活动'
         if my_lat and my_long:
             my_location = self.init_location_dict(my_lat, my_long, '我的位置')
             location.append(my_location)
@@ -316,6 +317,7 @@ class CPlay(CPay):
 
         if my_created_play:  # 是领队，显示上次定位点，没有为null
             can_post = True
+            button_name = '发起集合'
             last_anchor_point = Gather.query.filter(Gather.isdelete == false(),
                                                     Gather.PLid == my_created_play.PLid,
                                                     Gather.GAcreate == user.USid
@@ -335,6 +337,7 @@ class CPlay(CPay):
                                                           EnterLog.ELstatus == EnterLogStatus.success.value,
                                                           ).first()
             if my_joined_play:  # 存在参加的进行中的活动
+                button_name = '等待集合'
                 gather_point = Gather.query.filter(Gather.isdelete == false(),
                                                    Gather.PLid == my_joined_play.PLid,
                                                    ).order_by(Gather.createtime.desc()).first()
@@ -345,7 +348,7 @@ class CPlay(CPay):
             location.append(gather_location)
 
         # res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
-        res = {'can_post': can_post, 'location': location}
+        res = {'can_post': can_post, 'button_name': button_name, 'location': location}
         return Success(data=res)
 
     @staticmethod
