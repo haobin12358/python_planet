@@ -360,10 +360,13 @@ class CPlay():
         """发起集合点"""
         data = phone_required(('latitude', 'longitude', 'time'))
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
-        if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
+        # if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
+        if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
-        latitude, longitude = self.check_lat_and_long(latitude, longitude)
         now = datetime.now()
+        gather_time = str(now)[0:11] + str(time) + ':00'
+        gather_time = datetime.strptime(gather_time, '%Y-%m-%d %H:%M:%S')
+        latitude, longitude = self.check_lat_and_long(latitude, longitude)
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
@@ -372,6 +375,9 @@ class CPlay():
                                             Play.PLcreate == user.USid).first()
         if not my_created_play:
             raise StatusError('您没有正在进行的活动')
+        if not (my_created_play.PLstartTime <= gather_time <= my_created_play.PLendTime):
+            raise ParamsError('集合时间不在活动时间范围内')
+
         with db.auto_commit():
             gather_instance = Gather.create({
                 'GAid': str(uuid.uuid1()),
@@ -379,10 +385,10 @@ class CPlay():
                 'GAlon': longitude,
                 'GAlat': latitude,
                 'GAcreate': user.USid,
-                'GAtime': time
+                'GAtime': gather_time
             })
             db.session.add(gather_instance)
-        return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': str(time)[11:16]})
+        return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': time})
 
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)
