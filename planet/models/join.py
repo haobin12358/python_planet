@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Text, String
+from sqlalchemy import Integer, Text, String, DECIMAL
 
 from planet.common.base_model import Base, Column
 
@@ -29,6 +29,15 @@ class EnterLog(Base):
     USid = Column(String(64), comment='用户id')
     ELstatus = Column(Integer, default=0, comment='报名状态')
     ELvalue = Column(Text, comment='需求填写值, json ')
+
+
+class EnterCost(Base):
+    """报名选择保险费用"""
+    __tablename__ = 'EnterCost'
+    ECid = Column(String(64), primary_key=True)
+    ELid = Column(String(64), comment='报名记录id')
+    ECtype = Column(Integer, default=0, comment='费用类型 0 费用 1 保险')
+    ECcost = Column(DECIMAL(precision=28, scale=2), comment='费用小计')
 
 
 class UserItem(Base):

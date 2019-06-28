@@ -200,6 +200,97 @@ class CPlay():
         ins_list = Insurance.query.filter_by(PLid=plid, isdelete=False).order_by(Insurance.createtime.asc()).all()
         return Success(data=ins_list)
 
+    def get_play(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        self._fill_play(play)
+        self._fill_costs(play)
+        self._fill_insurances(play)
+        return Success(data=play)
+
+    def get_play_list(self):
+        data = parameter_required()
+        user = get_current_user()
+        join_or_create = int(data.get('playtype', 0))
+
+        filter_args = set()
+        filter_args.add(Play.isdelete == False)
+        if data.get('createtime'):
+            createtime = data.get('createtime')
+            try:
+                if isinstance(createtime, str):
+                    createtime = datetime.strptime(createtime, '%Y-%m-%d').date()
+                elif isinstance(createtime, datetime):
+                    createtime = createtime.date()
+            except:
+                current_app.logger.info('时间筛选格式不对 时间 {} 类型{}'.format(createtime, type(createtime)))
+                raise ParamsError
+
+            filter_args.add(Play.createtime.cast(Date) == createtime)
+        if data.get('plstatus') or data.get('plstatus') == 0:
+            try:
+                filter_args.add(Play.PLstatus == PlayStatus(int(data.get('plstatus'))).value)
+            except:
+                current_app.logger.info('状态筛选数据不对 状态{}'.format(data.get('plstatus')))
+                raise ParamsError
+        if join_or_create:
+            filter_args.add(EnterLog.USid == user.USid)
+            filter_args.add(EnterLog.isdelete == False)
+            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(*filter_args).order_by(
+                Play.createtime.desc()).all_with_page()
+        else:
+            plays_list = Play.query.filter(Play.PLcreate == user.USid, *filter_args).order_by(
+                Play.createtime.desc()).all_with_page()
+        for play in plays_list:
+            self._fill_play(play)
+
+        return Success(data=plays_list)
+
+    def get_all_play(self):
+        data = parameter_required()
+        plstatus = data.get('plstatus')
+        filter_args = {
+            Play.isdelete == False
+        }
+        # order_args = {
+        #
+        # }
+        if plstatus is not None:
+            filter_args.add(Play.PLstatus == int(plstatus))
+        # if
+
+        plays_list = Play.query.filter(*filter_args).order_by(
+            Play.createtime.desc()).all_with_page()
+        for play in plays_list:
+            self._fill_play(play)
+
+        return Success(data=plays_list)
+
+    def auto_playstatus(self, play):
+        if play.PLstatus == PlayStatus.publish.value:
+            start_connid = 'startplay{}'.format(play.PLid)
+            end_connid = 'endplay{}'.format(play.PLid)
+            self._cancle_celery(start_connid)
+            self._cancle_celery(end_connid)
+            starttime = play.PLstartTime
+            endtime = play.PLendTime
+            if not isinstance(starttime, datetime):
+                starttime = datetime.strptime(starttime, '%Y-%m-%d %H:%M')
+            if not isinstance(endtime, datetime):
+                endtime = datetime.strptime(endtime, '%Y-%m-%d %H:%M')
+            start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
+            end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
+            conn.set(start_connid, start_task_id)
+            conn.set(end_connid, end_task_id)
+
+    def _cancle_celery(self, conid):
+        exist_task = conn.get(conid)
+        if exist_task:
+            exist_task = str(exist_task, encoding='utf-8')
+            current_app.logger.info('已有任务id: {}'.format(exist_task))
+            celery.AsyncResult(exist_task).revoke()
+
     def _update_cost_and_insurance(self, data, plid):
         instance_list = list()
         error_dict = {'costs': list(), 'insurances': list(), 'playrequires': list()}
@@ -288,15 +379,6 @@ class CPlay():
                 update_dict.setdefault(key, data_model.get(lower_key))
         return update_dict
 
-    def get_play(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
-        self._fill_play(play)
-        self._fill_costs(play)
-        self._fill_insurances(play)
-        return Success(data=play)
-
     def _fill_play(self, play):
         play.hide('PLcreate')
         play.fill('PLlocation', str(play.PLlocation).split(self.split_item))
@@ -325,84 +407,16 @@ class CPlay():
         play.fill('insurances', ins_list)
         play.fill('playsum', playsum)
 
-    def get_play_list(self):
-        data = parameter_required()
-        user = get_current_user()
-        join_or_create = int(data.get('playtype', 0))
-
-        filter_args = set()
-        filter_args.add(Play.isdelete == False)
-        if data.get('createtime'):
-            createtime = data.get('createtime')
-            try:
-                if isinstance(createtime, str):
-                    createtime = datetime.strptime(createtime, '%Y-%m-%d').date()
-                elif isinstance(createtime, datetime):
-                    createtime = createtime.date()
-            except:
-                current_app.logger.info('时间筛选格式不对 时间 {} 类型{}'.format(createtime, type(createtime)))
+    @phone_required
+    def join(self):
+        data = parameter_required(('plid', ))
+        plid = data.get('plid')
+        costs = data.get('costs')
+        insurances = data.get('insurances')
+        for cost in costs:
+            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False,).first()
+            if not cost_model:
                 raise ParamsError
 
-            filter_args.add(Play.createtime.cast(Date) == createtime)
-        if data.get('plstatus') or data.get('plstatus') == 0:
-            try:
-                filter_args.add(Play.PLstatus == PlayStatus(int(data.get('plstatus'))).value)
-            except:
-                current_app.logger.info('状态筛选数据不对 状态{}'.format(data.get('plstatus')))
-                raise ParamsError
-        if join_or_create:
-            filter_args.add(EnterLog.USid == user.USid)
-            filter_args.add(EnterLog.isdelete == False)
-            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(*filter_args).order_by(
-                Play.createtime.desc()).all_with_page()
-        else:
-            plays_list = Play.query.filter(*filter_args, Play.PLcreate == user.USid).order_by(
-                Play.createtime.desc()).all_with_page()
-        for play in plays_list:
-            self._fill_play(play)
-
-        return Success(data=plays_list)
-
-    def get_all_play(self):
-        data = parameter_required()
-        plstatus = data.get('plstatus')
-        filter_args = {
-            Play.isdelete == False
-        }
-        # order_args = {
-        #
-        # }
-        if plstatus is not None:
-            filter_args.add(Play.PLstatus == int(plstatus))
-        # if
-
-        plays_list = Play.query.filter(*filter_args).order_by(
-            Play.createtime.desc()).all_with_page()
-        for play in plays_list:
-            self._fill_play(play)
-
-        return Success(data=plays_list)
-
-    def auto_playstatus(self, play):
-        if play.PLstatus == PlayStatus.publish.value:
-            start_connid = 'startplay{}'.format(play.PLid)
-            end_connid = 'endplay{}'.format(play.PLid)
-            self._cancle_celery(start_connid)
-            self._cancle_celery(end_connid)
-            starttime = play.PLstartTime
-            endtime = play.PLendTime
-            if not isinstance(starttime, datetime):
-                starttime = datetime.strptime(starttime, '%Y-%m-%d %H:%M')
-            if not isinstance(endtime, datetime):
-                endtime = datetime.strptime(endtime, '%Y-%m-%d %H:%M')
-            start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
-            end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
-            conn.set(start_connid, start_task_id)
-            conn.set(end_connid, end_task_id)
-
-    def _cancle_celery(self, conid):
-        exist_task = conn.get(conid)
-        if exist_task:
-            exist_task = str(exist_task, encoding='utf-8')
-            current_app.logger.info('已有任务id: {}'.format(exist_task))
-            celery.AsyncResult(exist_task).revoke()
+        for insurance in insurances:
+            pass
