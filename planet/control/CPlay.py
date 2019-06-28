@@ -1,10 +1,12 @@
 import json
 import uuid
+import re
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from flask import current_app, request
 from sqlalchemy import Date
+from sqlalchemy.sql.expression import false
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError
@@ -12,6 +14,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
 from planet.config.enums import PlayStatus
+from planet.models.user import User
+from planet.models.play import Gather
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog
@@ -283,6 +287,102 @@ class CPlay():
             end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
             conn.set(start_connid, start_task_id)
             conn.set(end_connid, end_task_id)
+
+    @phone_required
+    def get_gather(self):
+        """查看集合点"""
+        args = request.args.to_dict()
+        my_lat, my_long = args.get('latitude'), args.get('longitude')
+        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
+        now = datetime.now()
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        can_post, gather_location, my_location, res = False, None, None, []
+        if my_lat and my_long:
+            my_location = self.init_location_dict(my_lat, my_long, '我的位置')
+        my_created_play = Play.query.filter(Play.isdelete == false(),
+                                            Play.PLstatus == PlayStatus.activity.value,
+                                            Play.PLstartTime <= now,
+                                            Play.PLendTime >= now,
+                                            Play.PLcreate == user.USid).first()
+        my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
+                                             ).filter(Play.isdelete == false(),
+                                                      Play.PLstatus == PlayStatus.activity.value,
+                                                      Play.PLstartTime <= now,
+                                                      Play.PLendTime >= now,
+                                                      EnterLog.isdelete == false(),
+                                                      EnterLog.USid == user.USid,
+                                                      EnterLog.ELstatus == '已通过的报名状态'
+                                                      ).first()
+        if my_created_play:  # 是领队，显示上次定位点，没有为null
+            can_post = True
+            last_anchor_point = Gather.query.filter(Gather.isdelete == false(),
+                                                    Gather.PLid == my_created_play.PLid,
+                                                    Gather.GAcreate == user.USid
+                                                    ).order_by(Gather.createtime.desc()).first()
+            if last_anchor_point:
+                gather_location = self.init_location_dict(last_anchor_point.GAlat,
+                                                          last_anchor_point.GAlon,
+                                                          '上次集合 {}'.format(last_anchor_point.GAtime)[11:16])
+        else:  # 非领队
+            if my_joined_play:  # 存在参加的进行中的活动
+                gather_point = Gather.query.filter(Gather.isdelete == false(),
+                                                   Gather.PLid == my_joined_play.PLid,
+                                                   ).order_by(Gather.createtime.desc()).first()
+                gather_location = self.init_location_dict(gather_point.GAlat,
+                                                          gather_point.GAlon,
+                                                          str(gather_point.GAtime)[11:16])
+
+        res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
+        return Success(data=res)
+
+    @staticmethod
+    def init_location_dict(latitude, longitude, content):
+        res = {
+            'latitude': latitude,
+            'longitude': longitude,
+            'content': content
+        }
+        return res
+
+    @staticmethod
+    def check_lat_and_long(lat, long):
+        try:
+            if not -90 <= float(lat) <= 90:
+                raise ParamsError('纬度错误，范围 -90 ~ 90')
+            if not -180 <= float(long) <= 180:
+                raise ParamsError('经度错误，范围 -180 ~ 180')
+        except (TypeError, ValueError):
+            raise ParamsError('经纬度应为合适范围内的浮点数')
+        return float(lat), float(long)
+
+    @phone_required
+    def set_gather(self):
+        """发起集合点"""
+        data = phone_required(('latitude', 'longitude', 'time'))
+        latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
+        if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
+            raise ParamsError('集合时间格式错误')
+        latitude, longitude = self.check_lat_and_long(latitude, longitude)
+        now = datetime.now()
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        my_created_play = Play.query.filter(Play.isdelete == false(),
+                                            Play.PLstatus == PlayStatus.activity.value,
+                                            Play.PLstartTime <= now,
+                                            Play.PLendTime >= now,
+                                            Play.PLcreate == user.USid).first()
+        if not my_created_play:
+            raise StatusError('您没有正在进行的活动')
+        with db.auto_commit():
+            gather_instance = Gather.create({
+                'GAid': str(uuid.uuid1()),
+                'PLid': my_created_play.PLid,
+                'GAlon': longitude,
+                'GAlat': latitude,
+                'GAcreate': user.USid,
+                'GAtime': time
+            })
+            db.session.add(gather_instance)
+        return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': str(time)[11:16]})
 
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)

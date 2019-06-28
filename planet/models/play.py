@@ -67,3 +67,4 @@ class Gather(Base):
     GAlon = Column(String(64), comment='经度')
     GAlat = Column(String(64), comment='维度')
     GAcreate = Column(String(64), comment='发起人')
+    GAtime = Column(DateTime, comment='集合时间')
