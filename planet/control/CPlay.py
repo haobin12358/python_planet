@@ -522,7 +522,6 @@ class CPlay():
     def join(self):
         data = parameter_required(('plid',))
         plid = data.get('plid')
-
         elid = data.get('elid')
         user = get_current_user()
 
@@ -538,17 +537,19 @@ class CPlay():
                 # 更新费用明细
                 self.update_enter_cost(el, data)
                 if data.get('elvalue'):
-                    el.update({'ELvalue': json.dumps(data.get('elvalue'))})
+                    elvalue = self._update_elvalue(plid, data)
+                    el.update({'ELvalue': json.dumps(elvalue)})
                 db.session.add(el)
                 return Success('修改成功')
 
         elid = str(uuid.uuid1())
+        elvalue = self._update_elvalue(plid, data)
         el = EnterLog.create({
             'ELid': elid,
             'PLid': plid,
             'USid': user.USid,
             'ELstatus': EnterLogStatus.wait_pay.value,
-            'ELvalue': json.dumps(data.get('elvalue', {}))
+            'ELvalue': json.dumps(elvalue)
         })
         db.session.add(el)
 
@@ -598,9 +599,34 @@ class CPlay():
         user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
             or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
                 and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
-            EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False,
+            EnterLog.USid == user.USid, EnterLog.isdelete == false(), Play.isdelete == false(),
             Play.PLstatus < PlayStatus.close.value, Play.PLid != plid).all()
         return bool(user_enter)
+
+    def _update_elvalue(self, plid, data):
+        # playrequire_list = PlayRequire.query.filter_by(PLid=plid).all()
+        preid_list = list()
+        value_dict = dict()
+        user_value = data.get('elvalue')
+        for value in user_value:
+            preid = value.get('preid')
+            pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
+            if not pr:
+                continue
+            name = pr.PREname
+            # value_dict.update(name=value.get('value'))
+            value_dict[name] = value.get('value')
+            preid_list.append(preid)
+        play_require_list = PlayRequire.query.filter(
+            PlayRequire.PREid.notin_(preid_list),
+            PlayRequire.PLid == plid,
+            PlayRequire.isdelete == false()).all()
+        if play_require_list:
+            prname = [pr.PREname for pr in play_require_list]
+            raise ParamsError('缺失参数 {}'.format(prname))
+        return value_dict
+
+
 
 #    # def
 # self._get_update_dict(el, data)
