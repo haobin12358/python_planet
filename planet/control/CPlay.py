@@ -14,7 +14,7 @@ from planet.common.token_handler import get_current_user, phone_required
 from planet.config.enums import PlayStatus, EnterCostType
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User
 
 
 class CPlay():
@@ -27,6 +27,7 @@ class CPlay():
     def set_play(self):
         data = parameter_required()
         plid = data.get('plid')
+        # todo  增加用户状态判断
         with db.auto_commit():
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
@@ -244,7 +245,7 @@ class CPlay():
                 Play.createtime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play)
-            self._fill_costs(play,show=False)
+            self._fill_costs(play, show=False)
             self._fill_insurances(play, show=False)
         return Success(data=plays_list)
 
@@ -380,7 +381,7 @@ class CPlay():
         return update_dict
 
     def _fill_play(self, play):
-        play.hide('PLcreate')
+        # play.hide('PLcreate')
         play.fill('PLlocation', str(play.PLlocation).split(self.split_item))
         play.fill('PLproducts', str(play.PLproducts).split(self.split_item))
         play.fill('PLcontent', json.loads(play.PLcontent))
@@ -392,6 +393,9 @@ class CPlay():
         play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
         enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
         play.fill('enternum', enter_num)
+        user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+        name = user.USname if user else '大行星官方'
+        play.fill('PLcreate', name)
 
     def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
@@ -471,5 +475,14 @@ class CPlay():
         return ecmodel
 
     def check_plid(self, user, plid):
-        user_enter = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid).filter(
-            EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False)
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
+            EnterLog.USid == user.USid, EnterLog.isdelete == False, Play.isdelete == False,
+            Play.PLstatus < PlayStatus.close.value, Play.PLid != plid).all()
+
+        if user_enter:
+            return True
+        for enter in user_enter:
+            if play.enter.PLstartTime:
+                pass
+
