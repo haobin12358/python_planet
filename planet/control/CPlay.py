@@ -563,37 +563,51 @@ class CPlay(CPay):
                         elvalue = self._update_elvalue(plid, data)
                         el.update({'ELvalue': json.dumps(elvalue)})
                     db.session.add(el)
-                    return Success('修改成功')
-
-            elid = str(uuid.uuid1())
-            elvalue = self._update_elvalue(plid, data)
-            el = EnterLog.create({
-                'ELid': elid,
-                'PLid': plid,
-                'USid': user.USid,
-                'ELstatus': EnterLogStatus.wait_pay.value,
-                'ELvalue': json.dumps(elvalue)
-            })
-            db.session.add(el)
+                    # return Success('修改成功')
+                else:
+                    elid = str(uuid.uuid1())
+                    elvalue = self._update_elvalue(plid, data)
+                    el = EnterLog.create({
+                        'ELid': elid,
+                        'PLid': plid,
+                        'USid': user.USid,
+                        'ELstatus': EnterLogStatus.wait_pay.value,
+                        'ELvalue': json.dumps(elvalue)
+                    })
+                    db.session.add(el)
+            else:
+                elid = str(uuid.uuid1())
+                elvalue = self._update_elvalue(plid, data)
+                el = EnterLog.create({
+                    'ELid': elid,
+                    'PLid': plid,
+                    'USid': user.USid,
+                    'ELstatus': EnterLogStatus.wait_pay.value,
+                    'ELvalue': json.dumps(elvalue)
+                })
+                db.session.add(el)
 
         body = play.PLname
-        openid = user.USopenid1 or user.USopenid2
-        # pay_args = self._pay_detail(omclient, opaytype, opayno, float(mount_price), body, openid=openid)
-        #
-        # try:
-        #     omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
-        #     omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
-        #     Client(omclient)
-        #     OrderFrom(omfrom)
-        # except Exception as e:
-        #     raise ParamsError('客户端或商品来源错误')
-        #
-        # response = {
-        #     'pay_type': PayType(opaytype).name,
-        #     'opaytype': opaytype,
-        #     'args': pay_args
-        # }
-        return Success()
+        openid = user.USopenid1
+
+        mount_price = sum(
+            [ec.ECcost for ec in EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
+        try:
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
+            Client(omclient)
+            OrderFrom(omfrom)
+        except Exception as e:
+            raise ParamsError('客户端或商品来源错误')
+        opayno = self.wx_pay.nonce_str
+        pay_args = self._pay_detail(omclient, PayType.wechat_pay.value, opayno, float(mount_price), body, openid=openid)
+
+        response = {
+            'pay_type': PayType.wechat_pay.name,
+            'opaytype': PayType.wechat_pay.value,
+            'args': pay_args
+        }
+        return Success(data=response)
 
     def update_enter_cost(self, el, data):
         costs = data.get('costs')
@@ -667,8 +681,6 @@ class CPlay(CPay):
             prname = [pr.PREname for pr in play_require_list]
             raise ParamsError('缺失参数 {}'.format(prname))
         return value_dict
-
-
 
 #    # def
 # self._get_update_dict(el, data)
