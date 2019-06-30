@@ -578,6 +578,7 @@ class CPlay(CPay):
                         'ELvalue': json.dumps(elvalue)
                     })
                     db.session.add(el)
+                    self.update_enter_cost(el, data)
             else:
                 elid = str(uuid.uuid1())
                 elvalue = self._update_elvalue(plid, data)
@@ -589,6 +590,7 @@ class CPlay(CPay):
                     'ELvalue': json.dumps(elvalue)
                 })
                 db.session.add(el)
+                self.update_enter_cost(el, data)
 
         body = play.PLname
         openid = user.USopenid1
@@ -613,8 +615,8 @@ class CPlay(CPay):
         return Success(data=response)
 
     def update_enter_cost(self, el, data):
-        costs = data.get('costs')
-        insurances = data.get('insurances')
+        costs = data.get('costs', [])
+        insurances = data.get('insurances', [])
         ecid = list()
         for cost in costs:
             cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False, ).first_(
@@ -653,36 +655,39 @@ class CPlay(CPay):
         return ecmodel
 
     def check_plid(self, user, play):
-
+        if play.PLcreate == user.USid:
+            raise ParamsError('报名的是自己创建的')
         # 查询同一时间是否有其他已参与活动
         user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
             or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
                 and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
-            EnterLog.USid == user.USid, EnterLog.isdelete == false(), Play.isdelete == false(),
+            or_(EnterLog.USid == user.USid), EnterLog.isdelete == false(), Play.isdelete == false(),
             Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
         return bool(user_enter)
 
     def _update_elvalue(self, plid, data):
         # playrequire_list = PlayRequire.query.filter_by(PLid=plid).all()
-        preid_list = list()
-        value_dict = dict()
-        user_value = data.get('elvalue')
-        for value in user_value:
-            preid = value.get('preid')
-            pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
-            if not pr:
-                continue
-            name = pr.PREname
-            # value_dict.update(name=value.get('value'))
-            value_dict[name] = value.get('value')
-            preid_list.append(preid)
-        play_require_list = PlayRequire.query.filter(
-            PlayRequire.PREid.notin_(preid_list),
-            PlayRequire.PLid == plid,
-            PlayRequire.isdelete == false()).all()
-        if play_require_list:
-            prname = [pr.PREname for pr in play_require_list]
-            raise ParamsError('缺失参数 {}'.format(prname))
+        # preid_list = list()
+        # value_dict = dict()
+        # user_value = data.get('elvalue')
+        # for value in user_value:
+        #     # preid = value.get('preid')
+        #     # pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
+        #     # if not pr:
+        #     #     continue
+        #     # name = pr.PREname
+        #     # # value_dict.update(name=value.get('value'))
+        #     value_dict[name] = value.get('value')
+        #     preid_list.append(preid)
+        # play_require_list = PlayRequire.query.filter(
+        #     PlayRequire.PREid.notin_(preid_list),
+        #     PlayRequire.PLid == plid,
+        #     PlayRequire.isdelete == false()).all()
+        # if play_require_list:
+        #     prname = [pr.PREname for pr in play_require_list]
+        #     raise ParamsError('缺失参数 {}'.format(prname))
+        # return value_dict
+        value_dict = json.dumps(data.get('elvalue'))
         return value_dict
 
 #    # def

@@ -43,6 +43,8 @@ alipay = AliPay(
      )
 
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
+# wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
+
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 
 mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,

@@ -14,6 +14,7 @@ class APlay(Resource):
             'get_insurance': self.cplay.get_insurance,
             'get_play': self.cplay.get_play,
             'get_play_list': self.cplay.get_play_list,
+            'join': self.cplay.join,
             'get_gather': self.cplay.get_gather
         }
         return apis
