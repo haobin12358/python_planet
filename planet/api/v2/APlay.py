@@ -23,6 +23,7 @@ class APlay(Resource):
             'set_play': self.cplay.set_play,
             'set_cost': self.cplay.set_cost,
             'set_insurance': self.cplay.set_insurance,
+            'join': self.cplay.join,
             'set_gather': self.cplay.set_gather
         }
         return apis
