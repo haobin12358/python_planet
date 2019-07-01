@@ -7,7 +7,6 @@ from decimal import Decimal
 
 from flask import request, current_app
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError, StatusError, TokenError
-from planet.common.get_location import GetLocation
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, is_tourist, admin_required, get_current_user, \
@@ -15,13 +14,13 @@ from planet.common.token_handler import token_required, is_tourist, admin_requir
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import ItemType, NewsStatus, ApplyFrom, ApplyStatus, CollectionType, UserGrade, \
     UserSearchHistoryType, AdminActionS, NewsAwardStatus
-from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN
+from planet.control.BaseControl import BASEAPPROVAL, BASEADMIN, BaseController
 
 from planet.control.CCoupon import CCoupon
 from planet.extensions.register_ext import db
 from planet.models import News, NewsImage, NewsVideo, NewsTag, Items, UserSearchHistory, NewsFavorite, NewsTrample, \
     Products, CouponUser, Admin, ProductBrand, User, NewsChangelog, Supplizer, Approval, UserCollectionLog, \
-    TopicOfConversations, UserLocation, NewsAward
+    TopicOfConversations, NewsAward
 from planet.models import NewsComment, NewsCommentFavorite
 from planet.models.trade import Coupon
 from planet.service.SNews import SNews
@@ -33,6 +32,7 @@ from planet.config.enums import UserIntegralAction, UserIntegralType
 
 class CNews(BASEAPPROVAL):
     def __init__(self):
+        super(CNews, self).__init__()
         self.snews = SNews()
         self.empty = ['', {}, [], [''], None]
 
@@ -1260,7 +1260,7 @@ class CNews(BASEAPPROVAL):
         """获取定位"""
         user = get_current_user()
         data = parameter_required(('longitude', 'latitude'))
-        current_location = self._get_location(data.get('latitude'), data.get('longitude'), user.USid)
+        current_location = BaseController().get_user_location(data.get('latitude'), data.get('longitude'), user.USid)
         return Success(data={'nelocation': current_location})
 
     def convert_test(self):
@@ -1319,25 +1319,6 @@ class CNews(BASEAPPROVAL):
                                                                       NewsAward.NAstatus == NewsAwardStatus.agree.value
                                                                       ).scalar()
         news.fill('nareward', award or 0)
-
-    def _get_location(self, lat, lng, usid):
-        gl = GetLocation(lat, lng)
-        result = gl.result
-        with db.auto_commit():
-            ul = UserLocation.create({
-                'ULid': str(uuid.uuid1()),
-                'ULformattedAddress': result.get('formatted_address'),
-                'ULcountry': result.get('addressComponent').get('country'),
-                'ULprovince': result.get('addressComponent').get('province'),
-                'ULcity': result.get('addressComponent').get('city'),
-                'ULdistrict': result.get('addressComponent').get('district'),
-                'ULresult': json.dumps(result),
-                'ULlng': result.get('location').get('lng'),
-                'ULlat': result.get('location').get('lat'),
-                'USid': usid,
-            })
-            db.session.add(ul)
-        return ul.ULformattedAddress
 
     @token_required
     def get_self_news(self):
