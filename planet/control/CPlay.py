@@ -529,6 +529,37 @@ class CPlay():
         }
         return Success(data=response)
 
+    @phone_required
+    def get_enterlog(self):
+        user = get_current_user()
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        el = EnterLog.query.filter(
+            EnterLog.USid == user.USid, EnterLog.PLid == plid, EnterLog.isdelete == false()).first()
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已删除')
+        ec_list = EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()
+
+        self._fill_play(play)
+        play.fill('elid', el.ELid)
+        play.fill('ELvalue', json.loads(el.ELvalue))
+        play.fill('elstatus', el.ELstatus)
+        play.fill('elstatus_zh', EnterLogStatus(el.ELstatus).zh_value)
+        play.fill('elstatus_en', EnterLogStatus(el.ELstatus).name)
+        for ec in ec_list:
+            if ec.ECtype == EnterCostType.cost.value:
+                cost = Cost.query.filter(Cost.COSid == ec.ECcontent, Cost.isdelete == false()).first()
+                if not cost:
+                    continue
+                ec.fill('ecname', cost.COSname)
+            else:
+                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent, Insurance.isdelete == false()).first()
+                if not insruance:
+                    continue
+                ec.fill('ecname', insruance.INname)
+        play.fill('cost_list', ec_list)
+
+        return Success(data=play)
+
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)
         if exist_task:

@@ -15,6 +15,7 @@ class APlay(Resource):
             'get_play': self.cplay.get_play,
             'get_play_list': self.cplay.get_play_list,
             'get_playrequire': self.cplay.get_playrequire,
+            'get_enterlog': self.cplay.get_enterlog,
             'get_gather': self.cplay.get_gather
         }
         return apis
