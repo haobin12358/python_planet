@@ -15,19 +15,54 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom
+from planet.config.http_config import API_HOST
 from planet.control.CPay import CPay
 
-from planet.extensions.register_ext import db, conn
+from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
+from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
 
 
-class CPlay(CPay):
+class CPlay():
 
     def __init__(self):
-        super(CPlay, self).__init__()
+        # super(CPlay, self).__init__()
+        self.wx_pay = mini_wx_pay
         self.split_item = '!@##@!'
         self.connect_item = '-'
+
+    def _pay_detail(self, body, openid, mount_price, opayno):
+        body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
+        mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
+        current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
+        # 微信支付的单位是'分', 支付宝使用的单位是'元'
+
+        try:
+            body = body[:16] + '...'
+            current_app.logger.info('body is {}, wechatpay'.format(body))
+            wechat_pay_dict = {
+                'body': body,
+                'out_trade_no': opayno,
+                'total_fee': int(mount_price * 100),
+                'attach': 'attach',
+                'spbill_create_ip': request.remote_addr
+            }
+
+
+            if not openid:
+                raise StatusError('用户未使用微信登录')
+            # wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+            wechat_pay_dict.update({
+                'trade_type': 'JSAPI',
+                'openid': openid
+            })
+            raw = self.wx_pay.jsapi(**wechat_pay_dict)
+
+        except WeixinPayError as e:
+            raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
+
+        return raw
 
     @phone_required
     def set_play(self):
@@ -614,6 +649,12 @@ class CPlay(CPay):
         }
         return Success(data=response)
 
+    def get_playrequire(self):
+        data = parameter_required(('plid',))
+        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False)\
+            .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
+        return Success(data=pre_list)
+
     def update_enter_cost(self, el, data):
         costs = data.get('costs', [])
         insurances = data.get('insurances', [])
@@ -666,29 +707,29 @@ class CPlay(CPay):
         return bool(user_enter)
 
     def _update_elvalue(self, plid, data):
-        # playrequire_list = PlayRequire.query.filter_by(PLid=plid).all()
-        # preid_list = list()
-        # value_dict = dict()
-        # user_value = data.get('elvalue')
-        # for value in user_value:
-        #     # preid = value.get('preid')
-        #     # pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
-        #     # if not pr:
-        #     #     continue
-        #     # name = pr.PREname
-        #     # # value_dict.update(name=value.get('value'))
-        #     value_dict[name] = value.get('value')
-        #     preid_list.append(preid)
-        # play_require_list = PlayRequire.query.filter(
-        #     PlayRequire.PREid.notin_(preid_list),
-        #     PlayRequire.PLid == plid,
-        #     PlayRequire.isdelete == false()).all()
-        # if play_require_list:
-        #     prname = [pr.PREname for pr in play_require_list]
-        #     raise ParamsError('缺失参数 {}'.format(prname))
-        # return value_dict
-        value_dict = json.dumps(data.get('elvalue'))
+        playrequire_list = PlayRequire.query.filter_by(PLid=plid).all()
+        preid_list = list()
+        value_dict = dict()
+        user_value = data.get('elvalue')
+        for value in user_value:
+            preid = value.get('preid')
+            pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
+            if not pr:
+                continue
+            name = pr.PREname
+            value_dict.update(name=value.get('value'))
+            value_dict[name] = value.get('value')
+            preid_list.append(preid)
+        play_require_list = PlayRequire.query.filter(
+            PlayRequire.PREid.notin_(preid_list),
+            PlayRequire.PLid == plid,
+            PlayRequire.isdelete == false()).all()
+        if play_require_list:
+            prname = [pr.PREname for pr in play_require_list]
+            raise ParamsError('缺失参数 {}'.format(prname))
         return value_dict
+        # value_dict = json.dumps(data.get('elvalue'))
+        # return value_dict
 
 #    # def
 # self._get_update_dict(el, data)
