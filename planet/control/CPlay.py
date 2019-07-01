@@ -18,7 +18,9 @@ from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayTy
 from planet.config.http_config import API_HOST
 from planet.control.CPay import CPay
 
+from planet.control.BaseControl import BaseController
 from planet.extensions.register_ext import db, conn, mini_wx_pay
+
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
@@ -31,6 +33,7 @@ class CPlay():
         self.wx_pay = mini_wx_pay
         self.split_item = '!@##@!'
         self.connect_item = '-'
+        self.basecontrol = BaseController()
 
     def _pay_detail(self, body, openid, mount_price, opayno):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
@@ -48,7 +51,6 @@ class CPlay():
                 'attach': 'attach',
                 'spbill_create_ip': request.remote_addr
             }
-
 
             if not openid:
                 raise StatusError('用户未使用微信登录')
@@ -339,11 +341,10 @@ class CPlay():
         my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
         now = datetime.now()
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        can_post, gather_location, my_location, res, location = False, None, None, [], []
+        can_post, gather_location, my_location = False, None, None
         button_name = '暂无活动'
         if my_lat and my_long:
-            my_location = self.init_location_dict(my_lat, my_long, '我的位置')
-            location.append(my_location)
+            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
                                             Play.PLstartTime <= now,
@@ -360,7 +361,7 @@ class CPlay():
             if last_anchor_point:
                 gather_location = self.init_location_dict(last_anchor_point.GAlat,
                                                           last_anchor_point.GAlon,
-                                                          '上次集合 {}'.format(last_anchor_point.GAtime)[11:16])
+                                                          '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
         else:  # 非领队
             my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
                                                  ).filter(Play.isdelete == false(),
@@ -379,11 +380,10 @@ class CPlay():
                 gather_location = self.init_location_dict(gather_point.GAlat,
                                                           gather_point.GAlon,
                                                           str(gather_point.GAtime)[11:16])
-        if gather_location:
-            location.append(gather_location)
 
-        # res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
-        res = {'can_post': can_post, 'button_name': button_name, 'location': location}
+        res = {'gather_location': gather_location,
+               'can_post': can_post, 'button_name': button_name}
+
         return Success(data=res)
 
     @staticmethod
@@ -411,14 +411,15 @@ class CPlay():
         """发起集合点"""
         data = parameter_required(('latitude', 'longitude', 'time'))
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
-        # if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
         now = datetime.now()
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         gather_time = str(now)[0:11] + str(time) + ':00'
         gather_time = datetime.strptime(gather_time, '%Y-%m-%d %H:%M:%S')
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
-        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        if latitude and longitude:
+            self.basecontrol.get_user_location(latitude, longitude, user.USid)
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
                                             Play.PLstartTime <= now,
@@ -558,6 +559,9 @@ class CPlay():
         user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
         name = user.USname if user else '旗行平台'
         play.fill('PLcreate', name)
+        play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
+        play.fill('joinstatus',
+                  bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
     def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
@@ -651,7 +655,7 @@ class CPlay():
 
     def get_playrequire(self):
         data = parameter_required(('plid',))
-        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False)\
+        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
             .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
         return Success(data=pre_list)
 
@@ -703,7 +707,7 @@ class CPlay():
             or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
                 and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
             or_(EnterLog.USid == user.USid), EnterLog.isdelete == false(), Play.isdelete == false(),
-            Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
+                                             Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
         return bool(user_enter)
 
     def _update_elvalue(self, plid, data):
