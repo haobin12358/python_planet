@@ -29,6 +29,7 @@ class EnterLog(Base):
     USid = Column(String(64), comment='用户id')
     ELstatus = Column(Integer, default=0, comment='报名状态')
     ELvalue = Column(Text, comment='需求填写值, json ')
+    ELpayNo = Column(String(64), comment='付款流水号')
 
 
 class EnterCost(Base):

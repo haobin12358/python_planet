@@ -12,7 +12,7 @@ from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import get_current_user, phone_required
+from planet.common.token_handler import get_current_user, phone_required, common_user
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom
 from planet.config.http_config import API_HOST
@@ -35,7 +35,7 @@ class CPlay():
         self.connect_item = '-'
         self.basecontrol = BaseController()
 
-    def _pay_detail(self, body, openid, mount_price, opayno):
+    def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
         current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
@@ -256,6 +256,7 @@ class CPlay():
         self._fill_play(play)
         self._fill_costs(play)
         self._fill_insurances(play)
+
         return Success(data=play)
 
     def get_play_list(self):
@@ -325,9 +326,9 @@ class CPlay():
             starttime = play.PLstartTime
             endtime = play.PLendTime
             if not isinstance(starttime, datetime):
-                starttime = datetime.strptime(starttime, '%Y-%m-%d %H:%M')
+                starttime = self._trans_time(starttime)
             if not isinstance(endtime, datetime):
-                endtime = datetime.strptime(endtime, '%Y-%m-%d %H:%M')
+                endtime = self._trans_time(endtime)
             start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
             end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
             conn.set(start_connid, start_task_id)
@@ -457,6 +458,8 @@ class CPlay():
         ins_list = data.get('insurances') or list()
         prs_list = data.get('playrequires') or list()
         for costid in costs_list:
+            if isinstance(costid, dict):
+                costid = costid.get('cosid')
             cost = Cost.query.filter_by(COSid=costid, isdelete=False).first()
             if not cost:
                 error_dict.get('costs').append(costid)
@@ -464,6 +467,8 @@ class CPlay():
             cost.update({"PLid": plid})
             instance_list.append(cost)
         for inid in ins_list:
+            if isinstance(inid, dict):
+                inid = inid.get('inid')
             insurance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
             if not insurance:
                 error_dict.get('insurances').append(inid)
@@ -501,21 +506,18 @@ class CPlay():
         pllocation = data.get('pllocation')
         if isinstance(data.get('pllocation'), list):
             pllocation = self.connect_item.join(data.get('pllocation'))
+        else:
+            pllocation = self.connect_item.join(str(pllocation).split(self.split_item))
 
         try:
             plstart = data.get('plstarttime')
             plend = data.get('plendtime')
             if not isinstance(plstart, datetime):
-                if re.match(r'^.*(:\d{2}){2}$', plstart):
-                    plstart = datetime.strptime(plstart, '%Y-%m-%d %H:%M:%S')
-                else:
-                    plstart = datetime.strptime(plstart, '%Y-%m-%d %H:%M')
+                plstart = self._trans_time(plstart)
+            current_app.logger.info('开始时间转换完成')
             if not isinstance(plend, datetime):
-                if re.match(r'^.*(:\d{2}){2}$', plend):
-                    plend = datetime.strptime(plend, '%Y-%m-%d %H:%M:%S')
-                else:
-                    plend = datetime.strptime(plend, '%Y-%m-%d %H:%M')
-
+                plend = self._trans_time(plend)
+            current_app.logger.info('结束时间转换完成')
         except:
             current_app.logger.error('转时间失败  开始时间 {}  结束时间 {}'.format(data.get('plstarttime'), data.get('plendtime')))
             raise ParamsError
@@ -556,12 +558,24 @@ class CPlay():
         play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
         enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
         play.fill('enternum', enter_num)
+
+        play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
+
+        if common_user():
+            user = get_current_user()
+            el = EnterLog.query.filter(EnterLog.USid == user.USid, EnterLog.PLid == play.PLid,
+                                       EnterLog.isdelete == false()).first()
+
+            play.fill('joinstatus', bool(
+                (play.PLcreate != user.USid) and (not el) and (int(enter_num) < int(play.PLnum)) and (
+                        play.PLstatus == PlayStatus.publish.value)))
+        else:
+            play.fill('joinstatus',
+                      bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
+
         user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
         name = user.USname if user else '旗行平台'
         play.fill('PLcreate', name)
-        play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
-        play.fill('joinstatus',
-                  bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
     def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
@@ -586,6 +600,7 @@ class CPlay():
         data = parameter_required(('plid',))
         plid = data.get('plid')
         elid = data.get('elid')
+        opayno = self.wx_pay.nonce_str
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         user = get_current_user()
 
@@ -604,6 +619,8 @@ class CPlay():
                     if data.get('elvalue'):
                         elvalue = self._update_elvalue(plid, data)
                         el.update({'ELvalue': json.dumps(elvalue)})
+                    el.ELpayNo = opayno
+
                     db.session.add(el)
                     # return Success('修改成功')
                 else:
@@ -614,6 +631,7 @@ class CPlay():
                         'PLid': plid,
                         'USid': user.USid,
                         'ELstatus': EnterLogStatus.wait_pay.value,
+                        'ELpayNo': opayno,
                         'ELvalue': json.dumps(elvalue)
                     })
                     db.session.add(el)
@@ -626,6 +644,7 @@ class CPlay():
                     'PLid': plid,
                     'USid': user.USid,
                     'ELstatus': EnterLogStatus.wait_pay.value,
+                    'ELpayNo': opayno,
                     'ELvalue': json.dumps(elvalue)
                 })
                 db.session.add(el)
@@ -643,8 +662,8 @@ class CPlay():
             OrderFrom(omfrom)
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
-        opayno = self.wx_pay.nonce_str
-        pay_args = self._pay_detail(omclient, PayType.wechat_pay.value, opayno, float(mount_price), body, openid=openid)
+
+        pay_args = self._pay_detail(body, float(mount_price), opayno, openid)
 
         response = {
             'pay_type': PayType.wechat_pay.name,
@@ -652,6 +671,23 @@ class CPlay():
             'args': pay_args
         }
         return Success(data=response)
+
+    def wechat_notify(self):
+        data = self.wx_pay.to_dict(request.data)
+        if not self.wx_pay.check(data):
+            return self.wx_pay.reply(u"签名验证失败", False)
+        out_trade_no = data.get('out_trade_no')
+        current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
+        # 修改当前用户参加状态
+        with db.auto_commit():
+            el = EnterLog.query.filter(EnterLog.ELpayNo == out_trade_no, EnterLog.isdelete == false()).first()
+            if not el:
+                current_app.logger.info('当前报名单不存在 {} '.format(out_trade_no))
+                return self.wx_pay.reply("OK", True).decode()
+            el.ELstatus = EnterLogStatus.success.value
+            db.session.add(el)
+
+        return self.wx_pay.reply("OK", True).decode()
 
     def get_playrequire(self):
         data = parameter_required(('plid',))
@@ -735,6 +771,12 @@ class CPlay():
         # value_dict = json.dumps(data.get('elvalue'))
         # return value_dict
 
+    def _trans_time(self, time_str):
+        if re.match(r'^.*(:\d{2}){2}$', time_str):
+            return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+        else:
+            return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
+        return return_str
 #    # def
 # self._get_update_dict(el, data)
 # if update_dict.get('ELid'):
