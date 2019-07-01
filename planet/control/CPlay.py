@@ -16,7 +16,7 @@ from planet.common.token_handler import get_current_user, phone_required
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom
 from planet.control.CPay import CPay
-
+from planet.control.BaseControl import BaseController
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
@@ -28,6 +28,7 @@ class CPlay(CPay):
         super(CPlay, self).__init__()
         self.split_item = '!@##@!'
         self.connect_item = '-'
+        self.basecontrol = BaseController()
 
     @phone_required
     def set_play(self):
@@ -304,11 +305,10 @@ class CPlay(CPay):
         my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
         now = datetime.now()
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        can_post, gather_location, my_location, res, location = False, None, None, [], []
+        can_post, gather_location, my_location = False, None, None
         button_name = '暂无活动'
         if my_lat and my_long:
-            my_location = self.init_location_dict(my_lat, my_long, '我的位置')
-            location.append(my_location)
+            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
                                             Play.PLstartTime <= now,
@@ -325,7 +325,7 @@ class CPlay(CPay):
             if last_anchor_point:
                 gather_location = self.init_location_dict(last_anchor_point.GAlat,
                                                           last_anchor_point.GAlon,
-                                                          '上次集合 {}'.format(last_anchor_point.GAtime)[11:16])
+                                                          '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
         else:  # 非领队
             my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
                                                  ).filter(Play.isdelete == false(),
@@ -344,11 +344,10 @@ class CPlay(CPay):
                 gather_location = self.init_location_dict(gather_point.GAlat,
                                                           gather_point.GAlon,
                                                           str(gather_point.GAtime)[11:16])
-        if gather_location:
-            location.append(gather_location)
 
-        # res = {'gather_location': gather_location, 'my_location': my_location, 'can_post': can_post}
-        res = {'can_post': can_post, 'button_name': button_name, 'location': location}
+        res = {'gather_location': gather_location,
+               'can_post': can_post, 'button_name': button_name}
+
         return Success(data=res)
 
     @staticmethod
@@ -376,14 +375,15 @@ class CPlay(CPay):
         """发起集合点"""
         data = parameter_required(('latitude', 'longitude', 'time'))
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
-        # if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', str(time)):
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
         now = datetime.now()
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         gather_time = str(now)[0:11] + str(time) + ':00'
         gather_time = datetime.strptime(gather_time, '%Y-%m-%d %H:%M:%S')
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
-        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        if latitude and longitude:
+            self.basecontrol.get_user_location(latitude, longitude, user.USid)
         my_created_play = Play.query.filter(Play.isdelete == false(),
                                             Play.PLstatus == PlayStatus.activity.value,
                                             Play.PLstartTime <= now,
