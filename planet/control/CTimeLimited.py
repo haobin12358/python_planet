@@ -1,6 +1,7 @@
 import json
 import math
 import uuid
+import random
 from datetime import datetime, timedelta
 from flask import request, current_app
 from planet.common.params_validates import parameter_required
@@ -14,7 +15,7 @@ from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import end_timelimited, start_timelimited, celery
 from planet.models import Products, ProductSku, ProductImage, ProductBrand, Supplizer, Admin, Approval, \
-    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision,AdminActions
+    TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IndexBanner, Commision, AdminActions, ProductMonthSaleValue
 from .CUser import CUser
 
 
@@ -667,7 +668,13 @@ class CTimeLimited(COrder, CUser, BaseController):
         product.fill('tlastatus_zh', ApplyStatus(tlp.TLAstatus).zh_value)
         product.fill('tlastatus_en', ApplyStatus(tlp.TLAstatus).name)
         product.fill('tlastatus', tlp.TLAstatus)
-        # product.fill('prprice', tlp.PRprice)
+        month_sale = db.session.query(ProductMonthSaleValue.PMSVfakenum
+                                      ).filter_by_(PRid=tlp.PRid
+                                                   ).order_by(ProductMonthSaleValue.createtime.desc(),
+                                                              origin=True).first()
+        current_app.logger.info('get_mouth_sale_value: {}'.format(month_sale))
+        month_sale = month_sale[0] if month_sale else random.randint(15, 100)
+        product.fill('prsalesvalue', month_sale)
 
         return product
 
