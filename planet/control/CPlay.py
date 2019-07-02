@@ -16,7 +16,6 @@ from planet.common.token_handler import get_current_user, phone_required, common
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom
 from planet.config.http_config import API_HOST
-from planet.control.CPay import CPay
 
 from planet.control.BaseControl import BaseController
 from planet.extensions.register_ext import db, conn, mini_wx_pay
@@ -37,6 +36,7 @@ class CPlay():
 
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
+        current_app.logger.info('get mount price {}'.format(mount_price))
         mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
         current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
         # 微信支付的单位是'分', 支付宝使用的单位是'元'
@@ -202,12 +202,12 @@ class CPlay():
             inid_list = list()
             for ins in insurance_list:
                 current_app.logger.info('get Insurance {} '.format(ins))
-                inid = data.get('inid')
-                incost = Decimal(str(data.get('incost', '0')))
+                inid = ins.get('inid')
+                incost = Decimal(str(ins.get('incost', '0')))
                 if incost < Decimal('0'):
                     incost = Decimal('0')
-
-                if data.get('delete'):
+                current_app.logger.info(' changed insurance cost = {}'.format(incost))
+                if ins.get('delete'):
                     current_app.logger.info('删除 Insurance {} '.format(inid))
                     ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
                     if not instance_list:
@@ -443,6 +443,123 @@ class CPlay():
             db.session.add(gather_instance)
         return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': time})
 
+    def get_playrequire(self):
+        data = parameter_required(('plid',))
+        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
+            .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
+        return Success(data=pre_list)
+
+    @phone_required
+    def join(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        elid = data.get('elid')
+        opayno = self.wx_pay.nonce_str
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        user = get_current_user()
+
+        with db.auto_commit():
+            if self._check_plid(user, play):
+                raise StatusError('同一时间只能参加一个活动')
+
+            if elid:
+                el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
+                if el:
+                    # 校验修改
+                    if el.PLid != plid:
+                        raise ParamsError('同一时间只能参加一个活动')
+                    # 更新费用明细
+                    self._update_enter_cost(el, data)
+                    if data.get('elvalue'):
+                        elvalue = self._update_elvalue(plid, data)
+                        el.update({'ELvalue': json.dumps(elvalue)})
+                    el.ELpayNo = opayno
+
+                    db.session.add(el)
+                    # return Success('修改成功')
+                else:
+                    elid = str(uuid.uuid1())
+                    elvalue = self._update_elvalue(plid, data)
+                    el = EnterLog.create({
+                        'ELid': elid,
+                        'PLid': plid,
+                        'USid': user.USid,
+                        'ELstatus': EnterLogStatus.wait_pay.value,
+                        'ELpayNo': opayno,
+                        'ELvalue': json.dumps(elvalue)
+                    })
+                    db.session.add(el)
+                    self._update_enter_cost(el, data)
+
+            else:
+
+                elid = str(uuid.uuid1())
+                elvalue = self._update_elvalue(plid, data)
+                el = EnterLog.create({
+                    'ELid': elid,
+                    'PLid': plid,
+                    'USid': user.USid,
+                    'ELstatus': EnterLogStatus.wait_pay.value,
+                    'ELpayNo': opayno,
+                    'ELvalue': json.dumps(elvalue)
+                })
+                db.session.add(el)
+                self._update_enter_cost(el, data)
+
+        body = play.PLname
+        openid = user.USopenid1
+
+        mount_price = sum(
+            [ec.ECcost for ec in EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
+        try:
+            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
+            omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
+            Client(omclient)
+            OrderFrom(omfrom)
+        except Exception as e:
+            raise ParamsError('客户端或商品来源错误')
+
+        pay_args = self._pay_detail(body, float(mount_price), opayno, openid)
+
+        response = {
+            'pay_type': PayType.wechat_pay.name,
+            'opaytype': PayType.wechat_pay.value,
+            'elid': elid,
+            'args': pay_args
+        }
+        return Success(data=response)
+
+    @phone_required
+    def get_enterlog(self):
+        user = get_current_user()
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        el = EnterLog.query.filter(
+            EnterLog.USid == user.USid, EnterLog.PLid == plid, EnterLog.isdelete == false()).first()
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已删除')
+        ec_list = EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()
+
+        self._fill_play(play)
+        play.fill('elid', el.ELid)
+        play.fill('ELvalue', json.loads(el.ELvalue))
+        play.fill('elstatus', el.ELstatus)
+        play.fill('elstatus_zh', EnterLogStatus(el.ELstatus).zh_value)
+        play.fill('elstatus_en', EnterLogStatus(el.ELstatus).name)
+        for ec in ec_list:
+            if ec.ECtype == EnterCostType.cost.value:
+                cost = Cost.query.filter(Cost.COSid == ec.ECcontent, Cost.isdelete == false()).first()
+                if not cost:
+                    continue
+                ec.fill('ecname', cost.COSname)
+            else:
+                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent, Insurance.isdelete == false()).first()
+                if not insruance:
+                    continue
+                ec.fill('ecname', insruance.INname)
+        play.fill('cost_list', ec_list)
+
+        return Success(data=play)
+
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)
         if exist_task:
@@ -453,7 +570,8 @@ class CPlay():
     def _update_cost_and_insurance(self, data, plid):
         instance_list = list()
         error_dict = {'costs': list(), 'insurances': list(), 'playrequires': list()}
-
+        inid_list = list()
+        cosid_list = list()
         costs_list = data.get('costs') or list()
         ins_list = data.get('insurances') or list()
         prs_list = data.get('playrequires') or list()
@@ -465,6 +583,7 @@ class CPlay():
                 error_dict.get('costs').append(costid)
                 continue
             cost.update({"PLid": plid})
+            cosid_list.append(costid)
             instance_list.append(cost)
         for inid in ins_list:
             if isinstance(inid, dict):
@@ -474,6 +593,7 @@ class CPlay():
                 error_dict.get('insurances').append(inid)
                 continue
             insurance.update({"PLid": plid})
+            inid_list.append(inid)
             instance_list.append(insurance)
 
         presort = 1
@@ -493,14 +613,26 @@ class CPlay():
             preid_list.append(pre.PREid)
             instance_list.append(pre)
             presort += 1
+        # 删除不用的
+        Cost.query.filter(
+            Cost.COSid.notin_(cosid_list),
+            Cost.PLid == plid,
+            Cost.isdelete == false()
+        ).delete_(synchronize_session=False)
+
+        Insurance.query.filter(
+            Insurance.INid.notin_(inid_list),
+            Insurance.PLid == plid,
+            Insurance.isdelete == false()
+        ).delete_(synchronize_session=False)
 
         PlayRequire.query.filter(
             PlayRequire.PLid == plid,
             PlayRequire.PREid.notin_(preid_list),
-            PlayRequire.isdelete == False
+            PlayRequire.isdelete == false()
         ).delete_(synchronize_session=False)
         db.session.add_all(instance_list)
-        current_app.logger.info('the error in this updating {}'.format(error_dict))
+        current_app.logger.info('本次更新出错的费用和保险以及需求项是 {}'.format(error_dict))
 
     def _update_plname(self, data):
         pllocation = data.get('pllocation')
@@ -595,83 +727,6 @@ class CPlay():
             play.fill('insurances', ins_list)
         play.fill('playsum', playsum)
 
-    @phone_required
-    def join(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        elid = data.get('elid')
-        opayno = self.wx_pay.nonce_str
-        play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
-        user = get_current_user()
-
-        with db.auto_commit():
-            if self.check_plid(user, play):
-                raise StatusError('同一时间只能参加一个活动')
-
-            if elid:
-                el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
-                if el:
-                    # 校验修改
-                    if el.PLid != plid:
-                        raise ParamsError('同一时间只能参加一个活动')
-                    # 更新费用明细
-                    self.update_enter_cost(el, data)
-                    if data.get('elvalue'):
-                        elvalue = self._update_elvalue(plid, data)
-                        el.update({'ELvalue': json.dumps(elvalue)})
-                    el.ELpayNo = opayno
-
-                    db.session.add(el)
-                    # return Success('修改成功')
-                else:
-                    elid = str(uuid.uuid1())
-                    elvalue = self._update_elvalue(plid, data)
-                    el = EnterLog.create({
-                        'ELid': elid,
-                        'PLid': plid,
-                        'USid': user.USid,
-                        'ELstatus': EnterLogStatus.wait_pay.value,
-                        'ELpayNo': opayno,
-                        'ELvalue': json.dumps(elvalue)
-                    })
-                    db.session.add(el)
-                    self.update_enter_cost(el, data)
-            else:
-                elid = str(uuid.uuid1())
-                elvalue = self._update_elvalue(plid, data)
-                el = EnterLog.create({
-                    'ELid': elid,
-                    'PLid': plid,
-                    'USid': user.USid,
-                    'ELstatus': EnterLogStatus.wait_pay.value,
-                    'ELpayNo': opayno,
-                    'ELvalue': json.dumps(elvalue)
-                })
-                db.session.add(el)
-                self.update_enter_cost(el, data)
-
-        body = play.PLname
-        openid = user.USopenid1
-
-        mount_price = sum(
-            [ec.ECcost for ec in EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
-        try:
-            omclient = int(data.get('omclient', Client.wechat.value))  # 下单设备
-            omfrom = int(data.get('omfrom', OrderFrom.product_info.value))  # 商品来源
-            Client(omclient)
-            OrderFrom(omfrom)
-        except Exception as e:
-            raise ParamsError('客户端或商品来源错误')
-
-        pay_args = self._pay_detail(body, float(mount_price), opayno, openid)
-
-        response = {
-            'pay_type': PayType.wechat_pay.name,
-            'opaytype': PayType.wechat_pay.value,
-            'args': pay_args
-        }
-        return Success(data=response)
-
     def wechat_notify(self):
         data = self.wx_pay.to_dict(request.data)
         if not self.wx_pay.check(data):
@@ -689,36 +744,38 @@ class CPlay():
 
         return self.wx_pay.reply("OK", True).decode()
 
-    def get_playrequire(self):
-        data = parameter_required(('plid',))
-        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
-            .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
-        return Success(data=pre_list)
-
-    def update_enter_cost(self, el, data):
-        costs = data.get('costs', [])
+    def _update_enter_cost(self, el, data):
+        plid = data.get('plid')
+        # costs = data.get('costs', [])
+        costs = Cost.query.filter(Cost.PLid == plid, Cost.isdelete == false()).all()
         insurances = data.get('insurances', [])
         ecid = list()
         for cost in costs:
-            cost_model = Cost.query.filter(Cost.COSid == cost.get('cosid'), Cost.isdelete == False, ).first_(
-                '费用项已修改，请刷新重新选择')
+            # if isinstance(cost, dict):
+            #     cost = cost.get('cosid')
+            #
+            # cost_model = Cost.query.filter(Cost.COSid == cost, Cost.isdelete == False, ).first_(
+            #     '费用项已修改，请刷新重新选择')
 
             ecmodel = EnterCost.query.filter_by(
-                ELid=el.ELid, ECcontent=cost_model.COSid, ECtype=EnterCostType.cost.value, isdelete=False).first()
+                ELid=el.ELid, ECcontent=cost.COSid, ECtype=EnterCostType.cost.value, isdelete=False).first()
             if not ecmodel:
-                ecmodel = self._create_entercost(el.ELid, cost_model.COSid, EnterCostType.cost.value,
-                                                 cost_model.COSsubtotal)
+                ecmodel = self._create_entercost(el.ELid, cost.COSid, EnterCostType.cost.value, cost.COSsubtotal)
+
             ecid.append(ecmodel.ECid)
 
         for insurance in insurances:
-            ins_model = Insurance.query.filter_by(INid=insurance.get('inid'), isdelete=False).first_(
+            if isinstance(insurance, dict):
+                insurance = insurance.get('inid')
+            ins_model = Insurance.query.filter_by(INid=insurance, isdelete=False).first_(
                 '保险项有修改，请刷新重新选择')
             ecmodel = EnterCost.query.filter_by(
-                ELid=el.ELid, ECcontent=insurance.INid, ECtype=EnterCostType.insurance.value, isdelete=False).first()
+                ELid=el.ELid, ECcontent=ins_model.INid, ECtype=EnterCostType.insurance.value, isdelete=False).first()
             if not ecmodel:
                 ecmodel = self._create_entercost(
                     el.ELid, ins_model.INid, EnterCostType.insurance.value, ins_model.INcost)
             ecid.append(ecmodel.ECid)
+        # required_cost = Cost.query.filter(Cost.PLid == plid, Cost.isdelete == False)
 
         # 删除不用的
         EnterCost.query.filter(EnterCost.ECid.notin_(ecid), EnterCost.isdelete == False).delete_(
@@ -735,7 +792,15 @@ class CPlay():
         db.session.add(ecmodel)
         return ecmodel
 
-    def check_plid(self, user, play):
+    def _check_plid(self, user, play):
+        EnterLog.query.filter(
+            EnterLog.ELstatus < EnterLogStatus.cancel.value,
+            EnterLog.ELstatus > EnterLogStatus.error.value,
+            EnterLog.PLid == play.PLid, EnterLog.USid == user.USid, EnterLog.isdelete == false()).delete_(
+            synchronize_session=False)
+
+        if play.PLstatus != PlayStatus.publish.value:
+            raise StatusError('该活动已结束')
         if play.PLcreate == user.USid:
             raise ParamsError('报名的是自己创建的')
         # 查询同一时间是否有其他已参与活动
@@ -747,7 +812,6 @@ class CPlay():
         return bool(user_enter)
 
     def _update_elvalue(self, plid, data):
-        playrequire_list = PlayRequire.query.filter_by(PLid=plid).all()
         preid_list = list()
         value_dict = dict()
         user_value = data.get('elvalue')
@@ -757,7 +821,7 @@ class CPlay():
             if not pr:
                 continue
             name = pr.PREname
-            value_dict.update(name=value.get('value'))
+            # value_dict.update(name=value.get('value'))
             value_dict[name] = value.get('value')
             preid_list.append(preid)
         play_require_list = PlayRequire.query.filter(
@@ -777,11 +841,3 @@ class CPlay():
         else:
             return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
         return return_str
-#    # def
-# self._get_update_dict(el, data)
-# if update_dict.get('ELid'):
-#     update_dict.pop('ELid')
-# if update_dict.get('PLid'):
-#     update_dict.pop('PLid')
-# if update_dict.get('USid'):
-#     update_dict.pop('USid')

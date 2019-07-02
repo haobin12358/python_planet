@@ -14,8 +14,8 @@ class APlay(Resource):
             'get_insurance': self.cplay.get_insurance,
             'get_play': self.cplay.get_play,
             'get_play_list': self.cplay.get_play_list,
-            # 'join': self.cplay.join,
             'get_playrequire': self.cplay.get_playrequire,
+            'get_enterlog': self.cplay.get_enterlog,
             'get_gather': self.cplay.get_gather
         }
         return apis
@@ -26,6 +26,7 @@ class APlay(Resource):
             'set_cost': self.cplay.set_cost,
             'set_insurance': self.cplay.set_insurance,
             'join': self.cplay.join,
+            'wechat_notify': self.cplay.wechat_notify,
             'set_gather': self.cplay.set_gather
         }
         return apis
