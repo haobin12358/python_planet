@@ -32,6 +32,7 @@ class APlay(Resource):
             'wechat_notify': self.cplay.wechat_notify,
             'set_signin': self.cplay.set_signin,
             'signin': self.cplay.signin,
-            'set_gather': self.cplay.set_gather
+            'set_gather': self.cplay.set_gather,
+            'help': self.cplay.help
         }
         return apis

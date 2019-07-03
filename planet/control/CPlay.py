@@ -361,15 +361,15 @@ class CPlay():
         if not usid:
             return
         now = datetime.now()
-        return EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
-                                   ).filter(Play.isdelete == false(),
-                                            Play.PLstatus == PlayStatus.activity.value,
-                                            Play.PLstartTime <= now,
-                                            Play.PLendTime >= now,
-                                            EnterLog.isdelete == false(),
-                                            EnterLog.USid == usid,
-                                            EnterLog.ELstatus == EnterLogStatus.success.value,
-                                            ).first()
+        return Play.query.join(EnterLog, EnterLog.PLid == Play.PLid
+                               ).filter(Play.isdelete == false(),
+                                        Play.PLstatus == PlayStatus.activity.value,
+                                        Play.PLstartTime <= now,
+                                        Play.PLendTime >= now,
+                                        EnterLog.isdelete == false(),
+                                        EnterLog.USid == usid,
+                                        EnterLog.ELstatus == EnterLogStatus.success.value,
+                                        ).first()
 
     @phone_required
     def help(self):
@@ -379,7 +379,26 @@ class CPlay():
         latitude, longitude = data.get('latitude'), data.get('longitude')
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         self.basecontrol.get_user_location(latitude, longitude, user.USid)
-        pass
+        my_created_play = self._is_tourism_leader(user.USid)  # 是否领队
+        phone_list = []
+        if my_created_play:
+            # todo 发短信
+            usphones = db.session.query(User.UStelphone).join(EnterLog, EnterLog.USid == User.USid).filter(
+                EnterLog.isdelete == false(),
+                EnterLog.PLid == my_created_play.PLid,
+                EnterLog.ELstatus == EnterLogStatus.success.value,
+                User.isdelete == false()
+            ).all()
+            phone_list = list(map(lambda x: x[0], usphones))
+            current_app.logger.info('领队正在求救, phone_list: {}'.format(phone_list))
+        else:
+            my_joined_play = self._ongoing_play_joined(user.USid)
+            if my_joined_play:
+                phone = db.session.query(User.UStelphone).filter(User.isdelete == false(),
+                                                                 User.USid == my_joined_play.PLcreate).scalar()
+                phone_list.append(phone)
+            current_app.logger.info('团员正在求救, phone_list: {}'.format(phone_list))
+        return Success(data={'phone': phone_list})
 
     @phone_required
     def get_gather(self):
@@ -455,11 +474,7 @@ class CPlay():
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         if latitude and longitude:
             self.basecontrol.get_user_location(latitude, longitude, user.USid)
-        my_created_play = Play.query.filter(Play.isdelete == false(),
-                                            Play.PLstatus == PlayStatus.activity.value,
-                                            Play.PLstartTime <= now,
-                                            Play.PLendTime >= now,
-                                            Play.PLcreate == user.USid).first()
+        my_created_play = self._is_tourism_leader(user.USid)
         if not my_created_play:
             raise StatusError('您没有正在进行的活动')
         if not (my_created_play.PLstartTime <= gather_time <= my_created_play.PLendTime):
