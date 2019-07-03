@@ -198,7 +198,7 @@ def create_app():
     app = Flask(__name__)
 
     # socket = SocketIO(app)
-    socketio.init_app(app)
+    # socketio.init_app(app)
     app.config.from_object(DefaltSettig)
     register(app)
     CORS(app, supports_credentials=True)
@@ -207,7 +207,7 @@ def create_app():
     error_handler(app)
 
     # SocketRoute(socket)
-    socketio.on_namespace(Mynamespace('/'))
+    # socketio.on_namespace(Mynamespace('/'))
     return app
 
 
