@@ -14,7 +14,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
-from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom
+from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus
 from planet.config.http_config import API_HOST
 
 from planet.control.BaseControl import BaseController
@@ -22,7 +22,8 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInSet, \
+    SignInLog
 
 
 class CPlay():
@@ -33,6 +34,7 @@ class CPlay():
         self.split_item = '!@##@!'
         self.connect_item = '-'
         self.basecontrol = BaseController()
+        self.guidelevel = 5
 
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
@@ -559,6 +561,61 @@ class CPlay():
         play.fill('cost_list', ec_list)
 
         return Success(data=play)
+
+    def set_signin(self):
+        data = parameter_required(('plid', ))
+        # sisid = data.get('sisid')
+        # if sisid:
+        #     sis = SignInSet.query.filter(SignInSet.SISid == sisid, SignInSet.isdelete == false()).first()
+        #     if sis:
+        #         sil = SignInLog.query.filter(SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).all()
+        #         if sil:
+        #             raise StatusError('已有人签到不能修改')
+        #         # else:
+        #
+        #         updatedict = dict()
+        #         if not sil and data.get('silnum'):
+        #             # 在此处可以添加对silnum的校验
+        #             silnum = data.get('silnum')
+        #             updatedict.update(SILnum=silnum)
+        #         # if data.get('sisstatus'):
+        #         #     updatedict.update('SISstatus', 1)
+        with db.auto_commit():
+            sis = SignInSet.create({
+                'SISid': str(uuid.uuid1()),
+                'PLid': data.get('plid'),
+                'SILnum': self.wx_pay.nonce_str[:4]
+            })
+            db.session.add(sis)
+        return Success(data=sis)
+
+    def get_signin(self):
+        data = parameter_required(('sisid',))
+        sisid = data.get('sisid')
+        sis = SignInSet.query.filter(SignInSet.SISid == sisid, SignInSet.isdelete == false()).first_('签到已失效')
+
+        sils = SignInLog.query.filter(
+            SignInLog.SISid == sisid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
+        signinlist = list()
+        nosigninlist = list()
+        for sil in sils:
+            self._fill_user(sil, sil.USid)
+            sil.add('createtime')
+            sil.fill('SISstatus_zh', SigninLogStatus(sil.SISstatus).zh_value)
+            sil.fill('SISstatus_eh', SigninLogStatus(sil.SISstatus).name)
+            if sil.SISstatus == SigninLogStatus.wait.value:
+                nosigninlist.append(sil)
+            else:
+                signinlist.append(sil)
+        sis.fill('signinlist', signinlist)
+        sis.fill('nosigninlist', nosigninlist)
+        return Success(data=sis)
+
+    def _fill_user(self, model, usid):
+        user = User.query.filter(User.USid == usid, User.isdelete == false()).first_('用户已失效')
+        model.fill('USname', user.USname)
+        model.fill('USlevel', '游客' if user.USlevel != self.guidelevel else '导游')
+        model.fill('USheader', user.USheader)
 
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)

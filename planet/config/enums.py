@@ -728,6 +728,17 @@ class EnterLogStatus(Enum):
     error = -1, '异常'
 
 
+# class UserLevel(Enum):
+class MiniUserGrade(Enum):
+    normal = 0, '游客'
+    guide = 5, '导游'
+
+
+class SigninLogStatus(Enum):
+    wait = 0, '未签到'
+    success = 1, '已签到'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
