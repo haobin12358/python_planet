@@ -3,18 +3,23 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, func
+from sqlalchemy import or_, false
 
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin
+from planet.config.enums import AdminActionS
 from planet.extensions.register_ext import db
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin
 from planet.models.scenicspot import ScenicSpot
+from planet.control.BaseControl import BASEADMIN
 
 
 class CScenicSpot(object):
+
+    def __init__(self):
+        self.BaseAdmin = BASEADMIN()
 
     @admin_required
     def add(self):
@@ -50,6 +55,7 @@ class CScenicSpot(object):
                 'ParentID': parentid
             })
             db.session.add(scenic_instance)
+            self.BaseAdmin.create_action(AdminActionS.insert.value, 'ScenicSpot', scenic_instance.SSPid)
         return Success('添加成功', {'sspid': scenic_instance.SSPid})
 
     @admin_required
@@ -97,6 +103,7 @@ class CScenicSpot(object):
                 'ParentID': parentid
             }, null='no')
             db.session.add(scenic_instance)
+            self.BaseAdmin.create_action(AdminActionS.update.value, 'ScenicSpot', scenic_instance.SSPid)
         return Success('更新成功', {'sspid': scenic_instance.SSPid})
 
     @admin_required
@@ -107,6 +114,7 @@ class CScenicSpot(object):
         with db.auto_commit():
             scenic_instance.update({'isdelete': True})
             db.session.add(scenic_instance)
+            self.BaseAdmin.create_action(AdminActionS.delete.value, 'ScenicSpot', scenic_instance.SSPid)
         return Success('删除成功', {'sspid': sspid})
 
     @staticmethod
