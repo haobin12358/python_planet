@@ -17,7 +17,9 @@ class APlay(Resource):
             'get_playrequire': self.cplay.get_playrequire,
             'get_enterlog': self.cplay.get_enterlog,
             'get_gather': self.cplay.get_gather,
-            'identity': self.cplay.identity
+            'identity': self.cplay.identity,
+            'get_signin': self.cplay.get_signin,
+            'get_current_play': self.cplay.get_current_play,
         }
         return apis
 
@@ -28,6 +30,8 @@ class APlay(Resource):
             'set_insurance': self.cplay.set_insurance,
             'join': self.cplay.join,
             'wechat_notify': self.cplay.wechat_notify,
+            'set_signin': self.cplay.set_signin,
+            'signin': self.cplay.signin,
             'set_gather': self.cplay.set_gather
         }
         return apis
