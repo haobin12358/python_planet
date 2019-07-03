@@ -809,7 +809,7 @@ class CPlay():
         if duration.days < 0:
             current_app.logger.error('起止时间有误')
             raise ParamsError
-        days = to_chinese4(duration.days)
+        days = to_chinese4(duration.days + 1)
         plname = '{}·{}日'.format(pllocation, days)
         return plname
 
