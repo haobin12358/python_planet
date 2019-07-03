@@ -24,7 +24,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, \
-    SignInLog
+    SignInLog, HelpRecord
 
 
 class CPlay():
@@ -381,8 +381,9 @@ class CPlay():
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         self.basecontrol.get_user_location(latitude, longitude, user.USid)
         my_created_play = self._is_tourism_leader(user.USid)  # 是否领队
-        phone_list, helper_list = [], []
+        phone_list, helper_list, plid = [], [], None
         if my_created_play:
+            plid = my_created_play.PLid
             usphones = db.session.query(User.UStelphone, User.USname).join(EnterLog, EnterLog.USid == User.USid).filter(
                 EnterLog.isdelete == false(),
                 EnterLog.PLid == my_created_play.PLid,
@@ -395,6 +396,7 @@ class CPlay():
         else:
             my_joined_play = self._ongoing_play_joined(user.USid)
             if my_joined_play:
+                plid = my_joined_play.PLid
                 phone = db.session.query(User.UStelphone, User.USname).filter(
                     User.isdelete == false(),
                     User.USid == my_joined_play.PLcreate).first()
@@ -406,10 +408,21 @@ class CPlay():
         # 发送求救短信
         for index, usphone in enumerate(phone_list):
             params = {"name": helper_list[index], "name2": user.USname, "telphone": user.UStelphone}
-            QXSignName = None  # todo 签名未审核通过，上线前替换
+             # todo 签名未审核通过，上线前替换 sign_name=QXSignName
             response_send_message = SendSMS(usphone, params, templatecode=HelpTemplateCode)
             if response_send_message:
                 current_app.logger.info('send help sms param: {}'.format(params))
+        # 求救记录
+        with db.auto_commit():
+            help_record = HelpRecord.create({'HRid': str(uuid.uuid1()),
+                                             'USid': user.USid,
+                                             'UStelphone': user.UStelphone,
+                                             'USlatitude': latitude,
+                                             'USlongitude': longitude,
+                                             'PLid': plid,
+                                             'HRphones': json.dumps(phone_list)})
+            db.session.add(help_record)
+
         return Success(data={'phone': phone_list})
 
     @phone_required

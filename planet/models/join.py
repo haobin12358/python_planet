@@ -61,3 +61,16 @@ class UserScore(Base):
     USCnum = Column(Integer, default=10, comment='评分')
     USCcreate = Column(String(64), comment='创建人')
 
+
+class HelpRecord(Base):
+    """求救记录"""
+    __tablename__ = 'HelpRecord'
+    HRid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='求救人')
+    UStelphone = Column(String(64), comment='求救人手机号')
+    USlatitude = Column(String(64), comment='求救人所在纬度')
+    USlongitude = Column(String(64), comment='求救人所在经度')
+    PLid = Column(String(64), comment='活动id')
+    HRphones = Column(Text, comment='求救的手机号，list')
+
+
