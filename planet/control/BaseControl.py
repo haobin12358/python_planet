@@ -50,7 +50,7 @@ class BASEADMIN():
         detail['data'] = detail['data'].decode()
 
         admin_action = {
-            'AAid':str(uuid.uuid1()),
+            'AAid': str(uuid.uuid1()),
             'ADid': request.user.id,
             'AAaction': AAaction,
             'AAmodel': AAmodel,
