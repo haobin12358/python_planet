@@ -724,7 +724,7 @@ class CPlay():
 
     @phone_required
     def get_enter_user(self):
-        data = parameter_required(('plid'))
+        data = parameter_required(('plid',))
         plid = data.get('plid')
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
         user = get_current_user()
