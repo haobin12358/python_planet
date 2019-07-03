@@ -14,7 +14,8 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
-from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus
+from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
+    CollectionType, CollectStatus
 from planet.config.http_config import API_HOST
 
 from planet.control.BaseControl import BaseController
@@ -23,7 +24,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, \
-    SignInLog
+    SignInLog, UserCollectionLog
 
 
 class CPlay():
@@ -657,7 +658,7 @@ class CPlay():
         signinlist = list()
         nosigninlist = list()
         for sil in sils:
-            self._fill_user(sil, sil.USid)
+            self._fill_user(sil, sil.USid, '用户已失效')
             sil.add('updatetime')
             sil.fill('SISstatus_zh', SigninLogStatus(sil.SISstatus).zh_value)
             sil.fill('SISstatus_eh', SigninLogStatus(sil.SISstatus).name)
@@ -706,11 +707,45 @@ class CPlay():
         self._fill_play(play)
         return Success(data=play)
 
-    def _fill_user(self, model, usid):
-        user = User.query.filter(User.USid == usid, User.isdelete == false()).first_('用户已失效')
+    @phone_required
+    def get_enter_user(self):
+        data = parameter_required(('plid'))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
+        els = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.ELstatus == EnterLogStatus.success.value,
+                                    EnterLog.isdelete == false()).all()
+        user = get_current_user()
+        user_list = list()
+        for el in els:
+            usid = el.USid
+            user_check = self._fill_user(el, usid)
+            if not user_check:
+                continue
+            ucl = UserCollectionLog.query.filter(UserCollectionLog.UCLcoType == CollectionType.user.value,
+                                                 UserCollectionLog.isdelete == False)
+            followed = ucl.filter(UserCollectionLog.UCLcollector == user.USid,
+                                  UserCollectionLog.UCLcollection == usid).first()
+            be_followed = ucl.filter(UserCollectionLog.UCLcollector == usid,
+                                     UserCollectionLog.UCLcollection == user.USid).first()
+            follow_status = CollectStatus.none.value if not followed \
+                else CollectStatus.aandb.value if be_followed else CollectStatus.atob.value
+            el.fill('follow_status', follow_status)
+            el.fill('follow_status_en', CollectStatus(follow_status).name)
+            el.fill('follow_status', CollectStatus(follow_status).zh_value)
+            user_list.append(el)
+        return Success(data=user_list)
+
+    def _fill_user(self, model, usid, error_msg=None):
+        if error_msg:
+            user = User.query.filter(User.USid == usid, User.isdelete == false()).first_(error_msg)
+        else:
+            user = User.query.filter(User.USid == usid, User.isdelete == false()).first()
+            if not user:
+                return False
         model.fill('USname', user.USname)
         model.fill('USlevel', '游客' if user.USlevel != self.guidelevel else '导游')
         model.fill('USheader', user.USheader)
+        return True
 
     def _cancle_celery(self, conid):
         exist_task = conn.get(conid)

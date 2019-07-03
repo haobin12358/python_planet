@@ -19,6 +19,7 @@ class APlay(Resource):
             'get_gather': self.cplay.get_gather,
             'identity': self.cplay.identity,
             'get_signin': self.cplay.get_signin,
+            'get_enter_user': self.cplay.get_enter_user,
             'get_current_play': self.cplay.get_current_play,
         }
         return apis
