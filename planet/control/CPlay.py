@@ -741,17 +741,16 @@ class CPlay():
         plid = data.get('plid')
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
         user = get_current_user()
-        els = EnterLog.query.filter(EnterLog.PLid == play.PLid,
-                                    EnterLog.USid != user.USid,
+        els = EnterLog.query.join(User, User.USid == EnterLog.USid).filter(EnterLog.PLid == play.PLid,
+                                    EnterLog.USid != user.USid, User.isdelete == false(),
                                     EnterLog.ELstatus == EnterLogStatus.success.value,
-                                    EnterLog.isdelete == false()).all()
+                                    EnterLog.isdelete == false()).order_by(EnterLog.createtime.desc()).all_with_page()
 
         user_list = list()
         for el in els:
             usid = el.USid
-            user_check = self._fill_user(el, usid)
-            if not user_check:
-                continue
+            self._fill_user(el, usid)
+
             ucl = UserCollectionLog.query.filter(UserCollectionLog.UCLcoType == CollectionType.user.value,
                                                  UserCollectionLog.isdelete == False)
             followed = ucl.filter(UserCollectionLog.UCLcollector == user.USid,
@@ -762,7 +761,7 @@ class CPlay():
                 else CollectStatus.aandb.value if be_followed else CollectStatus.atob.value
             el.fill('follow_status', follow_status)
             el.fill('follow_status_en', CollectStatus(follow_status).name)
-            el.fill('follow_status', CollectStatus(follow_status).zh_value)
+            el.fill('follow_status_zh', CollectStatus(follow_status).zh_value)
             user_list.append(el)
         return Success(data=user_list)
 
