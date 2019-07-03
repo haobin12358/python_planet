@@ -21,7 +21,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
-from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInSet, \
+from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, \
     SignInLog
 
 
