@@ -336,22 +336,62 @@ class CPlay():
             conn.set(end_connid, end_task_id)
 
     @phone_required
+    def identity(self):
+        """身份判断"""
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        is_leader = self._is_tourism_leader(user.USid)
+        return Success(data={'is_leader': bool(is_leader)})
+
+    @staticmethod
+    def _is_tourism_leader(usid):
+        """是否是领队"""
+        if not usid:
+            return
+        now = datetime.now()
+        return Play.query.filter(Play.isdelete == false(),
+                                 Play.PLstatus == PlayStatus.activity.value,
+                                 Play.PLstartTime <= now,
+                                 Play.PLendTime >= now,
+                                 Play.PLcreate == usid).first()
+
+    @staticmethod
+    def _ongoing_play_joined(usid):
+        """是否有正在参加的活动"""
+        if not usid:
+            return
+        now = datetime.now()
+        return EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
+                                   ).filter(Play.isdelete == false(),
+                                            Play.PLstatus == PlayStatus.activity.value,
+                                            Play.PLstartTime <= now,
+                                            Play.PLendTime >= now,
+                                            EnterLog.isdelete == false(),
+                                            EnterLog.USid == usid,
+                                            EnterLog.ELstatus == EnterLogStatus.success.value,
+                                            ).first()
+
+    @phone_required
+    def help(self):
+        """一键求救"""
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        data = request.json
+        latitude, longitude = data.get('latitude'), data.get('longitude')
+        latitude, longitude = self.check_lat_and_long(latitude, longitude)
+        self.basecontrol.get_user_location(latitude, longitude, user.USid)
+        pass
+
+    @phone_required
     def get_gather(self):
         """查看集合点"""
         args = request.args.to_dict()
         my_lat, my_long = args.get('latitude'), args.get('longitude')
         my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
-        now = datetime.now()
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         can_post, gather_location, my_location = False, None, None
         button_name = '暂无活动'
         if my_lat and my_long:
             self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
-        my_created_play = Play.query.filter(Play.isdelete == false(),
-                                            Play.PLstatus == PlayStatus.activity.value,
-                                            Play.PLstartTime <= now,
-                                            Play.PLendTime >= now,
-                                            Play.PLcreate == user.USid).first()
+        my_created_play = self._is_tourism_leader(user.USid)
 
         if my_created_play:  # 是领队，显示上次定位点，没有为null
             can_post = True
@@ -365,15 +405,7 @@ class CPlay():
                                                           last_anchor_point.GAlon,
                                                           '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
         else:  # 非领队
-            my_joined_play = EnterLog.query.join(Play, Play.PLid == EnterLog.PLid
-                                                 ).filter(Play.isdelete == false(),
-                                                          Play.PLstatus == PlayStatus.activity.value,
-                                                          Play.PLstartTime <= now,
-                                                          Play.PLendTime >= now,
-                                                          EnterLog.isdelete == false(),
-                                                          EnterLog.USid == user.USid,
-                                                          EnterLog.ELstatus == EnterLogStatus.success.value,
-                                                          ).first()
+            my_joined_play = self._ongoing_play_joined(user.USid)
             if my_joined_play:  # 存在参加的进行中的活动
                 button_name = '等待集合'
                 gather_point = Gather.query.filter(Gather.isdelete == false(),
