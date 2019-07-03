@@ -29,6 +29,9 @@ class CFile(object):
         self.check_file_size()
         file = request.files.get('file')
         data = parameter_required()
+        if not data:
+            data = request.form
+
         folder = self.allowed_folder(data.get('type'))
         if not file:
             raise ParamsError(u'上传有误')
