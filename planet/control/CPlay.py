@@ -727,9 +727,12 @@ class CPlay():
         data = parameter_required(('plid'))
         plid = data.get('plid')
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
-        els = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.ELstatus == EnterLogStatus.success.value,
-                                    EnterLog.isdelete == false()).all()
         user = get_current_user()
+        els = EnterLog.query.filter(EnterLog.PLid == play.PLid,
+                                    EnterLog.USid != user.USid,
+                                    EnterLog.ELstatus == EnterLogStatus.success.value,
+                                    EnterLog.isdelete == false()).all()
+
         user_list = list()
         for el in els:
             usid = el.USid
