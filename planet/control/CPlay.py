@@ -13,9 +13,10 @@ from planet.common.error_response import ParamsError, StatusError, AuthorityErro
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
-
+from planet.common.Inforsend import SendSMS
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus
 from planet.config.http_config import API_HOST
+from planet.config.secret import QXSignName, HelpTemplateCode
 
 from planet.control.BaseControl import BaseController
 from planet.extensions.register_ext import db, conn, mini_wx_pay
@@ -380,24 +381,35 @@ class CPlay():
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         self.basecontrol.get_user_location(latitude, longitude, user.USid)
         my_created_play = self._is_tourism_leader(user.USid)  # 是否领队
-        phone_list = []
+        phone_list, helper_list = [], []
         if my_created_play:
-            # todo 发短信
-            usphones = db.session.query(User.UStelphone).join(EnterLog, EnterLog.USid == User.USid).filter(
+            usphones = db.session.query(User.UStelphone, User.USname).join(EnterLog, EnterLog.USid == User.USid).filter(
                 EnterLog.isdelete == false(),
                 EnterLog.PLid == my_created_play.PLid,
                 EnterLog.ELstatus == EnterLogStatus.success.value,
                 User.isdelete == false()
             ).all()
             phone_list = list(map(lambda x: x[0], usphones))
-            current_app.logger.info('领队正在求救, phone_list: {}'.format(phone_list))
+            helper_list = list(map(lambda x: x[1], usphones))
+            current_app.logger.info('领队正在求救')
         else:
             my_joined_play = self._ongoing_play_joined(user.USid)
             if my_joined_play:
-                phone = db.session.query(User.UStelphone).filter(User.isdelete == false(),
-                                                                 User.USid == my_joined_play.PLcreate).scalar()
-                phone_list.append(phone)
-            current_app.logger.info('团员正在求救, phone_list: {}'.format(phone_list))
+                phone = db.session.query(User.UStelphone, User.USname).filter(
+                    User.isdelete == false(),
+                    User.USid == my_joined_play.PLcreate).first()
+                phone_list.append(phone[0])
+                helper_list.append(phone[1])
+                current_app.logger.info('团员正在求救')
+        if not phone_list:
+            raise StatusError('当前没有参加活动')
+        # 发送求救短信
+        for index, usphone in enumerate(phone_list):
+            params = {"name": helper_list[index], "name2": user.USname, "telphone": user.UStelphone}
+            QXSignName = None  # todo 签名未审核通过，上线前替换
+            response_send_message = SendSMS(usphone, params, templatecode=HelpTemplateCode)
+            if response_send_message:
+                current_app.logger.info('send help sms param: {}'.format(params))
         return Success(data={'phone': phone_list})
 
     @phone_required
