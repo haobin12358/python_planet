@@ -20,15 +20,17 @@ from ..config.secret import ACCESS_KEY_ID, ACCESS_KEY_SECRET, SignName, Template
 class SendSMS:
     prefix_url = "https://dysmsapi.aliyuncs.com/?"
 
-    def __init__(self, reciver, _tpl_params):
+    def __init__(self, reciver, _tpl_params, sign_name=SignName, templatecode=TemplateCode):
         """
         发送阿里云短信
         :param reciver: 接受人电话
         :param _tpl_params: {code: '123456'}
+        :param sign_name: 签名
+        :param templatecode: 短信模板(默认为验证码模板)
         """
-        self._send_sms_ali(reciver, _tpl_params)
+        self._send_sms_ali(reciver, _tpl_params, sign_name, templatecode)
 
-    def params(self, mobiles, tpl_params, sign_name):
+    def params(self, mobiles, tpl_params, sign_name, templatecode):
         p = [
             ["SignatureMethod", "HMAC-SHA1"],
             ["SignatureNonce", uuid.uuid4().hex],
@@ -43,7 +45,7 @@ class SendSMS:
             ["PhoneNumbers", "{0}".format(mobiles)],
             ["SignName", sign_name],
             ["TemplateParam", json.dumps(tpl_params, ensure_ascii=False)],
-            ["TemplateCode", TemplateCode],
+            ["TemplateCode", templatecode],
             ["OutId", "123"],
         ]
         return p
@@ -75,9 +77,8 @@ class SendSMS:
         base_str = base64.b64encode(r).decode()
         return self.special_url_encode(base_str)
 
-    def _send_sms_ali(self, mobiles, tpl_params):
-        sign_name = SignName
-        params_lst = self.params(mobiles, tpl_params, sign_name)
+    def _send_sms_ali(self, mobiles, tpl_params, sign_name, templatecode):
+        params_lst = self.params(mobiles, tpl_params, sign_name, templatecode)
         eps = self.encode_params(params_lst)
         prepare_str = self.prepare_sign(eps)
         sign_str = self.sign(prepare_str)
