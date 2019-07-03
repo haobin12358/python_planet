@@ -739,6 +739,12 @@ class SigninLogStatus(Enum):
     success = 1, '已签到'
 
 
+class CollectStatus(Enum):
+    atob = 0, '已关注'
+    aandb = 1, '互相关注'
+    none = 2, '未关注'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
