@@ -1,4 +1,5 @@
 import json
+import random
 import uuid
 import re
 from datetime import datetime, timedelta
@@ -8,7 +9,7 @@ from flask import current_app, request
 from sqlalchemy import Date, or_, and_, false
 
 from planet.common.chinesenum import to_chinese4
-from planet.common.error_response import ParamsError, StatusError
+from planet.common.error_response import ParamsError, StatusError, AuthorityError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
@@ -553,7 +554,8 @@ class CPlay():
                     continue
                 ec.fill('ecname', cost.COSname)
             else:
-                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent, Insurance.isdelete == false()).first()
+                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent,
+                                                   Insurance.isdelete == false()).first()
                 if not insruance:
                     continue
                 ec.fill('ecname', insruance.INname)
@@ -561,40 +563,50 @@ class CPlay():
 
         return Success(data=play)
 
+    @phone_required
     def set_signin(self):
-        data = parameter_required(('plid', ))
-        # sisid = data.get('sisid')
-        # if sisid:
-        #     sis = SignInSet.query.filter(SignInSet.SISid == sisid, SignInSet.isdelete == false()).first()
-        #     if sis:
-        #         sil = SignInLog.query.filter(SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).all()
-        #         if sil:
-        #             raise StatusError('已有人签到不能修改')
-        #         # else:
-        #
-        #         updatedict = dict()
-        #         if not sil and data.get('silnum'):
-        #             # 在此处可以添加对silnum的校验
-        #             silnum = data.get('silnum')
-        #             updatedict.update(SILnum=silnum)
-        #         # if data.get('sisstatus'):
-        #         #     updatedict.update('SISstatus', 1)
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        user = get_current_user()
         with db.auto_commit():
+            play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first()
+
+            if not play or play.PLstatus != PlayStatus.activity.value:
+                raise StatusError('当前活动尚未开启不能签到')
+            if play.PLcreate != user.USid:
+                raise AuthorityError('只能发起自己创建的活动的签到')
+
+            SignInSet.query.filter(SignInSet.PLid == plid, SignInSet.isdelete == false()).delete_(
+                synchronize_session=False)
+
             sis = SignInSet.create({
                 'SISid': str(uuid.uuid1()),
-                'PLid': data.get('plid'),
-                'SILnum': self.wx_pay.nonce_str[:4]
+                'PLid': plid,
+                'SILnum': self._random_num()
             })
             db.session.add(sis)
+            els = EnterLog.query.filter(EnterLog.ELstatus == EnterLogStatus.success.value, EnterLog.PLid == plid,
+                                        EnterLog.isdelete == false()).all()
+            instance_list = list()
+            for enter in els:
+                sil = SignInLog.create({
+                    'SILid': str(uuid.uuid1()),
+                    'SISid': sis.SISid,
+                    'USid': enter.USid,
+                    'SISstatus': SigninLogStatus.wait.value
+                })
+                instance_list.append(sil)
+            db.session.add_all(instance_list)
         return Success(data=sis)
 
     def get_signin(self):
-        data = parameter_required(('sisid',))
-        sisid = data.get('sisid')
-        sis = SignInSet.query.filter(SignInSet.SISid == sisid, SignInSet.isdelete == false()).first_('签到已失效')
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        sis = SignInSet.query.filter(SignInSet.PLid == plid, SignInSet.isdelete == false()).order_by(
+            SignInSet.createtime.desc()).first_('签到已失效')
 
         sils = SignInLog.query.filter(
-            SignInLog.SISid == sisid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
+            SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
         signinlist = list()
         nosigninlist = list()
         for sil in sils:
@@ -609,6 +621,43 @@ class CPlay():
         sis.fill('signinlist', signinlist)
         sis.fill('nosigninlist', nosigninlist)
         return Success(data=sis)
+
+    @phone_required
+    def signin(self):
+        data = parameter_required(('plid', 'silnum'))
+        user = get_current_user()
+        sis = SignInSet.query.filter(SignInSet.PLid == data.get('plid'), SignInSet.isdelete == false()).order_by(
+            SignInSet.createtime.desc()).first()
+        with db.auto_commit():
+            if not sis:
+                raise StatusError('当前活动未开启签到')
+            sil = SignInLog.query.filter(SignInLog.SISid == sis.SISid, SignInLog.USid == user.USid,
+                                         SignInLog.isdelete == false()).first()
+
+            if sil and sil.SISstatus == SigninLogStatus.success.value:
+                raise StatusError('已签到')
+
+            silnum = str(data.get('silnum'))
+            if str(sis.SILnum) != silnum:
+                raise ParamsError('签到码有误')
+
+            sil.update({'SISstatus': SigninLogStatus.success.value})
+            db.session.add(sil)
+
+        return Success
+
+    @phone_required
+    def get_current_play(self):
+        user = get_current_user()
+        # now = datetime.now()
+        # selfplay = Play.query.filter(Play.PLcreate == user.USid, Play.PLstatus == PlayStatus.activity.value).first()
+        play = Play.query.join(EnterLog.PLid == Play.PLid).filter(
+            Play.PLstatus == PlayStatus.activity.value,
+            or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
+        if not play:
+            raise StatusError('当前无开启活动')
+        self._fill_play(play)
+        return Success(data=play)
 
     def _fill_user(self, model, usid):
         user = User.query.filter(User.USid == usid, User.isdelete == false()).first_('用户已失效')
@@ -897,3 +946,6 @@ class CPlay():
         else:
             return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
         return return_str
+
+    def _random_num(self, numlen=4):
+        return ''.join([random.randint(0, 9) for _ in range(numlen)])
