@@ -18,6 +18,7 @@ from planet.extensions.qiniu.storage import QiniuStorage
 class CFile(object):
     def __init__(self):
         self.qiniu = QiniuStorage(current_app)
+        self.upload_to_qiniu = ('https://www.bigxingxing.com', 'https://pre2.bigxingxing.com')
 
     # @token_required
     def upload_img(self):
@@ -93,7 +94,7 @@ class CFile(object):
                 second_str = '0' + str(second) if second < 10 else str(second)
                 video_dur = minute_str + ':' + second_str
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=newFile, filename=data[1:])
                     except Exception as e:
@@ -102,7 +103,7 @@ class CFile(object):
 
                 video_thumbnail_path = os.path.join(newPath, thum_name.get('thumbnail_name_list')[0])
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=video_thumbnail_path, filename=video_thum[1:])
                     except Exception as e:
@@ -129,7 +130,7 @@ class CFile(object):
                 data += '_' + thumbnail_img.split('_')[-1]
                 # 上传到七牛云，并删除本地压缩图
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=thumbnail_img, filename=data[1:])
                         os.remove(str(newFile + '_' + thumbnail_img.split('_')[-1]))
@@ -197,7 +198,7 @@ class CFile(object):
         rets = []
         for url in url_list:
             # ret, info = self.qiniu.url_to_storage('https://www.bigxingxing.com' + url, url[1:])
-            ret, info = self.qiniu.save('/opt/planet' + url, url[1:])
+            ret, info = self.qiniu.save('/opt/planet_version2' + url, url[1:])
             rets.append(ret)
         # current_app.logger.info(rets)
         current_app.logger.info(len(rets))

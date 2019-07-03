@@ -5,8 +5,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import current_app, request
-from sqlalchemy import Date, or_, and_
-from sqlalchemy.sql.expression import false
+from sqlalchemy import Date, or_, and_, false
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError

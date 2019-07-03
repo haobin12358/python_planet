@@ -3,7 +3,7 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_
+from sqlalchemy import or_, false, func
 
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
@@ -19,16 +19,16 @@ class CScenicSpot(object):
     @admin_required
     def add(self):
         """添加景区介绍"""
-        admin = Admin.query.filter_by_(ADid=request.user.id).first_('请重新登录')
+        admin = Admin.query.filter_by_(ADid=getattr(request, 'user').id).first_('请重新登录')
         data = parameter_required(('aaid', 'sspcontent', 'sspname', 'ssplevel', 'sspmainimg'))
         aaid, sspcontent, ssplevel = data.get('aaid'), data.get('sspcontent'), data.get('ssplevel')
         sspname = data.get('sspname')
         parentid = data.get('parentid')
-        exsit = ScenicSpot.query.filter(ScenicSpot.isdelete == False, ScenicSpot.SSPname == sspname).first()
+        exsit = ScenicSpot.query.filter(ScenicSpot.isdelete == false(), ScenicSpot.SSPname == sspname).first()
         if exsit:
             raise ParamsError('已添加过该景区')
         if parentid:
-            ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == False,
+            ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == false(),
                                     ScenicSpot.ParentID.is_(None)).first_('关联景区选择错误')
         # 地址拼接
         address = db.session.query(AddressProvince.APname, AddressCity.ACname, AddressArea.AAname).filter(
@@ -55,7 +55,7 @@ class CScenicSpot(object):
     @admin_required
     def update(self):
         """更新景区介绍"""
-        admin = Admin.query.filter_by_(ADid=request.user.id).first_('请重新登录')
+        admin = Admin.query.filter_by_(ADid=getattr(request, 'user').id).first_('请重新登录')
         data = parameter_required(('sspid', 'aaid', 'sspcontent', 'sspname', 'ssplevel', 'sspmainimg'))
         aaid, sspcontent, ssplevel = data.get('aaid'), data.get('sspcontent'), data.get('ssplevel')
         sspid = data.get('sspid')
@@ -69,13 +69,13 @@ class CScenicSpot(object):
         if not scenic_instance.ParentID and associated and parentid:
             raise ParamsError('该景区作为顶级景区已被其他景区关联，不允许再将此景区关联到其他景区下')
 
-        exsit_other = ScenicSpot.query.filter(ScenicSpot.isdelete == False,
+        exsit_other = ScenicSpot.query.filter(ScenicSpot.isdelete == false(),
                                               ScenicSpot.SSPname == sspname,
                                               ScenicSpot.SSPid != sspid).first()
         if exsit_other:
             raise ParamsError('景区名称重复')
         if parentid:
-            ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == False,
+            ScenicSpot.query.filter(ScenicSpot.SSPid == parentid, ScenicSpot.isdelete == false(),
                                     ScenicSpot.ParentID.is_(None)).first_('关联景区选择错误')
 
         # 地址拼接
@@ -112,7 +112,7 @@ class CScenicSpot(object):
     @staticmethod
     def _get_root_scenicspots():
         root_scenicspots = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
-                                            ).filter(ScenicSpot.isdelete == False,
+                                            ).filter(ScenicSpot.isdelete == false(),
                                                      ScenicSpot.ParentID.is_(None)).all()
         res = []
         for rscenicspot in root_scenicspots:
@@ -148,20 +148,24 @@ class CScenicSpot(object):
             filter_args.append(or_(*[ScenicSpot.SSPname.ilike('%{}%'.format(x)) for x in str(sspname).split()]))
         if ssparea:
             filter_args.append(or_(*[ScenicSpot.SSParea.ilike('%{}%'.format(x)) for x in str(ssparea).split()]))
-
-        all_scenicspot = ScenicSpot.query.filter(ScenicSpot.isdelete == False,
+        current_app.logger.info('start query : {}'.format(datetime.now()))
+        all_scenicspot = ScenicSpot.query.filter(ScenicSpot.isdelete == false(),
                                                  *filter_args).order_by(ssp_order,
                                                                         ScenicSpot.createtime.desc()
                                                                         ).all_with_page()
+        current_app.logger.info('query finished : {}'.format(datetime.now()))
         for scenicspot in all_scenicspot:
             parent = None
             if scenicspot.ParentID and is_admin():
-                parent_scenicspot = ScenicSpot.query.filter_by_(SSPid=scenicspot.ParentID).first()
+                parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
+                                                     ).filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
-                    parent = {'sspid': parent_scenicspot.SSPid, 'sspname': parent_scenicspot.SSPname}
+                    parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
             scenicspot.fill('parent_scenicspot', parent)
             scenicspot.fill('associated', bool(parent))
-            scenicspot.hide('ParentID', 'ADid')
+            scenicspot.hide('ParentID', 'ADid', 'SSPcontent')
+        current_app.logger.info('fill finished : {}'.format(datetime.now()))
+
         return Success(data=all_scenicspot)
 
     def get(self):
@@ -182,9 +186,10 @@ class CScenicSpot(object):
                             {'aaid': address[4], 'aaname': address[5]}]
             # 关联景区
             if scenicspot.ParentID:
-                parent_scenicspot = ScenicSpot.query.filter_by_(SSPid=scenicspot.ParentID).first()
+                parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
+                                                     ).filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
-                    parent = {'sspid': parent_scenicspot.SSPid, 'sspname': parent_scenicspot.SSPname}
+                    parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
         scenicspot.fill('parent_scenicspot', parent)
         scenicspot.fill('associated', bool(parent))
         scenicspot.fill('address_info', address_info)
