@@ -658,7 +658,7 @@ class CPlay():
         nosigninlist = list()
         for sil in sils:
             self._fill_user(sil, sil.USid)
-            sil.add('createtime')
+            sil.add('updatetime')
             sil.fill('SISstatus_zh', SigninLogStatus(sil.SISstatus).zh_value)
             sil.fill('SISstatus_eh', SigninLogStatus(sil.SISstatus).name)
             if sil.SISstatus == SigninLogStatus.wait.value:
@@ -698,7 +698,7 @@ class CPlay():
         user = get_current_user()
         # now = datetime.now()
         # selfplay = Play.query.filter(Play.PLcreate == user.USid, Play.PLstatus == PlayStatus.activity.value).first()
-        play = Play.query.join(EnterLog.PLid == Play.PLid).filter(
+        play = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
             Play.PLstatus == PlayStatus.activity.value,
             or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
         if not play:
@@ -995,4 +995,4 @@ class CPlay():
         return return_str
 
     def _random_num(self, numlen=4):
-        return ''.join([random.randint(0, 9) for _ in range(numlen)])
+        return ''.join([str(random.randint(0, 9)) for _ in range(numlen)])
