@@ -153,9 +153,14 @@ class CScenicSpot(object):
         filter_args = []
         sspname, ssparea = args.get('sspname'), args.get('ssparea')
         if sspname:
-            filter_args.append(or_(*[ScenicSpot.SSPname.ilike('%{}%'.format(x)) for x in str(sspname).split()]))
+            filter_args.append(or_(*map(lambda i: ScenicSpot.SSPname.ilike('%{}%'.format(i)),
+                                        map(lambda x: re.escape(x) if '_' not in x else re.sub(r'_', r'\_', x),
+                                            str(sspname).split()))))
         if ssparea:
-            filter_args.append(or_(*[ScenicSpot.SSParea.ilike('%{}%'.format(x)) for x in str(ssparea).split()]))
+            filter_args.append(or_(*map(lambda i: ScenicSpot.SSParea.ilike('%{}%'.format(i)),
+                                        map(lambda x: re.escape(x) if '_' not in x else re.sub(r'_', r'\_', x),
+                                            str(ssparea).split()))))
+
         current_app.logger.info('start query : {}'.format(datetime.now()))
         all_scenicspot = ScenicSpot.query.filter(ScenicSpot.isdelete == false(),
                                                  *filter_args).order_by(ssp_order,
