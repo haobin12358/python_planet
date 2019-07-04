@@ -345,9 +345,10 @@ class UserLoginTimetype(Enum):
 
 
 class WXLoginFrom(Enum):
-    service = 0, '服务号'
-    subscribe = 1, '订阅号'
-    app = 2, '移动端'
+    service = 0, '订阅号'
+    subscribe = 1, '服务号'
+    miniprogram = 2, '小程序'
+    app = 3, '移动端'
 
 
 class BankName(Enum):
@@ -705,6 +706,43 @@ class CorrectNumType(Enum):
 class UserPlanetMessageStatus(Enum):
     unread = 0, '未读'
     read = 1, '已读'
+
+
+class PlayStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '组队中'
+    activity = 2, '活动中'
+    close = 3, '已关闭'
+
+
+class EnterCostType(Enum):
+    cost = 0, '费用'
+    insurance = 1, '保险'
+
+
+class EnterLogStatus(Enum):
+    wait_pay = 0, '待支付'
+    success = 1, '成功'
+    cancel = 2, '用户取消'
+    canceled = 3, '领队取消'
+    error = -1, '异常'
+
+
+# class UserLevel(Enum):
+class MiniUserGrade(Enum):
+    normal = 0, '游客'
+    guide = 5, '导游'
+
+
+class SigninLogStatus(Enum):
+    wait = 0, '未签到'
+    success = 1, '已签到'
+
+
+class CollectStatus(Enum):
+    atob = 0, '已关注'
+    aandb = 1, '互相关注'
+    none = 2, '未关注'
 
 
 if __name__ == '__main__':
