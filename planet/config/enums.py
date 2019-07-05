@@ -106,11 +106,13 @@ class ApplyFrom(Enum):
 
 
 class ApplyStatus(Enum):
+    lose_effect = -40, '已失效'
     shelves = -30, '已下架'
     cancle = -20, '已撤销'
     reject = -10, '已拒绝'
     wait_check = 0, '审核中'
     agree = 10, '已同意'
+    lose_agree = 20, '重新审核中'
 
 
 class OrderRefundOrstatus(Enum):
@@ -265,6 +267,13 @@ class AdminAction(Enum):
     ADtelphone = '手机号码'
 
 
+class ActivityRecvStatus(Enum):
+    """活动领奖状态"""
+    wait_recv = 0, '待领取'
+    ready_recv = 10, '已领取'
+    expired = 20, '已过期'
+
+
 class MagicBoxJoinStatus(Enum):
     """魔盒状态"""
     expired = -10, '已过期'
@@ -293,8 +302,10 @@ class GuessNumAwardStatus(Enum):
 
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
+    lose_effect=-20,'已失效'
     cancel = -10, '已取消'
     upper = 0, '已上架'
+    lose_upper = 10,'重新审核中'
     # off_shelves = 10, '已下架'
     auditing = 20, '审核中'
     reject = 30, '下架/审核失败'
