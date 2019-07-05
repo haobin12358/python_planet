@@ -5,32 +5,159 @@
     <title></title>
     <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.5/socket.io.min.js"></script>
+    <!--<script type="text/javascript">-->
+    <!--var mysocket ;-->
+    <!--console.log(location.protocol + '//' + document.domain + ':' + location.port);-->
+    <!--mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);-->
+    <!--</script>-->
+
+
 </head>
 <body>
 <h1 id="t">hi</h1>
-<script type="text/javascript">
-    $(document).ready(function() {
-        var token = 'eyJhbGciOiJIUzI1NiIsImlhdCI6MTU1NjE3NDY3OSwiZXhwIjoxNTU2Nzc5NDc5fQ.eyJ1c2VybmFtZSI6InBhbnQiLCJpZCI6ImI2MmQwYmVjLTVmNTItMTFlOS05NzI0LTAwMTYzZTA4ZDMwZiIsIm1vZGVsIjoiVXNlciIsImxldmVsIjoyfQ.80uoTeK8OOAaT_SToamDgtWnKyGzrYfaY1OpY3AUZ2Y';
-        // namespace = '/getplatfromMessage/' + token;
-        var route_url = '/getplatfromMessage/' + token;
-        var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
-        // socket.on('server_response', function(res) {
-        //     console.log(res.data);
-        //     $('#t').text(res.data);
-        // });
-        socket.on('connect', function() {
-        //客户端通过emit发送的命名事件数据,服务端只能使用对应自定义事件接收处理,
-        //客户端定义的事件回调函数接收的数据来自于服务端对应事件处理函数的返回值
-        socket.emit('my event', {data: 'I\'m connected!'},function (res) {
-            console.log('my event :',res)
+<form>
+    u:<input type="text" id="token"/><br>
+    p:<H1 id="pwd"></h1> <br/>
+    t:<span id="test"></span> <br/>
+    m:<input type="text" id="msg"/>  to:<input type="text" id="to"><br> 
+    room: <span id="room"></span><br/>
+
+    <div id="te"></div>
+    <input type="button" value="测试匿名事件" onclick="return send()"/>
+    <input type="button" value="改数字" onclick="return changenum()"/>
+    <input type="button" value="创建session" onclick="return setsession()"/>
+    <input type="button" value="测试命名事件" onclick="return myevent()"/>
+    <input type="button" value="测试消息列表" onclick="return get_message()"/>
+    <input type="button" value="发消息" onclick="return send_message()"/>
+    <input type="button" value="加入房间" onclick="return join_room()"/>
+    
+    msg:<div id="msglist"></div>
+
+</form>
+<script>
+    $(document).ready(function () {
+        // namespace = '/test';
+        var url = location.protocol + '//' + document.domain + ':' + location.port
+        console.log('get url');
+        console.log(url);
+        mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+        mysocket.on('test', function (res) {
+            var t = res.data;
+            if (t) {
+                console.log(res);
+                $("#te").append(t).append('<br/>');
+            }
+
         });
+
+        mysocket.on('server_response', function (res) {
+            console.log('get res data ');
+            console.log(res);
+            $('#pwd').text(res);
+            // document.getElementById('pwd').innerHTML = res.data
+        });
+
+        mysocket.on('message_list', function (res) {
+            console.log('get message list');
+            console.log(res);
+            $('#pwd').text(res);
+        });
+        
+        mysocket.on('new_message', function (res) {
+            console.log('get new_message list');
+            console.log(res);
+            var message = document.getElementById('msglist').innerText;
+            message += res.umsgtext;
+            document.getElementById('msglist').innerText = message
+        });
+
+        mysocket.on('notice', function (res) {
+            console.log('get notice message');
+            console.log(res);
+        })
+    });
+</script>
+
+
+<script type="text/javascript">
+    // var mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+   
+    function send() {
+
+        // }
+        //     var token = 'eyJhbGciOiJIUzI1NiIsImlhdCI6MTU1NjE3NDY3OSwiZXhwIjoxNTU2Nzc5NDc5fQ.eyJ1c2VybmFtZSI6InBhbnQiLCJpZCI6ImI2MmQwYmVjLTVmNTItMTFlOS05NzI0LTAwMTYzZTA4ZDMwZiIsIm1vZGVsIjoiVXNlciIsImxldmVsIjoyfQ.80uoTeK8OOAaT_SToamDgtWnKyGzrYfaY1OpY3AUZ2Y';
+
+        // var mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+        console.log(mysocket);
+        // mysocket.on('connect', function () {
+        //     //客户端通过emit发送的命名事件数据,服务端只能使用对应自定义事件接收处理,
+        //     //客户端定义的事件回调函数接收的数据来自于服务端对应事件处理函数的返回值
+        //
+
         //send 发送未命名时间事件数据，flask 使用'message' 接收
-        socket.send({'data': 'hello word!'}, function(data){
+        mysocket.send({'data': 'hello word!'}, function (data) {
             console.log('#=> recive server data', data);
         });
-        // socket.
-    });
-    });
+
+    }
+
+    function changenum() {
+        mysocket.emit('change_num', {data: 'start change num'}, function (res) {
+            console.log('start change num on socket')
+        });
+    }
+
+    function setsession(){
+        // var token = $('#token').innerText;
+        var token = document.getElementById("token").value;
+
+        console.log('get token');
+        console.log(token);
+        if (!token){
+            token = ''
+        }
+
+        mysocket.emit('setsession', token, function (res) {
+            console.log('setsession : ', res);
+        });
+    }
+
+    function myevent() {
+         mysocket.emit('my_event', {data: 'I\'m connected!'}, function (res) {
+            console.log('my event :', res)
+        });
+    }
+
+    function get_message() {
+        mysocket.emit('get_message', function (res) {
+            console.log('get message list');
+            console.log(res)
+        })
+    }
+    
+    function send_message() {
+        var message = document.getElementById("msg").value;
+        // var usid = document.getElementById("to").value;
+        var roomid = document.getElementById("room").innerText;
+        console.log('get roomid');
+        console.log(roomid);        
+        mysocket.emit('send_msg', {'roid': roomid, 'umsgtext': message, 'umsgtype': 0},function (res) {
+            console.log('get send res');
+            console.log(res)
+
+        })
+    }
+    
+    function join_room() {
+        var usid = document.getElementById("to").value;
+        mysocket.emit('join_room', {'usid': usid}, function (res) {
+            console.log('get roomid');
+            console.log(res);
+            document.getElementById('room').innerText = res.data;
+        });
+
+    }
 </script>
 </body>
 </html>

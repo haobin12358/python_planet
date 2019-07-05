@@ -295,6 +295,7 @@ class GuessNumAwardStatus(Enum):
 
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
+
     lose_effect = -20, '已失效'
     cancel = -10, '已取消'
     upper = 0, '已上架'

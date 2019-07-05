@@ -57,13 +57,14 @@ mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
                      jt_path=os.path.join(server_dir, ".jsapi_ticket"))
 
 
-conn = redis.Redis(host='localhost', port=6379, db=1)
+# conn = redis.Redis(host='localhost', port=6379, db=1)
+conn = redis.Redis(host='119.3.47.90', port=6379, db=2)  # todo  合并之前改回去 ！！！
 cache = Cache(config=cache_redis)
 
 
-def register_ext(app):
+def register_ext(app, logger_file='/tmp/planet_version2/'):
     db.init_app(app)
     cache.init_app(app)
-    LoggerHandler(app, file='/tmp/planet_version2/').error_handler()
+    LoggerHandler(app, file=logger_file).error_handler()
     from planet.extensions.tasks import celery
     celery.init_app(app)

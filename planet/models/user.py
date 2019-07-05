@@ -38,6 +38,8 @@ class User(Base):
     UStoAgentTime = Column(DateTime, comment='成为代理商时间')
     USgrade = Column(Integer, default=0, comment='不知用处的等级')
     USplayName = Column(String(255), comment='小程序伪真实姓名')
+    USunread = Column(Integer, default=0, comment='未读信息数')
+
 
 
 class UserLoginTime(Base):
@@ -116,7 +118,7 @@ class Admin(Base):
     ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
-
+    ADunread = Column(Integer, default=0, comment='未读消息数')
 
 class AdminActions(Base):
     """

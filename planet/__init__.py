@@ -4,7 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 from flask import current_app, Blueprint, Flask as _Flask, Request as _Request
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO as SocketIO_
 from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
@@ -14,6 +14,7 @@ from planet.api.v2.APlay import APlay
 from planet.api.v2.AGuessGroup import AGuessGroup
 from planet.api.v2.AIntegral import AIntegral
 from planet.api.v2.ACollection import ACollection
+from planet.api.v2.AMessage import AMessage
 from planet.api.v2.ASetSupper import ASetSupper
 from planet.api.v2.AActivationcode import AActivationCode
 from planet.api.v2.AActivity import AActivity
@@ -53,6 +54,7 @@ from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
 from planet.extensions.register_ext import register_ext
 from planet.extensions.loggers import LoggerHandler
+from planet.route.RouteSocket import Mynamespace, JSONEncoder as socketjsonencoder
 
 
 class JSONEncoder(_JSONEncoder):
@@ -132,6 +134,23 @@ class Flask(_Flask):
     request_class = Request
 
 
+class SocketIO(SocketIO_):
+    def emit(self, event, *args, **kwargs):
+        # convert_list = []
+        # for a in args:
+        #
+        #     from planet.common.base_model import Base
+        #     if isinstance(a, HTTPException) or isinstance(a, Base):
+        #         json.loads(json.dumps(a, cls=socketjsonencoder))
+        conver_list = json.loads(json.dumps(args, cls=socketjsonencoder))
+        conver_dict = json.loads(json.dumps(kwargs, cls=socketjsonencoder))
+
+        super(SocketIO, self).emit(event, *conver_list, **conver_dict)
+
+
+socketio = SocketIO()
+
+
 def register(app):
     v2 = Blueprint(__name__, 'v2', url_prefix='/api/v2')
     v2.add_url_rule('/product/<string:product>', view_func=AProduct.as_view('product'))
@@ -170,6 +189,7 @@ def register(app):
     v2.add_url_rule('/integral/<string:integral>', view_func=AIntegral.as_view('integral'))  # 星币商城
     v2.add_url_rule('/setsupper/<string:setsupper>', view_func=ASetSupper.as_view('setsupper'))  # 设置邀请人
     v2.add_url_rule('/collection/<string:collection>', view_func=ACollection.as_view('collection'))  # 设置收藏
+    v2.add_url_rule('/message/<string:message>', view_func=AMessage.as_view('message'))  # 设置收藏
     v2.add_url_rule('/scenicspot/<string:scenicspot>', view_func=AScenicSpot.as_view('scenicspot'))  # 景区
     v2.add_url_rule('/guessgroup/<string:guessgroup>', view_func=AGuessGroup.as_view('guessgroup'))  # 拼团竞猜
     v2.add_url_rule('/play/<string:play>', view_func=APlay.as_view('play'))  # 活动
@@ -177,15 +197,43 @@ def register(app):
     # v2.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v2.add_url_rule.....
     app.register_blueprint(v2)
+    # socketio_.
 
 
 def create_app():
     app = Flask(__name__)
-    socket = SocketIO(app)
+
+    # socket = SocketIO(app)
+    # socketio.init_app(app)
     app.config.from_object(DefaltSettig)
     register(app)
     CORS(app, supports_credentials=True)
     request_first_handler(app)
     register_ext(app)
     error_handler(app)
-    return app, socket
+
+    # SocketRoute(socket)
+    # socketio.on_namespace(Mynamespace('/'))
+    return app
+
+
+@socketio.on_error()  # Handles the default namespace
+def error_handler_socket(e):
+    print(e.args)
+    return e.args
+
+
+def create_scoketapp():
+    # scoketapp = Flask(__name__, template_folder='./planet/templates')
+    scoketapp = Flask(__name__)
+    # LoggerHandler(scoketapp, file='/tmp/socket/')
+
+    socketio.init_app(scoketapp)
+    socketio.on_namespace(Mynamespace('/'))
+    scoketapp.config.from_object(DefaltSettig)
+    # register(scoketapp)
+    CORS(scoketapp, supports_credentials=True)
+    # request_first_handler(app)
+    register_ext(scoketapp, logger_file='/tmp/socket/')
+    error_handler(scoketapp)
+    return scoketapp

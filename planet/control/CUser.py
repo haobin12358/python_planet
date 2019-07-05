@@ -532,6 +532,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', count[0] or 0)
+        user.fill('usunread', user.USunread or 0)
         today = datetime.date.today()
         ui = UserIntegral.query.filter(
             UserIntegral.USid == user.USid, UserIntegral.isdelete == False,
