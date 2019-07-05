@@ -703,6 +703,19 @@ class CorrectNumType(Enum):
     lottery_3d = 1, '福彩3D'
 
 
+class TravelRecordType(Enum):
+    """时光记录类别"""
+    raiders = 0, '攻略'
+    travels = 1, '游记'
+    essay = 2, '随笔'
+
+
+class TravelRecordStatus(Enum):
+    """时光记录状态"""
+    draft = 0, '草稿'
+    published = 1, '已发布'
+
+
 class UserPlanetMessageStatus(Enum):
     unread = 0, '未读'
     read = 1, '已读'
