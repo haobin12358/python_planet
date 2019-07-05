@@ -19,6 +19,7 @@ from planet.common.error_response import AuthorityError, ParamsError
 from planet.common.success_response import Success
 # from planet.control.BaseControl import JSONEncoder
 from planet.extensions.register_ext import conn
+
 # from planet.models import UserPlatfromMessage
 
 thread = None
@@ -27,6 +28,7 @@ thread_lock = Lock()
 
 class JSONEncoder(_JSONEncoder):
     """重写对象序列化, 当默认jsonify无法序列化对象的时候将调用这里的default"""
+
     def default(self, o):
 
         if hasattr(o, 'keys') and hasattr(o, '__getitem__'):
@@ -75,7 +77,7 @@ class Mynamespace(Namespace):
         current_app.logger.info('get sids', usersid)
         current_app.logger.info('get connect sid ', request.sid)
         # from flaskrun import sids
-        current_app.logger.info('request ', request.headers,)
+        current_app.logger.info('request ', request.headers, )
 
         # join_room(request.sid)
 
