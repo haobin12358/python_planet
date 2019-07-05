@@ -40,7 +40,5 @@ def message_handler(*args):
 
 
 if __name__ == '__main__':
-    socketio.init_app(scoketapp)
-    socketio.on_namespace(Mynamespace('/'))
 
-    socketio.run(scoketapp, port=7444, debug=True)
+    socketio.run(scoketapp, port=7444)
