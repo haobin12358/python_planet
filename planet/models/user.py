@@ -37,6 +37,7 @@ class User(Base):
     UScontinuous = Column(Integer, default=0, comment='连续签到天数')
     UStoAgentTime = Column(DateTime, comment='成为代理商时间')
     USgrade = Column(Integer, default=0, comment='不知用处的等级')
+    USplayName = Column(String(255), comment='小程序伪真实姓名')
 
 
 class UserLoginTime(Base):

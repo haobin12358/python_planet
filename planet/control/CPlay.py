@@ -28,7 +28,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
-    HelpRecord, UserCollectionLog, Notice
+    HelpRecord, UserCollectionLog, Notice, UserLocation
 
 
 class CPlay():
@@ -793,7 +793,7 @@ class CPlay():
         return Success(data=notice.NOid)
 
     def get_notice(self):
-        data = parameter_required(('plid', ))
+        data = parameter_required(('plid',))
         plid = data.get('plid')
         play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
         notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
@@ -1102,3 +1102,51 @@ class CPlay():
 
     def _random_num(self, numlen=4):
         return ''.join([str(random.randint(0, 9)) for _ in range(numlen)])
+
+    @phone_required
+    def get_member_location(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动不存在')
+        if play.PLstatus == PlayStatus.close.value:
+            raise StatusError('活动结束，不再获取成员信息')
+
+        els_list = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.ELstatus == EnterLogStatus.success.value,
+                                         EnterLog.isdelete == false()).all()
+        location_list = list()
+        user = get_current_user()
+        isleader = bool(play.PLcreate == user.USid)
+        leader = User.query.filter(User.USid == play.PLcreate, User.isdelete == false()).first()
+        if not leader:
+            raise ParamsError('活动数据有误')
+        leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
+                                                    UserLocation.isdelete == false()).order_by(
+            UserLocation.createtime.desc()).first()
+        self._fill_location(leader_location, isleader=True)
+
+        location_list.append(leader_location)
+        for el in els_list:
+            location = UserLocation.query.filter(UserLocation.USid == el.USid,
+                                                 UserLocation.isdelete == false()).order_by(
+                UserLocation.createtime.desc()).first()
+            if not location:
+                continue
+            self._fill_location(location)
+            location_list.append(location)
+        return Success(data=location_list)
+
+    def _fill_location(self, location, isleader=False):
+        location.fields = ['createtime']
+        self._fill_user(location, location.USid)
+        location.fill('latitude', location.ULlat)
+        location.fill('longitude', location.ULlng)
+        location.fill('isleader', isleader)
+
+    def get_current_location(self):
+        args = request.args.to_dict()
+        my_lat, my_long = args.get('latitude'), args.get('longitude')
+        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
+        # user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        user = get_current_user()
+        if my_lat and my_long and user:
+            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
