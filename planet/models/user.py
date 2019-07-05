@@ -41,7 +41,6 @@ class User(Base):
     USunread = Column(Integer, default=0, comment='未读信息数')
 
 
-
 class UserLoginTime(Base):
     __tablename__ = 'UserLoginTime'
     ULTid = Column(String(64), primary_key=True)

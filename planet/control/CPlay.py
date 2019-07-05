@@ -37,6 +37,7 @@ class CPlay():
         # super(CPlay, self).__init__()
         self.wx_pay = mini_wx_pay
         self.split_item = '!@##@!'
+        self.realname = '真实姓名'
         self.connect_item = '-'
         self.basecontrol = BaseController()
         self.guidelevel = 5
@@ -584,6 +585,10 @@ class CPlay():
                 })
                 db.session.add(el)
                 self._update_enter_cost(el, data)
+        change_name = False
+        if elvalue.get('realname') and user.USplayName != elvalue.get(self.realname):
+            change_name = True
+
 
         body = play.PLname
         openid = user.USopenid1
@@ -604,6 +609,7 @@ class CPlay():
             'pay_type': PayType.wechat_pay.name,
             'opaytype': PayType.wechat_pay.value,
             'elid': elid,
+            'change_name': change_name,
             'args': pay_args
         }
         return Success(data=response)
@@ -803,6 +809,7 @@ class CPlay():
                 'PLid': plid,
                 'NOcontent': json.dumps("")
             })
+        notice.add('createtime')
         notice.fill('NOcontent', json.loads(notice.NOcontent))
         return Success(data=notice)
 
@@ -1079,6 +1086,8 @@ class CPlay():
             if not pr:
                 continue
             name = pr.PREname
+            if name == self.realname:
+                value_dict.update(realname=True)
             # value_dict.update(name=value.get('value'))
             value_dict[name] = value.get('value')
             preid_list.append(preid)
