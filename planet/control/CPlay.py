@@ -460,9 +460,10 @@ class CPlay():
                 gather_point = Gather.query.filter(Gather.isdelete == false(),
                                                    Gather.PLid == my_joined_play.PLid,
                                                    ).order_by(Gather.createtime.desc()).first()
-                gather_location = self.init_location_dict(gather_point.GAlat,
-                                                          gather_point.GAlon,
-                                                          str(gather_point.GAtime)[11:16])
+                if gather_point:
+                    gather_location = self.init_location_dict(gather_point.GAlat,
+                                                              gather_point.GAlon,
+                                                              str(gather_point.GAtime)[11:16])
 
         res = {'gather_location': gather_location,
                'can_post': can_post, 'button_name': button_name}
