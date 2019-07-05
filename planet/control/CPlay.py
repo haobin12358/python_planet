@@ -768,6 +768,44 @@ class CPlay():
             user_list.append(el)
         return Success(data=user_list)
 
+    @phone_required
+    def create_notice(self):
+        data = parameter_required(('plid', 'nocontent'))
+        user = get_current_user()
+        plid = data.get('plid')
+        nocontent = data.get('nocontent')
+        with db.auto_commit():
+            play = Play.query.filter(Play.PLid == plid, Play.PLcreate == user.USid, Play.isdelete == false()).first_(
+                '只能修改自己的活动公告')
+            if play.PLstatus == PlayStatus.close.value:
+                raise StatusError('活动结束不能再发公告')
+
+            # 删除原有的公告
+            Notice.query.filter(Notice.PLid == plid, Notice.isdelete == false()).delete_(synchronize_session=False)
+
+            notice = Notice.create({
+                'NOid': str(uuid.uuid1()),
+                'PLid': plid,
+                'NOcontent': json.dumps(nocontent)
+            })
+            db.session.add(notice)
+
+        return Success(data=notice.NOid)
+
+    def get_notice(self):
+        data = parameter_required(('plid', ))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
+        notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
+        if not notice:
+            notice = Notice.create({
+                'NOid': str(uuid.uuid1()),
+                'PLid': plid,
+                'NOcontent': json.dumps("")
+            })
+        notice.fill('NOcontent', json.loads(notice.NOcontent))
+        return Success(data=notice)
+
     def _fill_user(self, model, usid, error_msg=None):
         if error_msg:
             user = User.query.filter(User.USid == usid, User.isdelete == false()).first_(error_msg)
@@ -1064,41 +1102,3 @@ class CPlay():
 
     def _random_num(self, numlen=4):
         return ''.join([str(random.randint(0, 9)) for _ in range(numlen)])
-
-    @phone_required
-    def create_notice(self):
-        data = parameter_required(('plid', 'nocontent'))
-        user = get_current_user()
-        plid = data.get('plid')
-        nocontent = data.get('nocontent')
-        with db.auto_commit():
-            play = Play.query.filter(Play.PLid == plid, Play.PLcreate == user.USid, Play.isdelete == false()).first_(
-                '只能修改自己的活动公告')
-            if play.PLstatus == PlayStatus.close.value:
-                raise StatusError('活动结束不能再发公告')
-
-            # 删除原有的公告
-            Notice.query.filter(Notice.PLid == plid, Notice.isdelete == false()).delete_(synchronize_session=False)
-
-            notice = Notice.create({
-                'NOid': str(uuid.uuid1()),
-                'PLid': plid,
-                'NOcontent': json.dumps(nocontent)
-            })
-            db.session.add(notice)
-
-        return Success(data=notice.NOid)
-
-    def get_notice(self):
-        data = parameter_required(('plid', ))
-        plid = data.get('plid')
-        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
-        notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
-        if not notice:
-            notice = Notice.create({
-                'NOid': str(uuid.uuid1()),
-                'PLid': plid,
-                'NOcontent': json.dumps("")
-            })
-        notice.fill('NOcontent', json.loads(notice.NOcontent))
-        return Success(data=notice)
