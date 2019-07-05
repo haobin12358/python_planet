@@ -28,7 +28,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
-    HelpRecord, UserCollectionLog
+    HelpRecord, UserCollectionLog, Notice
 
 
 class CPlay():
@@ -412,7 +412,7 @@ class CPlay():
         # 发送求救短信
         for index, usphone in enumerate(phone_list):
             params = {"name": helper_list[index], "name2": user.USname, "telphone": user.UStelphone}
-             # todo 签名未审核通过，上线前替换 sign_name=QXSignName
+            # todo 签名未审核通过，上线前替换 sign_name=QXSignName
             response_send_message = SendSMS(usphone, params, templatecode=HelpTemplateCode)
             if response_send_message:
                 current_app.logger.info('send help sms param: {}'.format(params))
@@ -743,9 +743,11 @@ class CPlay():
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
         user = get_current_user()
         els = EnterLog.query.join(User, User.USid == EnterLog.USid).filter(EnterLog.PLid == play.PLid,
-                                    EnterLog.USid != user.USid, User.isdelete == false(),
-                                    EnterLog.ELstatus == EnterLogStatus.success.value,
-                                    EnterLog.isdelete == false()).order_by(EnterLog.createtime.desc()).all_with_page()
+                                                                           EnterLog.USid != user.USid,
+                                                                           User.isdelete == false(),
+                                                                           EnterLog.ELstatus == EnterLogStatus.success.value,
+                                                                           EnterLog.isdelete == false()).order_by(
+            EnterLog.createtime.desc()).all_with_page()
 
         user_list = list()
         for el in els:
@@ -1062,3 +1064,41 @@ class CPlay():
 
     def _random_num(self, numlen=4):
         return ''.join([str(random.randint(0, 9)) for _ in range(numlen)])
+
+    @phone_required
+    def create_notice(self):
+        data = parameter_required(('plid', 'nocontent'))
+        user = get_current_user()
+        plid = data.get('plid')
+        nocontent = data.get('nocontent')
+        with db.auto_commit():
+            play = Play.query.filter(Play.PLid == plid, Play.PLcreate == user.USid, Play.isdelete == false()).first_(
+                '只能修改自己的活动公告')
+            if play.PLstatus == PlayStatus.close.value:
+                raise StatusError('活动结束不能再发公告')
+
+            # 删除原有的公告
+            Notice.query.filter(Notice.PLid == plid, Notice.isdelete == false()).delete_(synchronize_session=False)
+
+            notice = Notice.create({
+                'NOid': str(uuid.uuid1()),
+                'PLid': plid,
+                'NOcontent': json.dumps(nocontent)
+            })
+            db.session.add(notice)
+
+        return Success(data=notice.NOid)
+
+    def get_notice(self):
+        data = parameter_required(('plid', ))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
+        notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
+        if not notice:
+            notice = Notice.create({
+                'NOid': str(uuid.uuid1()),
+                'PLid': plid,
+                'NOcontent': json.dumps("")
+            })
+        notice.fill('NOcontent', json.loads(notice.NOcontent))
+        return Success(data=notice)

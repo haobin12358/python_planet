@@ -68,3 +68,12 @@ class Gather(Base):
     GAlat = Column(String(64), comment='维度')
     GAcreate = Column(String(64), comment='发起人')
     GAtime = Column(DateTime, comment='集合时间')
+
+
+class Notice(Base):
+    """公告"""
+    __tablename__ = 'Notice'
+    NOid = Column(String(64), primary_key=True)
+    PLid = Column(String(64), comment='活动')
+    NOcontent = Column(Text, comment='公告内容')
+    # NOstatus = Column(Integer, default=0, comment='公告状态 0 展示 1 已修改')

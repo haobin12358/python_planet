@@ -20,6 +20,7 @@ class APlay(Resource):
             'identity': self.cplay.identity,
             'get_signin': self.cplay.get_signin,
             'get_enter_user': self.cplay.get_enter_user,
+            'get_notice': self.cplay.get_notice,
             'get_current_play': self.cplay.get_current_play,
         }
         return apis
@@ -34,6 +35,7 @@ class APlay(Resource):
             'set_signin': self.cplay.set_signin,
             'signin': self.cplay.signin,
             'set_gather': self.cplay.set_gather,
+            'create_notice': self.cplay.create_notice,
             'help': self.cplay.help
         }
         return apis
