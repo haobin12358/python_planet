@@ -212,7 +212,6 @@ def create_app():
     register_ext(app)
     error_handler(app)
 
-
     # SocketRoute(socket)
     # socketio.on_namespace(Mynamespace('/'))
     return app
@@ -220,6 +219,18 @@ def create_app():
 
 @socketio.on_error()  # Handles the default namespace
 def error_handler_socket(e):
-
     print(e.args)
     return e.args
+
+
+def create_scoketapp():
+    # scoketapp = Flask(__name__, template_folder='./planet/templates')
+    scoketapp = Flask(__name__)
+    LoggerHandler(scoketapp, file='/tmp/socket/')
+    # scoketapp.config.from_object(DefaltSettig)
+    # register(scoketapp)
+    # CORS(scoketapp, supports_credentials=True)
+    # request_first_handler(app)
+    # register_ext(scoketapp, logger_file='/tmp/socket/')
+    # error_handler(scoketapp)
+    return scoketapp

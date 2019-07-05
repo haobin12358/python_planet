@@ -37,6 +37,9 @@
 <script>
     $(document).ready(function () {
         // namespace = '/test';
+        var url = location.protocol + '//' + document.domain + ':' + location.port
+        console.log('get url');
+        console.log(url);
         mysocket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
         mysocket.on('test', function (res) {

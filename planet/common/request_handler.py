@@ -102,9 +102,9 @@ def request_first_handler(app):
 
 
 def error_handler(app):
-    @app.errorhandler(404)
-    def error404(e):
-        return ApiError(u'接口未注册' + request.path)
+    # @app.errorhandler(404)
+    # def error404(e):
+    #     return ApiError(u'接口未注册' + request.path)
 
     @app.errorhandler(Exception)
     def framework_error(e):

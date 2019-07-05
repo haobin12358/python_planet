@@ -1,18 +1,17 @@
 from flask import render_template, request, session
-
-from planet import Flask, socketio
+from planet import socketio, create_scoketapp
 from planet.route.RouteSocket import Mynamespace
 
-app = Flask(__name__)
+scoketapp = create_scoketapp()
 
 
-@app.route('/api/v2/test')
+@scoketapp.route('/socket/v2/test')
 def hi():
     #     return 'ok'
     return render_template('index.html')
 
 
-@app.route('/api/v2/mes')
+@scoketapp.route('/api/v2/mes')
 def mes():
     #     return 'ok'
     event_name = 'test'
@@ -41,6 +40,7 @@ def message_handler(*args):
 
 
 if __name__ == '__main__':
-    socketio.init_app(app)
+    socketio.init_app(scoketapp)
     socketio.on_namespace(Mynamespace('/'))
-    socketio.run(app, port=7444)
+
+    socketio.run(scoketapp, port=7444, debug=True)
