@@ -14,7 +14,33 @@ from planet.models import UserLoginApi
 from .error_response import ApiError, BaseError, SystemError, DumpliError
 from .success_response import Success
 
-User = namedtuple('User', ('id', 'model', 'level'))
+# User = namedtuple('User', ('id', 'model', 'level'))
+
+
+def token_to_user_(token):
+    user = None
+    if token:
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+            id = data['id']
+            model = data['model']
+            level = data['level']
+            username = data.get('username', 'none')
+            User = namedtuple('User', ('id', 'model', 'level', 'username'))
+            user = User(id, model, level, username)
+            # setattr(request, 'user', user)
+            current_app.logger.info('current_user info : {}'.format(data))
+
+
+        except BadSignature as e:
+            pass
+        except SignatureExpired as e:
+            pass
+        except Exception as e:
+            current_app.logger.info(e)
+    current_app.logger.info(request.detail)
+    return user
 
 
 def _get_user_agent():
@@ -54,57 +80,31 @@ def request_first_handler(app):
         current_app.logger.info('>>>>>>>>\n>>>>>>>>{}<<<<<<<<\n<<<<<<<<<<'.format('before request'))
         parameter = request.args.to_dict()
         token = parameter.get('token')
-        if token:
-            s = Serializer(current_app.config['SECRET_KEY'])
-            try:
-                data = s.loads(token)
-                id = data['id']
-                model = data['model']
-                level = data['level']
-                username = data.get('username', 'none')
-                User = namedtuple('User', ('id', 'model', 'level', 'username'))
-                user = User(id, model, level, username)
-                setattr(request, 'user', user)
-                current_app.logger.info('current_user info : {}'.format(data))
-                useragent = _get_user_agent()
-                if useragent and model == 'User':
-                    with db.auto_commit():
-                        ula_dict1 = {
-                            'ULAid': str(uuid.uuid1()),
-                            'USid': request.user.id,
-                            'ULA': request.detail['path'],
-                            'USTip': request.remote_addr,
-                            'OSVersion': useragent[0],
-                            'PhoneModel': useragent[1],
-                            'WechatVersion': useragent[2],
-                            'NetType': useragent[3]
-                        }
-                        ula_instance = UserLoginApi.create(ula_dict1)
-                        db.session.add(ula_instance)
 
-            except BadSignature as e:
-                pass
-            except SignatureExpired as e:
-                pass
-            except Exception as e:
-                current_app.logger.info(e)
-        current_app.logger.info(request.detail)
-
-    #
-    # @app.teardown_request
-    # def end_request(param):
-    #     end = """>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<
-    #
-    #
-    #     """
-    #     current_app.logger.info(end.format('end  request'))
-    #     return param
+        user = token_to_user_(token)
+        if user:
+            setattr(request, 'user', user)
+            useragent = _get_user_agent()
+            if useragent and user.model == 'User':
+                with db.auto_commit():
+                    ula_dict1 = {
+                        'ULAid': str(uuid.uuid1()),
+                        'USid': request.user.id,
+                        'ULA': request.detail['path'],
+                        'USTip': request.remote_addr,
+                        'OSVersion': useragent[0],
+                        'PhoneModel': useragent[1],
+                        'WechatVersion': useragent[2],
+                        'NetType': useragent[3]
+                    }
+                    ula_instance = UserLoginApi.create(ula_dict1)
+                    db.session.add(ula_instance)
 
 
 def error_handler(app):
-    @app.errorhandler(404)
-    def error404(e):
-        return ApiError(u'接口未注册' + request.path)
+    # @app.errorhandler(404)
+    # def error404(e):
+    #     return ApiError(u'接口未注册' + request.path)
 
     @app.errorhandler(Exception)
     def framework_error(e):
