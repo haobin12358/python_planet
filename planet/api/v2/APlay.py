@@ -32,6 +32,7 @@ class APlay(Resource):
             'set_play': self.cplay.set_play,
             'set_cost': self.cplay.set_cost,
             'set_insurance': self.cplay.set_insurance,
+            'update_playname': self.cplay.update_playname,
             'join': self.cplay.join,
             'wechat_notify': self.cplay.wechat_notify,
             'set_signin': self.cplay.set_signin,

@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus
+    CollectionType, CollectStatus, MiniUserGrade
 
 from planet.common.Inforsend import SendSMS
 
@@ -41,38 +41,6 @@ class CPlay():
         self.connect_item = '-'
         self.basecontrol = BaseController()
         self.guidelevel = 5
-
-    def _pay_detail(self, body, mount_price, opayno, openid):
-        body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
-        current_app.logger.info('get mount price {}'.format(mount_price))
-        mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
-        current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
-        # 微信支付的单位是'分', 支付宝使用的单位是'元'
-
-        try:
-            body = body[:16] + '...'
-            current_app.logger.info('body is {}, wechatpay'.format(body))
-            wechat_pay_dict = {
-                'body': body,
-                'out_trade_no': opayno,
-                'total_fee': int(mount_price * 100),
-                'attach': 'attach',
-                'spbill_create_ip': request.remote_addr
-            }
-
-            if not openid:
-                raise StatusError('用户未使用微信登录')
-            # wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
-            wechat_pay_dict.update({
-                'trade_type': 'JSAPI',
-                'openid': openid
-            })
-            raw = self.wx_pay.jsapi(**wechat_pay_dict)
-
-        except WeixinPayError as e:
-            raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
-
-        return raw
 
     @phone_required
     def set_play(self):
@@ -589,7 +557,6 @@ class CPlay():
         if elvalue.get('realname') and user.USplayName != elvalue.get(self.realname):
             change_name = True
 
-
         body = play.PLname
         openid = user.USopenid1
 
@@ -613,6 +580,29 @@ class CPlay():
             'args': pay_args
         }
         return Success(data=response)
+
+    @phone_required
+    def update_playname(self):
+        data = parameter_required(('elid',))
+        change_status = data.get('change_status')
+        with db.auto_commit():
+            user = get_current_user()
+            el = EnterLog.query.filter_by(ELid=data.get('elid'), ELstatus=EnterLogStatus.wait_pay.value,
+                                          isdelete=False).first_('报名已取消')
+            if change_status:
+                try:
+                    update_name = json.loads(el.ELvalue).get(self.realname)
+                except:
+                    current_app.logger.info('change user USplayNmae fail elvalue is {} user is {}'.format(el.ELvalue, user.USplayName))
+                    raise ParamsError('修改失败')
+
+                user.USplayName = update_name
+                db.session.add(user)
+                return Success('修改成功')
+            el.ELstatus = EnterLogStatus.cancel.value
+            db.session.add(el)
+            # todo 退钱
+            return Success('真实姓名更换取消，报名记录已取消，请填写本人真实姓名')
 
     @phone_required
     def get_enterlog(self):
@@ -813,16 +803,57 @@ class CPlay():
         notice.fill('NOcontent', json.loads(notice.NOcontent))
         return Success(data=notice)
 
-    def _fill_user(self, model, usid, error_msg=None):
+    @phone_required
+    def get_member_location(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动不存在')
+        if play.PLstatus == PlayStatus.close.value:
+            raise StatusError('活动结束，不再获取成员信息')
+
+        els_list = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.ELstatus == EnterLogStatus.success.value,
+                                         EnterLog.isdelete == false()).all()
+        location_list = list()
+        user = get_current_user()
+        isleader = bool(play.PLcreate == user.USid)
+        # todo 导游看到真实姓名
+        leader = User.query.filter(User.USid == play.PLcreate, User.isdelete == false()).first()
+        if not leader:
+            raise ParamsError('活动数据有误')
+        leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
+                                                    UserLocation.isdelete == false()).order_by(
+            UserLocation.createtime.desc()).first()
+        self._fill_location(leader_location, isleader=True, realname=True)
+
+        location_list.append(leader_location)
+        for el in els_list:
+            location = UserLocation.query.filter(UserLocation.USid == el.USid,
+                                                 UserLocation.isdelete == false()).order_by(
+                UserLocation.createtime.desc()).first()
+            if not location:
+                continue
+            self._fill_location(location, realname=isleader)
+            location_list.append(location)
+        return Success(data=location_list)
+
+    def _fill_user(self, model, usid, error_msg=None, realname=False):
         if error_msg:
             user = User.query.filter(User.USid == usid, User.isdelete == false()).first_(error_msg)
         else:
             user = User.query.filter(User.USid == usid, User.isdelete == false()).first()
             if not user:
                 return False
-        model.fill('USname', user.USname)
-        model.fill('USlevel', '游客' if user.USlevel != self.guidelevel else '导游')
-        model.fill('USheader', user.USheader)
+        usname = user.USname
+        if realname and user.USplayName:
+            usname = user.USplayName
+        model.fill('USname', usname)
+        # model.fill('USlevel', '游客' if user.USlevel != self.guidelevel else '导游')
+
+        uslevel = MiniUserGrade(user.USminiLevel or 0)
+        model.fill('USminiLevel', uslevel.value)
+        model.fill('USminiLevel_zh', uslevel.zh_value)
+        model.fill('USheader', user['USheader'])
+
         return True
 
     def _cancle_celery(self, conid):
@@ -1112,41 +1143,9 @@ class CPlay():
     def _random_num(self, numlen=4):
         return ''.join([str(random.randint(0, 9)) for _ in range(numlen)])
 
-    @phone_required
-    def get_member_location(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动不存在')
-        if play.PLstatus == PlayStatus.close.value:
-            raise StatusError('活动结束，不再获取成员信息')
-
-        els_list = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.ELstatus == EnterLogStatus.success.value,
-                                         EnterLog.isdelete == false()).all()
-        location_list = list()
-        user = get_current_user()
-        isleader = bool(play.PLcreate == user.USid)
-        leader = User.query.filter(User.USid == play.PLcreate, User.isdelete == false()).first()
-        if not leader:
-            raise ParamsError('活动数据有误')
-        leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
-                                                    UserLocation.isdelete == false()).order_by(
-            UserLocation.createtime.desc()).first()
-        self._fill_location(leader_location, isleader=True)
-
-        location_list.append(leader_location)
-        for el in els_list:
-            location = UserLocation.query.filter(UserLocation.USid == el.USid,
-                                                 UserLocation.isdelete == false()).order_by(
-                UserLocation.createtime.desc()).first()
-            if not location:
-                continue
-            self._fill_location(location)
-            location_list.append(location)
-        return Success(data=location_list)
-
-    def _fill_location(self, location, isleader=False):
+    def _fill_location(self, location, isleader=False, realname=False):
         location.fields = ['createtime']
-        self._fill_user(location, location.USid)
+        self._fill_user(location, location.USid, realname=realname)
         location.fill('latitude', location.ULlat)
         location.fill('longitude', location.ULlng)
         location.fill('isleader', isleader)
@@ -1159,3 +1158,35 @@ class CPlay():
         user = get_current_user()
         if my_lat and my_long and user:
             self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
+
+    def _pay_detail(self, body, mount_price, opayno, openid):
+        body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
+        current_app.logger.info('get mount price {}'.format(mount_price))
+        mount_price = 0.01 if API_HOST != 'https://www.bigxingxing.com' else mount_price
+        current_app.logger.info('openid is {}, out_trade_no is {} '.format(openid, opayno))
+        # 微信支付的单位是'分', 支付宝使用的单位是'元'
+
+        try:
+            body = body[:16] + '...'
+            current_app.logger.info('body is {}, wechatpay'.format(body))
+            wechat_pay_dict = {
+                'body': body,
+                'out_trade_no': opayno,
+                'total_fee': int(mount_price * 100),
+                'attach': 'attach',
+                'spbill_create_ip': request.remote_addr
+            }
+
+            if not openid:
+                raise StatusError('用户未使用微信登录')
+            # wechat_pay_dict.update(dict(trade_type="JSAPI", openid=openid))
+            wechat_pay_dict.update({
+                'trade_type': 'JSAPI',
+                'openid': openid
+            })
+            raw = self.wx_pay.jsapi(**wechat_pay_dict)
+
+        except WeixinPayError as e:
+            raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
+
+        return raw
