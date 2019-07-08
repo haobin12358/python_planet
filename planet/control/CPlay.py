@@ -491,10 +491,15 @@ class CPlay():
             db.session.add(gather_instance)
         return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': time})
 
+    @phone_required
     def get_playrequire(self):
         data = parameter_required(('plid',))
+        user = get_current_user()
         pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
             .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
+        for pre in pre_list:
+            if pre.PREname == self.realname and user.USrealname:
+                pre.fill('prevalue', user.USrealname)
         return Success(data=pre_list)
 
     @phone_required
@@ -553,11 +558,17 @@ class CPlay():
                 })
                 db.session.add(el)
                 self._update_enter_cost(el, data)
-        change_name = False
-        if elvalue.get('realname') and user.USplayName != elvalue.get(self.realname):
-            change_name = True
 
-        body = play.PLname
+            # change_name = False
+            if elvalue.get('realname'):
+                if user.USrealname and user.USrealname != elvalue.get(self.realname):
+                    raise ParamsError('真实姓名与已认证姓名不同')
+
+                elif user.USplayName != elvalue.get(self.realname):
+                    user.USplayName = elvalue.get(self.realname)
+                    db.session.add(user)
+
+        body = play.PLname[:16] + '...'
         openid = user.USopenid1
 
         mount_price = sum(
@@ -576,33 +587,9 @@ class CPlay():
             'pay_type': PayType.wechat_pay.name,
             'opaytype': PayType.wechat_pay.value,
             'elid': elid,
-            'change_name': change_name,
             'args': pay_args
         }
         return Success(data=response)
-
-    @phone_required
-    def update_playname(self):
-        data = parameter_required(('elid',))
-        change_status = data.get('change_status')
-        with db.auto_commit():
-            user = get_current_user()
-            el = EnterLog.query.filter_by(ELid=data.get('elid'), ELstatus=EnterLogStatus.wait_pay.value,
-                                          isdelete=False).first_('报名已取消')
-            if change_status:
-                try:
-                    update_name = json.loads(el.ELvalue).get(self.realname)
-                except:
-                    current_app.logger.info('change user USplayNmae fail elvalue is {} user is {}'.format(el.ELvalue, user.USplayName))
-                    raise ParamsError('修改失败')
-
-                user.USplayName = update_name
-                db.session.add(user)
-                return Success('修改成功')
-            el.ELstatus = EnterLogStatus.cancel.value
-            db.session.add(el)
-            # todo 退钱
-            return Success('真实姓名更换取消，报名记录已取消，请填写本人真实姓名')
 
     @phone_required
     def get_enterlog(self):
@@ -845,7 +832,9 @@ class CPlay():
                 return False
         usname = user.USname
         if realname:
-            if user.USplayName:
+            if user.USrealname:
+                usname = user.USrealname
+            elif user.USplayName:
                 usname = user.USplayName
             model.fill('UStelphone', user.UStelphone)
 
