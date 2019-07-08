@@ -12,6 +12,7 @@ chardet==3.0.4
 Click==7.0
 colorama==0.4.0
 cryptography==2.3.1
+cssselect==1.0.3
 decorator==4.3.0
 defusedxml==0.5.0
 et-xmlfile==1.0.1
@@ -67,6 +68,7 @@ python-engineio==3.5.1
 python-socketio==3.1.2
 pytz==2018.5
 PyYAML==3.13
+pyquery==1.4.0
 qiniu==7.2.2
 qrcode==6.0
 redis==2.10.6
