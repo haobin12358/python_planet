@@ -28,7 +28,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
-    HelpRecord, UserCollectionLog, Notice, UserLocation
+    HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet
 
 
 class CPlay():
@@ -974,7 +974,8 @@ class CPlay():
             PlayRequire.PREsort.asc()).all()
 
         play.fill('playrequires', [playrequire.PREname for playrequire in playrequires])
-        enter_num = EnterLog.query.filter_by(PLid=play.PLid, isdelete=False).count()
+        enter_num = EnterLog.query.filter_by(PLid=play.PLid, ELstatus=EnterLogStatus.success.value,
+                                             isdelete=False).count()
         play.fill('enternum', enter_num)
 
         play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
@@ -1019,15 +1020,36 @@ class CPlay():
             return self.wx_pay.reply(u"签名验证失败", False)
         out_trade_no = data.get('out_trade_no')
         current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
-        # 修改当前用户参加状态
+
         with db.auto_commit():
+            # 修改当前用户参加状态
             el = EnterLog.query.filter(EnterLog.ELpayNo == out_trade_no, EnterLog.isdelete == false()).first()
             if not el:
                 current_app.logger.info('当前报名单不存在 {} '.format(out_trade_no))
                 return self.wx_pay.reply("OK", True).decode()
             el.ELstatus = EnterLogStatus.success.value
             db.session.add(el)
+            # 金额进入导游账号
 
+            mount_price = sum(
+                [ec.ECcost for ec in
+                 EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()])
+            play = Play.query.filter_by(PLid=el.PLid, isdelete=False).first()
+            if not play:
+                current_app.logger.info('活动 {} 已删除， {} 正在报名'.format(el.PLid, el.USid))
+                # 活动已删除，钱进入用户账户
+                user = User.query.filter_by(USid=el.USid, isdelete=False)
+                if user:
+                    # 付款用户不存在，钱进入平台
+                    self._incount(user, mount_price)
+                return self.wx_pay.reply("OK", True).decode()
+
+            guide = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+            if not guide:
+                # 导游不存在，钱进入平台账户
+                current_app.logger.info('导游 {} 已删除, {} 正在报名'.format(play.PLcreate, el.USid))
+                return self.wx_pay.reply("OK", True).decode()
+            self._incount(guide, mount_price)
         return self.wx_pay.reply("OK", True).decode()
 
     def _update_enter_cost(self, el, data):
@@ -1180,3 +1202,20 @@ class CPlay():
             raise SystemError('微信支付异常: {}'.format('.'.join(e.args)))
 
         return raw
+
+    def _incount(self, user, price):
+        uw = UserWallet.query.filter_by(USid=user.USid, isdelete=False).first()
+        if not uw:
+            uw = UserWallet.create({
+                'UWid': str(uuid.uuid1()),
+                'USid': user.USid,
+                'UWbalance': Decimal(str(price)),
+                'UWtotal': Decimal(str(price)),
+                'UWcash': Decimal(str(price)),
+            })
+
+        else:
+            uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal(str(price))
+            uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(price))
+            uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(price))
+        db.session.add(uw)
