@@ -39,6 +39,7 @@ class User(Base):
     USgrade = Column(Integer, default=0, comment='不知用处的等级')
     USplayName = Column(String(255), comment='小程序伪真实姓名')
     USunread = Column(Integer, default=0, comment='未读信息数')
+    USminiLevel = Column(Integer, default=0, comment='小程序等级')
 
 
 class UserLoginTime(Base):
