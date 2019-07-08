@@ -42,121 +42,16 @@ class CPlay():
         self.basecontrol = BaseController()
         self.guidelevel = 5
 
-    @phone_required
-    def set_play(self):
-        data = parameter_required()
-        plid = data.get('plid')
-        # todo  增加用户状态判断
-        with db.auto_commit():
-            if plid:
-                play = Play.query.filter_by(PLid=plid, isdelete=False).first()
-                if not play:
-                    raise ParamsError('参数缺失')
-                if play.PLstatus == PlayStatus.activity.value:
-                    raise StatusError('进行中活动无法修改')
+    """get 接口 """
 
-                if data.get('delete'):
-                    current_app.logger.info('删除活动 {}'.format(plid))
-                    play.isdelete = True
-                    db.session.add(play)
-                    return Success('删除成功', data=plid)
-                update_dict = self._get_update_dict(play, data)
-                if update_dict.get('PLlocation'):
-                    update_dict.update(PLlocation=self.split_item.join(update_dict.get('PLlocation')))
-                if update_dict.get('PLproducts'):
-                    update_dict.update(PLproducts=self.split_item.join(update_dict.get('PLproducts')))
-                if update_dict.get('PLcreate'):
-                    update_dict.pop('PLcreate')
-                if update_dict.get('PLcontent'):
-                    update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
-                playname = {
-                    'pllocation': update_dict.get('PLlocation') or play.PLlocation,
-                    'plstarttime': update_dict.get('PLstarttime') or play.PLstartTime,
-                    'plendtime': update_dict.get('PLendTime') or play.PLendTime,
-                }
-                plname = self._update_plname(playname)
-                update_dict.update(PLname=plname)
-                play.update(update_dict)
-                db.session.add(play)
-                self._update_cost_and_insurance(data, plid)
-                self.auto_playstatus(play)
-                return Success('更新成功', data=plid)
-            data = parameter_required(
-                ('plimg', 'plstarttime', 'plendtime', 'pllocation', 'plnum', 'pltitle', 'plcontent'))
-            plid = str(uuid.uuid1())
-            plname = self._update_plname(data)
-            play = Play.create({
-                'PLid': plid,
-                'PLimg': data.get('plimg'),
-                'PLstartTime': data.get('plstarttime'),
-                'PLendTime': data.get('plendtime'),
-                'PLlocation': self.split_item.join(data.get('pllocation', [])),
-                'PLnum': int(data.get('plnum')),
-                'PLtitle': data.get('pltitle'),
-                'PLcontent': json.dumps(data.get('plcontent')),
-                'PLcreate': request.user.id,
-                'PLstatus': PlayStatus(int(data.get('plstatus', 0))).value,
-                'PLname': plname,
-                'PLproducts': self.split_item.join(data.get('plproducts', [])),
-            })
-            db.session.add(play)
-            self._update_cost_and_insurance(data, plid)
-
-            self.auto_playstatus(play)
-        return Success(data=plid)
-
-    @phone_required
-    def set_cost(self):
-        data = parameter_required(('costs',))
-        with db.auto_commit():
-            costs = data.get('costs')
-            instance_list = list()
-            cosid_list = list()
-            for cost in costs:
-                current_app.logger.info('get cost {}'.format(cost))
-                cosid = cost.get('cosid')
-                if cost.get('delete'):
-                    cost_instance = Cost.query.filter_by(COSid=cosid, isdelete=False).first()
-                    if not cost_instance:
-                        continue
-                    if self._check_activity_play(cost_instance):
-                        raise StatusError('进行中活动无法修改')
-                    # return Success('删除成功')
-                    cost_instance.isdelete = True
-                    instance_list.append(cost_instance)
-                    current_app.logger.info('删除费用 {}'.format(cosid))
-                    continue
-
-                subtotal = Decimal(str(cost.get('cossubtotal')))
-                if subtotal < Decimal('0'):
-                    subtotal = Decimal('0')
-
-                if cosid:
-                    cost_instance = Cost.query.filter_by(COSid=cosid, isdelete=False).first()
-                    if cost_instance:
-                        if self._check_activity_play(cost_instance):
-                            raise StatusError('进行中活动无法修改')
-                        update_dict = self._get_update_dict(cost_instance, cost)
-                        if update_dict.get('COSsubtotal'):
-                            update_dict.update(COSsubtotal=subtotal)
-                        if update_dict.get('COSdetail'):
-                            update_dict.update(COSdetail=json.dumps(update_dict.get('COSdetail')))
-                        cost_instance.update(update_dict)
-                        instance_list.append(cost_instance)
-                        cosid_list.append(cosid)
-                        continue
-                cosid = str(uuid.uuid1())
-                cost_instance = Cost.create({
-                    "COSid": cosid,
-                    "COSname": cost.get('cosname'),
-                    "COSsubtotal": subtotal,
-                    "COSdetail": json.dumps(cost.get('cosdetail')),
-                })
-                instance_list.append(cost_instance)
-                cosid_list.append(cosid)
-            db.session.add_all(instance_list)
-
-        return Success(data=cosid_list)
+    def get_current_location(self):
+        args = request.args.to_dict()
+        my_lat, my_long = args.get('latitude'), args.get('longitude')
+        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
+        # user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        user = get_current_user()
+        if my_lat and my_long and user:
+            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
 
     def get_cost(self):
         data = parameter_required()
@@ -168,54 +63,6 @@ class CPlay():
             cost.fill('COSdetail', json.loads(cost.COSdetail))
 
         return Success(data=costs_list)
-
-    @phone_required
-    def set_insurance(self):
-        data = parameter_required()
-        with db.auto_commit():
-            insurance_list = data.get('insurance')
-            instance_list = list()
-            inid_list = list()
-            for ins in insurance_list:
-                current_app.logger.info('get Insurance {} '.format(ins))
-                inid = ins.get('inid')
-                incost = Decimal(str(ins.get('incost', '0')))
-                if incost < Decimal('0'):
-                    incost = Decimal('0')
-                current_app.logger.info(' changed insurance cost = {}'.format(incost))
-                if ins.get('delete'):
-                    current_app.logger.info('删除 Insurance {} '.format(inid))
-                    ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
-                    if not instance_list:
-                        continue
-                    if self._check_activity_play(ins_instance):
-                        raise StatusError('进行中活动无法修改')
-                    continue
-
-                if inid:
-                    ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
-                    if ins_instance:
-                        if self._check_activity_play(ins_instance):
-                            raise StatusError('进行中活动无法修改')
-                        update_dict = self._get_update_dict(ins_instance, ins)
-                        if update_dict.get('INcost'):
-                            update_dict.update(INcost=incost)
-                        ins_instance.update()
-                        instance_list.append(ins_instance)
-                        inid_list.append(inid)
-                        continue
-                inid = str(uuid.uuid1())
-                ins_instance = Insurance.create({
-                    'INid': inid,
-                    'INname': ins.get('inname'),
-                    'INcontent': ins.get('incontent'),
-                    'INtype': int(ins.get('intype')),
-                    'INcost': incost,
-                })
-                instance_list.append(ins_instance)
-                inid_list.append(inid)
-            db.session.add_all(instance_list)
-        return Success(data=inid_list)
 
     def get_insurance(self):
         data = parameter_required()
@@ -293,22 +140,46 @@ class CPlay():
             self._fill_insurances(play)
         return Success(data=plays_list)
 
-    def auto_playstatus(self, play):
-        if play.PLstatus == PlayStatus.publish.value:
-            start_connid = 'startplay{}'.format(play.PLid)
-            end_connid = 'endplay{}'.format(play.PLid)
-            self._cancle_celery(start_connid)
-            self._cancle_celery(end_connid)
-            starttime = play.PLstartTime
-            endtime = play.PLendTime
-            if not isinstance(starttime, datetime):
-                starttime = self._trans_time(starttime)
-            if not isinstance(endtime, datetime):
-                endtime = self._trans_time(endtime)
-            start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
-            end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
-            conn.set(start_connid, start_task_id)
-            conn.set(end_connid, end_task_id)
+    @phone_required
+    def get_gather(self):
+        """查看集合点"""
+        args = request.args.to_dict()
+        my_lat, my_long = args.get('latitude'), args.get('longitude')
+        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        can_post, gather_location, my_location = False, None, None
+        button_name = '暂无活动'
+        if my_lat and my_long:
+            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
+        my_created_play = self._is_tourism_leader(user.USid)
+
+        if my_created_play:  # 是领队，显示上次定位点，没有为null
+            can_post = True
+            button_name = '发起集合'
+            last_anchor_point = Gather.query.filter(Gather.isdelete == false(),
+                                                    Gather.PLid == my_created_play.PLid,
+                                                    Gather.GAcreate == user.USid
+                                                    ).order_by(Gather.createtime.desc()).first()
+            if last_anchor_point:
+                gather_location = self.init_location_dict(last_anchor_point.GAlat,
+                                                          last_anchor_point.GAlon,
+                                                          '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
+        else:  # 非领队
+            my_joined_play = self._ongoing_play_joined(user.USid)
+            if my_joined_play:  # 存在参加的进行中的活动
+                button_name = '等待集合'
+                gather_point = Gather.query.filter(Gather.isdelete == false(),
+                                                   Gather.PLid == my_joined_play.PLid,
+                                                   ).order_by(Gather.createtime.desc()).first()
+                if gather_point:
+                    gather_location = self.init_location_dict(gather_point.GAlat,
+                                                              gather_point.GAlon,
+                                                              str(gather_point.GAtime)[11:16])
+
+        res = {'gather_location': gather_location,
+               'can_post': can_post, 'button_name': button_name}
+
+        return Success(data=res)
 
     @phone_required
     def identity(self):
@@ -317,33 +188,369 @@ class CPlay():
         is_leader = self._is_tourism_leader(user.USid)
         return Success(data={'is_leader': bool(is_leader)})
 
-    @staticmethod
-    def _is_tourism_leader(usid):
-        """是否是领队"""
-        if not usid:
-            return
-        now = datetime.now()
-        return Play.query.filter(Play.isdelete == false(),
-                                 Play.PLstatus == PlayStatus.activity.value,
-                                 Play.PLstartTime <= now,
-                                 Play.PLendTime >= now,
-                                 Play.PLcreate == usid).first()
+    @phone_required
+    def get_playrequire(self):
+        data = parameter_required(('plid',))
+        user = get_current_user()
+        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
+            .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
+        for pre in pre_list:
+            if pre.PREname == self.realname and user.USrealname:
+                pre.fill('prevalue', user.USrealname)
+        return Success(data=pre_list)
 
-    @staticmethod
-    def _ongoing_play_joined(usid):
-        """是否有正在参加的活动"""
-        if not usid:
-            return
-        now = datetime.now()
-        return Play.query.join(EnterLog, EnterLog.PLid == Play.PLid
-                               ).filter(Play.isdelete == false(),
-                                        Play.PLstatus == PlayStatus.activity.value,
-                                        Play.PLstartTime <= now,
-                                        Play.PLendTime >= now,
-                                        EnterLog.isdelete == false(),
-                                        EnterLog.USid == usid,
-                                        EnterLog.ELstatus == EnterLogStatus.success.value,
-                                        ).first()
+    @phone_required
+    def get_enterlog(self):
+        user = get_current_user()
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        el = EnterLog.query.filter(
+            EnterLog.USid == user.USid, EnterLog.PLid == plid, EnterLog.isdelete == false()).first()
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已删除')
+        ec_list = EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()
+
+        self._fill_play(play)
+        play.fill('elid', el.ELid)
+        play.fill('ELvalue', json.loads(el.ELvalue))
+        play.fill('elstatus', el.ELstatus)
+        play.fill('elstatus_zh', EnterLogStatus(el.ELstatus).zh_value)
+        play.fill('elstatus_en', EnterLogStatus(el.ELstatus).name)
+        for ec in ec_list:
+            if ec.ECtype == EnterCostType.cost.value:
+                cost = Cost.query.filter(Cost.COSid == ec.ECcontent, Cost.isdelete == false()).first()
+                if not cost:
+                    continue
+                ec.fill('ecname', cost.COSname)
+            else:
+                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent,
+                                                   Insurance.isdelete == false()).first()
+                if not insruance:
+                    continue
+                ec.fill('ecname', insruance.INname)
+        play.fill('cost_list', ec_list)
+
+        return Success(data=play)
+
+    def get_notice(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
+        notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
+        if not notice:
+            notice = Notice.create({
+                'NOid': str(uuid.uuid1()),
+                'PLid': plid,
+                'NOcontent': json.dumps("")
+            })
+        notice.add('createtime')
+        notice.fill('NOcontent', json.loads(notice.NOcontent))
+        return Success(data=notice)
+
+    @phone_required
+    def get_member_location(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动不存在')
+        if play.PLstatus == PlayStatus.close.value:
+            raise StatusError('活动结束，不再获取成员信息')
+
+        els_list = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.ELstatus == EnterLogStatus.success.value,
+                                         EnterLog.isdelete == false()).all()
+        location_list = list()
+        user = get_current_user()
+        isleader = bool(play.PLcreate == user.USid)
+        # todo 导游看到真实姓名
+        leader = User.query.filter(User.USid == play.PLcreate, User.isdelete == false()).first()
+        if not leader:
+            raise ParamsError('活动数据有误')
+        leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
+                                                    UserLocation.isdelete == false()).order_by(
+            UserLocation.createtime.desc()).first()
+        self._fill_location(leader_location, isleader=True, realname=True)
+
+        location_list.append(leader_location)
+        for el in els_list:
+            location = UserLocation.query.filter(UserLocation.USid == el.USid,
+                                                 UserLocation.isdelete == false()).order_by(
+                UserLocation.createtime.desc()).first()
+            if not location:
+                continue
+            self._fill_location(location, realname=isleader)
+            location_list.append(location)
+        return Success(data=location_list)
+
+    @phone_required
+    def get_current_play(self):
+        user = get_current_user()
+        # now = datetime.now()
+        # selfplay = Play.query.filter(Play.PLcreate == user.USid, Play.PLstatus == PlayStatus.activity.value).first()
+        play = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
+            Play.PLstatus == PlayStatus.activity.value,
+            or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
+        if not play:
+            raise StatusError('当前无开启活动')
+        self._fill_play(play)
+        return Success(data=play)
+
+    @phone_required
+    def get_enter_user(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
+        user = get_current_user()
+        els = EnterLog.query.join(User, User.USid == EnterLog.USid).filter(EnterLog.PLid == play.PLid,
+                                                                           EnterLog.USid != user.USid,
+                                                                           User.isdelete == false(),
+                                                                           EnterLog.ELstatus == EnterLogStatus.success.value,
+                                                                           EnterLog.isdelete == false()).order_by(
+            EnterLog.createtime.desc()).all_with_page()
+
+        user_list = list()
+        for el in els:
+            usid = el.USid
+            self._fill_user(el, usid)
+
+            ucl = UserCollectionLog.query.filter(UserCollectionLog.UCLcoType == CollectionType.user.value,
+                                                 UserCollectionLog.isdelete == False)
+            followed = ucl.filter(UserCollectionLog.UCLcollector == user.USid,
+                                  UserCollectionLog.UCLcollection == usid).first()
+            be_followed = ucl.filter(UserCollectionLog.UCLcollector == usid,
+                                     UserCollectionLog.UCLcollection == user.USid).first()
+            follow_status = CollectStatus.none.value if not followed \
+                else CollectStatus.aandb.value if be_followed else CollectStatus.atob.value
+            el.fill('follow_status', follow_status)
+            el.fill('follow_status_en', CollectStatus(follow_status).name)
+            el.fill('follow_status_zh', CollectStatus(follow_status).zh_value)
+            user_list.append(el)
+        return Success(data=user_list)
+
+    def get_signin(self):
+        data = parameter_required(('plid',))
+        plid = data.get('plid')
+        sis = SignInSet.query.filter(SignInSet.PLid == plid, SignInSet.isdelete == false()).order_by(
+            SignInSet.createtime.desc()).first_('签到已失效')
+
+        sils = SignInLog.query.filter(
+            SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
+        signinlist = list()
+        nosigninlist = list()
+        for sil in sils:
+            self._fill_user(sil, sil.USid, '用户已失效')
+            sil.add('updatetime')
+            sil.fill('SISstatus_zh', SigninLogStatus(sil.SISstatus).zh_value)
+            sil.fill('SISstatus_eh', SigninLogStatus(sil.SISstatus).name)
+            if sil.SISstatus == SigninLogStatus.wait.value:
+                nosigninlist.append(sil)
+            else:
+                signinlist.append(sil)
+        sis.fill('signinlist', signinlist)
+        sis.fill('nosigninlist', nosigninlist)
+        return Success(data=sis)
+
+    """post 接口"""
+
+    def wechat_notify(self):
+        """微信支付回调接口"""
+        data = self.wx_pay.to_dict(request.data)
+        if not self.wx_pay.check(data):
+            return self.wx_pay.reply(u"签名验证失败", False)
+        out_trade_no = data.get('out_trade_no')
+        current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
+
+        with db.auto_commit():
+            # 修改当前用户参加状态
+            el = EnterLog.query.filter(EnterLog.ELpayNo == out_trade_no, EnterLog.isdelete == false()).first()
+            if not el:
+                current_app.logger.info('当前报名单不存在 {} '.format(out_trade_no))
+                return self.wx_pay.reply("OK", True).decode()
+            el.ELstatus = EnterLogStatus.success.value
+            db.session.add(el)
+            # 金额进入导游账号
+
+            mount_price = sum(
+                [ec.ECcost for ec in
+                 EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()])
+            play = Play.query.filter_by(PLid=el.PLid, isdelete=False).first()
+            if not play:
+                current_app.logger.info('活动 {} 已删除， {} 正在报名'.format(el.PLid, el.USid))
+                # 活动已删除，钱进入用户账户
+                user = User.query.filter_by(USid=el.USid, isdelete=False)
+                if user:
+                    # 付款用户不存在，钱进入平台
+                    self._incount(user, mount_price)
+                return self.wx_pay.reply("OK", True).decode()
+
+            guide = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+            if not guide:
+                # 导游不存在，钱进入平台账户
+                current_app.logger.info('导游 {} 已删除, {} 正在报名'.format(play.PLcreate, el.USid))
+                return self.wx_pay.reply("OK", True).decode()
+            self._incount(guide, mount_price)
+        return self.wx_pay.reply("OK", True).decode()
+
+    @phone_required
+    def set_play(self):
+        data = parameter_required()
+        plid = data.get('plid')
+        # todo  增加用户状态判断
+        with db.auto_commit():
+            if plid:
+                play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+                if not play:
+                    raise ParamsError('参数缺失')
+                if play.PLstatus == PlayStatus.activity.value:
+                    raise StatusError('进行中活动无法修改')
+
+                if data.get('delete'):
+                    current_app.logger.info('删除活动 {}'.format(plid))
+                    play.isdelete = True
+                    db.session.add(play)
+                    return Success('删除成功', data=plid)
+                update_dict = self._get_update_dict(play, data)
+                if update_dict.get('PLlocation'):
+                    update_dict.update(PLlocation=self.split_item.join(update_dict.get('PLlocation')))
+                if update_dict.get('PLproducts'):
+                    update_dict.update(PLproducts=self.split_item.join(update_dict.get('PLproducts')))
+                if update_dict.get('PLcreate'):
+                    update_dict.pop('PLcreate')
+                if update_dict.get('PLcontent'):
+                    update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
+                playname = {
+                    'pllocation': update_dict.get('PLlocation') or play.PLlocation,
+                    'plstarttime': update_dict.get('PLstarttime') or play.PLstartTime,
+                    'plendtime': update_dict.get('PLendTime') or play.PLendTime,
+                }
+                plname = self._update_plname(playname)
+                update_dict.update(PLname=plname)
+                play.update(update_dict)
+                db.session.add(play)
+                self._update_cost_and_insurance(data, plid)
+                self._auto_playstatus(play)
+                return Success('更新成功', data=plid)
+            data = parameter_required(
+                ('plimg', 'plstarttime', 'plendtime', 'pllocation', 'plnum', 'pltitle', 'plcontent'))
+            plid = str(uuid.uuid1())
+            plname = self._update_plname(data)
+            play = Play.create({
+                'PLid': plid,
+                'PLimg': data.get('plimg'),
+                'PLstartTime': data.get('plstarttime'),
+                'PLendTime': data.get('plendtime'),
+                'PLlocation': self.split_item.join(data.get('pllocation', [])),
+                'PLnum': int(data.get('plnum')),
+                'PLtitle': data.get('pltitle'),
+                'PLcontent': json.dumps(data.get('plcontent')),
+                'PLcreate': request.user.id,
+                'PLstatus': PlayStatus(int(data.get('plstatus', 0))).value,
+                'PLname': plname,
+                'PLproducts': self.split_item.join(data.get('plproducts', [])),
+            })
+            db.session.add(play)
+            self._update_cost_and_insurance(data, plid)
+
+            self._auto_playstatus(play)
+        return Success(data=plid)
+
+    @phone_required
+    def set_cost(self):
+        data = parameter_required(('costs',))
+        with db.auto_commit():
+            costs = data.get('costs')
+            instance_list = list()
+            cosid_list = list()
+            for cost in costs:
+                current_app.logger.info('get cost {}'.format(cost))
+                cosid = cost.get('cosid')
+                if cost.get('delete'):
+                    cost_instance = Cost.query.filter_by(COSid=cosid, isdelete=False).first()
+                    if not cost_instance:
+                        continue
+                    if self._check_activity_play(cost_instance):
+                        raise StatusError('进行中活动无法修改')
+                    # return Success('删除成功')
+                    cost_instance.isdelete = True
+                    instance_list.append(cost_instance)
+                    current_app.logger.info('删除费用 {}'.format(cosid))
+                    continue
+
+                subtotal = Decimal(str(cost.get('cossubtotal')))
+                if subtotal < Decimal('0'):
+                    subtotal = Decimal('0')
+
+                if cosid:
+                    cost_instance = Cost.query.filter_by(COSid=cosid, isdelete=False).first()
+                    if cost_instance:
+                        if self._check_activity_play(cost_instance):
+                            raise StatusError('进行中活动无法修改')
+                        update_dict = self._get_update_dict(cost_instance, cost)
+                        if update_dict.get('COSsubtotal'):
+                            update_dict.update(COSsubtotal=subtotal)
+                        if update_dict.get('COSdetail'):
+                            update_dict.update(COSdetail=json.dumps(update_dict.get('COSdetail')))
+                        cost_instance.update(update_dict)
+                        instance_list.append(cost_instance)
+                        cosid_list.append(cosid)
+                        continue
+                cosid = str(uuid.uuid1())
+                cost_instance = Cost.create({
+                    "COSid": cosid,
+                    "COSname": cost.get('cosname'),
+                    "COSsubtotal": subtotal,
+                    "COSdetail": json.dumps(cost.get('cosdetail')),
+                })
+                instance_list.append(cost_instance)
+                cosid_list.append(cosid)
+            db.session.add_all(instance_list)
+
+        return Success(data=cosid_list)
+
+    @phone_required
+    def set_insurance(self):
+        data = parameter_required()
+        with db.auto_commit():
+            insurance_list = data.get('insurance')
+            instance_list = list()
+            inid_list = list()
+            for ins in insurance_list:
+                current_app.logger.info('get Insurance {} '.format(ins))
+                inid = ins.get('inid')
+                incost = Decimal(str(ins.get('incost', '0')))
+                if incost < Decimal('0'):
+                    incost = Decimal('0')
+                current_app.logger.info(' changed insurance cost = {}'.format(incost))
+                if ins.get('delete'):
+                    current_app.logger.info('删除 Insurance {} '.format(inid))
+                    ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
+                    if not instance_list:
+                        continue
+                    if self._check_activity_play(ins_instance):
+                        raise StatusError('进行中活动无法修改')
+                    continue
+
+                if inid:
+                    ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
+                    if ins_instance:
+                        if self._check_activity_play(ins_instance):
+                            raise StatusError('进行中活动无法修改')
+                        update_dict = self._get_update_dict(ins_instance, ins)
+                        if update_dict.get('INcost'):
+                            update_dict.update(INcost=incost)
+                        ins_instance.update()
+                        instance_list.append(ins_instance)
+                        inid_list.append(inid)
+                        continue
+                inid = str(uuid.uuid1())
+                ins_instance = Insurance.create({
+                    'INid': inid,
+                    'INname': ins.get('inname'),
+                    'INcontent': ins.get('incontent'),
+                    'INtype': int(ins.get('intype')),
+                    'INcost': incost,
+                })
+                instance_list.append(ins_instance)
+                inid_list.append(inid)
+            db.session.add_all(instance_list)
+        return Success(data=inid_list)
 
     @phone_required
     def help(self):
@@ -399,67 +606,6 @@ class CPlay():
         return Success(data={'phone': phone_list})
 
     @phone_required
-    def get_gather(self):
-        """查看集合点"""
-        args = request.args.to_dict()
-        my_lat, my_long = args.get('latitude'), args.get('longitude')
-        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
-        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        can_post, gather_location, my_location = False, None, None
-        button_name = '暂无活动'
-        if my_lat and my_long:
-            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
-        my_created_play = self._is_tourism_leader(user.USid)
-
-        if my_created_play:  # 是领队，显示上次定位点，没有为null
-            can_post = True
-            button_name = '发起集合'
-            last_anchor_point = Gather.query.filter(Gather.isdelete == false(),
-                                                    Gather.PLid == my_created_play.PLid,
-                                                    Gather.GAcreate == user.USid
-                                                    ).order_by(Gather.createtime.desc()).first()
-            if last_anchor_point:
-                gather_location = self.init_location_dict(last_anchor_point.GAlat,
-                                                          last_anchor_point.GAlon,
-                                                          '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
-        else:  # 非领队
-            my_joined_play = self._ongoing_play_joined(user.USid)
-            if my_joined_play:  # 存在参加的进行中的活动
-                button_name = '等待集合'
-                gather_point = Gather.query.filter(Gather.isdelete == false(),
-                                                   Gather.PLid == my_joined_play.PLid,
-                                                   ).order_by(Gather.createtime.desc()).first()
-                if gather_point:
-                    gather_location = self.init_location_dict(gather_point.GAlat,
-                                                              gather_point.GAlon,
-                                                              str(gather_point.GAtime)[11:16])
-
-        res = {'gather_location': gather_location,
-               'can_post': can_post, 'button_name': button_name}
-
-        return Success(data=res)
-
-    @staticmethod
-    def init_location_dict(latitude, longitude, content):
-        res = {
-            'latitude': latitude,
-            'longitude': longitude,
-            'content': content
-        }
-        return res
-
-    @staticmethod
-    def check_lat_and_long(lat, long):
-        try:
-            if not -90 <= float(lat) <= 90:
-                raise ParamsError('纬度错误，范围 -90 ~ 90')
-            if not -180 <= float(long) <= 180:
-                raise ParamsError('经度错误，范围 -180 ~ 180')
-        except (TypeError, ValueError):
-            raise ParamsError('经纬度应为合适范围内的浮点数')
-        return str(lat), str(long)
-
-    @phone_required
     def set_gather(self):
         """发起集合点"""
         data = parameter_required(('latitude', 'longitude', 'time'))
@@ -490,17 +636,6 @@ class CPlay():
             })
             db.session.add(gather_instance)
         return Success('创建成功', {'latitude': latitude, 'longitude': longitude, 'time': time})
-
-    @phone_required
-    def get_playrequire(self):
-        data = parameter_required(('plid',))
-        user = get_current_user()
-        pre_list = PlayRequire.query.filter(PlayRequire.PLid == data.get('plid'), PlayRequire.isdelete == False) \
-            .order_by(PlayRequire.PREsort.asc(), PlayRequire.createtime.desc()).all()
-        for pre in pre_list:
-            if pre.PREname == self.realname and user.USrealname:
-                pre.fill('prevalue', user.USrealname)
-        return Success(data=pre_list)
 
     @phone_required
     def join(self):
@@ -592,38 +727,6 @@ class CPlay():
         return Success(data=response)
 
     @phone_required
-    def get_enterlog(self):
-        user = get_current_user()
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        el = EnterLog.query.filter(
-            EnterLog.USid == user.USid, EnterLog.PLid == plid, EnterLog.isdelete == false()).first()
-        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已删除')
-        ec_list = EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()
-
-        self._fill_play(play)
-        play.fill('elid', el.ELid)
-        play.fill('ELvalue', json.loads(el.ELvalue))
-        play.fill('elstatus', el.ELstatus)
-        play.fill('elstatus_zh', EnterLogStatus(el.ELstatus).zh_value)
-        play.fill('elstatus_en', EnterLogStatus(el.ELstatus).name)
-        for ec in ec_list:
-            if ec.ECtype == EnterCostType.cost.value:
-                cost = Cost.query.filter(Cost.COSid == ec.ECcontent, Cost.isdelete == false()).first()
-                if not cost:
-                    continue
-                ec.fill('ecname', cost.COSname)
-            else:
-                insruance = Insurance.query.filter(Insurance.INid == ec.ECcontent,
-                                                   Insurance.isdelete == false()).first()
-                if not insruance:
-                    continue
-                ec.fill('ecname', insruance.INname)
-        play.fill('cost_list', ec_list)
-
-        return Success(data=play)
-
-    @phone_required
     def set_signin(self):
         data = parameter_required(('plid',))
         plid = data.get('plid')
@@ -659,29 +762,6 @@ class CPlay():
             db.session.add_all(instance_list)
         return Success(data=sis)
 
-    def get_signin(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        sis = SignInSet.query.filter(SignInSet.PLid == plid, SignInSet.isdelete == false()).order_by(
-            SignInSet.createtime.desc()).first_('签到已失效')
-
-        sils = SignInLog.query.filter(
-            SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
-        signinlist = list()
-        nosigninlist = list()
-        for sil in sils:
-            self._fill_user(sil, sil.USid, '用户已失效')
-            sil.add('updatetime')
-            sil.fill('SISstatus_zh', SigninLogStatus(sil.SISstatus).zh_value)
-            sil.fill('SISstatus_eh', SigninLogStatus(sil.SISstatus).name)
-            if sil.SISstatus == SigninLogStatus.wait.value:
-                nosigninlist.append(sil)
-            else:
-                signinlist.append(sil)
-        sis.fill('signinlist', signinlist)
-        sis.fill('nosigninlist', nosigninlist)
-        return Success(data=sis)
-
     @phone_required
     def signin(self):
         data = parameter_required(('plid', 'silnum'))
@@ -707,51 +787,6 @@ class CPlay():
         return Success
 
     @phone_required
-    def get_current_play(self):
-        user = get_current_user()
-        # now = datetime.now()
-        # selfplay = Play.query.filter(Play.PLcreate == user.USid, Play.PLstatus == PlayStatus.activity.value).first()
-        play = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
-            Play.PLstatus == PlayStatus.activity.value,
-            or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
-        if not play:
-            raise StatusError('当前无开启活动')
-        self._fill_play(play)
-        return Success(data=play)
-
-    @phone_required
-    def get_enter_user(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        play = Play.query.filter(Play.isdelete == false(), Play.PLid == plid).first_('活动已删除')
-        user = get_current_user()
-        els = EnterLog.query.join(User, User.USid == EnterLog.USid).filter(EnterLog.PLid == play.PLid,
-                                                                           EnterLog.USid != user.USid,
-                                                                           User.isdelete == false(),
-                                                                           EnterLog.ELstatus == EnterLogStatus.success.value,
-                                                                           EnterLog.isdelete == false()).order_by(
-            EnterLog.createtime.desc()).all_with_page()
-
-        user_list = list()
-        for el in els:
-            usid = el.USid
-            self._fill_user(el, usid)
-
-            ucl = UserCollectionLog.query.filter(UserCollectionLog.UCLcoType == CollectionType.user.value,
-                                                 UserCollectionLog.isdelete == False)
-            followed = ucl.filter(UserCollectionLog.UCLcollector == user.USid,
-                                  UserCollectionLog.UCLcollection == usid).first()
-            be_followed = ucl.filter(UserCollectionLog.UCLcollector == usid,
-                                     UserCollectionLog.UCLcollection == user.USid).first()
-            follow_status = CollectStatus.none.value if not followed \
-                else CollectStatus.aandb.value if be_followed else CollectStatus.atob.value
-            el.fill('follow_status', follow_status)
-            el.fill('follow_status_en', CollectStatus(follow_status).name)
-            el.fill('follow_status_zh', CollectStatus(follow_status).zh_value)
-            user_list.append(el)
-        return Success(data=user_list)
-
-    @phone_required
     def create_notice(self):
         data = parameter_required(('plid', 'nocontent'))
         user = get_current_user()
@@ -775,55 +810,10 @@ class CPlay():
 
         return Success(data=notice.NOid)
 
-    def get_notice(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已结束')
-        notice = Notice.query.filter(Notice.PLid == play.PLid, Notice.isdelete == false()).first()
-        if not notice:
-            notice = Notice.create({
-                'NOid': str(uuid.uuid1()),
-                'PLid': plid,
-                'NOcontent': json.dumps("")
-            })
-        notice.add('createtime')
-        notice.fill('NOcontent', json.loads(notice.NOcontent))
-        return Success(data=notice)
-
-    @phone_required
-    def get_member_location(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动不存在')
-        if play.PLstatus == PlayStatus.close.value:
-            raise StatusError('活动结束，不再获取成员信息')
-
-        els_list = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.ELstatus == EnterLogStatus.success.value,
-                                         EnterLog.isdelete == false()).all()
-        location_list = list()
-        user = get_current_user()
-        isleader = bool(play.PLcreate == user.USid)
-        # todo 导游看到真实姓名
-        leader = User.query.filter(User.USid == play.PLcreate, User.isdelete == false()).first()
-        if not leader:
-            raise ParamsError('活动数据有误')
-        leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
-                                                    UserLocation.isdelete == false()).order_by(
-            UserLocation.createtime.desc()).first()
-        self._fill_location(leader_location, isleader=True, realname=True)
-
-        location_list.append(leader_location)
-        for el in els_list:
-            location = UserLocation.query.filter(UserLocation.USid == el.USid,
-                                                 UserLocation.isdelete == false()).order_by(
-                UserLocation.createtime.desc()).first()
-            if not location:
-                continue
-            self._fill_location(location, realname=isleader)
-            location_list.append(location)
-        return Success(data=location_list)
+    """内部方法"""
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
+        """填充活动用户信息"""
         if error_msg:
             user = User.query.filter(User.USid == usid, User.isdelete == false()).first_(error_msg)
         else:
@@ -854,6 +844,7 @@ class CPlay():
             celery.AsyncResult(exist_task).revoke()
 
     def _update_cost_and_insurance(self, data, plid):
+        """更新活动费用和保险"""
         instance_list = list()
         error_dict = {'costs': list(), 'insurances': list(), 'playrequires': list()}
         inid_list = list()
@@ -921,13 +912,16 @@ class CPlay():
         current_app.logger.info('本次更新出错的费用和保险以及需求项是 {}'.format(error_dict))
 
     def _update_plname(self, data):
+        """更新活动名称 同时校验时间"""
         pllocation = data.get('pllocation')
+
         if isinstance(data.get('pllocation'), list):
             pllocation = self.connect_item.join(data.get('pllocation'))
         else:
             pllocation = self.connect_item.join(str(pllocation).split(self.split_item))
 
         try:
+            now = datetime.now()
             plstart = data.get('plstarttime')
             plend = data.get('plendtime')
             if not isinstance(plstart, datetime):
@@ -939,6 +933,10 @@ class CPlay():
         except:
             current_app.logger.error('转时间失败  开始时间 {}  结束时间 {}'.format(data.get('plstarttime'), data.get('plendtime')))
             raise ParamsError
+
+        if now > plstart:
+            raise ParamsError('开始时间不能小于当前时间')
+
         duration = plend - plstart
         if duration.days < 0:
             current_app.logger.error('起止时间有误')
@@ -948,8 +946,7 @@ class CPlay():
         return plname
 
     def _check_activity_play(self, check_model):
-        # if not check_model:
-        #     raise ParamsError('参数缺失')
+        """校验活动是否合法"""
         play = Play.query.filter_by(PLid=check_model.PLid, isdelete=False).first()
         if play and play.PLstatus == PlayStatus.activity.value:
             return True
@@ -1013,44 +1010,6 @@ class CPlay():
         if show:
             play.fill('insurances', ins_list)
         play.fill('playsum', playsum)
-
-    def wechat_notify(self):
-        data = self.wx_pay.to_dict(request.data)
-        if not self.wx_pay.check(data):
-            return self.wx_pay.reply(u"签名验证失败", False)
-        out_trade_no = data.get('out_trade_no')
-        current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
-
-        with db.auto_commit():
-            # 修改当前用户参加状态
-            el = EnterLog.query.filter(EnterLog.ELpayNo == out_trade_no, EnterLog.isdelete == false()).first()
-            if not el:
-                current_app.logger.info('当前报名单不存在 {} '.format(out_trade_no))
-                return self.wx_pay.reply("OK", True).decode()
-            el.ELstatus = EnterLogStatus.success.value
-            db.session.add(el)
-            # 金额进入导游账号
-
-            mount_price = sum(
-                [ec.ECcost for ec in
-                 EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()])
-            play = Play.query.filter_by(PLid=el.PLid, isdelete=False).first()
-            if not play:
-                current_app.logger.info('活动 {} 已删除， {} 正在报名'.format(el.PLid, el.USid))
-                # 活动已删除，钱进入用户账户
-                user = User.query.filter_by(USid=el.USid, isdelete=False)
-                if user:
-                    # 付款用户不存在，钱进入平台
-                    self._incount(user, mount_price)
-                return self.wx_pay.reply("OK", True).decode()
-
-            guide = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
-            if not guide:
-                # 导游不存在，钱进入平台账户
-                current_app.logger.info('导游 {} 已删除, {} 正在报名'.format(play.PLcreate, el.USid))
-                return self.wx_pay.reply("OK", True).decode()
-            self._incount(guide, mount_price)
-        return self.wx_pay.reply("OK", True).decode()
 
     def _update_enter_cost(self, el, data):
         plid = data.get('plid')
@@ -1162,15 +1121,6 @@ class CPlay():
         location.fill('longitude', location.ULlng)
         location.fill('isleader', isleader)
 
-    def get_current_location(self):
-        args = request.args.to_dict()
-        my_lat, my_long = args.get('latitude'), args.get('longitude')
-        my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
-        # user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        user = get_current_user()
-        if my_lat and my_long and user:
-            self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
-
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         current_app.logger.info('get mount price {}'.format(mount_price))
@@ -1219,3 +1169,68 @@ class CPlay():
             uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(price))
             uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(price))
         db.session.add(uw)
+
+    @staticmethod
+    def init_location_dict(latitude, longitude, content):
+        res = {
+            'latitude': latitude,
+            'longitude': longitude,
+            'content': content
+        }
+        return res
+
+    @staticmethod
+    def check_lat_and_long(lat, long):
+        try:
+            if not -90 <= float(lat) <= 90:
+                raise ParamsError('纬度错误，范围 -90 ~ 90')
+            if not -180 <= float(long) <= 180:
+                raise ParamsError('经度错误，范围 -180 ~ 180')
+        except (TypeError, ValueError):
+            raise ParamsError('经纬度应为合适范围内的浮点数')
+        return str(lat), str(long)
+
+    def _auto_playstatus(self, play):
+        if play.PLstatus == PlayStatus.publish.value:
+            start_connid = 'startplay{}'.format(play.PLid)
+            end_connid = 'endplay{}'.format(play.PLid)
+            self._cancle_celery(start_connid)
+            self._cancle_celery(end_connid)
+            starttime = play.PLstartTime
+            endtime = play.PLendTime
+            if not isinstance(starttime, datetime):
+                starttime = self._trans_time(starttime)
+            if not isinstance(endtime, datetime):
+                endtime = self._trans_time(endtime)
+            start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
+            end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
+            conn.set(start_connid, start_task_id)
+            conn.set(end_connid, end_task_id)
+
+    @staticmethod
+    def _is_tourism_leader(usid):
+        """是否是领队"""
+        if not usid:
+            return
+        now = datetime.now()
+        return Play.query.filter(Play.isdelete == false(),
+                                 Play.PLstatus == PlayStatus.activity.value,
+                                 Play.PLstartTime <= now,
+                                 Play.PLendTime >= now,
+                                 Play.PLcreate == usid).first()
+
+    @staticmethod
+    def _ongoing_play_joined(usid):
+        """是否有正在参加的活动"""
+        if not usid:
+            return
+        now = datetime.now()
+        return Play.query.join(EnterLog, EnterLog.PLid == Play.PLid
+                               ).filter(Play.isdelete == false(),
+                                        Play.PLstatus == PlayStatus.activity.value,
+                                        Play.PLstartTime <= now,
+                                        Play.PLendTime >= now,
+                                        EnterLog.isdelete == false(),
+                                        EnterLog.USid == usid,
+                                        EnterLog.ELstatus == EnterLogStatus.success.value,
+                                        ).first()
