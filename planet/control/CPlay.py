@@ -844,11 +844,12 @@ class CPlay():
             if not user:
                 return False
         usname = user.USname
-        if realname and user.USplayName:
-            usname = user.USplayName
-        model.fill('USname', usname)
-        # model.fill('USlevel', '游客' if user.USlevel != self.guidelevel else '导游')
+        if realname:
+            if user.USplayName:
+                usname = user.USplayName
+            model.fill('UStelphone', user.UStelphone)
 
+        model.fill('USname', usname)
         uslevel = MiniUserGrade(user.USminiLevel or 0)
         model.fill('USminiLevel', uslevel.value)
         model.fill('USminiLevel_zh', uslevel.zh_value)
