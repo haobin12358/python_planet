@@ -230,13 +230,26 @@ class CScenicSpot(object):
             recommend_raiders = TravelRecord.query.filter(
                 TravelRecord.isdelete == false(),
                 TravelRecord.TRtype == TravelRecordType.raiders.value,
-                TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))).limit(2).all()
+                TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))
+            ).order_by(TravelRecord.createtime.desc()).limit(2).all()
             [self._fill_raiders_list(x) for x in recommend_raiders]
         scenicspot.fill('parent_scenicspot', parent)
         scenicspot.fill('associated', bool(parent))
         scenicspot.fill('address_info', address_info)
         scenicspot.fill('recommend_raiders', recommend_raiders)
         return Success(data=scenicspot)
+
+    def get_raiders_list(self):
+        """获取景区下推荐攻略列表"""
+        args = parameter_required(('sspid',))
+        sspid = args.get('sspid')
+        scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
+        raiders = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                            TravelRecord.TRtype == TravelRecordType.raiders.value,
+                                            TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))
+                                            ).order_by(TravelRecord.createtime.desc()).all_with_page()
+        [self._fill_raiders_list(x) for x in raiders]
+        return Success(data=raiders)
 
     @phone_required
     def add_travelrecord(self):
@@ -460,6 +473,7 @@ class CScenicSpot(object):
         author = User.query.filter_by_(USid=raiders.AuthorID).first()
         author_info = None if not author else {'usname': author.USname,
                                                'usheader': author.USheader,
+                                               'usid': author.USid,
                                                'usminilevel': MiniUserGrade(author.USminiLevel).zh_value}
 
         raiders.fill('author', author_info)
@@ -472,3 +486,5 @@ class CScenicSpot(object):
             UserCollectionLog.UCLcollector == getattr(request, 'user').id,
             UserCollectionLog.UCLcollection == raiders.AuthorID).first() else False
         raiders.fill('followed', followed)
+        is_own = True if common_user() and raiders.AuthorID == getattr(request, 'user').id else False
+        raiders.fill('is_own', is_own)
