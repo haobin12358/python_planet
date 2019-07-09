@@ -169,7 +169,7 @@ class CScenicSpot(object):
             ssp_order = order_dict.get(order_type).asc()
 
         filter_args = []
-        sspname, ssparea = args.get('sspname'), args.get('ssparea')
+        sspname, ssparea, ssplevel = args.get('sspname'), args.get('ssparea'), args.get('ssplevel')
         if sspname:
             filter_args.append(or_(*map(lambda i: ScenicSpot.SSPname.ilike('%{}%'.format(i)),
                                         map(lambda x: re.escape(x) if '_' not in x else re.sub(r'_', r'\_', x),
@@ -178,12 +178,14 @@ class CScenicSpot(object):
             filter_args.append(or_(*map(lambda i: ScenicSpot.SSParea.ilike('%{}%'.format(i)),
                                         map(lambda x: re.escape(x) if '_' not in x else re.sub(r'_', r'\_', x),
                                             str(ssparea).split()))))
+        if ssplevel:
+            if not re.match(r'^[12345]$', str(ssplevel)):
+                raise ParamsError('ssplevel 参数错误')
+            filter_args.append(ScenicSpot.SSPlevel == ssplevel)
 
         current_app.logger.info('start query : {}'.format(datetime.now()))
-        all_scenicspot = ScenicSpot.query.filter(ScenicSpot.isdelete == false(),
-                                                 *filter_args).order_by(ssp_order,
-                                                                        ScenicSpot.createtime.desc()
-                                                                        ).all_with_page()
+        all_scenicspot = ScenicSpot.query.filter(ScenicSpot.isdelete == false(), *filter_args
+                                                 ).order_by(ssp_order, ScenicSpot.createtime.desc()).all_with_page()
         current_app.logger.info('query finished : {}'.format(datetime.now()))
         for scenicspot in all_scenicspot:
             parent = None
