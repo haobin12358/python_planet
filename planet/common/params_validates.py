@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+from decimal import Decimal
 
 from flask import request
 
@@ -42,3 +43,17 @@ def validate_arg(regex, arg, msg=None):
     if not res:
         raise ParamsError(msg)
     return arg
+
+
+def validate_price(price, can_zero=True):
+    """
+    检验金额
+    :param price: 金额
+    :param can_zero: 是否可等于0
+    :return: decimal object
+    """
+    if not re.match(r'(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)', str(price)) or float(price) < 0:
+        raise ParamsError("数字'{}'错误， 只能输入不小于0的数字，最多可保留两位小数".format(price))
+    if not can_zero and float(price) <= 0:
+        raise ParamsError("数字'{}'错误， 只能输入大于0的数字，最多可保留两位小数".format(price))
+    return Decimal(price).quantize(Decimal('0.00'))

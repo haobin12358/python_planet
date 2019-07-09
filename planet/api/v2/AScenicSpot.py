@@ -10,15 +10,19 @@ class AScenicSpot(Resource):
 
     def get(self, scenicspot):
         apis = {
-            'get': self.cscenicspot.get,
-            'list': self.cscenicspot.list,
+            'get': self.cscenicspot.get,                                # 景区详情
+            'list': self.cscenicspot.list,                              # 景区列表
+            'travelrecord_list': self.cscenicspot.travelrecord_list,    # 时光记录列表
+            'get_travelrecord': self.cscenicspot.get_travelrecord,      # 时光记录详情
+            'raiders_list': self.cscenicspot.get_raiders_list,          # 景区下推荐攻略列表
         }
         return apis
 
     def post(self, scenicspot):
         apis = {
-            'add': self.cscenicspot.add,
-            'update': self.cscenicspot.update,
-            'delete': self.cscenicspot.delete,
+            'add': self.cscenicspot.add,                                # 添加景区
+            'update': self.cscenicspot.update,                          # 编辑景区
+            'delete': self.cscenicspot.delete,                          # 删除景区
+            'add_travelrecord': self.cscenicspot.add_travelrecord,      # 发布时光记录
         }
         return apis

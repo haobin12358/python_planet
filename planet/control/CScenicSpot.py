@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
+import json
 import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false
-
+from sqlalchemy import or_, false, cast, Date
 from planet.common.error_response import ParamsError
-from planet.common.params_validates import parameter_required
+from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
-from planet.common.token_handler import admin_required, is_admin
-from planet.config.enums import AdminActionS
+from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
+from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType
 from planet.extensions.register_ext import db
-from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin
-from planet.models.scenicspot import ScenicSpot
+from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
+from planet.models.scenicspot import ScenicSpot, TravelRecord
 from planet.control.BaseControl import BASEADMIN
+from pyquery import PyQuery
 
 
 class CScenicSpot(object):
@@ -129,13 +130,30 @@ class CScenicSpot(object):
                         })
         return Success(data=res)
 
+    @staticmethod
+    def _get_search_scenicspots(args):
+        sspname = args.get('sspname')
+        all_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname).filter(
+            ScenicSpot.isdelete == false(),
+            or_(*map(lambda i: ScenicSpot.SSPname.ilike('%{}%'.format(i)),
+                     map(lambda x: re.escape(x) if '_' not in x else re.sub(r'_', r'\_', x), str(sspname).split())))
+        ).all()
+        res = []
+        for rscenicspot in all_scenicspot:
+            res.append({'sspid': rscenicspot[0],
+                        'sspname': rscenicspot[1]
+                        })
+        return Success(data=res)
+
     def list(self):
         """景区列表"""
         args = parameter_required(('page_num', 'page_size'))
         option = args.get('option')
-        if option and str(option) == 'root':  # 只获取可被关联的一级景区
-            return self._get_root_scenicspots()
-
+        if option:
+            if str(option) == 'root':  # 只获取可被关联的一级景区
+                return self._get_root_scenicspots()
+            if str(option) == 'search':  # 仅用于模糊搜索
+                return self._get_search_scenicspots(args)
         order_dict = {'level': ScenicSpot.SSPlevel}
         try:
             order = args.get('order', 'level|desc')
@@ -177,6 +195,10 @@ class CScenicSpot(object):
             scenicspot.fill('parent_scenicspot', parent)
             scenicspot.fill('associated', bool(parent))
             scenicspot.hide('ParentID', 'ADid', 'SSPcontent')
+            scenicspot.fill('raiders_num', db.session.query(TravelRecord.TRid).filter(
+                TravelRecord.isdelete == false(),
+                TravelRecord.TRtype == TravelRecordType.raiders.value,
+                TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))).count())
         current_app.logger.info('fill finished : {}'.format(datetime.now()))
 
         return Success(data=all_scenicspot)
@@ -188,6 +210,7 @@ class CScenicSpot(object):
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         scenicspot.hide('ParentID', 'ADid')
         parent = address_info = None
+        recommend_raiders = []
         if is_admin():
             # 地址处理
             address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
@@ -203,10 +226,265 @@ class CScenicSpot(object):
                                                      ).filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
                     parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
+        else:  # 非管理员显示推荐攻略
+            recommend_raiders = TravelRecord.query.filter(
+                TravelRecord.isdelete == false(),
+                TravelRecord.TRtype == TravelRecordType.raiders.value,
+                TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))
+            ).order_by(TravelRecord.createtime.desc()).limit(2).all()
+            [self._fill_raiders_list(x) for x in recommend_raiders]
         scenicspot.fill('parent_scenicspot', parent)
         scenicspot.fill('associated', bool(parent))
         scenicspot.fill('address_info', address_info)
+        scenicspot.fill('recommend_raiders', recommend_raiders)
         return Success(data=scenicspot)
 
+    def get_raiders_list(self):
+        """获取景区下推荐攻略列表"""
+        args = parameter_required(('sspid',))
+        sspid = args.get('sspid')
+        scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
+        raiders = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                            TravelRecord.TRtype == TravelRecordType.raiders.value,
+                                            TravelRecord.TRlocation.ilike('%{}%'.format(scenicspot.SSPname))
+                                            ).order_by(TravelRecord.createtime.desc()).all_with_page()
+        [self._fill_raiders_list(x) for x in raiders]
+        return Success(data=raiders)
 
+    @phone_required
+    def add_travelrecord(self):
+        """创建时光记录"""
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        data = parameter_required(('trtype', 'trstatus'))
+        try:
+            TravelRecordStatus(data.get('trstatus'))
+        except Exception:
+            raise ParamsError('trstatus 参数错误')
+        trtype = str(data.get('trtype'))
+        if trtype == str(TravelRecordType.raiders.value):  # 攻略
+            parameter_required(('trproducts', 'trbudget', 'trcontent', 'trlocation'), datafrom=data)
+            tr_dict = self._create_raiders(data)
+        elif trtype == str(TravelRecordType.travels.value):  # 游记
+            parameter_required(('trtitle', 'trcontent', 'trlocation'), datafrom=data)
+            tr_dict = self._create_travels(data)
+        elif trtype == str(TravelRecordType.essay.value):  # 随笔
+            parameter_required(('text', ), datafrom=data)
+            tr_dict = self._create_essay(data)
+        else:
+            raise ParamsError('type 参数错误')
+        with db.auto_commit():
+            travelrecord_dict = {'TRid': str(uuid.uuid1()),
+                                 'AuthorID': user.USid,
+                                 'TRtype': trtype,
+                                 'TRstatus': data.get('trstatus')
+                                 }
+            travelrecord_dict.update(tr_dict)
+            db.session.add(TravelRecord.create(travelrecord_dict))
+        return Success('发布成功', {'trid': travelrecord_dict['TRid']})
 
+    @staticmethod
+    def _create_raiders(data):
+        """攻略"""
+        trproducts, trbudget = data.get('trproducts'), data.get('trbudget')
+        trbudget = validate_price(trbudget)
+        if not isinstance(trproducts, list):
+            raise ParamsError('trproducts 格式错误')
+        trproducts = json.dumps(trproducts)
+        return {'TRproducts': trproducts,
+                'TRbudget': trbudget,
+                'TRcontent': data.get('trcontent'),
+                'TRlocation': data.get('trlocation')
+                }
+
+    @staticmethod
+    def _create_travels(data):
+        """游记"""
+        return {'TRtitle': data.get('trtitle'),
+                'TRcontent': data.get('trcontent'),
+                'TRlocation': data.get('trlocation')
+                }
+
+    @staticmethod
+    def _create_essay(data):
+        """随笔"""
+        text, image, video = data.get('text'), data.get('image'), data.get('video')
+        if image and not isinstance(image, list):
+            raise ParamsError('image 格式错误')
+        if image and video:
+            raise ParamsError('不能同时选择图片和视频')
+        if len(image) > 9:
+            raise ParamsError('最多可上传9张图片')
+        video = {'url': video.get('url'),
+                 'thumbnail': video.get('thumbnail'),
+                 'duration': video.get('duration')
+                 } if video else None
+        content = {'text': text,
+                   'image': image,
+                   'video': video
+                   }
+        content = json.dumps(content)
+        return {'TRcontent': content,
+                'TRlocation': data.get('trlocation')
+                }
+
+    def travelrecord_list(self):
+        """时光记录（个人中心）列表"""
+        args = request.args.to_dict()
+        usid, date, area, trtype = args.get('usid'), args.get('date'), args.get('area'), args.get('trtype')
+        option = args.get('option')
+        if usid:
+            ucl_list = [usid]
+            counts = self._my_home_page_count(usid)
+            top = self._init_top_dict(counts)
+        elif common_user():
+            ucl_list = db.session.query(UserCollectionLog.UCLcollection).filter(
+                UserCollectionLog.UCLcoType == CollectionType.user.value,
+                UserCollectionLog.isdelete == false(),
+                UserCollectionLog.UCLcollector == getattr(request, 'user').id).all()
+            ucl_list = [ucl[0] for ucl in ucl_list]
+            counts = self._my_home_page_count(getattr(request, 'user').id)
+            top = self._init_top_dict(counts)
+        else:
+            return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
+                                         'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
+                                 'travelrecord': []})
+
+        trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                                   TravelRecord.AuthorID.in_(ucl_list))
+        if date:
+            if not re.match(r'^\d{4}-\d{2}$', date):
+                raise ParamsError('查询日期格式错误')
+            trecords_query = trecords_query.filter(cast(TravelRecord.createtime, Date) == date)
+        if trtype or str(trtype) == '0':
+            if not re.match(r'^[012]$', str(trtype)):
+                raise ParamsError('trtype 参数错误')
+            trecords_query = trecords_query.filter(TravelRecord.TRtype == trtype)
+        if area:
+            scenicspots = db.session.query(ScenicSpot.SSPname).filter(ScenicSpot.isdelete == false(),
+                                                                      ScenicSpot.SSParea.ilike('%{}%'.format(area))
+                                                                      ).all()
+            ssname = [ss[0] for ss in scenicspots]
+            trecords_query = trecords_query.filter(
+                or_(*map(lambda x: TravelRecord.TRlocation.ilike('%{}%'.format(x)), ssname)))
+        if common_user() and option == 'my':
+            trecords_query = trecords_query.filter(TravelRecord.AuthorID == getattr(request, 'user').id)
+        trecords = trecords_query.order_by(TravelRecord.createtime.desc()).all_with_page()
+        [self._fill_travelrecord(x) for x in trecords]
+        return Success(data={'top': top, 'travelrecord': trecords})
+
+    @staticmethod
+    def _init_top_dict(counts):
+        return {'followed': counts[0], 'fens': counts[1], 'published': counts[2],
+                'usname': counts[3], 'usheader': counts[4], 'usminilevel': counts[5], 'concerned': counts[6]}
+
+    @staticmethod
+    def _my_home_page_count(usid):
+        followed = UserCollectionLog.query.filter(UserCollectionLog.isdelete == false(),
+                                                  UserCollectionLog.UCLcollector == usid,
+                                                  UserCollectionLog.UCLcoType == CollectionType.user.value,
+                                                  ).count()
+        fens = UserCollectionLog.query.filter(UserCollectionLog.isdelete == false(),
+                                              UserCollectionLog.UCLcollection == usid,
+                                              UserCollectionLog.UCLcoType == CollectionType.user.value,
+                                              ).count()
+        published = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                              TravelRecord.AuthorID == usid).count()
+        user = User.query.filter_by_(USid=usid).first()
+        follow_status = True if common_user() and UserCollectionLog.query.filter(
+            UserCollectionLog.isdelete == false(),
+            UserCollectionLog.UCLcollector == getattr(request, 'user').id,
+            UserCollectionLog.UCLcollection == usid,
+            UserCollectionLog.UCLcoType == CollectionType.user.value).first() else False
+        try:
+            usminilevel = MiniUserGrade(user.USminiLevel).zh_value
+        except Exception:
+            usminilevel = None
+        return (followed, fens, published, getattr(user, 'USname', None),
+                getattr(user, 'USheader', None), usminilevel, follow_status)
+
+    def get_travelrecord(self):
+        """时光记录详情"""
+        args = parameter_required(('trid',))
+        trecord = TravelRecord.query.filter_by_(TRid=args.get('trid')).first_('未找到相应信息')
+        self._fill_travelrecord(trecord)
+        return Success(data=trecord)
+
+    @staticmethod
+    def _fill_travelrecord(trecord):
+        """填充时光记录详情"""
+        if trecord.TRtype == TravelRecordType.essay.value:  # 随笔
+            trecord.fields = ['TRid', 'TRlocation', 'TRtype']
+            content = json.loads(trecord.TRcontent)
+            trecord.fill('text', content.get('text', '...'))
+            trecord.fill('image', content.get('image'))
+            trecord.fill('video', content.get('video'))
+            if content.get('image'):
+                showtype = 'image'
+            elif content.get('video'):
+                showtype = 'video'
+            else:
+                showtype = 'text'
+            trecord.fill('showtype', showtype)
+        elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
+            trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent']
+            img_path = PyQuery(trecord.TRcontent)('img').attr('src')
+            trecord.fill('picture', img_path)
+            text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
+            text_content = '{}...'.format(text_content) if text_content else None
+            trecord.fill('text', text_content)
+        else:  # 攻略
+            trecord.fields = ['TRid', 'TRlocation', 'TRbudget', 'TRproducts', 'TRtype', 'TRcontent']
+            trecord.fill('trtitle', '{}游玩攻略'.format(trecord.TRlocation))
+            trproducts_str = None
+            if trecord.TRproducts:
+                trecord.TRproducts = json.loads(trecord.TRproducts)
+                trproducts_str = '、'.join(map(lambda x: str(x), trecord.TRproducts))
+            trecord.fill('trproducts_str', trproducts_str)
+            if trecord.TRbudget:
+                trecord.fill('trbudget_str', '¥{}'.format(round(float(trecord.TRbudget), 2)))
+            img_path = PyQuery(trecord.TRcontent)('img').attr('src')
+            trecord.fill('picture', img_path)
+            text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
+            text_content = '{}...'.format(text_content) if text_content else None
+            trecord.fill('text', text_content)
+
+        trecord.fill('travelrecordtype_zh', TravelRecordType(trecord.TRtype).zh_value)
+        author = User.query.filter_by_(USid=trecord.AuthorID).first()
+        author_info = None if not author else {'usname': author.USname,
+                                               'usid': author.USid,
+                                               'usheader': author.USheader,
+                                               'usminilevel': MiniUserGrade(author.USminiLevel).zh_value}
+
+        trecord.fill('author', author_info)
+        is_own = True if common_user() and getattr(request, 'user').id == trecord.AuthorID else False
+        trecord.fill('is_own', is_own)
+        followed = True if common_user() and UserCollectionLog.query.filter(
+            UserCollectionLog.UCLcoType == CollectionType.user.value,
+            UserCollectionLog.isdelete == false(),
+            UserCollectionLog.UCLcollector == getattr(request, 'user').id,
+            UserCollectionLog.UCLcollection == trecord.AuthorID).first() else False
+        trecord.fill('followed', followed)
+
+    @staticmethod
+    def _fill_raiders_list(raiders):
+        """攻略列表"""
+        raiders.fields = ['TRid']
+        raiders.fill('trtitle', '{}游玩攻略'.format(raiders.TRlocation))
+        author = User.query.filter_by_(USid=raiders.AuthorID).first()
+        author_info = None if not author else {'usname': author.USname,
+                                               'usheader': author.USheader,
+                                               'usid': author.USid,
+                                               'usminilevel': MiniUserGrade(author.USminiLevel).zh_value}
+
+        raiders.fill('author', author_info)
+        raiders.fill('travelrecordtype_zh', TravelRecordType(raiders.TRtype).zh_value)
+        img_path = PyQuery(raiders.TRcontent)('img').attr('src')
+        raiders.fill('picture', img_path)
+        followed = True if common_user() and UserCollectionLog.query.filter(
+            UserCollectionLog.UCLcoType == CollectionType.user.value,
+            UserCollectionLog.isdelete == false(),
+            UserCollectionLog.UCLcollector == getattr(request, 'user').id,
+            UserCollectionLog.UCLcollection == raiders.AuthorID).first() else False
+        raiders.fill('followed', followed)
+        is_own = True if common_user() and raiders.AuthorID == getattr(request, 'user').id else False
+        raiders.fill('is_own', is_own)
