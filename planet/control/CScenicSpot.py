@@ -493,13 +493,13 @@ class CScenicSpot(object):
 
     def get_team(self):
         data = parameter_required(('plid',))
-        tr_list = TravelRecord.query.join(
-            EnterLog, EnterLog.USid == TravelRecord.AuthorID).join(
-            Play, Play.PLid == EnterLog.PLid).filter(
+        tr_list = TravelRecord.query.filter(
             Play.PLid == data.get('plid'),
+            Play.PLid == EnterLog.PLid,
             Play.isdelete == false(),
             EnterLog.isdelete == false(),
             EnterLog.ELstatus == EnterLogStatus.success.value,
+            or_(EnterLog.USid == TravelRecord.AuthorID, Play.PLcreate == TravelRecord.AuthorID),
             TravelRecord.createtime <= Play.PLendTime,
             TravelRecord.createtime >= Play.PLstartTime,
             TravelRecord.isdelete == false(),
