@@ -318,6 +318,7 @@ class CScenicSpot(object):
         """时光记录（个人中心）列表"""
         args = request.args.to_dict()
         usid, date, area, trtype = args.get('usid'), args.get('date'), args.get('area'), args.get('trtype')
+        option = args.get('option')
         if usid:
             ucl_list = [usid]
             counts = self._my_home_page_count(usid)
@@ -332,7 +333,7 @@ class CScenicSpot(object):
             top = self._init_top_dict(counts)
         else:
             return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
-                                         'usname': None, 'usheader': None, 'usminilevel': None},
+                                         'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
                                  'travelrecord': []})
 
         trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
@@ -352,6 +353,8 @@ class CScenicSpot(object):
             ssname = [ss[0] for ss in scenicspots]
             trecords_query = trecords_query.filter(
                 or_(*map(lambda x: TravelRecord.TRlocation.ilike('%{}%'.format(x)), ssname)))
+        if common_user() and option == 'my':
+            trecords_query = trecords_query.filter(TravelRecord.AuthorID == getattr(request, 'user').id)
         trecords = trecords_query.order_by(TravelRecord.createtime.desc()).all_with_page()
         [self._fill_travelrecord(x) for x in trecords]
         return Success(data={'top': top, 'travelrecord': trecords})
@@ -359,7 +362,7 @@ class CScenicSpot(object):
     @staticmethod
     def _init_top_dict(counts):
         return {'followed': counts[0], 'fens': counts[1], 'published': counts[2],
-                'usname': counts[3], 'usheader': counts[4], 'usminilevel': counts[5]}
+                'usname': counts[3], 'usheader': counts[4], 'usminilevel': counts[5], 'concerned': counts[6]}
 
     @staticmethod
     def _my_home_page_count(usid):
@@ -374,12 +377,17 @@ class CScenicSpot(object):
         published = TravelRecord.query.filter(TravelRecord.isdelete == false(),
                                               TravelRecord.AuthorID == usid).count()
         user = User.query.filter_by_(USid=usid).first()
+        follow_status = True if common_user() and UserCollectionLog.query.filter(
+            UserCollectionLog.isdelete == false(),
+            UserCollectionLog.UCLcollector == getattr(request, 'user').id,
+            UserCollectionLog.UCLcollection == usid,
+            UserCollectionLog.UCLcoType == CollectionType.user.value).first() else False
         try:
             usminilevel = MiniUserGrade(user.USminiLevel).zh_value
         except Exception:
             usminilevel = None
         return (followed, fens, published, getattr(user, 'USname', None),
-                getattr(user, 'USheader', None), usminilevel)
+                getattr(user, 'USheader', None), usminilevel, follow_status)
 
     def get_travelrecord(self):
         """时光记录详情"""
@@ -430,10 +438,13 @@ class CScenicSpot(object):
         trecord.fill('travelrecordtype_zh', TravelRecordType(trecord.TRtype).zh_value)
         author = User.query.filter_by_(USid=trecord.AuthorID).first()
         author_info = None if not author else {'usname': author.USname,
+                                               'usid': author.USid,
                                                'usheader': author.USheader,
                                                'usminilevel': MiniUserGrade(author.USminiLevel).zh_value}
 
         trecord.fill('author', author_info)
+        is_own = True if common_user() and getattr(request, 'user').id == trecord.AuthorID else False
+        trecord.fill('is_own', is_own)
         followed = True if common_user() and UserCollectionLog.query.filter(
             UserCollectionLog.UCLcoType == CollectionType.user.value,
             UserCollectionLog.isdelete == false(),
