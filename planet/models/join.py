@@ -74,3 +74,10 @@ class HelpRecord(Base):
     HRphones = Column(Text, comment='求救的手机号，list')
 
 
+class CancelApply(Base):
+    """取消申请"""
+    __tablename__ = 'CancelApply'
+    CAPid = Column(String(64), primary_key=True)
+    ELid = Column(String(64), comment='活动报名id')
+    CAPstatus = Column(Integer, comment='申请状态')
+    CAPreason = Column(Text, comment='申请原因')
