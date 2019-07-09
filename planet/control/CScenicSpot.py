@@ -9,8 +9,10 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType
+from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
+    EnterLogStatus
 from planet.extensions.register_ext import db
+from planet.models import EnterLog, Play
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord
 from planet.control.BaseControl import BASEADMIN
@@ -110,7 +112,7 @@ class CScenicSpot(object):
     @admin_required
     def delete(self):
         """删除景区"""
-        sspid = parameter_required(('sspid', )).get('sspid')
+        sspid = parameter_required(('sspid',)).get('sspid')
         scenic_instance = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         with db.auto_commit():
             scenic_instance.update({'isdelete': True})
@@ -205,7 +207,7 @@ class CScenicSpot(object):
 
     def get(self):
         """景区详情"""
-        args = parameter_required(('sspid', ))
+        args = parameter_required(('sspid',))
         sspid = args.get('sspid')
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         scenicspot.hide('ParentID', 'ADid')
@@ -268,7 +270,7 @@ class CScenicSpot(object):
             parameter_required(('trtitle', 'trcontent', 'trlocation'), datafrom=data)
             tr_dict = self._create_travels(data)
         elif trtype == str(TravelRecordType.essay.value):  # 随笔
-            parameter_required(('text', ), datafrom=data)
+            parameter_required(('text',), datafrom=data)
             tr_dict = self._create_essay(data)
         else:
             raise ParamsError('type 参数错误')
@@ -488,3 +490,22 @@ class CScenicSpot(object):
         raiders.fill('followed', followed)
         is_own = True if common_user() and raiders.AuthorID == getattr(request, 'user').id else False
         raiders.fill('is_own', is_own)
+
+    def get_team(self):
+        data = parameter_required(('plid',))
+        tr_list = TravelRecord.query.join(
+            EnterLog, EnterLog.USid == TravelRecord.AuthorID).join(
+            Play, Play.PLid == EnterLog.PLid).filter(
+            Play.PLid == data.get('plid'),
+            Play.isdelete == false(),
+            EnterLog.isdelete == false(),
+            EnterLog.ELstatus == EnterLogStatus.success.value,
+            TravelRecord.createtime <= Play.PLendTime,
+            TravelRecord.createtime >= Play.PLstartTime,
+            TravelRecord.isdelete == false(),
+            TravelRecord.AuthorType == 20,
+            TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
+            TravelRecord.createtime.desc(),
+            TravelRecord.TRsort).all_with_page()
+        [self._fill_travelrecord(x) for x in tr_list]
+        return Success(data=tr_list)

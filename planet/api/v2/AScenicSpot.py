@@ -15,6 +15,7 @@ class AScenicSpot(Resource):
             'travelrecord_list': self.cscenicspot.travelrecord_list,    # 时光记录列表
             'get_travelrecord': self.cscenicspot.get_travelrecord,      # 时光记录详情
             'raiders_list': self.cscenicspot.get_raiders_list,          # 景区下推荐攻略列表
+            'get_team_travelrecord': self.cscenicspot.get_team,         # 团队广场下推荐攻略列表
         }
         return apis
 
