@@ -2,7 +2,7 @@
 import uuid
 
 from planet.common.error_response import ParamsError
-from planet.config.enums import CollectionType, UserGrade
+from planet.config.enums import CollectionType, UserGrade, CollectStatus
 from planet.extensions.register_ext import db
 from planet.common.params_validates import parameter_required
 from planet.models import UserCollectionLog, News, User, Admin, Supplizer, Products
@@ -56,10 +56,10 @@ class CCollection:
 
             for ucl in ucl_list:
                 # 监测自己关注的是否也关注了自己
-                # mutual_concern =
-                ucl.fill('mutual_concern', bool(UserCollectionLog.query.filter_by(
+                be_followed = UserCollectionLog.query.filter_by(
                     UCLcollector=ucl.UCLcollection, isdelete=False,
-                    UCLcollection=user.USid, UCLcoType=CollectionType.user.value).first()))
+                    UCLcollection=user.USid, UCLcoType=CollectionType.user.value).first()
+                ucl.fill('mutual_concern', bool(be_followed))
                 ucl.fill('usid', ucl.UCLcollection)
                 ucl.fill('fens_count', UserCollectionLog.query.filter_by(
                     UCLcollection=ucl.UCLcollection, isdelete=False, UCLcoType=CollectionType.user.value).count())
@@ -67,14 +67,23 @@ class CCollection:
                     continue
                 ucl_return_list.append(ucl)
 
+                followed = True
+                follow_status = (CollectStatus.none.value if not followed else
+                                 CollectStatus.aandb.value if be_followed else CollectStatus.atob.value)
+                ucl.fill('follow_status', follow_status)
+                ucl.fill('follow_status_en', CollectStatus(follow_status).name)
+                ucl.fill('follow_status_zh', CollectStatus(follow_status).zh_value)
+
         else:
             ucl_list = UserCollectionLog.query.filter_by(
-                    UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).order_by(UserCollectionLog.createtime.desc()).all_with_page()
+                UCLcollection=user.USid, isdelete=False, UCLcoType=CollectionType.user.value).order_by(
+                UserCollectionLog.createtime.desc()).all()
             for ucl in ucl_list:
                 # 监测自己是否关注自己的粉丝
-                ucl.fill('mutual_concern', bool(UserCollectionLog.query.filter_by(
+                followed = UserCollectionLog.query.filter_by(
                     UCLcollector=user.USid, isdelete=False,
-                    UCLcollection=ucl.UCLcollector, UCLcoType=CollectionType.user.value).first()))
+                    UCLcollection=ucl.UCLcollector, UCLcoType=CollectionType.user.value).first()
+                ucl.fill('mutual_concern', bool(followed))
 
                 ucl.fill('fens_count', UserCollectionLog.query.filter_by(
                     UCLcollection=ucl.UCLcollector, isdelete=False, UCLcoType=CollectionType.user.value).count())
@@ -82,6 +91,13 @@ class CCollection:
                 if not self._fill_user_info(ucl, ucl.UCLcollector):
                     continue
                 ucl_return_list.append(ucl)
+
+                be_followed = True
+                follow_status = (CollectStatus.none.value if not followed else
+                                 CollectStatus.aandb.value if be_followed else CollectStatus.atob.value)
+                ucl.fill('follow_status', follow_status)
+                ucl.fill('follow_status_en', CollectStatus(follow_status).name)
+                ucl.fill('follow_status_zh', CollectStatus(follow_status).zh_value)
 
         # 筛选之后重新分页
         page = int(data.get('page_num', 1)) or 1
