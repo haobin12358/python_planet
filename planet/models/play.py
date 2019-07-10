@@ -77,3 +77,17 @@ class Notice(Base):
     PLid = Column(String(64), comment='活动')
     NOcontent = Column(Text, comment='公告内容')
     # NOstatus = Column(Integer, default=0, comment='公告状态 0 展示 1 已修改')
+
+
+class MakeOver(Base):
+    MOid = Column(String(64), primary_key=True)
+    PLid = Column(String(64), comment='活动id')
+    MOassignor = Column(String(64), comment='转让人')
+    MOsuccessor = Column(String(64), comment='承接人')
+    MOstatus = Column(Integer, default=0, comment='转让状态 0:转让中 1:承接 2: 已支付, -1 拒绝 -2 取消 ')
+    MOprice = Column(DECIMAL(precision=28, scale=2), comment='转让费')
+
+class Agreement(Base):
+    AMid = Column(String(64), primary_key=True)
+    AMcontent = Column(Text, comment='协议内容')
+    AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议')

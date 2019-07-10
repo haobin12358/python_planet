@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus
 
 from planet.common.Inforsend import SendSMS
 
@@ -28,7 +28,7 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
-    HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet
+    HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply
 
 
 class CPlay():
@@ -810,6 +810,39 @@ class CPlay():
 
         return Success(data=notice.NOid)
 
+    def cancel(self):
+        data = parameter_required(('elid', 'capreason'))
+        elid = data.get('elid')
+
+        with db.auto_commit():
+            user = get_current_user()
+            el = EnterLog.query.filter(EnterLog.ELid == elid, EnterLog.isdelete == false()).first_('报名记录未生效')
+            if el.USid != user.USid:
+                raise StatusError('只能取消自己的报名记录')
+            cap = CancelApply.query.filter(
+                CancelApply.ELid == elid,
+                CancelApply.isdelete == false(),
+                CancelApply.CAPstatus >= ApplyStatus.wait_check.value).first()
+            if cap:
+                raise StatusError('已经提交申请，请等待领队同意')
+            capreason = str(data.get('capreason')).replace(' ', '').replace('\n', '').replace('\t', '')
+            if not capreason:
+                raise ParamsError('理由不能为空')
+            CancelApply.query.filter(CancelApply.ELid == elid, CancelApply.isdelete == false()).delete_(
+                synchronize_session=False)
+            cap = CancelApply.create({
+                'CAPid': str(uuid.uuid1()),
+                'ELid': elid,
+                'CAPstatus': ApplyStatus.wait_check.value,
+                'CAPreason': capreason
+            })
+            db.session.add(cap)
+        # todo 增加审批流
+        return Success(data=cap.CAPid)
+
+    @phone_required
+    def make_over(self):
+        data = parameter_required(('plid', 'moprice', 'mosuccessor'))
     """内部方法"""
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
