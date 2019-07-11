@@ -12,6 +12,7 @@ class APlay(Resource):
             'get_cost': self.cplay.get_cost,
             'get_all_play': self.cplay.get_all_play,
             'get_insurance': self.cplay.get_insurance,
+            'get_discount': self.cplay.get_discount,
             'get_play': self.cplay.get_play,
             'get_play_list': self.cplay.get_play_list,
             'get_playrequire': self.cplay.get_playrequire,
@@ -31,6 +32,7 @@ class APlay(Resource):
         apis = {
             'set_play': self.cplay.set_play,
             'set_cost': self.cplay.set_cost,
+            'set_discount': self.cplay.set_discount,
             'set_insurance': self.cplay.set_insurance,
             'join': self.cplay.join,
             'wechat_notify': self.cplay.wechat_notify,
@@ -38,6 +40,7 @@ class APlay(Resource):
             'signin': self.cplay.signin,
             'set_gather': self.cplay.set_gather,
             'create_notice': self.cplay.create_notice,
+            'cancel': self.cplay.cancel,
             'help': self.cplay.help
         }
         return apis

@@ -80,4 +80,3 @@ class CancelApply(Base):
     CAPid = Column(String(64), primary_key=True)
     ELid = Column(String(64), comment='活动报名id')
     CAPstatus = Column(Integer, comment='申请状态')
-    CAPreason = Column(Text, comment='申请原因')

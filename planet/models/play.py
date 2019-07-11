@@ -80,6 +80,8 @@ class Notice(Base):
 
 
 class MakeOver(Base):
+    """转让"""
+    __tablename__ = 'MakeOver'
     MOid = Column(String(64), primary_key=True)
     PLid = Column(String(64), comment='活动id')
     MOassignor = Column(String(64), comment='转让人')
@@ -87,7 +89,21 @@ class MakeOver(Base):
     MOstatus = Column(Integer, default=0, comment='转让状态 0:转让中 1:承接 2: 已支付, -1 拒绝 -2 取消 ')
     MOprice = Column(DECIMAL(precision=28, scale=2), comment='转让费')
 
+
 class Agreement(Base):
+    """协议"""
+    __tablename__ = 'Agreement'
     AMid = Column(String(64), primary_key=True)
     AMcontent = Column(Text, comment='协议内容')
-    AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议')
+    AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议 1: 退款规则')
+
+
+class PlayDiscount(Base):
+    """退团折扣"""
+    __tablename__ = 'PlayDiscount'
+    PDid = Column(String(64), primary_key=True)
+    PLid = Column(String(64), comment='活动id')
+    PDtime = Column(DateTime, comment='限制时间')
+    PDdeltaDay = Column(Integer, comment='时间差值')
+    PDdeltaHour = Column(Integer, comment='时间差值')
+    PDprice = Column(DECIMAL(precision=28, scale=2), comment='退款金额')
