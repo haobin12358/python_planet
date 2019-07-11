@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus
 
 from planet.common.Inforsend import SendSMS
 
@@ -28,7 +28,8 @@ from planet.extensions.register_ext import db, conn, mini_wx_pay
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
-    HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement
+    HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
+    SuccessorSearchLog
 
 
 class CPlay():
@@ -147,7 +148,7 @@ class CPlay():
 
     @phone_required
     def get_play_history(self):
-        data=parameter_required()
+        data = parameter_required()
         now = datetime.now()
         month = data.get('month') or now.month
         year = data.get('year') or now.year
@@ -404,6 +405,26 @@ class CPlay():
         sis.fill('signinlist', signinlist)
         sis.fill('nosigninlist', nosigninlist)
         return Success(data=sis)
+
+    @phone_required
+    def get_mosuccessor(self):
+        data = parameter_required(('usrealname', 'ustelphone', 'usidentification'))
+        user = get_current_user()
+        mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone')).first()
+
+        with db.auto_commit():
+            ssl = SuccessorSearchLog.create({
+                'SSLid': str(uuid.uuid1()),
+                'MOassignor': user.USid,
+                'MOsuccessor': mosuccessor.USid if mosuccessor else None,
+                'USrealname': data.get('usrealname'),
+                'UStelphone': data.get('ustelphone'),
+                'USidentification': data.get('usidentification'),
+            })
+            db.session.add(ssl)
+        if not mosuccessor:
+            raise ParamsError('查无此人')
+        return Success(data=mosuccessor.USid)
 
     """post 接口"""
 
@@ -960,7 +981,8 @@ class CPlay():
                 return Success()
             # 退款
             now = datetime.now()
-            discounts = PlayDiscount.query.filter_by(PLid=plid, isdelete=False).order_by(PlayDiscount.PDtime.asc()).all()
+            discounts = PlayDiscount.query.filter_by(PLid=plid, isdelete=False).order_by(
+                PlayDiscount.PDtime.asc()).all()
             discount = Decimal('0')
             for pd in discounts:
                 if now < pd.PDtime:
@@ -999,12 +1021,31 @@ class CPlay():
     @phone_required
     def make_over(self):
         data = parameter_required(('plid', 'moprice', 'mosuccessor'))
-        mosuccessor = User.query.filter_by(USid=data.get('mosuccessor')).first()
+        # 转让人是后台返回的理论上不会出现空值
+        mosuccessor = User.query.filter_by(USid=data.get('mosuccessor')).first_('转让人不存在')
+        # 活动校验
+        play = Play.query.filter_by(PLid=data.get('plid'), isdelete=False).first_('活动不存在')
+        if play.PLstatus >= PlayStatus.activity.value:
+            raise StatusError('活动已开始')
+        user = get_current_user()
+        # 价格校验
+        moprice = Decimal(str(data.get('moprice')))
+        if moprice < Decimal('0'):
+            moprice = Decimal('0')
 
-        return Success()
+        with db.auto_commit():
+            makeover = MakeOver.create({
+                "MOid": str(uuid.uuid1()),
+                'PLid': play.PLid,
+                'MOassignor': user.USid,
+                'MOsuccessor': mosuccessor.USid,
+                'MOstatus': MakeOverStatus.wait_confirm.value,
+                'MOprice': moprice
+            })
+            db.session.add(makeover)
+        return Success(data=makeover.MOid)
 
     """内部方法"""
-
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
         """填充活动用户信息"""

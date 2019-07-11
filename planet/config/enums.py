@@ -770,6 +770,15 @@ class MiniProgramBannerPosition(Enum):
     travel = 1, '出游页'
 
 
+class MakeOverStatus(Enum):
+    """小程序活动转让状态"""
+    wait_confirm = 0, '待确认'
+    wait_pay = 1, '待支付'
+    success = 2, '成功'
+    refuse = -1, '拒绝'
+    cancle = -2, '取消'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import

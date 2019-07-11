@@ -107,3 +107,14 @@ class PlayDiscount(Base):
     PDdeltaDay = Column(Integer, comment='时间差值')
     PDdeltaHour = Column(Integer, comment='时间差值')
     PDprice = Column(DECIMAL(precision=28, scale=2), comment='退款金额')
+
+
+class SuccessorSearchLog(Base):
+    """转让人查询记录"""
+    __tablename__ = 'SuccessorSearchLog'
+    SSLid = Column(String(64), primary_key=True)
+    MOassignor = Column(String(64), comment='查询人')
+    MOsuccessor = Column(String(64), comment='承接人')
+    USrealname = Column(String(255), comment='承接人真实姓名')
+    UStelphone = Column(String(13), comment='手机号')
+    USidentification = Column(String(24), comment='身份证号')
