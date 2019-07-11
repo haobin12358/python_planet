@@ -731,6 +731,7 @@ class PlayStatus(Enum):
     publish = 1, '组队中'
     activity = 2, '活动中'
     close = 3, '已关闭'
+    makeover = 4, '转让中'
 
 
 class EnterCostType(Enum):

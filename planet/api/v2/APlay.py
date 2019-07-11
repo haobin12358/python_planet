@@ -15,6 +15,7 @@ class APlay(Resource):
             'get_discount': self.cplay.get_discount,
             'get_play': self.cplay.get_play,
             'get_play_list': self.cplay.get_play_list,
+            'get_play_history': self.cplay.get_play_history,
             'get_playrequire': self.cplay.get_playrequire,
             'get_enterlog': self.cplay.get_enterlog,
             'get_gather': self.cplay.get_gather,

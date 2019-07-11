@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import current_app, request
-from sqlalchemy import Date, or_, and_, false
+from sqlalchemy import Date, or_, and_, false, extract
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, ApiError
@@ -144,6 +144,39 @@ class CPlay():
             self._fill_insurances(play, show=False)
             self._fill_discount(play)
         return Success(data=plays_list)
+
+    @phone_required
+    def get_play_history(self):
+        data=parameter_required()
+        now = datetime.now()
+        month = data.get('month') or now.month
+        year = data.get('year') or now.year
+        playstatus = int(data.get('publish', 0))
+
+        user = get_current_user()
+        filter_args = {
+            or_(
+                and_(
+                    Play.PLid == EnterLog.PLid,
+                    EnterLog.USid == user.USid,
+                    EnterLog.isdelete == false()),
+                Play.PLcreate == user.USid),
+            Play.isdelete == false(),
+            extract('month', Play.PLstartTime) == month,
+            extract('year', Play.PLstartTime) == year,
+        }
+        if playstatus:
+            filter_args.add(Play.PLstatus == PlayStatus.publish.value)
+        else:
+            filter_args.add(Play.PLstatus != PlayStatus.publish.value)
+        play_list = Play.query.filter(*filter_args).order_by(Play.PLstartTime.desc()).all_with_page()
+        for play in play_list:
+            self._fill_play(play)
+            self._fill_costs(play, show=False)
+            self._fill_insurances(play, show=False)
+            self._fill_discount(play)
+
+        return Success(data=play_list)
 
     def get_all_play(self):
         data = parameter_required()
@@ -572,13 +605,13 @@ class CPlay():
                         pdid_list.append(pdid)
                         continue
                 pdid = str(uuid.uuid1())
-                if not pd.get('pddeltaday') and not pd.get('pddeltadhour'):
+                if not pd.get('pddeltaday') and not pd.get('pddeltahour'):
                     raise ParamsError('时间差值不能为空')
 
                 pd_instance = PlayDiscount.create({
                     "PDid": pdid,
                     "PDdeltaDay": pd.get('pddeltaday'),
-                    "PDdeltaHour": pd.get('pddeltadhour'),
+                    "PDdeltaHour": pd.get('pddeltahour'),
                     "PDprice": pdprice,
                 })
                 instance_list.append(pd_instance)
@@ -966,8 +999,12 @@ class CPlay():
     @phone_required
     def make_over(self):
         data = parameter_required(('plid', 'moprice', 'mosuccessor'))
+        mosuccessor = User.query.filter_by(USid=data.get('mosuccessor')).first()
+
+        return Success()
 
     """内部方法"""
+
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
         """填充活动用户信息"""
@@ -1044,7 +1081,7 @@ class CPlay():
             play_time = play.PLstartTime
             if isinstance(play_time, str):
                 play_time = self._trans_time(play_time)
-            pdtimedelta = timedelta(days=pdinstance.PDdeltaDay, hours=pdinstance.PDdeltaHour)
+            pdtimedelta = timedelta(days=(pdinstance.PDdeltaDay or 0), hours=(pdinstance.PDdeltaHour or 0))
             pdinstance.update({"PLid": plid, 'PDtime': play_time - pdtimedelta})
             playdiscount.append(pdid)
             instance_list.append(pdinstance)
@@ -1165,6 +1202,12 @@ class CPlay():
             play.fill('joinstatus', bool(
                 (play.PLcreate != user.USid) and (not el) and (int(enter_num) < int(play.PLnum)) and (
                         play.PLstatus == PlayStatus.publish.value)))
+            isrefund = False
+            if el:
+                cap = CancelApply.query.filter_by(ELid=el.ELid).first()
+                if cap:
+                    isrefund = True
+            play.fill('isrefund', isrefund)
         else:
             play.fill('joinstatus',
                       bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
