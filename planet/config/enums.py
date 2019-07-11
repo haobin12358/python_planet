@@ -764,6 +764,12 @@ class CollectStatus(Enum):
     none = 2, '未关注'
 
 
+class MiniProgramBannerPosition(Enum):
+    """小程序轮播图位置"""
+    index = 0, '首页'
+    travel = 1, '出游页'
+
+
 if __name__ == '__main__':
     print(UserSearchHistoryType.news.value)
     # import
