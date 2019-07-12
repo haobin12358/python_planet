@@ -15,7 +15,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType
 
 from planet.common.Inforsend import SendSMS
 
@@ -29,7 +29,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog
+    SuccessorSearchLog, PlayPay
 
 
 class CPlay():
@@ -95,6 +95,7 @@ class CPlay():
         role = "{} {}".format(role_words, ';'.join(pd_role_list))
         return Success(data={'discounts': discounts, 'role': role})
 
+    @phone_required
     def get_play(self):
         data = parameter_required(('plid',))
         plid = data.get('plid')
@@ -103,9 +104,9 @@ class CPlay():
         self._fill_costs(play)
         self._fill_insurances(play)
         self._fill_discount(play)
-
         return Success(data=play)
 
+    @phone_required
     def get_play_list(self):
         data = parameter_required()
         user = get_current_user()
@@ -133,14 +134,19 @@ class CPlay():
                 raise ParamsError
         if join_or_create:
             filter_args.add(EnterLog.USid == user.USid)
-            filter_args.add(EnterLog.isdelete == False)
-            plays_list = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(*filter_args).order_by(
+            filter_args.add(EnterLog.ELid == Play.PLid)
+            filter_args.add(EnterLog.isdelete == false())
+            plays_list = Play.query.filter(*filter_args).order_by(
                 Play.createtime.desc()).all_with_page()
         else:
-            plays_list = Play.query.filter(Play.PLcreate == user.USid, *filter_args).order_by(
+            filter_args.add(MakeOver.PLid == Play.PLid)
+            filter_args.add(or_(
+                Play.PLcreate == user.USid, user.USid == MakeOver.MOsuccessor))
+            filter_args.add(MakeOver.isdelete == false())
+            plays_list = Play.query.filter(*filter_args).order_by(
                 Play.createtime.desc()).all_with_page()
         for play in plays_list:
-            self._fill_play(play)
+            self._fill_play(play, user)
             self._fill_costs(play, show=False)
             self._fill_insurances(play, show=False)
             self._fill_discount(play)
@@ -172,7 +178,7 @@ class CPlay():
             filter_args.add(Play.PLstatus != PlayStatus.publish.value)
         play_list = Play.query.filter(*filter_args).order_by(Play.PLstartTime.desc()).all_with_page()
         for play in play_list:
-            self._fill_play(play)
+            self._fill_play(play, user)
             self._fill_costs(play, show=False)
             self._fill_insurances(play, show=False)
             self._fill_discount(play)
@@ -268,7 +274,7 @@ class CPlay():
         play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first_('活动已删除')
         ec_list = EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()
 
-        self._fill_play(play)
+        self._fill_play(play, user)
         play.fill('elid', el.ELid)
         play.fill('ELvalue', json.loads(el.ELvalue))
         play.fill('elstatus', el.ELstatus)
@@ -341,14 +347,13 @@ class CPlay():
     @phone_required
     def get_current_play(self):
         user = get_current_user()
-        # now = datetime.now()
-        # selfplay = Play.query.filter(Play.PLcreate == user.USid, Play.PLstatus == PlayStatus.activity.value).first()
+
         play = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
             Play.PLstatus == PlayStatus.activity.value,
             or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
         if not play:
             raise StatusError('当前无开启活动')
-        self._fill_play(play)
+        self._fill_play(play, user)
         return Success(data=play)
 
     @phone_required
@@ -408,7 +413,7 @@ class CPlay():
 
     @phone_required
     def get_mosuccessor(self):
-        data = parameter_required(('usrealname', 'ustelphone', 'usidentification'))
+        data = parameter_required(('usrealname', 'ustelphone', 'usidentification',))
         user = get_current_user()
         mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone')).first()
 
@@ -437,34 +442,24 @@ class CPlay():
         current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
 
         with db.auto_commit():
-            # 修改当前用户参加状态
-            el = EnterLog.query.filter(EnterLog.ELpayNo == out_trade_no, EnterLog.isdelete == false()).first()
-            if not el:
-                current_app.logger.info('当前报名单不存在 {} '.format(out_trade_no))
-                return self.wx_pay.reply("OK", True).decode()
-            el.ELstatus = EnterLogStatus.success.value
-            db.session.add(el)
-            # 金额进入导游账号
+            pp = PlayPay.query.filter_by(PPpayno=out_trade_no, isdelete=False).first()
 
-            mount_price = sum(
-                [ec.ECcost for ec in
-                 EnterCost.query.filter(EnterCost.ELid == el.ELid, EnterCost.isdelete == false()).all()])
-            play = Play.query.filter_by(PLid=el.PLid, isdelete=False).first()
-            if not play:
-                current_app.logger.info('活动 {} 已删除， {} 正在报名'.format(el.PLid, el.USid))
-                # 活动已删除，钱进入用户账户
-                user = User.query.filter_by(USid=el.USid, isdelete=False)
-                if user:
-                    # 付款用户不存在，钱进入平台
-                    self._incount(user, mount_price)
+            if not pp:
+                # 支付流水不存在 钱放在平台
                 return self.wx_pay.reply("OK", True).decode()
-
-            guide = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
-            if not guide:
-                # 导游不存在，钱进入平台账户
-                current_app.logger.info('导游 {} 已删除, {} 正在报名'.format(play.PLcreate, el.USid))
+            pp.update({
+                'PPpaytime': data.get('time_end'),
+                'PPpaysn': data.get('transaction_id'),
+                'PPpayJson': json.dumps(data)
+            })
+            db.session.add(pp)
+            if pp.PPpayType == PlayPayType.enterlog.value:
+                self._enter_log(pp)
+            elif pp.PPpayType == PlayPayType.undertake.value:
+                self._undertake(pp)
+            else:
+                current_app.logger.info('获取到异常数据 {}'.format(pp.__dict__))
                 return self.wx_pay.reply("OK", True).decode()
-            self._incount(guide, mount_price)
         return self.wx_pay.reply("OK", True).decode()
 
     @phone_required
@@ -779,7 +774,7 @@ class CPlay():
         data = parameter_required(('plid',))
         plid = data.get('plid')
         elid = data.get('elid')
-        opayno = self.wx_pay.nonce_str
+        opayno = self._opayno()
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         user = get_current_user()
 
@@ -853,7 +848,9 @@ class CPlay():
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
 
-        pay_args = self._pay_detail(body, float(mount_price), opayno, openid)
+        pay_args = self._add_pay_detail(opayno=opayno,
+                                        body=body, PPpayMount=mount_price, openid=openid, PPcontent=el.ELid,
+                                        PPpayType=PlayPayType.enterlog.value)
 
         response = {
             'pay_type': PayType.wechat_pay.name,
@@ -995,7 +992,7 @@ class CPlay():
             return_price = Decimal(str(mount_price)) - discount
             # todo  退款到微信账户
 
-            el.ELstatus = EnterLogStatus.cancel.value
+            el.ELstatus = EnterLogStatus.refund.value
             # 扣除领队钱
             leader = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
             uw = UserWallet.query.filter_by(USid=leader.USid, isdelete=False).first()
@@ -1020,20 +1017,35 @@ class CPlay():
 
     @phone_required
     def make_over(self):
-        data = parameter_required(('plid', 'moprice', 'mosuccessor'))
-        # 转让人是后台返回的理论上不会出现空值
-        mosuccessor = User.query.filter_by(USid=data.get('mosuccessor')).first_('转让人不存在')
-        # 活动校验
-        play = Play.query.filter_by(PLid=data.get('plid'), isdelete=False).first_('活动不存在')
-        if play.PLstatus >= PlayStatus.activity.value:
-            raise StatusError('活动已开始')
-        user = get_current_user()
-        # 价格校验
-        moprice = Decimal(str(data.get('moprice')))
-        if moprice < Decimal('0'):
-            moprice = Decimal('0')
-
+        data = parameter_required(('plid', 'moprice', 'usrealname', 'ustelphone', 'usidentification'))
         with db.auto_commit():
+            user = get_current_user()
+            mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone'), isdelete=False).first()
+
+            ssl = SuccessorSearchLog.create({
+                'SSLid': str(uuid.uuid1()),
+                'MOassignor': user.USid,
+                'MOsuccessor': mosuccessor.USid if mosuccessor else None,
+                'USrealname': data.get('usrealname'),
+                'UStelphone': data.get('ustelphone'),
+                'USidentification': data.get('usidentification'),
+            })
+
+            db.session.add(ssl)
+            if not mosuccessor:
+                raise ParamsError('查无此人')
+
+            # 活动校验
+            play = Play.query.filter_by(PLid=data.get('plid'), isdelete=False).first_('活动不存在')
+            if play.PLstatus >= PlayStatus.activity.value:
+                raise StatusError('活动已开始')
+            user = get_current_user()
+            # 价格校验
+            moprice = Decimal(str(data.get('moprice')))
+            if moprice < Decimal('0'):
+                moprice = Decimal('0')
+
+            # 添加记录
             makeover = MakeOver.create({
                 "MOid": str(uuid.uuid1()),
                 'PLid': play.PLid,
@@ -1043,7 +1055,91 @@ class CPlay():
                 'MOprice': moprice
             })
             db.session.add(makeover)
+            # 修改状态
+            play.PLstatus = PlayStatus.makeover.value
+            db.session.add(play)
+
         return Success(data=makeover.MOid)
+
+    @phone_required
+    def undertake(self):
+        data = parameter_required(('plid', 'mostatus'))
+        with db.auto_commit():
+            plid = data.get('plid')
+            play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+            user = get_current_user()
+            makeover = MakeOver.query.filter_by(PLid=plid, isdelete=False).first_('转让记录已失效')
+            if play.PLstatus < PlayStatus.makeover.value:
+                makeover.isdelete = True
+                return StatusError('转让已取消')
+
+            if makeover.MOsuccessor != user.USid:
+                raise AuthorityError('无权限')
+            # if makeover.MOstatus ==
+            mostatus = int(data.get('mostatus'))
+            if mostatus:
+                makeover.MOstatus = MakeOverStatus.wait_pay.value
+            else:
+                # todo 拒绝之后无操作
+                makeover.MOstatus = MakeOverStatus.refuse.value
+            play.PLstatus = PlayStatus.wait_pay.value
+            db.session.add(makeover)
+        return Success(data=makeover.MOid)
+
+    @phone_required
+    def payment(self):
+        data = parameter_required()
+        plid = data.get('plid')
+        moid = data.get('moid')
+        opayno = self._opayno()
+        with db.auto_commit():
+            user = get_current_user()
+            if moid:
+                makeover = MakeOver.query.filter_by(MOid=moid, isdelete=False).first_('转让记录已失效')
+                play = Play.query.filter_by(PLid=makeover.PLid, isdelete=False).first_('活动已删除')
+
+            elif plid:
+                play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+
+                makeover = MakeOver.query.filter(
+                    MakeOver.PLid == plid,
+                    MakeOver.isdelete == false()).first_('转让单已失效')
+            else:
+                raise ParamsError('活动或转让单参数缺失')
+            # 转让单状态
+            if makeover.MOstatus != MakeOverStatus.wait_pay.value:
+                if makeover.MOstatus == MakeOverStatus.wait_confirm.value:
+                    current_app.logger.info('用户 {} 直接 支付 {} 转让单'.format(user.USname, makeover.MOid))
+                else:
+                    raise StatusError('当前转让单已{}，请勿支付'.format(MakeOverStatus(makeover.MOstatus).zh_value))
+            if makeover.MOsuccessor != user.USid:
+                raise AuthorityError('当前活动不能承接支付')
+            # 活动单状态
+            if play.PLstatus < PlayStatus.makeover.value:
+                makeover.isdelete = False
+                db.session.add(makeover)
+                return StatusError('活动转让已取消')
+            makeover.MOpayNo = opayno
+
+            db.session.add(makeover)
+        # 支付
+        openid = user.USopenid1
+        pay_args = self._add_pay_detail(**{
+            'body': '转让{}...'.format(play.PLname[:10]),
+            'PPpayMount': makeover.MOprice,
+            'openid': openid,
+            'opayno': opayno,
+            'PPpayType': PlayPayType.undertake.value,
+            'PPcontent': makeover.MOid})
+
+        response = {
+            'pay_type': PayType.wechat_pay.name,
+            'opaytype': PayType.wechat_pay.value,
+            'moid': moid,
+            'args': pay_args
+        }
+        return Success(data=response)
+
 
     """内部方法"""
 
@@ -1218,8 +1314,7 @@ class CPlay():
                 update_dict.setdefault(key, data_model.get(lower_key))
         return update_dict
 
-    def _fill_play(self, play):
-        # play.hide('PLcreate')
+    def _fill_play(self, play, user=None):
         play.fill('PLlocation', str(play.PLlocation).split(self.split_item))
         play.fill('PLproducts', str(play.PLproducts).split(self.split_item))
         play.fill('PLcontent', json.loads(play.PLcontent))
@@ -1236,7 +1331,8 @@ class CPlay():
         play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
 
         if common_user():
-            user = get_current_user()
+            user = user or get_current_user()
+            play.fill('playtype', bool(play.PLcreate != user.USid))
             el = EnterLog.query.filter(EnterLog.USid == user.USid, EnterLog.PLid == play.PLid,
                                        EnterLog.isdelete == false()).first()
 
@@ -1253,9 +1349,12 @@ class CPlay():
             play.fill('joinstatus',
                       bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
-        user = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
-        name = user.USname if user else '旗行平台'
+        leader = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+
+        name = leader.USname if leader else '旗行平台'
         play.fill('PLcreate', name)
+
+        self._fill_make_over(play)
 
     def _fill_costs(self, play, show=True):
         costs_list = Cost.query.filter_by(PLid=play.PLid, isdelete=False).order_by(Cost.createtime.asc()).all()
@@ -1390,6 +1489,18 @@ class CPlay():
         location.fill('longitude', location.ULlng)
         location.fill('isleader', isleader)
 
+    def _add_pay_detail(self, **kwargs):
+        pp = PlayPay.create({
+            'PPid': str(uuid.uuid1()),
+            'PPpayno': kwargs.get('opayno'),
+            'PPpayType': kwargs.get('PPpayType'),
+            'PPcontent': kwargs.get('PPcontent'),
+            'PPpayMount': kwargs.get('PPpayMount'),
+        })
+        db.session.add(pp)
+        return self._pay_detail(kwargs.get('body'), float(kwargs.get('PPpayMount')),
+                                kwargs.get('opayno'), kwargs.get('openid'))
+
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
         current_app.logger.info('get mount price {}'.format(mount_price))
@@ -1516,10 +1627,89 @@ class CPlay():
         mount = int(mount * 100)
         old_total_fee = int(Decimal(str(old_total_fee)) * 100)
         current_app.logger.info('the total fee to refund cent is {}'.format(mount))
-        result = mini_wx_pay.refund(
+        result = self.wx_pay.refund(
             out_trade_no=out_trade_no,
             out_refund_no=out_request_no,
             total_fee=old_total_fee,  # 原支付的金额
             refund_fee=mount  # 退款的金额
         )
         return result
+
+    def _fill_make_over(self, play):
+        makeover = MakeOver.query.filter_by(PLid=play.PLid, isdelete=False).first()
+        makeover_status = False
+        if common_user():
+            user = get_current_user()
+            if makeover and makeover.MOsuccessor == user.USid:
+                makeover_status = True
+                # play.fill()
+        play.fill('makeover', makeover_status)
+
+    def _opayno(self):
+        opayno = self.wx_pay.nonce_str
+        pp = PlayPay.query.filter_by(PPpayno=opayno, isdelete=False)
+        if pp:
+            return self._opayno()
+        return opayno
+
+    def _enter_log(self, pp):
+        # 修改当前用户参加状态
+        el = EnterLog.query.filter(EnterLog.ELpayNo == pp.PPpayno, EnterLog.isdelete == false()).first()
+        if not el:
+            current_app.logger.info('当前报名单不存在 {} '.format(pp.PPpayno))
+            return
+        el.ELstatus = EnterLogStatus.success.value
+        db.session.add(el)
+        # 金额进入导游账号
+
+        mount_price = Decimal(str(pp.PPpayMount))
+        play = Play.query.filter_by(PLid=el.PLid, isdelete=False).first()
+        if not play:
+            current_app.logger.info('活动 {} 已删除， {} 正在报名'.format(el.PLid, el.USid))
+            # 活动已删除，钱进入用户账户
+            user = User.query.filter_by(USid=el.USid, isdelete=False).first()
+            if user:
+                # 付款用户不存在，钱进入平台
+                self._incount(user, mount_price)
+            return
+
+        guide = User.query.filter_by(USid=play.PLcreate, isdelete=False).first()
+        if not guide:
+            # 导游不存在，钱进入平台账户
+            current_app.logger.info('导游 {} 已删除, {} 正在报名'.format(play.PLcreate, el.USid))
+            return
+
+        self._incount(guide, mount_price)
+
+    def _undertake(self, pp):
+        mount_price = Decimal(str(pp.PPpayMount))
+        out_trade_no = pp.PPpayno
+        makeover = MakeOver.query.filter(MakeOver.MOpayNo == out_trade_no, MakeOver.isdelete == false()).first()
+        if not makeover:
+            current_app.logger.info('当前转让单不存在 {}'.format(out_trade_no))
+            return
+        makeover.MOstatus = MakeOverStatus.success.value
+        play = Play.query.filter_by(PLid=makeover.PLid, isdelete=False).first()
+        if not play:
+            # 活动已删除，钱进入用户账户
+            current_app.logger.info('活动已删除')
+            user = User.query.filter_by(USid=makeover.MOsuccessor, isdelete=False).first()
+            if user:
+                # 付款用户不存在，钱进入平台
+                self._incount(user, mount_price)
+            return
+        play.PLcreate = makeover.MOsuccessor
+        play.PLstatus = PlayStatus.publish.value
+        # 删除转让单
+        makeover.isdelete = True
+
+        db.session.add(play)
+        db.session.add(makeover)
+
+        # 钱进入原领队账户
+        guide = User.query.filter_by(USid=makeover.MOassignor, isdelete=False).first()
+        if not guide:
+            # 导游不存在，钱进入平台账户
+            current_app.logger.info('导游 {} 已删除, {} 正在承接活动'.format(play.PLcreate, makeover.MOsuccessor))
+            return
+        self._incount(guide, mount_price)
