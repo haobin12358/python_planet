@@ -31,7 +31,8 @@ class CFile(object):
         data = parameter_required()
         if not data:
             data = request.form
-
+            current_app.logger.info('form : {}'.format(data))
+        current_app.logger.info('type is {}'.format(data.get('type')))
         folder = self.allowed_folder(data.get('type'))
         if not file:
             raise ParamsError(u'上传有误')
@@ -175,14 +176,23 @@ class CFile(object):
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar',
                                     'voucher', 'idcard', 'brand', 'activity', 'contract', 'play',
-                                    'scenicspot'] else 'temp'
+                                    'scenicspot', 'raiders', 'travels', 'essay'] else 'temp'
 
     def new_name(self, shuffix):
-        import string, random  # import random
+        import string
+        import random
         myStr = string.ascii_letters + '12345678'
         try:
-            usid = request.user.id
-        except AttributeError as e:
+            if hasattr(request, 'user'):
+                usid = request.user.id
+            else:
+                from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+                s = Serializer(current_app.config['SECRET_KEY'])
+                token = request.form.get('token')
+                user = s.loads(token)
+                usid = user.get('id')
+        except Exception as e:
+            current_app.logger.error('Error is {}'.format(e))
             usid = 'anonymous'
         res = ''.join(random.choice(myStr) for _ in range(20)) + usid + shuffix
         return res
