@@ -1079,11 +1079,14 @@ class CPlay():
             mostatus = int(data.get('mostatus'))
             if mostatus:
                 makeover.MOstatus = MakeOverStatus.wait_pay.value
+                play.PLstatus = PlayStatus.wait_pay.value
             else:
                 # todo 拒绝之后无操作
                 makeover.MOstatus = MakeOverStatus.refuse.value
-            play.PLstatus = PlayStatus.wait_pay.value
+                play.PLstatus = PlayStatus.publish.value
+
             db.session.add(makeover)
+            db.session.add(play)
         return Success(data=makeover.MOid)
 
     @phone_required
