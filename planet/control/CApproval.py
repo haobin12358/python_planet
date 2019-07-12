@@ -13,7 +13,7 @@ from planet.common.base_service import get_session
 from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
     UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
-    SupplizerSettementStatus, CashFor,  AdminActionS
+    SupplizerSettementStatus, CashFor, AdminActionS, WXLoginFrom
 
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -973,16 +973,21 @@ class CApproval(BASEAPPROVAL):
 
     def agree_cash(self, approval_model):
         from planet.control.CPay import CPay
+        from planet.control.CPlay import CPlay
         if not approval_model:
             return
         cpay = CPay()
+        cplay = CPlay()
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         uw = UserWallet.query.filter_by_(USid=approval_model.AVstartid).first()
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
         flow_dict = dict(CFWid=str(uuid.uuid1()), CNid=cn.CNid)
         if cn.CommisionFor == ApplyFrom.user.value:
-            res = cpay._pay_to_user(cn)  # 提现并记录流水
+            if cn.ApplyPlatform == WXLoginFrom.miniprogram.value:
+                res = cplay._pay_to_user(cn)  # 小程序提现
+            else:
+                res = cpay._pay_to_user(cn)  # 提现并记录流水(H5端)
             flow_dict['amout'] = int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100)
             flow_dict['CFWfrom'] = CashFor.wechat.value
         else:

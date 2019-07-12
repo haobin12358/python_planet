@@ -4,13 +4,13 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, cast, Date
+from sqlalchemy import or_, false, extract
 from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
-    EnterLogStatus
+    EnterLogStatus, ApplyFrom
 from planet.extensions.register_ext import db
 from planet.models import EnterLog, Play
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
@@ -358,7 +358,9 @@ class CScenicSpot(object):
         if date:
             if not re.match(r'^\d{4}-\d{2}$', date):
                 raise ParamsError('查询日期格式错误')
-            trecords_query = trecords_query.filter(cast(TravelRecord.createtime, Date) == date)
+            year, month = str(date).split('-')
+            trecords_query = trecords_query.filter(extract('month', TravelRecord.createtime) == month,
+                                                   extract('year', TravelRecord.createtime) == year)
         if trtype or str(trtype) == '0':
             if not re.match(r'^[012]$', str(trtype)):
                 raise ParamsError('trtype 参数错误')
@@ -505,7 +507,7 @@ class CScenicSpot(object):
             TravelRecord.createtime <= Play.PLendTime,
             TravelRecord.createtime >= Play.PLstartTime,
             TravelRecord.isdelete == false(),
-            TravelRecord.AuthorType == 20,
+            TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
             TravelRecord.createtime.desc(),
             TravelRecord.TRsort).all_with_page()

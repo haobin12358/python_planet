@@ -266,6 +266,7 @@ class CashNotes(Base):
     CNcardName = Column(String(32), comment='开户人')
     CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
     CNrejectReason = Column(Text, comment='拒绝理由')
+    ApplyPlatform = Column(Integer, comment='申请来源平台 {1：服务号 2：小程序 3：移动端}')
 
 
 class CashFlow(Base):

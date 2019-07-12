@@ -1638,6 +1638,29 @@ class CPlay():
         )
         return result
 
+    def _pay_to_user(self, cn):
+        """
+        付款到用户微信零钱
+        cn 提现申请记录
+        :return:
+        """
+        user = User.query.filter(User.isdelete == false(),
+                                 User.USid == cn.USid,
+                                 User.USopenid1.isnot(None)).first_("提现用户状态异常，请检查后重试")
+        try:
+            result = self.wx_pay.pay_individual(
+                partner_trade_no=self.wx_pay.nonce_str,
+                openid=user.USopenid1,
+                amount=int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100),
+                desc="旗行零钱转出",
+                spbill_create_ip=self.wx_pay.remote_addr
+            )
+            current_app.logger.info('小程序提现到零钱, response: {}'.format(request))
+        except Exception as e:
+            current_app.logger.error('小程序提现返回错误：{}'.format(e))
+            raise StatusError('微信商户平台: {}'.format(e))
+        return result
+
     def _fill_make_over(self, play):
         makeover = MakeOver.query.filter_by(PLid=play.PLid, isdelete=False).first()
         makeover_status = False

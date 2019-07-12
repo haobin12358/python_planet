@@ -9,6 +9,7 @@ from werkzeug.exceptions import HTTPException
 from flask.json import JSONEncoder as _JSONEncoder
 from flask_cors import CORS
 
+from planet.api.v2.AMiniProgramPersonalCenter import AMiniProgramPersonalCenter
 from planet.api.v2.AScenicSpot import AScenicSpot
 from planet.api.v2.APlay import APlay
 from planet.api.v2.AGuessGroup import AGuessGroup
@@ -193,6 +194,8 @@ def register(app):
     v2.add_url_rule('/scenicspot/<string:scenicspot>', view_func=AScenicSpot.as_view('scenicspot'))  # 景区
     v2.add_url_rule('/guessgroup/<string:guessgroup>', view_func=AGuessGroup.as_view('guessgroup'))  # 拼团竞猜
     v2.add_url_rule('/play/<string:play>', view_func=APlay.as_view('play'))  # 活动
+    v2.add_url_rule('/personalcenter/<string:personalcenter>',
+                    view_func=AMiniProgramPersonalCenter.as_view('personalcenter'))  # 小程序个人中心
 
     # v2.add_url_rule('/paytest', view_func=APayTest.as_view('pay'))
     # v2.add_url_rule.....
