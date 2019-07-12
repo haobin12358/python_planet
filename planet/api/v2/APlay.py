@@ -27,6 +27,9 @@ class APlay(Resource):
             'get_member_location': self.cplay.get_member_location,
             'get_current_play': self.cplay.get_current_play,
             'get_mosuccessor': self.cplay.get_mosuccessor,
+            'get_make_over': self.cplay.get_make_over,
+            'get_make_over_list': self.cplay.get_make_over_list,
+            'get_undertake_agreement': self.cplay.get_undertake_agreement,
         }
         return apis
 

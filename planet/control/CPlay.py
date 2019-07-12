@@ -431,6 +431,62 @@ class CPlay():
             raise ParamsError('查无此人')
         return Success(data=mosuccessor.USid)
 
+    @phone_required
+    def get_undertake_agreement(self):
+        data = parameter_required(('plid',))
+        play = Play.query.filter_by(PLid=data.get('plid'), isdelete=False).first_('活动已删除')
+        makeover = MakeOver.query.filter_by(PLid=play.PLid, MOstatus=MakeOverStatus.success.value).first_('活动单未完成')
+        assignor = User.query.filter_by(USid=makeover.MOassignor, isdelete=False).first_('转让人不存在')
+        successor = User.query.filter_by(USid=makeover.MOsuccessor, isdelete=False).first_('承接人不存在')
+
+        agreement = Agreement.query.filter_by(AMtype=0, isdelete=False).order_by(Agreement.updatetime.desc()).first()
+        content = agreement.AMcontent
+        current_app.logger.info('get content before add = {}'.format(content))
+        re_c = content.format(assignor.USname, play.PLname, play.PLstartTime, play.PLendTime, successor.USname,
+                                      successor.UStelphone, makeover.MOprice, successor.USname, successor.USname, makeover.updatetime)
+        current_app.logger.info('get content = {}'.format(re_c))
+        return Success(data=re_c)
+
+    @phone_required
+    def get_make_over(self):
+        data = parameter_required(('moid',))
+        user = get_current_user()
+        mo = MakeOver.query.filter_by(MOid=data.get('moid'), isdelete=False).first()
+        play = Play.query.filter_by(PLid=mo.PLid, isdelete=False).first()
+        self._fill_play(play, user)
+        self._fill_mo(play, mo, detail=True)
+
+
+        return Success(data=mo)
+
+    @phone_required
+    def get_make_over_list(self):
+        data = parameter_required(('motype', ))
+        user = get_current_user()
+        date = data.get('date')
+        if date and not re.match(r'^20\d{2}-\d{2}$', str(date)):
+            raise ParamsError('date 格式错误')
+        year, month = str(date).split('-') if date else (datetime.now().year, datetime.now().month)
+        filter_args = {
+            Play.PLid == MakeOver.PLid,
+            Play.isdelete == false(),
+
+            extract('month', MakeOver.createtime) == month,
+            extract('year', MakeOver.createtime) == year,
+            MakeOver.isdelete == false()
+        }
+        if int(data.get('motype')):
+            # 转入
+            filter_args.add(MakeOver.MOsuccessor == user.USid)
+        else:
+            # 转出
+            filter_args.add(MakeOver.MOassignor == user.USid)
+        mo_list = MakeOver.query.filter(*filter_args).order_by(MakeOver.createtime.desc()).all_with_page()
+        for mo in mo_list:
+            play = Play.query.filter_by(PLid=mo.PLid, isdelete=False).first()
+            self._fill_mo(play, mo)
+        return Success(data=mo_list)
+
     """post 接口"""
 
     def wechat_notify(self):
@@ -456,6 +512,7 @@ class CPlay():
             if pp.PPpayType == PlayPayType.enterlog.value:
                 self._enter_log(pp)
             elif pp.PPpayType == PlayPayType.undertake.value:
+                current_app.logger.info('开始修改转让单')
                 self._undertake(pp)
             else:
                 current_app.logger.info('获取到异常数据 {}'.format(pp.__dict__))
@@ -1143,7 +1200,6 @@ class CPlay():
         }
         return Success(data=response)
 
-
     """内部方法"""
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
@@ -1493,19 +1549,20 @@ class CPlay():
         location.fill('isleader', isleader)
 
     def _add_pay_detail(self, **kwargs):
-        mountprice = kwargs.get('PPpayMount')
-        if Decimal(str(mountprice)) <= Decimal('0'):
-            mountprice = Decimal('0.01')
-        pp = PlayPay.create({
-            'PPid': str(uuid.uuid1()),
-            'PPpayno': kwargs.get('opayno'),
-            'PPpayType': kwargs.get('PPpayType'),
-            'PPcontent': kwargs.get('PPcontent'),
-            'PPpayMount': mountprice,
-        })
-        db.session.add(pp)
-        return self._pay_detail(kwargs.get('body'), float(mountprice),
-                                kwargs.get('opayno'), kwargs.get('openid'))
+        with db.auto_commit():
+            mountprice = kwargs.get('PPpayMount')
+            if Decimal(str(mountprice)) <= Decimal('0'):
+                mountprice = Decimal('0.01')
+            pp = PlayPay.create({
+                'PPid': str(uuid.uuid1()),
+                'PPpayno': kwargs.get('opayno'),
+                'PPpayType': kwargs.get('PPpayType'),
+                'PPcontent': kwargs.get('PPcontent'),
+                'PPpayMount': mountprice,
+            })
+            db.session.add(pp)
+            return self._pay_detail(kwargs.get('body'), float(mountprice),
+                                    kwargs.get('opayno'), kwargs.get('openid'))
 
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
@@ -1730,7 +1787,7 @@ class CPlay():
         play.PLcreate = makeover.MOsuccessor
         play.PLstatus = PlayStatus.publish.value
         # 删除转让单
-        makeover.isdelete = True
+        # makeover.isdelete = True
 
         db.session.add(play)
         db.session.add(makeover)
@@ -1742,3 +1799,40 @@ class CPlay():
             current_app.logger.info('导游 {} 已删除, {} 正在承接活动'.format(play.PLcreate, makeover.MOsuccessor))
             return
         self._incount(guide, mount_price)
+
+    def _fill_mo(self, play, mo, detail=False):
+        mo.add('createtime')
+
+        mo.fill('plname', play.PLname)
+        mo.fill('PLimg', play.PLimg)
+        # mo.fill('PLtitle', play.PLtitle)
+        mo.fill('PLnum', play.PLnum)
+        mo.fill('mostatus_zh', MakeOverStatus(mo.MOstatus).zh_value)
+        mo.fill('mostatus_en', MakeOverStatus(mo.MOstatus).name)
+        if detail:
+            mo.fill('PLstartTime', play.PLstartTime)
+            mo.fill('PLendTime', play.PLendTime)
+            mo.fill('enternum', play.enternum)
+        assignor = User.query.filter_by(USid=mo.MOassignor, isdelete=False).first()
+        successor = User.query.filter_by(USid=mo.MOsuccessor, isdelete=False).first()
+        if not assignor:
+            current_app.logger.info('{} 的转让人不存在'.format(mo.MOid))
+            assignor_name = '旗行官方'
+
+        else:
+            assignor_name = assignor.USname
+        if not successor:
+            current_app.logger.info('{} 的承接人不存在'.format(mo.MOid))
+            successor_name = '旗行官方'
+        else:
+            successor_name = successor.USname
+
+        agreement = Agreement.query.filter_by(AMtype=0, isdelete=False).order_by(Agreement.updatetime.desc()).first()
+        content = agreement.AMcontent
+
+        re_c = content.format(assignor_name, play.PLname, play.PLstartTime, play.PLendTime, successor_name,
+                              '', mo.MOprice, successor_name, successor_name, mo.createtime)
+        mo.fill('agreemen', re_c)
+        mo.fill('MOassignor', assignor_name)
+        mo.fill('MOsuccessor', successor_name)
+
