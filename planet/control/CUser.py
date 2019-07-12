@@ -357,6 +357,11 @@ class CUser(SUser, BASEAPPROVAL):
         """校验提现资质"""
         if commision_for == ApplyFrom.user.value:
             user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first()
+            if str(request.json.get('applyplatform')) == str(WXLoginFrom.miniprogram.value):  # 小程序端提现跳过实名建议
+                if not user:
+                    raise InsufficientConditionsError('账户信息错误')
+                else:
+                    return
             if not user or not (user.USrealname and user.USidentification):
                 raise InsufficientConditionsError('没有实名认证')
 
@@ -2106,6 +2111,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_apply_cash(commision_for)
         # data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         data = parameter_required(('cncashnum',))
+        applyplatform = data.get('applyplatform')
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
         # user = self.get_user_by_id(reqbuest.user.id)
@@ -2162,6 +2168,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CommisionFor': commision_for
             })
+            if str(applyplatform) == str(WXLoginFrom.miniprogram.value):
+                setattr(cn, 'ApplyPlatform', WXLoginFrom.miniprogram.value)
         db.session.add(cn)
         if is_admin():
             BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))
