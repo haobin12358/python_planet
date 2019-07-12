@@ -1079,11 +1079,14 @@ class CPlay():
             mostatus = int(data.get('mostatus'))
             if mostatus:
                 makeover.MOstatus = MakeOverStatus.wait_pay.value
+                play.PLstatus = PlayStatus.wait_pay.value
             else:
                 # todo 拒绝之后无操作
                 makeover.MOstatus = MakeOverStatus.refuse.value
-            play.PLstatus = PlayStatus.wait_pay.value
+                play.PLstatus = PlayStatus.publish.value
+
             db.session.add(makeover)
+            db.session.add(play)
         return Success(data=makeover.MOid)
 
     @phone_required
@@ -1490,15 +1493,18 @@ class CPlay():
         location.fill('isleader', isleader)
 
     def _add_pay_detail(self, **kwargs):
+        mountprice = kwargs.get('PPpayMount')
+        if Decimal(str(mountprice)) <= Decimal('0'):
+            mountprice = Decimal('0.01')
         pp = PlayPay.create({
             'PPid': str(uuid.uuid1()),
             'PPpayno': kwargs.get('opayno'),
             'PPpayType': kwargs.get('PPpayType'),
             'PPcontent': kwargs.get('PPcontent'),
-            'PPpayMount': kwargs.get('PPpayMount'),
+            'PPpayMount': mountprice,
         })
         db.session.add(pp)
-        return self._pay_detail(kwargs.get('body'), float(kwargs.get('PPpayMount')),
+        return self._pay_detail(kwargs.get('body'), float(mountprice),
                                 kwargs.get('opayno'), kwargs.get('openid'))
 
     def _pay_detail(self, body, mount_price, opayno, openid):
