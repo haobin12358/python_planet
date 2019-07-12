@@ -732,6 +732,8 @@ class PlayStatus(Enum):
     activity = 2, '活动中'
     close = 3, '已关闭'
     makeover = 4, '转让中'
+    wait_undertake = 5, '待承接'
+    wait_pay = 6, '待支付'
 
 
 class EnterCostType(Enum):
@@ -743,7 +745,8 @@ class EnterLogStatus(Enum):
     wait_pay = 0, '待支付'
     success = 1, '成功'
     cancel = 2, '用户取消'
-    canceled = 3, '领队取消'
+    refund = 3, '退款并取消'
+    canceled = 4, '领队取消'
     error = -1, '异常'
 
 
