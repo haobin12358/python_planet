@@ -1647,7 +1647,7 @@ class CPlay():
 
     def _opayno(self):
         opayno = self.wx_pay.nonce_str
-        pp = PlayPay.query.filter_by(PPpayno=opayno, isdelete=False)
+        pp = PlayPay.query.filter_by(PPpayno=opayno, isdelete=False).first()
         if pp:
             return self._opayno()
         return opayno
