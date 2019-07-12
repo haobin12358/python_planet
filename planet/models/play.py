@@ -87,6 +87,7 @@ class MakeOver(Base):
     MOassignor = Column(String(64), comment='转让人')
     MOsuccessor = Column(String(64), comment='承接人')
     MOstatus = Column(Integer, default=0, comment='转让状态 0:转让中 1:承接 2: 已支付, -1 拒绝 -2 取消 ')
+    MOpayNo = Column(String(64), comment='付款流水号')
     MOprice = Column(DECIMAL(precision=28, scale=2), comment='转让费')
 
 
@@ -118,3 +119,17 @@ class SuccessorSearchLog(Base):
     USrealname = Column(String(255), comment='承接人真实姓名')
     UStelphone = Column(String(13), comment='手机号')
     USidentification = Column(String(24), comment='身份证号')
+
+
+class PlayPay(Base):
+    """小程序支付流水"""
+    __tablename__ = 'PlayPay'
+    PPid = Column(String(64), primary_key=True)
+    PPpayno = Column(String(64), index=True, comment='交易号, 自己生成')  # 即out_trade_no
+    PPpayType = Column(Integer, default=0, comment='支付原因 0 报名 10 承接活动')
+    PPcontent = Column(String(64), comment='关联id')
+    PPpaytime = Column(DateTime, comment='付款时间')
+    PPpayMount = Column(DECIMAL(precision=28, scale=2), comment='付款金额')
+    PPpaysn = Column(String(64), comment='第三方支付流水')
+    PPpayJson = Column(Text, comment='回调原文')
+    PPpaymarks = Column(String(255), comment='备注')

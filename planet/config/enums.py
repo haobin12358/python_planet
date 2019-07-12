@@ -732,8 +732,7 @@ class PlayStatus(Enum):
     activity = 2, '活动中'
     close = 3, '已关闭'
     makeover = 4, '转让中'
-    wait_undertake = 5, '待承接'
-    wait_pay = 6, '待支付'
+    wait_pay = 5, '待支付'
 
 
 class EnterCostType(Enum):
@@ -780,6 +779,12 @@ class MakeOverStatus(Enum):
     success = 2, '成功'
     refuse = -1, '拒绝'
     cancle = -2, '取消'
+
+
+class PlayPayType(Enum):
+    """小程序支付流水类型"""
+    enterlog = 10, '报名'
+    undertake = 20, '承接'
 
 
 if __name__ == '__main__':

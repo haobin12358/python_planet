@@ -26,6 +26,7 @@ class APlay(Resource):
             'get_current_location': self.cplay.get_current_location,
             'get_member_location': self.cplay.get_member_location,
             'get_current_play': self.cplay.get_current_play,
+            'get_mosuccessor': self.cplay.get_mosuccessor,
         }
         return apis
 
@@ -42,6 +43,9 @@ class APlay(Resource):
             'set_gather': self.cplay.set_gather,
             'create_notice': self.cplay.create_notice,
             'cancel': self.cplay.cancel,
+            'make_over': self.cplay.make_over,
+            'undertake': self.cplay.undertake,
+            'payment': self.cplay.payment,
             'help': self.cplay.help
         }
         return apis
