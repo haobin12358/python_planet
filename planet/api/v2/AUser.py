@@ -36,7 +36,9 @@ class AUser(Resource):
             'set_paycode': self.user.set_paycode,  # 修改支付密码
             'check_code': self.user.check_code,  # 验证手机
             'check_paycode': self.user.check_paycode,  # 验证手机
-            'mp_login': self.user.mini_program_login, # 小程序登录
+            'mp_login': self.user.mini_program_login,  # 小程序登录
+            'blog_login': self.user.blog_login,  # 网页blog登录
+
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -73,5 +75,7 @@ class AUser(Resource):
             'wx_callback': self.user.wx_callback,  # 转发回调接口
             'get_home_top': self.user.get_home_top,  # 用户主页顶部信息
             'data_overview': self.user.user_data_overview,  # 用户数据折线图概览
+            'blog_callback': self.user.blog_callback,  # blog获取code时的回调
+
         }
         return apis

@@ -8,20 +8,18 @@ import uuid
 from decimal import Decimal
 
 import requests
-from flask import request
-
-from flask import current_app
+from flask import request, current_app, redirect
 from sqlalchemy import extract, or_, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS
+    UserCommissionType, AdminActionS, MiniUserGrade
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
+    BlogAppSecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -538,6 +536,7 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', count[0] or 0)
         user.fill('usunread', user.USunread or 0)
+        user.fill('usminilevel', MiniUserGrade(user.USminiLevel).zh_value)
         today = datetime.date.today()
         ui = UserIntegral.query.filter(
             UserIntegral.USid == user.USid, UserIntegral.isdelete == False,
@@ -1474,9 +1473,7 @@ class CUser(SUser, BASEAPPROVAL):
         redirect_url = _get_redirect(state_res, code)
         # else:
         #     redirect_url = _
-        from flask import redirect
         current_app.logger.info('get redirect url = {}'.format(redirect_url))
-
         return redirect(redirect_url)
 
     @get_session
@@ -1738,8 +1735,70 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
 
+    def blog_callback(self):
+        args = request.args.to_dict()
+        code = args.get('code')
+        url = args.get('url')
+        redirect_url = '{}?code={}'.format(url, code)
+        return redirect(redirect_url)
 
+    @get_session
+    def blog_login(self):
+        args = request.json
+        code = args.get('code')
+        current_app.logger.info('get_code {}'.format(code))
+        blog_login = WeixinLogin(BlogAppId, BlogAppSecret)
+        try:
+            data = blog_login.access_token(code)
+        except WeixinLoginError as e:
+            current_app.logger.error('Error is {}'.format(e))
+            raise WXLoginError
+        current_app.logger.info('获取到的data是{}'.format(data))
+        openid = data.openid
+        access_token = data.access_token
+        try:
+            user_info = blog_login.userinfo(access_token, openid)
+        except Exception as e:
+            current_app.logger.error('Error is {}'.format(e))
+            raise WXLoginError
+        gennerc_log('wx_blog_login get user info from wx : {}'.format(user_info))
 
+        unionid = user_info.get('unionid')
+        user = User.query.filter_by_(USopenid3=openid).first()
+        if user:
+            gennerc_log('wx_login get user by openid3 : {}'.format(user.__dict__))
+        elif unionid:
+            user = User.query.filter_by_(USunionid=unionid).first()
+            if user:
+                gennerc_log('wx_login get user by unionid : {}'.format(user.__dict__))
+
+        if not user:
+            raise AuthorityError('请在“旗行”小程序成功注册后，再次扫码登录使用网页功能')
+
+        head = self._get_local_head(user_info.get("headimgurl"), openid)
+        sex = int(user_info.get('sex')) - 1
+        if sex < 0:
+            sex = 0
+
+        usid = user.USid
+        user.USheader = head
+        user.USname = user_info.get('nickname')
+        user.USgender = sex
+        user.USunionid = user_info.get('unionid')
+        user.USopenid3 = openid
+
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+        db.session.add(userloggintime)
+
+        gennerc_log('get user = {0}'.format(user.__dict__))
+        token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
+        data = {'user': {'usname': user.USname, 'usheader': user.USheader}, 'token': token}
+        gennerc_log('return_data: {}'.format(data))
+        return Success('登录成功', data=data)
 
     @staticmethod
     def _decrypt_encrypted_user_data(encrypteddata, session_key, iv):
