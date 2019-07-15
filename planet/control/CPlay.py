@@ -111,7 +111,7 @@ class CPlay():
         data = parameter_required()
         user = get_current_user()
         join_or_create = int(data.get('playtype', 0))
-
+        pltitle = data.get('pltitle')
         filter_args = set()
         filter_args.add(Play.isdelete == False)
         if data.get('createtime'):
@@ -132,6 +132,10 @@ class CPlay():
             except:
                 current_app.logger.info('状态筛选数据不对 状态{}'.format(data.get('plstatus')))
                 raise ParamsError
+        if pltitle:
+            pltitle = re.escape(str(pltitle)).replace(r'_', r'\_')
+            filter_args.add(Play.PLtitle.ilike('%{}%'.format(pltitle)))
+
         if join_or_create:
             filter_args.add(EnterLog.USid == user.USid)
             filter_args.add(EnterLog.ELid == Play.PLid)
@@ -525,6 +529,8 @@ class CPlay():
         plid = data.get('plid')
 
         with db.auto_commit():
+            user = get_current_user()
+            usid = user.USid
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
                 if not play:
@@ -574,7 +580,7 @@ class CPlay():
                 'PLnum': int(data.get('plnum')),
                 'PLtitle': data.get('pltitle'),
                 'PLcontent': json.dumps(data.get('plcontent')),
-                'PLcreate': request.user.id,
+                'PLcreate': usid,
                 'PLstatus': PlayStatus(int(data.get('plstatus', 0))).value,
                 'PLname': plname,
                 'PLproducts': self.split_item.join(data.get('plproducts', [])),
@@ -607,7 +613,7 @@ class CPlay():
                     current_app.logger.info('删除费用 {}'.format(cosid))
                     continue
 
-                subtotal = Decimal(str(cost.get('cossubtotal')))
+                subtotal = Decimal(str(cost.get('cossubtotal') or 0))
                 if subtotal < Decimal('0'):
                     subtotal = Decimal('0')
 
@@ -698,25 +704,26 @@ class CPlay():
 
     @phone_required
     def set_insurance(self):
-        data = parameter_required()
+        data = parameter_required(('insurance',))
         with db.auto_commit():
-            insurance_list = data.get('insurance')
+            insurance_list = data.get('insurance', list())
             instance_list = list()
             inid_list = list()
             for ins in insurance_list:
                 current_app.logger.info('get Insurance {} '.format(ins))
                 inid = ins.get('inid')
-                incost = Decimal(str(ins.get('incost', '0')))
+                incost = Decimal(str(ins.get('incost') or 0))
                 if incost < Decimal('0'):
                     incost = Decimal('0')
                 current_app.logger.info(' changed insurance cost = {}'.format(incost))
                 if ins.get('delete'):
                     current_app.logger.info('删除 Insurance {} '.format(inid))
                     ins_instance = Insurance.query.filter_by(INid=inid, isdelete=False).first()
-                    if not instance_list:
+                    if not ins_instance:
                         continue
                     if self._check_activity_play(ins_instance):
                         raise StatusError('进行中活动无法修改')
+                    ins_instance.isdelete = True
                     continue
 
                 if inid:
