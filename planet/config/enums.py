@@ -795,6 +795,21 @@ class PlayPayType(Enum):
     undertake = 20, '承接'
 
 
+class TemplateID(Enum):
+    """小程序模板id"""
+    enter = 'enter', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    cancel = 'cancel', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    gather = 'gather', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    activity = 'activity', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    signin = 'signin', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    setsignin = 'setsignin', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    makeover = 'makeover', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    toilet = 'toilet', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    accomplished = 'accomplished', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    guide = 'guide', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    agreement = 'agreement', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+
+
 if __name__ == '__main__':
-    print(UserSearchHistoryType.news.value)
+    print(TemplateID('enterlog').zh_value)
     # import
