@@ -353,7 +353,8 @@ class WXLoginFrom(Enum):
     service = 0, '订阅号'
     subscribe = 1, '服务号'
     miniprogram = 2, '小程序'
-    app = 3, '移动端'
+    blog = 3, '网页blog'
+    app = 4, '移动端'
 
 
 class BankName(Enum):

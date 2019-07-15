@@ -21,6 +21,7 @@ class User(Base):
     USheader = Column(Text, default='用户头像', url=True)
     USopenid1 = Column(Text, comment='小程序 openid')
     USopenid2 = Column(Text, comment='服务号 openid')
+    USopenid3 = Column(Text, comment='blog网页 openid')
     USunionid = Column(Text, comment='统一unionID')
     USsupper1 = Column(String(64), comment='一级代理商id')
     USsupper2 = Column(String(64), comment='二级代理商id')
