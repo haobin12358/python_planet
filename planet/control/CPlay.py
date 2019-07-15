@@ -443,7 +443,8 @@ class CPlay():
         content = agreement.AMcontent
         current_app.logger.info('get content before add = {}'.format(content))
         re_c = content.format(assignor.USname, play.PLname, play.PLstartTime, play.PLendTime, successor.USname,
-                                      successor.UStelphone, makeover.MOprice, successor.USname, successor.USname, makeover.updatetime)
+                              successor.UStelphone, makeover.MOprice, successor.USname, successor.USname,
+                              makeover.updatetime)
         current_app.logger.info('get content = {}'.format(re_c))
         return Success(data=re_c)
 
@@ -456,12 +457,11 @@ class CPlay():
         self._fill_play(play, user)
         self._fill_mo(play, mo, detail=True)
 
-
         return Success(data=mo)
 
     @phone_required
     def get_make_over_list(self):
-        data = parameter_required(('motype', ))
+        data = parameter_required(('motype',))
         user = get_current_user()
         date = data.get('date')
         if date and not re.match(r'^20\d{2}-\d{2}$', str(date)):
@@ -1835,4 +1835,3 @@ class CPlay():
         mo.fill('agreemen', re_c)
         mo.fill('MOassignor', assignor_name)
         mo.fill('MOsuccessor', successor_name)
-
