@@ -523,7 +523,7 @@ class CPlay():
     def set_play(self):
         data = parameter_required()
         plid = data.get('plid')
-        # todo  增加用户状态判断
+
         with db.auto_commit():
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
@@ -531,6 +531,9 @@ class CPlay():
                     raise ParamsError('参数缺失')
                 if play.PLstatus == PlayStatus.activity.value:
                     raise StatusError('进行中活动无法修改')
+                user = get_current_user()
+                if user.USid != play.PLcreate:
+                    raise AuthorityError('只能修改自己的活动')
 
                 if data.get('delete'):
                     current_app.logger.info('删除活动 {}'.format(plid))
@@ -955,10 +958,19 @@ class CPlay():
 
     @phone_required
     def signin(self):
-        data = parameter_required(('plid', 'silnum'))
+        data = parameter_required()
+
+        plid, silnum = data.get('plid'), data.get('silnum')
+        # 参数校验
+        if not plid:
+            raise ParamsError('当前没有开启中的活动')
+        if not silnum:
+            raise ParamsError('签到码不能为空')
+
         user = get_current_user()
         sis = SignInSet.query.filter(SignInSet.PLid == data.get('plid'), SignInSet.isdelete == false()).order_by(
             SignInSet.createtime.desc()).first()
+
         with db.auto_commit():
             if not sis:
                 raise StatusError('当前活动未开启签到')
