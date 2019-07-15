@@ -419,4 +419,4 @@ class WeixinMP(object):
         url and kwargs.setdefault("url", url)
         miniprogram and kwargs.setdefault("miniprogram", miniprogram)
         # print kwargs
-        return self.post("/message/template/send", kwargs)
+        return self.post("/message/wxopen/template/send", kwargs)
