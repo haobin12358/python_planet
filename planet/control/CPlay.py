@@ -724,7 +724,7 @@ class CPlay():
                         update_dict = self._get_update_dict(ins_instance, ins)
                         if update_dict.get('INcost'):
                             update_dict.update(INcost=incost)
-                        ins_instance.update()
+                        ins_instance.update(update_dict)
                         instance_list.append(ins_instance)
                         inid_list.append(inid)
                         continue
