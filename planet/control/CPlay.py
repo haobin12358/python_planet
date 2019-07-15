@@ -1405,11 +1405,14 @@ class CPlay():
         enter_num = EnterLog.query.filter_by(PLid=play.PLid, ELstatus=EnterLogStatus.success.value,
                                              isdelete=False).count()
         play.fill('enternum', enter_num)
-
-        play.fill('editstatus', bool((not enter_num) and (play.PLstatus != PlayStatus.activity.value)))
-
         if common_user():
             user = user or get_current_user()
+            play.fill('editstatus', bool(
+                (
+                        (not enter_num and play.PLstatus == PlayStatus.publish.value) or
+                        (play.PLstatus in [PlayStatus.draft.value, PlayStatus.close.value]))
+                and (play.PLcreate == user.USid)))
+
             play.fill('playtype', bool(play.PLcreate != user.USid))
             el = EnterLog.query.filter(EnterLog.USid == user.USid, EnterLog.PLid == play.PLid,
                                        EnterLog.isdelete == false()).first()
@@ -1424,6 +1427,7 @@ class CPlay():
                     isrefund = True
             play.fill('isrefund', isrefund)
         else:
+            play.fill('editstatus', False)
             play.fill('joinstatus',
                       bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
