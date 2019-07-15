@@ -773,6 +773,13 @@ class MiniProgramBannerPosition(Enum):
     travel = 1, '出游页'
 
 
+class GuideApplyStatus(Enum):
+    """导游申请状态"""
+    agree = 1, '已审核'
+    auditing = 0, '审核中'
+    refuse = -1, '已拒绝'
+
+
 class MakeOverStatus(Enum):
     """小程序活动转让状态"""
     wait_confirm = 0, '待确认'

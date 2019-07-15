@@ -302,12 +302,14 @@ class UserTransmit(Base):
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
 
-# class UserNewsCategory(Base):
-#     __tablename__ = 'UserNewsCategory'
-#     UNC = Column(String(64), primary_key=True)
-#     NSCid = Column(String(64), comment='圈子系统内置分类id')
-#     USid = Column(String(64), comment='用户id')
-#     UNCsort = Column(String(64), comment='用户自定义排序')
+class CoveredCertifiedNameLog(Base):
+    """覆盖已认证姓名记录表"""
+    __tablename__ = 'CoveredCertifiedNameLog'
+    CNLid = Column(String(64), primary_key=True)
+    OldName = Column(String(255), comment='原真实姓名')
+    NewName = Column(String(255), comment='替换后真实姓名')
+    OldIdentityNumber = Column(String(64), comment='原身份证号')
+    NewIdentityNumber = Column(String(64), comment='替换后身份证号')
 
 
 class UserLocation(Base):
