@@ -496,6 +496,7 @@ class CScenicSpot(object):
         raiders.fill('is_own', is_own)
 
     def get_team(self):
+        """团队广场下内容"""
         data = parameter_required(('plid',))
         tr_list = TravelRecord.query.filter(
             Play.PLid == data.get('plid'),

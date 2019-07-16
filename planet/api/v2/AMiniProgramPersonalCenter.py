@@ -7,14 +7,15 @@ class AMiniProgramPersonalCenter(Resource):
     def __init__(self):
         self.cmppc = CMiniProgramPersonalCenter()
 
-    # def post(self, personalcenter):
-    #     apis = {
-    #
-    #     }
-    #     return apis
+    def post(self, personalcenter):
+        apis = {
+            'guide_certification': self.cmppc.guide_certification,
+        }
+        return apis
 
     def get(self, personalcenter):
         apis = {
             'my_wallet': self.cmppc.my_wallet,
+            'guide': self.cmppc.guide
         }
         return apis
