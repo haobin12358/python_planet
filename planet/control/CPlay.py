@@ -125,8 +125,11 @@ class CPlay():
                 current_app.logger.info('时间筛选格式不对 时间 {} 类型{}'.format(createtime, type(createtime)))
                 raise ParamsError
 
-            filter_args.add(Play.createtime.cast(Date) == createtime)
-        if data.get('plstatus') or data.get('plstatus') == 0:
+            filter_args.add(
+                and_(Play.PLstartTime.cast(Date) <= createtime, Play.PLendTime.cast(Date) >= createtime)
+            )
+        plstatus = data.get('plstatus')
+        if (plstatus or plstatus == 0) and int(plstatus) >= 0:
             try:
                 filter_args.add(Play.PLstatus == PlayStatus(int(data.get('plstatus'))).value)
             except:
@@ -134,21 +137,20 @@ class CPlay():
                 raise ParamsError
         if pltitle:
             pltitle = re.escape(str(pltitle)).replace(r'_', r'\_')
+            current_app.logger.info('get filter title =  {} '.format(pltitle))
             filter_args.add(Play.PLtitle.ilike('%{}%'.format(pltitle)))
 
         if join_or_create:
             filter_args.add(EnterLog.USid == user.USid)
-            filter_args.add(EnterLog.ELid == Play.PLid)
+            filter_args.add(EnterLog.PLid == Play.PLid)
             filter_args.add(EnterLog.isdelete == false())
-            plays_list = Play.query.filter(*filter_args).order_by(
-                Play.createtime.desc()).all_with_page()
         else:
-            filter_args.add(MakeOver.PLid == Play.PLid)
             filter_args.add(or_(
-                Play.PLcreate == user.USid, user.USid == MakeOver.MOsuccessor))
-            filter_args.add(MakeOver.isdelete == false())
-            plays_list = Play.query.filter(*filter_args).order_by(
-                Play.createtime.desc()).all_with_page()
+                Play.PLcreate == user.USid,
+                and_(MakeOver.PLid == Play.PLid, MakeOver.isdelete == false(), user.USid == MakeOver.MOsuccessor)))
+
+        plays_list = Play.query.filter(*filter_args).order_by(
+            Play.PLstartTime.desc()).all_with_page()
         for play in plays_list:
             self._fill_play(play, user)
             self._fill_costs(play, show=False)
@@ -525,6 +527,9 @@ class CPlay():
 
     @phone_required
     def set_play(self):
+
+        # todo 活动开始结束时间限制 同步限制转让活动
+
         data = parameter_required()
         plid = data.get('plid')
 
@@ -557,7 +562,7 @@ class CPlay():
                     update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
                 playname = {
                     'pllocation': update_dict.get('PLlocation') or play.PLlocation,
-                    'plstarttime': update_dict.get('PLstarttime') or play.PLstartTime,
+                    'plstarttime': update_dict.get('PLstartTime') or play.PLstartTime,
                     'plendtime': update_dict.get('PLendTime') or play.PLendTime,
                 }
                 plname = self._update_plname(playname)
@@ -593,9 +598,9 @@ class CPlay():
 
     @phone_required
     def set_cost(self):
-        data = parameter_required(('costs',))
+        data = parameter_required()
         with db.auto_commit():
-            costs = data.get('costs')
+            costs = data.get('costs', list())
             instance_list = list()
             cosid_list = list()
             for cost in costs:
@@ -646,9 +651,9 @@ class CPlay():
 
     @phone_required
     def set_discount(self):
-        data = parameter_required(('discounts',))
+        data = parameter_required()
         with db.auto_commit():
-            discounts = data.get('discounts')
+            discounts = data.get('discounts') or list()
             instance_list = list()
             pdid_list = list()
             for pd in discounts:
@@ -704,9 +709,9 @@ class CPlay():
 
     @phone_required
     def set_insurance(self):
-        data = parameter_required(('insurance',))
+        data = parameter_required()
         with db.auto_commit():
-            insurance_list = data.get('insurance', list())
+            insurance_list = data.get('insurance') or list()
             instance_list = list()
             inid_list = list()
             for ins in insurance_list:
@@ -1346,7 +1351,6 @@ class CPlay():
     def _update_plname(self, data):
         """更新活动名称 同时校验时间"""
         pllocation = data.get('pllocation')
-
         if isinstance(data.get('pllocation'), list):
             pllocation = self.connect_item.join(data.get('pllocation'))
         else:
@@ -1367,6 +1371,7 @@ class CPlay():
             raise ParamsError
 
         if now > plstart:
+            current_app.logger.info('now is {} plstart is {}'.format(now, plstart))
             raise ParamsError('开始时间不能小于当前时间')
 
         duration = plend - plstart

@@ -9,7 +9,7 @@ class Play(Base):
     __tablename__ = 'Play'
     PLid = Column(String(64), primary_key=True)
     PLname = Column(Text, comment='活动名')
-    PLimg = Column(Text, comment='活动图')
+    PLimg = Column(Text, url=True, comment='活动图')
     PLstartTime = Column(DateTime, comment='活动开始时间')
     PLendTime = Column(DateTime, comment='活动结束时间')
     PLlocation = Column(Text, comment='活动地点,list')
