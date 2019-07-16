@@ -33,3 +33,15 @@ class TravelRecord(Base):
     TRlocation = Column(Text, comment='景区')
     TRtype = Column(Integer, default=0, comment='类别 {0: 攻略 1: 游记 3: 随笔}')
     TRstatus = Column(Integer, default=0, comment='状态 {0：草稿 1：已发布}')
+
+
+class Guide(Base):
+    """导游认证"""
+    __tablename__ = 'Guide'
+    GUid = Column(String(64), primary_key=True)
+    USid = Column(String(64))
+    GUrealname = Column(String(255), comment='用户真实姓名')
+    GUtelphone = Column(String(13), comment='手机号')
+    GUidentification = Column(String(24), comment='身份证号')
+    GUimg = Column(Text, url=True, comment='导游认证图片')
+    GUstatus = Column(Integer, default=0, comment='申请状态')

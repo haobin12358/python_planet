@@ -4,12 +4,15 @@ from datetime import datetime
 from decimal import Decimal
 from flask import current_app, request
 from sqlalchemy import false, func, extract
+from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required
 from planet.common.error_response import ParamsError
-from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction
+from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus
+from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
-from planet.models.user import User, UserWallet, CashNotes
+from planet.models.scenicspot import Guide
+from planet.models.user import User, UserWallet, CashNotes, CoveredCertifiedNameLog
 from planet.models.join import EnterLog, EnterCost
 from planet.models.play import Play
 
@@ -95,3 +98,61 @@ class CMiniProgramPersonalCenter(object):
             item['amount'] = '¥{}'.format(item['amount'])
         total = '¥{}'.format(total)
         return withdraw, total
+
+    @phone_required
+    def guide_certification(self):
+        """导游申请认证"""
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        data = parameter_required()
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        guide = Guide.query.filter_by_(USid=user.USid).first()
+        if guide:
+            raise ParamsError('已提交过认证')
+        gurealname, gutelphone = data.get('gurealname'), data.get('gutelphone')
+        guidentification = data.get('guidentification')
+        if not re.match(r'^1\d{10}$', gutelphone):
+            raise ParamsError('请填写正确的手机号码')
+        checked_name = cuser._verify_chinese(gurealname)
+        if not checked_name or len(checked_name[0]) < 2:
+            raise ParamsError('请正确填写真实姓名')
+        if len(guidentification) < 18:
+            raise ParamsError('请正确填写身份证号码')
+        oldname = user.USrealname
+        oldidentitynumber = user.USidentification
+        cuser.check_idcode({'usrealname': gurealname, 'usidentification': guidentification}, user)  # 调用实名认证
+        with db.auto_commit():
+            guide_instance = Guide.create({'GUid': str(uuid.uuid1()),
+                                           'USid': user.USid,
+                                           'GUrealname': gurealname,
+                                           'GUtelphone': gutelphone,
+                                           'GUidentification': guidentification,
+                                           'GUimg': data.get('guimg'),
+                                           'GUstatus': GuideApplyStatus.agree.value  # todo 暂时默认为通过,缺少后台审批
+                                           })
+            db.session.add(guide_instance)
+
+            if oldname and oldname != gurealname:
+                current_app.logger.info('old name: {} ; new name: {}'.format(oldname, gurealname))
+                db.session.add(CoveredCertifiedNameLog.create({'CNLid': str(uuid.uuid1()),
+                                                               'OldName': oldname,
+                                                               'NewName': gurealname,
+                                                               'OldIdentityNumber': oldidentitynumber,
+                                                               'NewIdentityNumber': guidentification
+                                                               }))
+
+        return Success('认证成功', {'guid': guide_instance.GUid})
+
+    @phone_required
+    def guide(self):
+        user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        guide = Guide.query.filter_by_(USid=user.USid).first()
+        if not guide:
+            return Success(data={})
+        guide.hide('GUid')
+        guide.fill('gustatus_en', GuideApplyStatus(guide.GUstatus).name)
+        guide.fill('gustatus_zh', GuideApplyStatus(guide.GUstatus).zh_value)
+        return Success(data=guide)
+
+
+
