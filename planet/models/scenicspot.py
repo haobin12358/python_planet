@@ -23,7 +23,7 @@ class TravelRecord(Base):
     __tablename__ = 'TravelRecord'
     TRid = Column(String(64), primary_key=True)
     AuthorID = Column(String(64), nullable=False, comment='作者')
-    AuthorType = Column(Integer, default=20, comment='作者身份 {20:用户 0: 平台')
+    AuthorType = Column(Integer, default=20, comment='作者身份 {20:用户 0: 平台}')
     # TGcity = Column(String(512), comment=' 城市')
     TRproducts = Column(Text, comment='推荐商品 list')
     TRsort = Column(Integer, comment='攻略排序')
@@ -45,3 +45,15 @@ class Guide(Base):
     GUidentification = Column(String(24), comment='身份证号')
     GUimg = Column(Text, url=True, comment='导游认证图片')
     GUstatus = Column(Integer, default=0, comment='申请状态')
+
+
+class Toilet(Base):
+    """厕所"""
+    __tablename__ = 'Toilet'
+    TOid = Column(String(64), primary_key=True)
+    creatorID = Column(String(64), comment='发布者id')
+    creatorType = Column(Integer, comment='发布者身份 {20:用户 0: 平台}')
+    longitude = Column(String(64), comment='经度')
+    latitude = Column(String(64), comment='维度')
+    TOimage = Column(Text, comment='厕所图片')
+    TOstatus = Column(Integer, default=0, comment='审核状态 ApprovalAction 1：通过 0：审核中 -1：未通过')

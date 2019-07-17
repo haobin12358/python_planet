@@ -5,24 +5,33 @@ import re
 from datetime import datetime
 from flask import current_app, request
 from sqlalchemy import or_, false, extract
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
-    EnterLogStatus, ApplyFrom
+    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
 from planet.extensions.register_ext import db
-from planet.models import EnterLog, Play
+from planet.models import EnterLog, Play, Approval
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
-from planet.models.scenicspot import ScenicSpot, TravelRecord
-from planet.control.BaseControl import BASEADMIN
+from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet
+from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
+from planet.control.CPlay import CPlay
 from pyquery import PyQuery
 
 
-class CScenicSpot(object):
+class CScenicSpot(BASEAPPROVAL):
 
     def __init__(self):
         self.BaseAdmin = BASEADMIN()
+        self.BaseController = BaseController()
+        self.cplay = CPlay()
+        # self.scale_dict = {3: 1000000, 4: 500000, 5: 200000, 6: 100000, 7: 50000,
+        #                    8: 50000, 9: 20000, 10: 10000, 11: 5000, 12: 2000, 13: 1000,
+        #                    14: 500, 15: 200, 16: 100, 17: 50, 18: 50, 19: 20, 20: 10}
+        self.scale_dict = {3: 10, 4: 10, 5: 10, 6: 10, 7: 5,
+                           8: 4, 9: 3, 10: 3, 11: 2, 12: 2, 13: 1,
+                           14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1}
 
     @admin_required
     def add(self):
@@ -514,3 +523,119 @@ class CScenicSpot(object):
             TravelRecord.TRsort).all_with_page()
         [self._fill_travelrecord(x) for x in tr_list]
         return Success(data=tr_list)
+
+    def add_toilet(self):
+        """添加厕所"""
+        if common_user():
+            creator = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+            creator_id = creator.USid
+            creator_type = ApplyFrom.user.value
+        elif is_admin():
+            creator = Admin.query.filter_by_(ADid=getattr(request, 'user').id).first_('请重新登录')
+            creator_id = creator.ADid
+            creator_type = ApplyFrom.platform.value
+        else:
+            raise TokenError('请重新登录')
+        data = parameter_required(('latitude', 'longitude', 'toimage'))
+        latitude, longitude = data.get('latitude'), data.get('longitude')
+        latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
+        if common_user() and latitude and longitude:
+            self.BaseController.get_user_location(latitude, longitude, creator_id)
+        exist = Toilet.query.filter(Toilet.isdelete == false(), Toilet.longitude == longitude,
+                                    Toilet.latitude == latitude).first()
+        if exist:
+            raise ParamsError('该位置的厕所已被上传过')
+        with db.auto_commit():
+            toilet = Toilet.create({'TOid': str(uuid.uuid1()),
+                                    'creatorID': creator_id,
+                                    'creatorType': creator_type,
+                                    'longitude': longitude,
+                                    'latitude': latitude,
+                                    'TOimage': data.get('toimage'),
+                                    'TOstatus': ApprovalAction.submit.value
+                                    })
+            db.session.add(toilet)
+        super(CScenicSpot, self).create_approval('totoilet', creator_id, toilet.TOid, creator_type)
+        return Success('上传成功', data={'toid': toilet.TOid})
+
+    def update_toilet(self):
+        """编辑厕所"""
+        if not is_admin():
+            raise TokenError('请重新登录')
+        data = parameter_required(('toid', 'latitude', 'longitude', 'toimage'))
+        latitude, longitude = data.get('latitude'), data.get('longitude')
+        latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
+        toilet = Toilet.query.filter(Toilet.isdelete == false(),
+                                     Toilet.TOid == data.get('toid')).first_('未找到相应厕所信息')
+        with db.auto_commit():
+            if data.get('delete'):
+                toilet.update({'isdelete': True})
+                self.BaseAdmin.create_action(AdminActionS.delete.value, 'Toilet', toilet.TOid)
+                approval_info = Approval.query.filter(Approval.AVcontent == toilet.TOid,
+                                                      or_(Approval.AVstartid == toilet.creatorID,
+                                                          Approval.AVstartid == getattr(request, 'user').id),
+                                                      Approval.AVstatus == ApplyStatus.wait_check.value,
+                                                      Approval.isdelete == false()).first()
+                approval_info.AVstatus = ApplyStatus.cancle.value
+            else:
+                toilet.update({'longitude': longitude,
+                               'latitude': latitude,
+                               'TOimage': data.get('toimage'),
+                               'TOstatus': ApprovalAction.submit.value
+                               })
+                self.BaseAdmin.create_action(AdminActionS.update.value, 'Toilet', toilet.TOid)
+            db.session.add(toilet)
+            # 如果有正在进行的审批，取消
+            approval_info = Approval.query.filter(Approval.AVcontent == toilet.TOid,
+                                                  or_(Approval.AVstartid == toilet.creatorID,
+                                                      Approval.AVstartid == getattr(request, 'user').id),
+                                                  Approval.AVstatus == ApplyStatus.wait_check.value,
+                                                  Approval.isdelete == false()).first()
+            if approval_info:
+                approval_info.AVstatus = ApplyStatus.cancle.value
+        super(CScenicSpot, self).create_approval('totoilet', getattr(request, 'user').id, toilet.TOid,
+                                                 ApplyFrom.platform.value)
+        return Success('编辑成功', data={'toid': toilet.TOid})
+
+    def toilet_list(self):
+        """厕所列表"""
+        args = request.args.to_dict()
+        toilet_query = Toilet.query.filter(Toilet.isdelete == false())
+        if is_admin():
+            tostatus = args.get('tostatus')
+            try:
+                ApprovalAction(tostatus)
+            except Exception as e:
+                # current_app.logger.error('TOstatus error is {}'.format(e))
+                tostatus = None
+            if tostatus:
+                toilet_query = toilet_query.filter(Toilet.TOstatus == tostatus)
+            toilets = toilet_query.order_by(Toilet.createtime.desc()).all_with_page()
+            for toilet in toilets:
+                toilet.hide('creatorID', 'creatorType')
+                toilet.fill('tostatus_zh', ApprovalAction(toilet.TOstatus).zh_value)
+        else:
+            parameter_required(('latitude', 'longitude'), datafrom=args)
+            latitude, longitude = args.get('latitude'), args.get('longitude')
+            latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
+            if common_user() and latitude and longitude:
+                self.BaseController.get_user_location(latitude, longitude, getattr(request, 'user').id)
+            scale = args.get('scale', 14)
+            variable = self.scale_dict.get(int(scale))
+            toilets = toilet_query.filter(Toilet.TOstatus == ApprovalAction.agree.value,
+                                          Toilet.latitude <= float(latitude) + variable,
+                                          Toilet.latitude >= float(latitude) - variable,
+                                          Toilet.longitude <= float(longitude) + variable,
+                                          Toilet.longitude >= float(longitude) - variable,
+                                          ).all()
+            [toilet.hide('creatorID', 'creatorType') for toilet in toilets]
+        return Success(data=toilets)
+
+    def get_toilet(self):
+        """厕所详情"""
+        args = parameter_required(('toid',))
+        toid = args.get('toid')
+        toilet = Toilet.query.filter(Toilet.isdelete == false(), Toilet.TOid == toid).first_('未找到该厕所信息')
+        toilet.hide('creatorID', 'creatorType')
+        toilet.fill('tostatus_zh', ApprovalAction(toilet.TOstatus).zh_value)
+        return Success(data=toilet)

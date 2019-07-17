@@ -16,6 +16,8 @@ class AScenicSpot(Resource):
             'get_travelrecord': self.cscenicspot.get_travelrecord,      # 时光记录详情
             'raiders_list': self.cscenicspot.get_raiders_list,          # 景区下推荐攻略列表
             'get_team_travelrecord': self.cscenicspot.get_team,         # 团队广场下推荐攻略列表
+            'get_toilet': self.cscenicspot.get_toilet,                  # 厕所详情
+            'toilet_list': self.cscenicspot.toilet_list                 # 厕所列表
         }
         return apis
 
@@ -25,5 +27,7 @@ class AScenicSpot(Resource):
             'update': self.cscenicspot.update,                          # 编辑景区
             'delete': self.cscenicspot.delete,                          # 删除景区
             'add_travelrecord': self.cscenicspot.add_travelrecord,      # 发布时光记录
+            'add_toilet': self.cscenicspot.add_toilet,                  # 添加厕所
+            'update_toilet': self.cscenicspot.update_toilet             # 编辑厕所
         }
         return apis
