@@ -19,8 +19,10 @@ class User(Base):
     USbirthday = Column(DateTime, comment='出生日期')
     USidentification = Column(String(24), comment='身份证号')
     USheader = Column(Text, default='用户头像', url=True)
-    USopenid1 = Column(Text, comment='服务号 openid')
-    USopenid2 = Column(Text, comment='公众号2 openid')
+    USopenid1 = Column(Text, comment='小程序 openid')
+    USopenid2 = Column(Text, comment='服务号 openid')
+    USopenid3 = Column(Text, comment='blog网页 openid')
+    USunionid = Column(Text, comment='统一unionID')
     USsupper1 = Column(String(64), comment='一级代理商id')
     USsupper2 = Column(String(64), comment='二级代理商id')
     USsupper3 = Column(String(64), comment='三级代理商id')
@@ -36,6 +38,9 @@ class User(Base):
     UScontinuous = Column(Integer, default=0, comment='连续签到天数')
     UStoAgentTime = Column(DateTime, comment='成为代理商时间')
     USgrade = Column(Integer, default=0, comment='不知用处的等级')
+    USplayName = Column(String(255), comment='小程序伪真实姓名')
+    USunread = Column(Integer, default=0, comment='未读信息数')
+    USminiLevel = Column(Integer, default=0, comment='小程序等级')
 
 
 class UserLoginTime(Base):
@@ -114,7 +119,7 @@ class Admin(Base):
     ADlevel = Column(Integer, default=2, comment='管理员等级，{1: 超级管理员, 2: 普通管理员 3: 代理商}')
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
-
+    ADunread = Column(Integer, default=0, comment='未读消息数')
 
 class AdminActions(Base):
     """
@@ -262,6 +267,7 @@ class CashNotes(Base):
     CNcardName = Column(String(32), comment='开户人')
     CNstatus = Column(Integer, default=0, comment='提现状态 0: 审核中, 1: 审核通过, -1:拒绝')
     CNrejectReason = Column(Text, comment='拒绝理由')
+    ApplyPlatform = Column(Integer, comment='申请来源平台 {1：服务号 2：小程序 3：移动端}')
 
 
 class CashFlow(Base):
@@ -296,12 +302,14 @@ class UserTransmit(Base):
     UTtype = Column(Integer, nullable=False, comment='转发类型')
 
 
-# class UserNewsCategory(Base):
-#     __tablename__ = 'UserNewsCategory'
-#     UNC = Column(String(64), primary_key=True)
-#     NSCid = Column(String(64), comment='圈子系统内置分类id')
-#     USid = Column(String(64), comment='用户id')
-#     UNCsort = Column(String(64), comment='用户自定义排序')
+class CoveredCertifiedNameLog(Base):
+    """覆盖已认证姓名记录表"""
+    __tablename__ = 'CoveredCertifiedNameLog'
+    CNLid = Column(String(64), primary_key=True)
+    OldName = Column(String(255), comment='原真实姓名')
+    NewName = Column(String(255), comment='替换后真实姓名')
+    OldIdentityNumber = Column(String(64), comment='原身份证号')
+    NewIdentityNumber = Column(String(64), comment='替换后身份证号')
 
 
 class UserLocation(Base):

@@ -8,20 +8,18 @@ import uuid
 from decimal import Decimal
 
 import requests
-from flask import request
-
-from flask import current_app
+from flask import request, current_app, redirect
 from sqlalchemy import extract, or_, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS
+    UserCommissionType, AdminActionS, MiniUserGrade
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
-    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR
+    SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
+    BlogAppSecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
 from planet.common.params_validates import parameter_required
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
@@ -357,6 +355,11 @@ class CUser(SUser, BASEAPPROVAL):
         """校验提现资质"""
         if commision_for == ApplyFrom.user.value:
             user = User.query.filter(User.USid == request.user.id, User.isdelete == False).first()
+            if str(request.json.get('applyplatform')) == str(WXLoginFrom.miniprogram.value):  # 小程序端提现跳过实名建议
+                if not user:
+                    raise InsufficientConditionsError('账户信息错误')
+                else:
+                    return
             if not user or not (user.USrealname and user.USidentification):
                 raise InsufficientConditionsError('没有实名认证')
 
@@ -532,6 +535,8 @@ class CUser(SUser, BASEAPPROVAL):
         user.fill('usbirthday', self.__update_birthday_str(user.USbirthday))
         user.fill('usidname', '大行星会员' if user.USlevel != self.AGENT_TYPE else "合作伙伴")
         user.fill('uscoupon', count[0] or 0)
+        user.fill('usunread', user.USunread or 0)
+        user.fill('usminilevel', MiniUserGrade(user.USminiLevel).zh_value)
         today = datetime.date.today()
         ui = UserIntegral.query.filter(
             UserIntegral.USid == user.USid, UserIntegral.isdelete == False,
@@ -864,6 +869,7 @@ class CUser(SUser, BASEAPPROVAL):
             #         request.user.id, name, idcode), info='error')
             #     raise SystemError('服务器异常')
             user.USrealname = name
+            user.USplayName = name
             user.USidentification = idcode
             self.delete_usemedia_by_usid(request.user.id)
             um_front = UserMedia.create({
@@ -1468,9 +1474,7 @@ class CUser(SUser, BASEAPPROVAL):
         redirect_url = _get_redirect(state_res, code)
         # else:
         #     redirect_url = _
-        from flask import redirect
         current_app.logger.info('get redirect url = {}'.format(redirect_url))
-
         return redirect(redirect_url)
 
     @get_session
@@ -1502,11 +1506,18 @@ class CUser(SUser, BASEAPPROVAL):
             fromdict.get('usfilter'): openid
         }
 
+        user_info = wxlogin.userinfo(access_token, openid)
+        gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
+        unionid = user_info.get('unionid')
+
         user = User.query.filter_by_(usfilter).first()
         if user:
             gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
-        user_info = wxlogin.userinfo(access_token, openid)
-        gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
+        elif unionid:
+            user = User.query.filter(User.isdelete == False, User.USunionid == unionid).first()
+            if user:
+                gennerc_log('wx_login get user by unionid : {}'.format(user.__dict__))
+
         head = self._get_local_head(user_info.get("headimgurl"), openid)
 
         if args.get('secret_usid'):
@@ -1534,6 +1545,8 @@ class CUser(SUser, BASEAPPROVAL):
             user.USname = user_info.get('nickname')
             user.USgender = sex
             user.USqrcode = self._create_qrcode(head, usid, fromdict.get('url'))
+            user.USunionid = user_info.get('unionid')
+            setattr(user, fromdict.get('usfilter'), openid)
         else:
             usid = str(uuid.uuid1())
             user_dict = {
@@ -1545,6 +1558,7 @@ class CUser(SUser, BASEAPPROVAL):
                 'USqrcode': self._create_qrcode(head, usid, fromdict.get('url')),
                 'USfrom': fromdict.get('apptype'),
                 'USlevel': 1,
+                'USunionid': user_info.get('unionid'),
             }
 
             # todo 根据app_from 添加不同的openid, 添加不同的usfrom
@@ -1618,19 +1632,24 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log('get openid = {0} and access_token = {1}'.format(openid, access_token))
         usfilter = {fromdict.get('usfilter'): openid}
 
-        user = User.query.filter_by_(usfilter).first()
-
-        if user:
-            gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
-
         try:
             user_info = wxlogin.userinfo(access_token, openid)
             gennerc_log('wx_login get user info from wx : {0}'.format(user_info))
             head = self._get_local_head(user_info.get("headimgurl"), openid)
+            unionid = user_info.get('unionid')
         except Exception as e:
             gennerc_log('code获取用户信息失败 : {}'.format(e))
             user_info = None
             head = None
+            unionid = None
+
+        user = User.query.filter_by_(usfilter).first()
+        if user:
+            gennerc_log('wx_login get user by openid : {0}'.format(user.__dict__))
+        elif unionid:
+            user = User.query.filter(User.isdelete == False, User.USunionid == unionid).first()
+            if user:
+                gennerc_log('wx_login get user by unionid : {0}'.format(user.__dict__))
 
         if args.get("secret_usid"):
             try:
@@ -1656,6 +1675,8 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USname = user_info.get('nickname')
                 user.USgender = sex
                 user.USqrcode = self._create_qrcode(head, usid, fromdict.get('url'))
+                user.USunionid = unionid
+                setattr(user, fromdict.get('usfilter'), openid)
 
             else:  # code只能拿到openid
                 usid = user.USid
@@ -1715,7 +1736,231 @@ class CUser(SUser, BASEAPPROVAL):
         gennerc_log("return_data: {}".format(data))
         return Success('登录成功', data=data)
 
-    def _get_user_agent(self):
+    def blog_callback(self):
+        args = request.args.to_dict()
+        code = args.get('code')
+        url = args.get('url')
+        redirect_url = '{}?code={}'.format(url, code)
+        return redirect(redirect_url)
+
+    @get_session
+    def blog_login(self):
+        args = request.json
+        code = args.get('code')
+        current_app.logger.info('get_code {}'.format(code))
+        blog_login = WeixinLogin(BlogAppId, BlogAppSecret)
+        try:
+            data = blog_login.access_token(code)
+        except WeixinLoginError as e:
+            current_app.logger.error('Error is {}'.format(e))
+            raise WXLoginError
+        current_app.logger.info('获取到的data是{}'.format(data))
+        openid = data.openid
+        access_token = data.access_token
+        try:
+            user_info = blog_login.userinfo(access_token, openid)
+        except Exception as e:
+            current_app.logger.error('Error is {}'.format(e))
+            raise WXLoginError
+        gennerc_log('wx_blog_login get user info from wx : {}'.format(user_info))
+
+        unionid = user_info.get('unionid')
+        user = User.query.filter_by_(USopenid3=openid).first()
+        if user:
+            gennerc_log('wx_login get user by openid3 : {}'.format(user.__dict__))
+        elif unionid:
+            user = User.query.filter_by_(USunionid=unionid).first()
+            if user:
+                gennerc_log('wx_login get user by unionid : {}'.format(user.__dict__))
+
+        if not user:
+            raise AuthorityError('请在“旗行”小程序成功注册后，再次扫码登录使用网页功能')
+
+        head = self._get_local_head(user_info.get("headimgurl"), openid)
+        sex = int(user_info.get('sex')) - 1
+        if sex < 0:
+            sex = 0
+
+        usid = user.USid
+        user.USheader = head
+        user.USname = user_info.get('nickname')
+        user.USgender = sex
+        user.USunionid = user_info.get('unionid')
+        user.USopenid3 = openid
+
+        userloggintime = UserLoginTime.create({
+            "ULTid": str(uuid.uuid1()),
+            "USid": usid,
+            "USTip": request.remote_addr
+        })
+        db.session.add(userloggintime)
+
+        gennerc_log('get user = {0}'.format(user.__dict__))
+        token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
+        data = {'user': {'usname': user.USname, 'usheader': user.USheader}, 'token': token}
+        gennerc_log('return_data: {}'.format(data))
+        return Success('登录成功', data=data)
+
+    @staticmethod
+    def _decrypt_encrypted_user_data(encrypteddata, session_key, iv):
+        """小程序信息解密"""
+        from planet.common.WXBizDataCrypt import WXBizDataCrypt
+        pc = WXBizDataCrypt(MiniProgramAppId, session_key)
+        plain_text = pc.decrypt(encrypteddata, iv)
+        return plain_text
+
+    @get_session
+    def mini_program_login(self):
+        args = request.json
+        code = args.get("code")
+        info = args.get("info")
+        current_app.logger.info('info: {}'.format(info))
+        userinfo = info.get('userInfo')
+        if not userinfo:
+            raise TokenError
+
+        mplogin = WeixinLogin(MiniProgramAppId, MiniProgramAppSecret)
+        try:
+            get_data = mplogin.jscode2session(code)
+            current_app.logger.info('get_code2session_response: {}'.format(get_data))
+            session_key = get_data.session_key
+            openid = get_data.openid
+            unionid = get_data.unionid
+        except Exception as e:
+            current_app.logger.error('mp_login_error : {}'.format(e))
+            raise WXLoginError
+        user = User.query.filter_by_(USopenid1=openid).first()
+        if user:
+            current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
+        elif unionid:
+            user = User.query.filter_by_(USunionid=unionid).first()
+            if user:
+                current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
+
+        head = self._get_local_head(userinfo.get("avatarUrl"), openid)
+        sex = int(userinfo.get('gender', 1)) - 1
+
+        if args.get('secret_usid'):
+            try:
+                superid = self._base_decode(args.get('secret_usid'))
+                gennerc_log('secret_usid --> superid {}'.format(superid))
+                upperd = self.get_user_by_id(superid)
+                gennerc_log('mp_login get supper user : {0}'.format(upperd.__dict__))
+                if user and upperd.USid == user.USid:
+                    upperd = None
+            except Exception as ee:
+                gennerc_log('解析secret_usid时失败： {}'.format(ee))
+                upperd = None
+        else:
+            upperd = None
+
+        if user:
+            usid = user.USid
+            user.USheader = head
+            user.USname = userinfo.get('nickName')
+            user.USopenid1 = openid
+            user.USgender = sex
+            user.USunionid = unionid
+        else:
+            current_app.logger.info('This is a new guy : {}'.format(userinfo.get('nickName')))
+            usid = str(uuid.uuid1())
+            user_dict = {
+                'USid': usid,
+                'USname': userinfo.get('nickName'),
+                'USgender': sex,
+                'USheader': head,
+                'USintegral': 0,
+                'USfrom': WXLoginFrom.miniprogram.value,
+                'USlevel': 1,
+                'USopenid1': openid,
+                'USunionid': unionid
+            }
+            if upperd:
+                # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
+                if upperd.USlevel == self.AGENT_TYPE:
+                    user_dict.setdefault('USsupper1', upperd.USid)
+                    user_dict.setdefault('USsupper2', upperd.USsupper1)
+                    user_dict.setdefault('USsupper3', upperd.USsupper2)
+            user = User.create(user_dict)
+            db.session.add(user)
+        if upperd:
+            uin = UserInvitation.create({'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+            db.session.add(uin)
+
+        userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),
+                                               "USid": usid,
+                                               "USTip": request.remote_addr
+                                               })
+        useragent = self._get_user_agent()
+        if useragent:
+            setattr(userloggintime, 'OSVersion', useragent[0])
+            setattr(userloggintime, 'PhoneModel', useragent[1])
+            setattr(userloggintime, 'WechatVersion', useragent[2])
+            setattr(userloggintime, 'NetType', useragent[3])
+            setattr(userloggintime, 'UserAgent', useragent[4])
+        db.session.add(userloggintime)
+
+        # user_info = info.get('userInfo')
+        # current_app.logger.info(f'userInfo:{user_info}')
+        # encrypteddata = info.get('encryptedData')
+        # iv = info.get('iv')
+        # encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
+        # current_app.logger.info(f'plain_text: {encrypted_user_info.decode()}')
+
+        token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
+        binded_phone = True if user and user.UStelphone else False
+        data = {'token': token, 'binded_phone': binded_phone, 'session_key': session_key}
+        current_app.logger.info('return_data : {}'.format(data))
+        return Success('登录成功', data=data)
+
+    @token_required
+    @get_session
+    def bind_phone(self):
+        """小程序绑定手机号更新用户"""
+        data = parameter_required(('phonenumber', 'session_key'))
+
+        user = User.query.filter(User.USid == request.user.id,
+                                 User.isdelete == False,
+                                 User.UStelphone.is_(None)).first()
+        if not user:
+            raise TokenError('该用户已绑定过手机号码')
+
+        phone = data.get('phonenumber')
+        session_key = data.get('session_key')
+        current_app.logger.info('手机加密数据为{}'.format(phone))
+        encrypteddata = phone.get('encryptedData')
+        iv = phone.get('iv')
+
+        try:
+            encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
+        except Exception as e:
+            current_app.logger.error('手机号解密失败: {}'.format(e))
+            raise WXLoginError()
+
+        current_app.logger.info(f'plain_text: {encrypted_user_info}')
+        phonenumber = encrypted_user_info.get('phoneNumber')
+
+        user.UStelphone = phonenumber
+        res_user = user
+
+        phone_binded_user = User.query.filter(User.isdelete == False,
+                                              User.UStelphone == phonenumber,
+                                              User.USunionid.is_(None),
+                                              User.USopenid1.is_(None)).first()
+        if phone_binded_user:
+            current_app.logger.info('该手机号已存在绑定用户: {}， 删除新用户: {}'.format(user.USid, phone_binded_user.USid))
+            phone_binded_user.USunionid = user.USunionid
+            phone_binded_user.USopenid1 = user.USopenid1
+            user.isdelete = True  # 已有H5绑定手机号的删除小程序新建的用户
+            res_user = phone_binded_user
+
+        token = usid_to_token(res_user.USid, level=res_user.USlevel, username=res_user.USname)  # 更换token
+        response = {'phonenumber': str(phonenumber).replace(str(phonenumber)[3:7], '*'*4), 'token': token}
+        current_app.logger.info('return_data: {}'.format(response))
+        return Success('绑定成功', response)
+
+    @staticmethod
+    def _get_user_agent():
         user_agent = request.user_agent
         ua = str(user_agent).split()
         osversion=phonemodel=wechatversion=nettype=None
@@ -1926,6 +2171,7 @@ class CUser(SUser, BASEAPPROVAL):
         self.__check_apply_cash(commision_for)
         # data = parameter_required(('cncashnum', 'cncardno', 'cncardname', 'cnbankname', 'cnbankdetail'))
         data = parameter_required(('cncashnum',))
+        applyplatform = data.get('applyplatform')
         # if not is_shop_keeper():
         #     raise AuthorityError('权限不足')
         # user = self.get_user_by_id(reqbuest.user.id)
@@ -1982,6 +2228,8 @@ class CUser(SUser, BASEAPPROVAL):
                 'CNcashNum': Decimal(cncashnum).quantize(Decimal('0.00')),
                 'CommisionFor': commision_for
             })
+            if str(applyplatform) == str(WXLoginFrom.miniprogram.value):
+                setattr(cn, 'ApplyPlatform', WXLoginFrom.miniprogram.value)
         db.session.add(cn)
         if is_admin():
             BASEADMIN().create_action(AdminActionS.insert.value, 'CashNotes', str(uuid.uuid1()))

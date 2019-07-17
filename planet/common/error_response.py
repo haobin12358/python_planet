@@ -116,3 +116,9 @@ class InsufficientConditionsError(BaseError):
     status = 405
     status_code = 40513
     message = '条件不足'
+
+
+class NeedPhone(BaseError):
+    status = 405
+    status_code = 405014
+    message = '未绑定手机号'

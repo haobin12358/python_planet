@@ -9,3 +9,7 @@ from .trade import *
 from .questanswer import *
 from .commision import *
 from .club import *
+from .message import *
+from .join import *
+from .play import *
+from .scenicspot import *

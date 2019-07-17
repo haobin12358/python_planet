@@ -13,7 +13,7 @@ from planet.common.base_service import get_session
 from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
     UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
-    SupplizerSettementStatus, CashFor,  AdminActionS
+    SupplizerSettementStatus, CashFor, AdminActionS, WXLoginFrom, GuideApplyStatus
 
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -24,7 +24,7 @@ from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFi
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
     GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku, \
-    CashFlow, NewsAward, NewsTag, UserCommission, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku
+    CashFlow, NewsAward, NewsTag, UserCommission, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku, Toilet, Guide
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -898,6 +898,10 @@ class CApproval(BASEAPPROVAL):
             self.agree_newsaward(approval_model)
         elif approval_model.PTid == 'togroupgoods':
             self.agree_groupgoods(approval_model)
+        elif approval_model.PTid == 'totoilet':
+            self.agree_toilet(approval_model)
+        elif approval_model.PTid == 'toguide':
+            self.agree_guide(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -936,6 +940,10 @@ class CApproval(BASEAPPROVAL):
             self.refuse_newsaward(approval_model, refuse_abo)
         elif approval_model.PTid == 'togroupgoods':
             self.refuse_groupgoods(approval_model, refuse_abo)
+        elif approval_model.PTid == 'totoilet':
+            self.refuse_toilet(approval_model)
+        elif approval_model.PTid == 'toguide':
+            self.refuse_guide(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -973,16 +981,21 @@ class CApproval(BASEAPPROVAL):
 
     def agree_cash(self, approval_model):
         from planet.control.CPay import CPay
+        from planet.control.CPlay import CPlay
         if not approval_model:
             return
         cpay = CPay()
+        cplay = CPlay()
         cn = CashNotes.query.filter_by_(CNid=approval_model.AVcontent).first()
         uw = UserWallet.query.filter_by_(USid=approval_model.AVstartid).first()
         if not cn or not uw:
             raise SystemError('提现数据异常,请处理')
         flow_dict = dict(CFWid=str(uuid.uuid1()), CNid=cn.CNid)
         if cn.CommisionFor == ApplyFrom.user.value:
-            res = cpay._pay_to_user(cn)  # 提现并记录流水
+            if cn.ApplyPlatform == WXLoginFrom.miniprogram.value:
+                res = cplay._pay_to_user(cn)  # 小程序提现
+            else:
+                res = cpay._pay_to_user(cn)  # 提现并记录流水(H5端)
             flow_dict['amout'] = int(Decimal(cn.CNcashNum).quantize(Decimal('0.00')) * 100)
             flow_dict['CFWfrom'] = CashFor.wechat.value
         else:
@@ -1333,6 +1346,30 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
                                                       SKUid=sku.SKUid).first_('商品sku信息不存在')
             co._update_stock(int(sku.GSstock), product, sku_instance)
+
+    def agree_toilet(self, approval_model):
+        toilet = Toilet.query.filter_by_(TOid=approval_model.AVcontent).first()
+        if not toilet:
+            return
+        toilet.TOstatus = ApprovalAction.agree.value
+
+    def refuse_toilet(self, approval_model):
+        toilet = Toilet.query.filter_by_(TOid=approval_model.AVcontent).first()
+        if not toilet:
+            return
+        toilet.TOstatus = ApprovalAction.refuse.value
+
+    def agree_guide(self, approval_model):
+        guide = Guide.query.filter_by_(GUid=approval_model.AVcontent).first()
+        if not guide:
+            return
+        guide.GUstatus = GuideApplyStatus.agree.value
+
+    def refuse_guide(self, approval_model):
+        guide = Guide.query.filter_by_(GUid=approval_model.AVcontent).first()
+        if not guide:
+            return
+        guide.GUstatus = GuideApplyStatus.refuse.value
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

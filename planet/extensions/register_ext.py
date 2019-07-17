@@ -9,7 +9,8 @@ from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
-    appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert
+    appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert, \
+    MiniProgramAppId, MiniProgramWxpay_notify_url
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -43,6 +44,8 @@ alipay = AliPay(
      )
 
 wx_pay = WeixinPay(appid, mch_id, mch_key, wxpay_notify_url, apiclient_key, apiclient_cert)
+mini_wx_pay = WeixinPay(MiniProgramAppId, mch_id, mch_key, MiniProgramWxpay_notify_url, apiclient_key, apiclient_cert)
+
 db = SQLAlchemy(query_class=Query, session_options={"expire_on_commit": False, "autoflush": False})
 
 mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,
@@ -55,12 +58,13 @@ mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
 
 
 conn = redis.Redis(host='localhost', port=6379, db=1)
+# conn = redis.Redis(host='119.3.47.90', port=6379, db=2)  # todo  合并之前改回去 ！！！
 cache = Cache(config=cache_redis)
 
 
-def register_ext(app):
+def register_ext(app, logger_file='/tmp/planet_version2/'):
     db.init_app(app)
     cache.init_app(app)
-    LoggerHandler(app, file='/tmp/planet_version2/').error_handler()
+    LoggerHandler(app, file=logger_file).error_handler()
     from planet.extensions.tasks import celery
     celery.init_app(app)

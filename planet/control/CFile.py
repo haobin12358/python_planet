@@ -18,6 +18,7 @@ from planet.extensions.qiniu.storage import QiniuStorage
 class CFile(object):
     def __init__(self):
         self.qiniu = QiniuStorage(current_app)
+        self.upload_to_qiniu = ('https://www.bigxingxing.com', 'https://pre2.bigxingxing.com')
 
     # @token_required
     def upload_img(self):
@@ -28,6 +29,10 @@ class CFile(object):
         self.check_file_size()
         file = request.files.get('file')
         data = parameter_required()
+        if not data:
+            data = request.form
+            current_app.logger.info('form : {}'.format(data))
+        current_app.logger.info('type is {}'.format(data.get('type')))
         folder = self.allowed_folder(data.get('type'))
         if not file:
             raise ParamsError(u'上传有误')
@@ -93,7 +98,7 @@ class CFile(object):
                 second_str = '0' + str(second) if second < 10 else str(second)
                 video_dur = minute_str + ':' + second_str
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=newFile, filename=data[1:])
                     except Exception as e:
@@ -102,7 +107,7 @@ class CFile(object):
 
                 video_thumbnail_path = os.path.join(newPath, thum_name.get('thumbnail_name_list')[0])
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=video_thumbnail_path, filename=video_thum[1:])
                     except Exception as e:
@@ -129,7 +134,7 @@ class CFile(object):
                 data += '_' + thumbnail_img.split('_')[-1]
                 # 上传到七牛云，并删除本地压缩图
 
-                if API_HOST == 'https://www.bigxingxing.com':
+                if API_HOST in self.upload_to_qiniu:
                     try:
                         self.qiniu.save(data=thumbnail_img, filename=data[1:])
                         os.remove(str(newFile + '_' + thumbnail_img.split('_')[-1]))
@@ -170,14 +175,24 @@ class CFile(object):
     @staticmethod
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar',
-                                    'voucher', 'idcard', 'brand', 'activity', 'contract'] else 'temp'
+                                    'voucher', 'idcard', 'brand', 'activity', 'contract', 'play',
+                                    'scenicspot', 'raiders', 'travels', 'essay'] else 'temp'
 
     def new_name(self, shuffix):
-        import string, random  # import random
+        import string
+        import random
         myStr = string.ascii_letters + '12345678'
         try:
-            usid = request.user.id
-        except AttributeError as e:
+            if hasattr(request, 'user'):
+                usid = request.user.id
+            else:
+                from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+                s = Serializer(current_app.config['SECRET_KEY'])
+                token = request.form.get('token')
+                user = s.loads(token)
+                usid = user.get('id')
+        except Exception as e:
+            current_app.logger.error('Error is {}'.format(e))
             usid = 'anonymous'
         res = ''.join(random.choice(myStr) for _ in range(20)) + usid + shuffix
         return res
@@ -197,7 +212,7 @@ class CFile(object):
         rets = []
         for url in url_list:
             # ret, info = self.qiniu.url_to_storage('https://www.bigxingxing.com' + url, url[1:])
-            ret, info = self.qiniu.save('/opt/planet' + url, url[1:])
+            ret, info = self.qiniu.save('/opt/planet_version2' + url, url[1:])
             rets.append(ret)
         # current_app.logger.info(rets)
         current_app.logger.info(len(rets))
