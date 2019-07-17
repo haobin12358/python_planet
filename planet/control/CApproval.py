@@ -24,7 +24,7 @@ from planet.models import News, GuessNumAwardApply, FreshManFirstSku, FreshManFi
     FreshManFirstProduct, UserWallet, UserInvitation, TrialCommodityImage, TrialCommoditySku, TrialCommoditySkuValue, \
     ActivationCodeApply, UserActivationCode, OutStock, SettlenmentApply, SupplizerSettlement, GuessNumAwardProduct, \
     GuessNumAwardSku, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, IntegralProduct, IntegralProductSku, \
-    CashFlow, NewsAward, NewsTag, UserCommission, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku
+    CashFlow, NewsAward, NewsTag, UserCommission, GroupGoodsProduct, GroupGoodsSku, MagicBoxApplySku, Toilet
 
 from planet.models.approval import Approval, Permission, ApprovalNotes, PermissionType, PermissionItems, \
     PermissionNotes, AdminPermission
@@ -898,6 +898,8 @@ class CApproval(BASEAPPROVAL):
             self.agree_newsaward(approval_model)
         elif approval_model.PTid == 'togroupgoods':
             self.agree_groupgoods(approval_model)
+        elif approval_model.PTid == 'totoilet':
+            self.agree_toilet(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -936,6 +938,8 @@ class CApproval(BASEAPPROVAL):
             self.refuse_newsaward(approval_model, refuse_abo)
         elif approval_model.PTid == 'togroupgoods':
             self.refuse_groupgoods(approval_model, refuse_abo)
+        elif approval_model.PTid == 'totoilet':
+            self.refuse_toilet(approval_model)
         else:
             return ParamsError('参数异常，请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -1338,6 +1342,18 @@ class CApproval(BASEAPPROVAL):
             sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
                                                       SKUid=sku.SKUid).first_('商品sku信息不存在')
             co._update_stock(int(sku.GSstock), product, sku_instance)
+
+    def agree_toilet(self, approval_model):
+        toilet = Toilet.query.filter_by_(TOid=approval_model.AVcontent).first()
+        if not toilet:
+            return
+        toilet.TOstatus = ApprovalAction.agree.value
+
+    def refuse_toilet(self, approval_model):
+        toilet = Toilet.query.filter_by_(TOid=approval_model.AVcontent).first()
+        if not toilet:
+            return
+        toilet.TOstatus = ApprovalAction.refuse.value
 
     def get_avstatus(self):
         data = {level.name: level.zh_value for level in ApplyStatus}

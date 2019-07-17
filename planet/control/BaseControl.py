@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -502,6 +502,14 @@ class BASEAPPROVAL():
         product = fill_gp_child_method(gp)
         return start_model, product
 
+    def __fill_totoilet(self, startid, contentid):
+        start = User.query.filter_by_(USid=startid).first() or \
+                Admin.query.filter_by_(ADid=startid).first()
+        content = Toilet.query.filter_by_(TOid=contentid).first()
+        if not start or not content:
+            return None, None
+        return start, content
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -534,6 +542,8 @@ class BASEAPPROVAL():
             return self.__fill_integral(start, content)
         elif pt.PTid == 'togroupgoods':
             return self.__fill_groupgoods(start, content)
+        elif pt.PTid == 'totoilet':
+            return self.__fill_totoilet(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
