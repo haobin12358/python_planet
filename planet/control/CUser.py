@@ -869,6 +869,7 @@ class CUser(SUser, BASEAPPROVAL):
             #         request.user.id, name, idcode), info='error')
             #     raise SystemError('服务器异常')
             user.USrealname = name
+            user.USplayName = name
             user.USidentification = idcode
             self.delete_usemedia_by_usid(request.user.id)
             um_front = UserMedia.create({

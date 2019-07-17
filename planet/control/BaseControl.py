@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -510,6 +510,13 @@ class BASEAPPROVAL():
             return None, None
         return start, content
 
+    def __fill_toguide(self, startid, contentid):
+        start = User.query.filter_by_(USid=startid).first()
+        content = Guide.query.filter_by_(GUid=contentid).first()
+        if not start or not content:
+            return None, None
+        return start, content
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -544,6 +551,8 @@ class BASEAPPROVAL():
             return self.__fill_groupgoods(start, content)
         elif pt.PTid == 'totoilet':
             return self.__fill_totoilet(start, content)
+        elif pt.PTid == 'toguide':
+            return self.__fill_toguide(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 

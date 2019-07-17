@@ -17,7 +17,7 @@ from planet.models.join import EnterLog, EnterCost
 from planet.models.play import Play
 
 
-class CMiniProgramPersonalCenter(object):
+class CMiniProgramPersonalCenter(BASEAPPROVAL):
 
     @phone_required
     def my_wallet(self):
@@ -140,7 +140,7 @@ class CMiniProgramPersonalCenter(object):
                                                                'OldIdentityNumber': oldidentitynumber,
                                                                'NewIdentityNumber': guidentification
                                                                }))
-
+        super(CMiniProgramPersonalCenter, self).create_approval('toguide', user.USid, guide_instance.GUid)
         return Success('认证成功', {'guid': guide_instance.GUid})
 
     @phone_required

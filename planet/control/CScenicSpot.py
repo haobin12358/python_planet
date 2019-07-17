@@ -571,12 +571,6 @@ class CScenicSpot(BASEAPPROVAL):
             if data.get('delete'):
                 toilet.update({'isdelete': True})
                 self.BaseAdmin.create_action(AdminActionS.delete.value, 'Toilet', toilet.TOid)
-                approval_info = Approval.query.filter(Approval.AVcontent == toilet.TOid,
-                                                      or_(Approval.AVstartid == toilet.creatorID,
-                                                          Approval.AVstartid == getattr(request, 'user').id),
-                                                      Approval.AVstatus == ApplyStatus.wait_check.value,
-                                                      Approval.isdelete == false()).first()
-                approval_info.AVstatus = ApplyStatus.cancle.value
             else:
                 toilet.update({'longitude': longitude,
                                'latitude': latitude,
