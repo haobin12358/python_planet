@@ -10,7 +10,7 @@ from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
     appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert, \
-    MiniProgramAppId, MiniProgramWxpay_notify_url, miniprogram_dir, subscribe_dir
+    MiniProgramAppId, MiniProgramWxpay_notify_url, miniprogram_dir, subscribe_dir, MiniProgramAppSecret
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -56,7 +56,7 @@ mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
                      ac_path=os.path.join(subscribe_dir, ".access_token"),
                      jt_path=os.path.join(subscribe_dir, ".jsapi_ticket"))
 
-mp_miniprogram = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
+mp_miniprogram = WeixinMP(MiniProgramAppId, MiniProgramAppSecret,
                      ac_path=os.path.join(miniprogram_dir, ".access_token"),
                      jt_path=os.path.join(miniprogram_dir, ".jsapi_ticket"))
 

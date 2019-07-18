@@ -36,6 +36,7 @@ class APlay(Resource):
     def post(self, play):
         apis = {
             'set_play': self.cplay.set_play,
+            'test': self.cplay.test,
             'set_cost': self.cplay.set_cost,
             'set_discount': self.cplay.set_discount,
             'set_insurance': self.cplay.set_insurance,
