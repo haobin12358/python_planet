@@ -121,4 +121,4 @@ class InsufficientConditionsError(BaseError):
 class NeedPhone(BaseError):
     status = 405
     status_code = 405014
-    message = '未绑定手机号'
+    message = '为获得更优质的服务，请允许授权您的手机号码'

@@ -1917,15 +1917,16 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     def bind_phone(self):
         """小程序绑定手机号更新用户"""
-        data = parameter_required(('phonenumber', 'session_key'))
-
+        data = parameter_required(('session_key',))
+        phone = data.get('phonenumber')
+        if not phone:
+            raise ParamsError('为获得更优质的服务，请允许授权您的手机号码')
         user = User.query.filter(User.USid == request.user.id,
                                  User.isdelete == False,
                                  User.UStelphone.is_(None)).first()
         if not user:
             raise TokenError('该用户已绑定过手机号码')
 
-        phone = data.get('phonenumber')
         session_key = data.get('session_key')
         current_app.logger.info('手机加密数据为{}'.format(phone))
         encrypteddata = phone.get('encryptedData')
