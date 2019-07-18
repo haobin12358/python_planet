@@ -1823,12 +1823,27 @@ class CUser(SUser, BASEAPPROVAL):
         try:
             get_data = mplogin.jscode2session(code)
             current_app.logger.info('get_code2session_response: {}'.format(get_data))
-            session_key = get_data.session_key
-            openid = get_data.openid
-            unionid = get_data.unionid
+            session_key = get_data.get('session_key')
+            openid = get_data.get('openid')
+            unionid = get_data.get('unionid')
         except Exception as e:
             current_app.logger.error('mp_login_error : {}'.format(e))
             raise WXLoginError
+        if not unionid or not openid:
+            current_app.logger.info('pre get unionid: {}'.format(unionid))
+            current_app.logger.info('pre get openid: {}'.format(openid))
+            encrypteddata = info.get('encryptedData')
+            iv = info.get('iv')
+            try:
+                encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
+                unionid = encrypted_user_info.get('unionId')
+                openid = encrypted_user_info.get('openId')
+                current_app.logger.info('encrypted_user_info: {}'.format(encrypted_user_info))
+            except Exception as e:
+                current_app.logger.error('用户信息解密失败: {}'.format(e))
+
+        current_app.logger.info('get unionid is {}'.format(unionid))
+        current_app.logger.info('get openid is {}'.format(openid))
         user = User.query.filter_by_(USopenid1=openid).first()
         if user:
             current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
@@ -1839,7 +1854,6 @@ class CUser(SUser, BASEAPPROVAL):
 
         head = self._get_local_head(userinfo.get("avatarUrl"), openid)
         sex = int(userinfo.get('gender', 1)) - 1
-
         if args.get('secret_usid'):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
@@ -1899,13 +1913,6 @@ class CUser(SUser, BASEAPPROVAL):
             setattr(userloggintime, 'NetType', useragent[3])
             setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
-
-        # user_info = info.get('userInfo')
-        # current_app.logger.info(f'userInfo:{user_info}')
-        # encrypteddata = info.get('encryptedData')
-        # iv = info.get('iv')
-        # encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
-        # current_app.logger.info(f'plain_text: {encrypted_user_info.decode()}')
 
         token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
         binded_phone = True if user and user.UStelphone else False
