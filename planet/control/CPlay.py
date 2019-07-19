@@ -846,6 +846,7 @@ class CPlay():
         data = parameter_required(('plid',))
         plid = data.get('plid')
         elid = data.get('elid')
+        repay = data.get('repay')
         opayno = self._opayno()
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         user = get_current_user()
@@ -853,23 +854,44 @@ class CPlay():
         with db.auto_commit():
             if self._check_plid(user, play):
                 raise StatusError('同一时间只能参加一个活动')
+            # 优先检测是否继续支付
+            if repay:
+                el = EnterLog.query.filter_by(PLid=plid, isdelete=False).first_('报名记录已删除')
+                if el.ELstatus != EnterLogStatus.wait_pay.value:
+                    raise StatusError('当前报名记录已支付或者已删除')
+                elid = el.ELid
+            else:
+                if elid:
+                    el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
+                    if el:
+                        # 校验修改
+                        if el.PLid != plid:
+                            raise ParamsError('同一时间只能参加一个活动')
+                        # 更新费用明细
+                        self._update_enter_cost(el, data)
+                        if data.get('elvalue'):
+                            elvalue = self._update_elvalue(plid, data)
+                            el.update({'ELvalue': json.dumps(elvalue)})
+                        el.ELpayNo = opayno
 
-            if elid:
-                el = EnterLog.query.filter_by(ELid=elid, isdelete=False).first()
-                if el:
-                    # 校验修改
-                    if el.PLid != plid:
-                        raise ParamsError('同一时间只能参加一个活动')
-                    # 更新费用明细
-                    self._update_enter_cost(el, data)
-                    if data.get('elvalue'):
+                        db.session.add(el)
+                        # return Success('修改成功')
+                    else:
+                        elid = str(uuid.uuid1())
                         elvalue = self._update_elvalue(plid, data)
-                        el.update({'ELvalue': json.dumps(elvalue)})
-                    el.ELpayNo = opayno
+                        el = EnterLog.create({
+                            'ELid': elid,
+                            'PLid': plid,
+                            'USid': user.USid,
+                            'ELstatus': EnterLogStatus.wait_pay.value,
+                            'ELpayNo': opayno,
+                            'ELvalue': json.dumps(elvalue)
+                        })
+                        db.session.add(el)
+                        self._update_enter_cost(el, data)
 
-                    db.session.add(el)
-                    # return Success('修改成功')
                 else:
+
                     elid = str(uuid.uuid1())
                     elvalue = self._update_elvalue(plid, data)
                     el = EnterLog.create({
@@ -883,29 +905,14 @@ class CPlay():
                     db.session.add(el)
                     self._update_enter_cost(el, data)
 
-            else:
+                # change_name = False
+                if elvalue.get('realname'):
+                    if user.USrealname and user.USrealname != elvalue.get(self.realname):
+                        raise ParamsError('真实姓名与已认证姓名不同')
 
-                elid = str(uuid.uuid1())
-                elvalue = self._update_elvalue(plid, data)
-                el = EnterLog.create({
-                    'ELid': elid,
-                    'PLid': plid,
-                    'USid': user.USid,
-                    'ELstatus': EnterLogStatus.wait_pay.value,
-                    'ELpayNo': opayno,
-                    'ELvalue': json.dumps(elvalue)
-                })
-                db.session.add(el)
-                self._update_enter_cost(el, data)
-
-            # change_name = False
-            if elvalue.get('realname'):
-                if user.USrealname and user.USrealname != elvalue.get(self.realname):
-                    raise ParamsError('真实姓名与已认证姓名不同')
-
-                elif user.USplayName != elvalue.get(self.realname):
-                    user.USplayName = elvalue.get(self.realname)
-                    db.session.add(user)
+                    elif user.USplayName != elvalue.get(self.realname):
+                        user.USplayName = elvalue.get(self.realname)
+                        db.session.add(user)
 
         body = play.PLname[:16] + '...'
         openid = user.USopenid1
@@ -1522,11 +1529,11 @@ class CPlay():
         return ecmodel
 
     def _check_plid(self, user, play):
-        EnterLog.query.filter(
-            EnterLog.ELstatus < EnterLogStatus.cancel.value,
-            EnterLog.ELstatus > EnterLogStatus.error.value,
-            EnterLog.PLid == play.PLid, EnterLog.USid == user.USid, EnterLog.isdelete == false()).delete_(
-            synchronize_session=False)
+        # EnterLog.query.filter(
+        #     EnterLog.ELstatus < EnterLogStatus.cancel.value,
+        #     EnterLog.ELstatus > EnterLogStatus.error.value,
+        #     EnterLog.PLid == play.PLid, EnterLog.USid == user.USid, EnterLog.isdelete == false()).delete_(
+        #     synchronize_session=False)
 
         if play.PLstatus != PlayStatus.publish.value:
             raise StatusError('该活动已结束')
@@ -1536,8 +1543,12 @@ class CPlay():
         user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
             or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
                 and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
-            or_(EnterLog.USid == user.USid), EnterLog.isdelete == false(), Play.isdelete == false(),
-                                             Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
+            or_(and_(EnterLog.USid == user.USid,
+                     EnterLog.ELstatus == EnterLogStatus.success.value,
+                     EnterLog.isdelete == false()),
+                Play.PLcreate == user.USid),
+            Play.isdelete == false(),
+            Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
         return bool(user_enter)
 
     def _update_elvalue(self, plid, data):
