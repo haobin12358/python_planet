@@ -1853,7 +1853,8 @@ class CUser(SUser, BASEAPPROVAL):
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
         head = self._get_local_head(userinfo.get("avatarUrl"), openid)
-        sex = int(userinfo.get('gender', 1)) - 1
+        sex = userinfo.get('gender')
+        sex = int(sex) - 1 if str(sex) in '12' else 0
         if args.get('secret_usid'):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
@@ -2042,7 +2043,7 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USheader = user_openid.USheader
                 # user.USsupper1 = user_openid.USsupper1
                 # user.USsupper2 = user_openid.USsupper2
-                user.USopenid1 = user_openid.USopenid1
+                # user.USopenid1 = user_openid.USopenid1
                 # user.USopenid2 = user_openid.USopenid2
                 user.USopenid2 = user_openid.USopenid2
             return_user = user

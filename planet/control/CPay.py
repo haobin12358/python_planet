@@ -104,7 +104,7 @@ class CPay():
             db.session.add(order_pay_instance)
         user = User.query.filter(User.USid == order_main.USid).first()
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(pay_price), body,
-                                    openid=user.USopenid1 or user.USopenid2)
+                                    openid=user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

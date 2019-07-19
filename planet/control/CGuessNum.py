@@ -301,7 +301,7 @@ class CGuessNum(COrder, BASEAPPROVAL, BaseController):
         # 生成支付信息
         body = product_instance.PRtitle
         # user = get_current_user()
-        openid = user.USopenid1 or user.USopenid2
+        openid = user.USopenid2
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
