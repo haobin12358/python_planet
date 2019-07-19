@@ -10,7 +10,7 @@ from sqlalchemy import Date, or_, and_, false, extract
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, ApiError
-from planet.common.params_validates import parameter_required
+from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user
 
@@ -626,10 +626,7 @@ class CPlay():
                     current_app.logger.info('删除费用 {}'.format(cosid))
                     continue
 
-                subtotal = Decimal(str(cost.get('cossubtotal') or 0))
-                if subtotal < Decimal('0'):
-                    subtotal = Decimal('0')
-
+                subtotal = validate_price(str(cost.get('cossubtotal') or 0))
                 if cosid:
                     cost_instance = Cost.query.filter_by(COSid=cosid, isdelete=False).first()
                     if cost_instance:
@@ -679,13 +676,7 @@ class CPlay():
                     current_app.logger.info('删除退团费用 {}'.format(pdid))
                     continue
 
-                pdprice = Decimal(str(pd.get('pdprice')))
-                if pdprice < Decimal('0'):
-                    pdprice = Decimal('0')
-                # pddeltaday = int(data.get('pddeltaday'))
-                # pddeltadhour = int(data.get('pddeltadhour'))
-                # pddelta = timedelta(days=pddeltaday, hours=pddeltadhour)
-
+                pdprice = validate_price(str(pd.get('pdprice') or 0))
                 if pdid:
                     pd_instance = PlayDiscount.query.filter_by(PDid=pdid, isdelete=False).first()
                     if pd_instance:
@@ -725,9 +716,8 @@ class CPlay():
             for ins in insurance_list:
                 current_app.logger.info('get Insurance {} '.format(ins))
                 inid = ins.get('inid')
-                incost = Decimal(str(ins.get('incost') or 0))
-                if incost < Decimal('0'):
-                    incost = Decimal('0')
+                incost = validate_price(str(ins.get('incost') or 0))
+
                 current_app.logger.info(' changed insurance cost = {}'.format(incost))
                 if ins.get('delete'):
                     current_app.logger.info('删除 Insurance {} '.format(inid))
@@ -1086,8 +1076,8 @@ class CPlay():
             mount_price = sum(
                 [ec.ECcost for ec in
                  EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
-            return_price = Decimal(str(mount_price)) - discount
-            # todo  退款到微信账户
+            # return_price = Decimal(str(mount_price)) - discount
+            return_price = discount
 
             el.ELstatus = EnterLogStatus.refund.value
             # 扣除领队钱
@@ -1139,9 +1129,7 @@ class CPlay():
                 raise StatusError('活动已开始')
             user = get_current_user()
             # 价格校验
-            moprice = Decimal(str(data.get('moprice')))
-            if moprice < Decimal('0'):
-                moprice = Decimal('0')
+            moprice = validate_price(str(data.get('moprice') or 0))
 
             # 添加记录
             makeover = MakeOver.create({
