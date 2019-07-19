@@ -415,14 +415,8 @@ class WeixinMP(object):
         """
         kwargs.setdefault("template_id", template_id)
         kwargs.setdefault("touser", touser)
-        # kwargs.setdefault("weapp_template_msg", {
-        #     'template_id': template_id,
-        #     'data': data,
-        #     'form_id': kwargs.get('form_id'),
-        #     'page': "",
-        #     'emphasis_keyword': "keyword1.DATA",
-        # })
-        # url and kwargs.setdefault("url", url)
-        # miniprogram and kwargs.setdefault("miniprogram", miniprogram)
+        kwargs.setdefault("data", data)
+        url and kwargs.setdefault("url", url)
+        miniprogram and kwargs.setdefault("miniprogram", miniprogram)
         # print kwargs
         return self.post("/message/wxopen/template/send", kwargs)

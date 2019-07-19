@@ -40,7 +40,7 @@ class CTemplates(object):
                 "value": "就这个活动带他一起"
             }
         }
-        return self.mp_miniprogram.template_send(tempid, leader.USopenid1, data, form_id=form_id)
+        return self.mp_miniprogram.template_send(tempid, leader.USopenid1, data, page='/index/manageActivity', form_id=form_id)
 
     def cancel(self):
         pass
