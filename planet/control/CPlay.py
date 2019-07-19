@@ -1413,18 +1413,25 @@ class CPlay():
         if common_user():
             user = user or get_current_user()
             play.fill('editstatus', bool(
-                (
-                        (not enter_num and play.PLstatus == PlayStatus.publish.value) or
-                        (play.PLstatus in [PlayStatus.draft.value, PlayStatus.close.value]))
-                and (play.PLcreate == user.USid)))
+                ((not enter_num and play.PLstatus == PlayStatus.publish.value) or
+                 (play.PLstatus in [PlayStatus.draft.value, PlayStatus.close.value])) and
+                (play.PLcreate == user.USid)))
 
             play.fill('playtype', bool(play.PLcreate != user.USid))
             el = EnterLog.query.filter(EnterLog.USid == user.USid, EnterLog.PLid == play.PLid,
                                        EnterLog.isdelete == false()).first()
+            play.fill('repaystatus', bool(
+                (play.PLcreate != user.USid) and
+                (el and el.ELstatus == EnterLogStatus.wait_pay.value) and
+                (int(enter_num) < int(play.PLnum)) and
+                (play.PLstatus == PlayStatus.publish.value)))
 
             play.fill('joinstatus', bool(
-                (play.PLcreate != user.USid) and (not el) and (int(enter_num) < int(play.PLnum)) and (
-                        play.PLstatus == PlayStatus.publish.value)))
+                (play.PLcreate != user.USid) and
+                (not el or el.ELstatus == EnterLogStatus.wait_pay.value) and
+                (int(enter_num) < int(play.PLnum)) and
+                (play.PLstatus == PlayStatus.publish.value)))
+
             isrefund = False
             if el:
                 cap = CancelApply.query.filter_by(ELid=el.ELid).first()
