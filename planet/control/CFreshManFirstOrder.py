@@ -329,7 +329,7 @@ class CFreshManFirstOrder(COrder, CUser):
         # 生成支付信息
         body = product_instance.PRtitle
         current_user = get_current_user()
-        openid = current_user.USopenid1 or current_user.USopenid2
+        openid = current_user.USopenid2
         pay_args = self._pay_detail(omclient, opaytype, opayno, float(price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,

@@ -451,7 +451,7 @@ class CMagicBox(COrder, BASEAPPROVAL):
             omclient = Client.wechat.value
             opaytype = PayType.wechat_pay.value
             body = product.PRtitle
-            openid = user.USopenid2 or user.USopenid1
+            openid = user.USopenid2
             pay_args = super(CMagicBox, self)._pay_detail(omclient, opaytype, opayno, round(float(price), 2), body, openid=openid)
             response = {
                 'pay_type': PayType(opaytype).name,
@@ -594,7 +594,7 @@ class CMagicBox(COrder, BASEAPPROVAL):
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product.PRtitle
-        openid = user.USopenid2 or user.USopenid1
+        openid = user.USopenid2
         pay_args = super(CMagicBox, self)._pay_detail(omclient, opaytype, opayno, float(true_price), body, openid=openid)
         response = {
             'pay_type': PayType(opaytype).name,
