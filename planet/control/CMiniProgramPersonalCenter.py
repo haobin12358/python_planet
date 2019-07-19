@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from flask import current_app, request
-from sqlalchemy import false, func, extract
+from sqlalchemy import false, func, extract, and_, or_
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required
@@ -63,26 +63,30 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
 
     @staticmethod
     def _get_transactions(user, filter_args):
-        res = db.session.query(Play.PLname, EnterLog.createtime, func.sum(EnterCost.ECcost), EnterLog.ELstatus
+        res = db.session.query(Play.PLname, EnterLog.createtime, func.sum(EnterCost.ECcost), EnterLog.ELstatus,
+                               EnterLog.USid
                                ).filter(Play.isdelete == false(),
                                         EnterLog.isdelete == false(),
                                         EnterCost.isdelete == false(),
                                         EnterCost.ELid == EnterLog.ELid,
                                         EnterLog.PLid == Play.PLid,
-                                        EnterLog.USid == user.USid,
-                                        EnterLog.ELstatus.in_(
-                                            (EnterLogStatus.success.value, EnterLogStatus.refund.value,
-                                             EnterLogStatus.canceled.value)),
+                                        or_(and_(EnterLog.USid == user.USid,
+                                                 EnterLog.ELstatus.in_(
+                                                     (EnterLogStatus.success.value, EnterLogStatus.refund.value,
+                                                      EnterLogStatus.canceled.value))),
+                                            and_(Play.PLcreate == user.USid,
+                                                 EnterLog.ELstatus == EnterLogStatus.success.value)),
                                         *filter_args
                                         ).order_by(EnterLog.createtime.desc(), origin=True
                                                    ).all_with_page()
         transactions = [
-            {'title': i[0], 'time': i[1], 'amount': -i[2] if i[3] == EnterLogStatus.success.value else i[2]}
+            {'title': i[0], 'time': i[1],
+             'amount': -i[2] if i[3] == EnterLogStatus.success.value and i[4] == user.USid else i[2]}
             for i in res if i[0] is not None]
         total = sum(i.get('amount', 0) for i in transactions)
         for item in transactions:
-            item['amount'] = '¥{}'.format(item['amount']) if item['amount'] >= 0 else '-¥{}'.format(-item['amount'])
-        total = '¥{}'.format(total) if total >= 0 else '-¥{}'.format(-total)
+            item['amount'] = '+ ¥{}'.format(item['amount']) if item['amount'] >= 0 else '- ¥{}'.format(-item['amount'])
+        total = ' ¥{}'.format(total) if total >= 0 else ' - ¥{}'.format(-total)
         return transactions, total
 
     @staticmethod
