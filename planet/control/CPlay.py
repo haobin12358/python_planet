@@ -39,6 +39,7 @@ class CPlay():
         self.wx_pay = mini_wx_pay
         self.split_item = '!@##@!'
         self.realname = '真实姓名'
+        self.conflict = '活动时间与您已创建或已参加的活动时间冲突，请重新确认'
         self.connect_item = '-'
         self.basecontrol = BaseController()
         self.guidelevel = 5
@@ -527,9 +528,6 @@ class CPlay():
 
     @phone_required
     def set_play(self):
-
-        # todo 活动开始结束时间限制 同步限制转让活动
-
         data = parameter_required()
         plid = data.get('plid')
 
@@ -538,13 +536,16 @@ class CPlay():
             usid = user.USid
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
-                if not play:
-                    raise ParamsError('参数缺失')
-                if play.PLstatus == PlayStatus.activity.value:
-                    raise StatusError('进行中活动无法修改')
-                user = get_current_user()
-                if user.USid != play.PLcreate:
-                    raise AuthorityError('只能修改自己的活动')
+                if play:
+                    # raise ParamsError('')
+                    if play.PLstatus == PlayStatus.activity.value:
+                        raise StatusError('进行中活动无法修改')
+
+                    if user.USid != play.PLcreate:
+                        raise AuthorityError('只能修改自己的活动')
+
+                    if self._check_user_play(user, play):
+                        raise StatusError(self.conflict)
 
                 if data.get('delete'):
                     current_app.logger.info('删除活动 {}'.format(plid))
@@ -560,11 +561,13 @@ class CPlay():
                     update_dict.pop('PLcreate')
                 if update_dict.get('PLcontent'):
                     update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
+
                 playname = {
                     'pllocation': update_dict.get('PLlocation') or play.PLlocation,
                     'plstarttime': update_dict.get('PLstartTime') or play.PLstartTime,
                     'plendtime': update_dict.get('PLendTime') or play.PLendTime,
                 }
+
                 plname = self._update_plname(playname)
                 update_dict.update(PLname=plname)
                 play.update(update_dict)
@@ -572,8 +575,11 @@ class CPlay():
                 self._update_cost_and_insurance(data, play)
                 self._auto_playstatus(play)
                 return Success('更新成功', data=plid)
+
             data = parameter_required(
-                ('plimg', 'plstarttime', 'plendtime', 'pllocation', 'plnum', 'pltitle', 'plcontent'))
+                {'plimg': '活动封面', 'plstarttime': '开始时间', 'plendtime': '结束时间', 'pllocation': '活动地点',
+                 'plnum': '团队最大承载人数', 'pltitle': '行程推文标题', 'plcontent': '活动详情'})
+
             plid = str(uuid.uuid1())
             plname = self._update_plname(data)
             play = Play.create({
@@ -590,6 +596,8 @@ class CPlay():
                 'PLname': plname,
                 'PLproducts': self.split_item.join(data.get('plproducts', [])),
             })
+            if self._check_user_play(user, play):
+                raise StatusError(self.conflict)
             db.session.add(play)
             self._update_cost_and_insurance(data, play)
 
@@ -853,7 +861,7 @@ class CPlay():
 
         with db.auto_commit():
             if self._check_plid(user, play):
-                raise StatusError('同一时间只能参加一个活动')
+                raise StatusError(self.conflict)
             # 优先检测是否继续支付
             if repay:
                 el = EnterLog.query.filter_by(PLid=plid, isdelete=False).first_('报名记录已删除')
@@ -866,7 +874,7 @@ class CPlay():
                     if el:
                         # 校验修改
                         if el.PLid != plid:
-                            raise ParamsError('同一时间只能参加一个活动')
+                            raise ParamsError(self.conflict)
                         # 更新费用明细
                         self._update_enter_cost(el, data)
                         if data.get('elvalue'):
@@ -1156,6 +1164,8 @@ class CPlay():
             plid = data.get('plid')
             play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
             user = get_current_user()
+            if self._check_user_play(user, play):
+                raise StatusError(self.conflict)
             makeover = MakeOver.query.filter_by(PLid=plid, isdelete=False).first_('转让记录已失效')
             if play.PLstatus < PlayStatus.makeover.value:
                 makeover.isdelete = True
@@ -1263,6 +1273,7 @@ class CPlay():
             exist_task = str(exist_task, encoding='utf-8')
             current_app.logger.info('已有任务id: {}'.format(exist_task))
             celery.AsyncResult(exist_task).revoke()
+            conn.delete(conid)
 
     def _update_cost_and_insurance(self, data, play):
         """更新活动费用和保险"""
@@ -1385,6 +1396,10 @@ class CPlay():
         if duration.days < 0:
             current_app.logger.error('起止时间有误')
             raise ParamsError
+        # 修改数据格式
+        data['plstarttime'] = plstart
+        data['plendtime'] = plend
+
         days = to_chinese4(duration.days + 1)
         plname = '{}·{}日'.format(pllocation, days)
         return plname
@@ -1539,8 +1554,12 @@ class CPlay():
             raise StatusError('该活动已结束')
         if play.PLcreate == user.USid:
             raise ParamsError('报名的是自己创建的')
+
+        return bool(self._check_user_play(user, play))
+
+    def _check_user_play(self, user, play):
         # 查询同一时间是否有其他已参与活动
-        user_enter = Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
+        return Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
             or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
                 and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
             or_(and_(EnterLog.USid == user.USid,
@@ -1549,7 +1568,10 @@ class CPlay():
                 Play.PLcreate == user.USid),
             Play.isdelete == false(),
             Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
-        return bool(user_enter)
+    #
+    # def _check_user_under_take(self, user, play):
+    #     # 同一时间是否有其他活动
+    #     return Play.query.filter_by()
 
     def _update_elvalue(self, plid, data):
         preid_list = list()
@@ -1680,6 +1702,9 @@ class CPlay():
         return str(lat), str(long)
 
     def _auto_playstatus(self, play):
+        current_app.logger.info('plid = {} 是否创建异步开启互动任务 {} {}'.format(play.PLid,
+            play.PLstatus == PlayStatus.publish.value, play.PLstatus))
+
         if play.PLstatus == PlayStatus.publish.value:
             start_connid = 'startplay{}'.format(play.PLid)
             end_connid = 'endplay{}'.format(play.PLid)
@@ -1693,6 +1718,12 @@ class CPlay():
                 endtime = self._trans_time(endtime)
             start_task_id = start_play.apply_async(args=(play.PLid,), eta=starttime - timedelta(hours=8))
             end_task_id = end_play.apply_async(args=(play.PLid,), eta=endtime - timedelta(hours=8))
+            current_app.logger.info('获取到开启活动任务id {}'.format(start_task_id))
+            current_app.logger.info('获取到结束活动任务id {}'.format(end_task_id))
+            # if conn.get(start_connid):
+            #     conn.delete(start_connid)
+            # if conn.get(end_connid):
+            #     conn.delete(end_connid)
             conn.set(start_connid, start_task_id)
             conn.set(end_connid, end_task_id)
 
