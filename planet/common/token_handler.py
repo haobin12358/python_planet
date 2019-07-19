@@ -25,8 +25,10 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
 
 def binded_phone():
     """是否已绑定手机号"""
-    return common_user() and getattr(get_current_user(), 'UStelphone', False)
-
+    # return common_user() and getattr(get_current_user(), 'UStelphone', False)
+    if common_user():
+        return getattr(get_current_user(), 'UStelphone', False)
+    raise TokenError()
 
 def is_admin():
     """是否是管理员"""
