@@ -1445,11 +1445,11 @@ class CPlay():
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
 
-            isrefund = False
+            isrefund = True
             if el:
                 cap = CancelApply.query.filter_by(ELid=el.ELid).first()
                 if cap:
-                    isrefund = True
+                    isrefund = False
             play.fill('isrefund', isrefund)
         else:
             play.fill('editstatus', False)
