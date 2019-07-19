@@ -420,7 +420,7 @@ class CPlay():
 
     @phone_required
     def get_mosuccessor(self):
-        data = parameter_required(('usrealname', 'ustelphone', 'usidentification',))
+        data = parameter_required({'usrealname': '真实姓名', 'ustelphone': '手机号', 'usidentification': '身份证', })
         user = get_current_user()
         mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone')).first()
 
@@ -820,7 +820,7 @@ class CPlay():
     @phone_required
     def set_gather(self):
         """发起集合点"""
-        data = parameter_required(('latitude', 'longitude', 'time'))
+        data = parameter_required({'latitude': '维度', 'longitude': '经度', 'time': '时间'})
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
@@ -1019,7 +1019,7 @@ class CPlay():
 
     @phone_required
     def create_notice(self):
-        data = parameter_required(('plid', 'nocontent'))
+        data = parameter_required({'plid': '', 'nocontent': '公告内容'})
         user = get_current_user()
         plid = data.get('plid')
         nocontent = data.get('nocontent')
@@ -1114,7 +1114,8 @@ class CPlay():
 
     @phone_required
     def make_over(self):
-        data = parameter_required(('plid', 'moprice', 'usrealname', 'ustelphone', 'usidentification'))
+        data = parameter_required({'plid': '', 'moprice': '转让价格', 'usrealname': '真实姓名',
+                                   'ustelphone': '手机号', 'usidentification': '身份证'})
         with db.auto_commit():
             user = get_current_user()
             mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone'), isdelete=False).first()
@@ -1701,7 +1702,8 @@ class CPlay():
 
     def _auto_playstatus(self, play):
         current_app.logger.info('plid = {} 是否创建异步开启互动任务 {} {}'.format(play.PLid,
-            play.PLstatus == PlayStatus.publish.value, play.PLstatus))
+                                                                      play.PLstatus == PlayStatus.publish.value,
+                                                                      play.PLstatus))
 
         if play.PLstatus == PlayStatus.publish.value:
             start_connid = 'startplay{}'.format(play.PLid)
