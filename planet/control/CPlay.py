@@ -860,6 +860,7 @@ class CPlay():
         user = get_current_user()
 
         with db.auto_commit():
+            # current_app.logger.info('plid {}'.format(play.PLid))
             if self._check_plid(user, play):
                 raise StatusError(self.conflict)
             # 优先检测是否继续支付
@@ -1559,19 +1560,16 @@ class CPlay():
 
     def _check_user_play(self, user, play):
         # 查询同一时间是否有其他已参与活动
-        return Play.query.join(EnterLog, Play.PLid == EnterLog.PLid).filter(
-            or_(and_(Play.PLendTime < play.PLendTime, play.PLstartTime < Play.PLendTime),
-                and_(Play.PLstartTime < play.PLendTime, play.PLstartTime < Play.PLstartTime)),
+        return Play.query.filter(
+            or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
+                and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
             or_(and_(EnterLog.USid == user.USid,
+                     EnterLog.PLid == Play.PLid,
                      EnterLog.ELstatus == EnterLogStatus.success.value,
                      EnterLog.isdelete == false()),
                 Play.PLcreate == user.USid),
             Play.isdelete == false(),
             Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
-    #
-    # def _check_user_under_take(self, user, play):
-    #     # 同一时间是否有其他活动
-    #     return Play.query.filter_by()
 
     def _update_elvalue(self, plid, data):
         preid_list = list()
