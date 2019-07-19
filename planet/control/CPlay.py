@@ -1067,16 +1067,17 @@ class CPlay():
             now = datetime.now()
             discounts = PlayDiscount.query.filter_by(PLid=plid, isdelete=False).order_by(
                 PlayDiscount.PDtime.asc()).all()
-            discount = Decimal('0')
+
+            mount_price = sum(
+                [ec.ECcost for ec in
+                 EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
+            # return_price = Decimal(str(mount_price)) - discount
+            discount = mount_price
             for pd in discounts:
                 if now < pd.PDtime:
                     continue
                 discount = Decimal(str(pd.PDprice))
                 break
-            mount_price = sum(
-                [ec.ECcost for ec in
-                 EnterCost.query.filter(EnterCost.ELid == elid, EnterCost.isdelete == false()).all()])
-            # return_price = Decimal(str(mount_price)) - discount
             return_price = discount
 
             el.ELstatus = EnterLogStatus.refund.value
