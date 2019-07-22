@@ -546,7 +546,7 @@ class CPlay():
 
                     if self._check_user_play(user, play):
                         raise StatusError(self.conflict)
-
+                # 优先判断删除
                 if data.get('delete'):
                     current_app.logger.info('删除活动 {}'.format(plid))
                     play.isdelete = True
@@ -570,6 +570,22 @@ class CPlay():
 
                 plname = self._update_plname(playname)
                 update_dict.update(PLname=plname)
+                # 判断是否重新发起
+                if data.get('restart'):
+                    # 重新发起活动，创建新活动。同步当前数据包括 费用，保险，报名需求项，退款条件
+                    plid = str(uuid.uuid1())
+                    update_dict.setdefault('PLcreate', user.USid)
+                    update_dict.setdefault('PLcreate', data.get('plimg'))
+                    update_dict.setdefault('PLstartTime', data.get('plstarttime'))
+                    update_dict.setdefault('PLnum', data.get('plnum'))
+                    update_dict.setdefault('PLstatus', PlayStatus(int(data.get('plstatus', 0))).value)
+                    update_dict.setdefault('PLendTime', data.get('plendtime'))
+                    update_dict.setdefault('PLid', plid)
+                    play = Play.create(update_dict)
+                    db.session.add(play)
+                    self._update_cost_and_insurance(data, play)
+                    self._auto_playstatus(play)
+                    return Success('重新发起成功', data=plid)
                 play.update(update_dict)
                 db.session.add(play)
                 self._update_cost_and_insurance(data, play)
@@ -600,7 +616,6 @@ class CPlay():
                 raise StatusError(self.conflict)
             db.session.add(play)
             self._update_cost_and_insurance(data, play)
-
             self._auto_playstatus(play)
         return Success(data=plid)
 
@@ -1237,6 +1252,9 @@ class CPlay():
         }
         return Success(data=response)
 
+    # def recreate(self):
+    #
+
     """内部方法"""
 
     def _fill_user(self, model, usid, error_msg=None, realname=False):
@@ -1291,7 +1309,18 @@ class CPlay():
             if not cost:
                 error_dict.get('costs').append(costid)
                 continue
-            cost.update({"PLid": plid})
+            if cost.Plid and cost.Plid != plid:
+                # 重新绑定
+                cost = Cost.create({
+                    "COSid": str(uuid.uuid1()),
+                    "COSname": cost.COSname,
+                    "COSsubtotal": cost.COSsubtotal,
+                    'PLid': plid,
+                    "COSdetail": cost.COSdetail,
+                })
+                costid = cost.COSid
+            else:
+                cost.update({"PLid": plid})
             cosid_list.append(costid)
             instance_list.append(cost)
         for inid in ins_list:
@@ -1301,7 +1330,19 @@ class CPlay():
             if not insurance:
                 error_dict.get('insurances').append(inid)
                 continue
-            insurance.update({"PLid": plid})
+            if insurance.PLid and insurance.PLid != plid:
+                # 重新绑定
+                inid = str(uuid.uuid1())
+                insurance = Insurance.create({
+                    'INid': inid,
+                    'INname': insurance.INname,
+                    'INcontent': insurance.INcontent,
+                    'INtype': insurance.INtype,
+                    'INcost': insurance.INcost,
+                    'PLid': plid
+                })
+            else:
+                insurance.update({"PLid": plid})
             inid_list.append(inid)
             instance_list.append(insurance)
 
@@ -1317,14 +1358,23 @@ class CPlay():
                 play_time = self._trans_time(play_time)
             # 退团时间 + 1
             pdtimedelta = timedelta(days=(pdinstance.PDdeltaDay or 0), hours=(pdinstance.PDdeltaHour or 0) + 1)
-
-            pdinstance.update({"PLid": plid, 'PDtime': play_time - (pdtimedelta)})
+            pdid = str(uuid.uuid1())
+            if pdinstance.PLid and pdinstance.PLid != plid:
+                pdinstance = PlayDiscount.create({
+                    "PDid": pdid,
+                    "PDdeltaDay": pdinstance.PDdeltaDay,
+                    "PDdeltaHour": pdinstance.PDdeltaHour,
+                    "PDprice": pdinstance.PDprice,
+                    "PLid": plid,
+                    "PDtime": play_time - (pdtimedelta),
+                })
+            else:
+                pdinstance.update({"PLid": plid, 'PDtime': play_time - (pdtimedelta)})
             playdiscount.append(pdid)
             instance_list.append(pdinstance)
         presort = 1
         preid_list = list()
         for prename in prs_list:
-
             pre = PlayRequire.query.filter_by(PREname=prename, PLid=plid, isdelete=False).first()
             if pre:
                 pre.update({'PLid': plid, 'PREsort': presort})
