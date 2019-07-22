@@ -1144,11 +1144,14 @@ def start_timelimited(tlaid):
 
 @celery.task()
 def start_play(plid):
+
     current_app.logger.info('开始修改活动为开始 plid {}'.format(plid))
+    current_app.logger.info('开始修改活动为开始 plid {}'.format(type(plid)))
     with db.auto_commit():
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if play:
-            play.PLstatus = PlayStatus.publish.value
+            current_app.logger.info('活动存在 plid {}'.format(plid))
+            play.PLstatus = PlayStatus.activity.value
 
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
 
@@ -1159,6 +1162,7 @@ def end_play(plid):
     with db.auto_commit():
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if play:
+            current_app.logger.info('活动存在 plid {}'.format(plid))
             play.PLstatus = PlayStatus.close.value
 
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
