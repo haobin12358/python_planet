@@ -691,7 +691,8 @@ class CPlay():
                         pdid_list.append(pdid)
                         continue
                 pdid = str(uuid.uuid1())
-                if not pd.get('pddeltaday') and not pd.get('pddeltahour'):
+                if (not pd.get('pddeltaday') and pd.get('pddeltaday') != 0) and \
+                        (not pd.get('pddeltahour') and pd.get('pddeltahour') != 0):
                     raise ParamsError('时间差值不能为空')
 
                 pd_instance = PlayDiscount.create({
@@ -1041,7 +1042,11 @@ class CPlay():
             play = Play.query.filter(Play.PLid == plid, Play.PLstatus < PlayStatus.activity.value,
                                      Play.isdelete == false()).first_('活动已开始或已结束')
             el = EnterLog.query.filter(EnterLog.PLid == plid, EnterLog.USid == user.USid,
-                                       EnterLog.isdelete == false()).first_('报名记录未生效')
+                                       EnterLog.ELstatus <= EnterLogStatus.success.value,
+                                       EnterLog.ELstatus > EnterLogStatus.error.value,
+                                       EnterLog.isdelete == false()).order_by(
+                EnterLog.createtime.desc()).first_('报名记录未生效')
+
             elid = el.ELid
 
             cap = CancelApply.query.filter(
@@ -1050,15 +1055,7 @@ class CPlay():
                 CancelApply.CAPstatus >= ApplyStatus.wait_check.value).first()
             if cap:
                 raise StatusError('已经提交申请，请等待')
-            # capreason = str(data.get('capreason')).replace(' ', '').replace('\n', '').replace('\t', '')
-            CancelApply.query.filter(CancelApply.ELid == elid, CancelApply.isdelete == false()).delete_(
-                synchronize_session=False)
-            cap = CancelApply.create({
-                'CAPid': str(uuid.uuid1()),
-                'ELid': elid,
-                'CAPstatus': ApplyStatus.wait_check.value,
-            })
-            db.session.add(cap)
+
             # 如果还没有付款成功则不退钱
             if el.ELstatus < EnterLogStatus.success.value:
                 el.ELstatus = EnterLogStatus.cancel.value
@@ -1091,6 +1088,14 @@ class CPlay():
             uw.UWbalance = Decimal(str(uw.UWbalance)) - return_price
             uw.UWtotal = Decimal(str(uw.UWtotal)) - return_price
             current_app.logger.info('return_price = {} mount_price={}'.format(return_price, mount_price))
+            cap = CancelApply.create({
+                'CAPid': str(uuid.uuid1()),
+                'ELid': elid,
+                'CAPstatus': ApplyStatus.wait_check.value,
+                'CAPprice': return_price
+            })
+            db.session.add(cap)
+
             if API_HOST != 'https://www.bigxingxing.com':
                 return_price = 0.01
                 mount_price = 0.01
@@ -1310,8 +1315,10 @@ class CPlay():
             play_time = play.PLstartTime
             if isinstance(play_time, str):
                 play_time = self._trans_time(play_time)
-            pdtimedelta = timedelta(days=(pdinstance.PDdeltaDay or 0), hours=(pdinstance.PDdeltaHour or 0))
-            pdinstance.update({"PLid": plid, 'PDtime': play_time - pdtimedelta})
+            # 退团时间 + 1
+            pdtimedelta = timedelta(days=(pdinstance.PDdeltaDay or 0), hours=(pdinstance.PDdeltaHour or 0) + 1)
+
+            pdinstance.update({"PLid": plid, 'PDtime': play_time - (pdtimedelta)})
             playdiscount.append(pdid)
             instance_list.append(pdinstance)
         presort = 1
@@ -1441,15 +1448,18 @@ class CPlay():
 
             play.fill('joinstatus', bool(
                 (play.PLcreate != user.USid) and
-                (not el or el.ELstatus == EnterLogStatus.wait_pay.value) and
+                (not el or el.ELstatus != EnterLogStatus.success.value) and
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
 
-            isrefund = True
+            isrefund = False
             if el:
-                cap = CancelApply.query.filter_by(ELid=el.ELid).first()
-                if cap:
-                    isrefund = False
+                if el.ELstatus <= EnterLogStatus.success.value:
+                    isrefund = True
+                else:
+                    cap = CancelApply.query.filter_by(ELid=el.ELid).first()
+                    if cap:
+                        isrefund = False
             play.fill('isrefund', isrefund)
         else:
             play.fill('editstatus', False)
@@ -1866,7 +1876,8 @@ class CPlay():
             return
         self._incount(guide, mount_price)
         # 如果存在报名记录，清理掉
-        EnterLog.query.filter_by(PLid=play.PLid, USid=makeover.MOsuccessor, isdelete=False).delete_(synchronize_session=False)
+        EnterLog.query.filter_by(PLid=play.PLid, USid=makeover.MOsuccessor, isdelete=False).delete_(
+            synchronize_session=False)
 
     def _fill_mo(self, play, mo, detail=False):
         mo.add('createtime')
