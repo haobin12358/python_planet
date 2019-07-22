@@ -534,8 +534,22 @@ class CPlay():
         with db.auto_commit():
             user = get_current_user()
             usid = user.USid
+            plnum = data.get('plnum')
+            try:
+                plnum = int(plnum)
+            except:
+                plnum = 10 ^ 6
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+                # 优先判断删除
+                if data.get('delete'):
+                    if not play:
+                        raise ParamsError('活动已删除')
+                    current_app.logger.info('删除活动 {}'.format(plid))
+                    play.isdelete = True
+                    db.session.add(play)
+                    return Success('删除成功', data=plid)
+
                 if play:
                     # raise ParamsError('')
                     if play.PLstatus == PlayStatus.activity.value:
@@ -546,51 +560,54 @@ class CPlay():
 
                     if self._check_user_play(user, play):
                         raise StatusError(self.conflict)
-                # 优先判断删除
-                if data.get('delete'):
-                    current_app.logger.info('删除活动 {}'.format(plid))
-                    play.isdelete = True
-                    db.session.add(play)
-                    return Success('删除成功', data=plid)
-                update_dict = self._get_update_dict(play, data)
-                if update_dict.get('PLlocation'):
-                    update_dict.update(PLlocation=self.split_item.join(update_dict.get('PLlocation')))
-                if update_dict.get('PLproducts'):
-                    update_dict.update(PLproducts=self.split_item.join(update_dict.get('PLproducts')))
-                if update_dict.get('PLcreate'):
-                    update_dict.pop('PLcreate')
-                if update_dict.get('PLcontent'):
-                    update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
 
-                playname = {
-                    'pllocation': update_dict.get('PLlocation') or play.PLlocation,
-                    'plstarttime': update_dict.get('PLstartTime') or play.PLstartTime,
-                    'plendtime': update_dict.get('PLendTime') or play.PLendTime,
-                }
+                    update_dict = self._get_update_dict(play, data)
+                    if update_dict.get('PLlocation'):
+                        update_dict.update(PLlocation=self.split_item.join(update_dict.get('PLlocation')))
+                    if update_dict.get('PLproducts'):
+                        update_dict.update(PLproducts=self.split_item.join(update_dict.get('PLproducts')))
+                    if update_dict.get('PLid'):
+                        update_dict.pop('PLid')
+                    if update_dict.get('PLcreate'):
+                        update_dict.pop('PLcreate')
+                    if update_dict.get('PLcontent'):
+                        update_dict.update(PLcontent=json.dumps(update_dict.get('PLcontent')))
+                    if update_dict.get('PLnum'):
+                        update_dict.update(PLnum=plnum)
 
-                plname = self._update_plname(playname)
-                update_dict.update(PLname=plname)
-                # 判断是否重新发起
-                if data.get('restart'):
-                    # 重新发起活动，创建新活动。同步当前数据包括 费用，保险，报名需求项，退款条件
-                    plid = str(uuid.uuid1())
-                    update_dict.setdefault('PLcreate', user.USid)
-                    update_dict.setdefault('PLcreate', data.get('plimg'))
-                    update_dict.setdefault('PLstartTime', data.get('plstarttime'))
-                    update_dict.setdefault('PLnum', data.get('plnum'))
-                    update_dict.setdefault('PLstatus', PlayStatus(int(data.get('plstatus', 0))).value)
-                    update_dict.setdefault('PLendTime', data.get('plendtime'))
-                    update_dict.setdefault('PLid', plid)
-                    play = Play.create(update_dict)
+                    playname = {
+                        'pllocation': update_dict.get('PLlocation') or play.PLlocation,
+                        'plstarttime': update_dict.get('PLstartTime') or play.PLstartTime,
+                        'plendtime': update_dict.get('PLendTime') or play.PLendTime,
+                    }
+
+                    plname = self._update_plname(playname)
+                    update_dict.update(PLname=plname)
+                    # 判断是否重新发起
+                    if self._is_restart(play):
+                        # 重新发起活动，创建新活动。同步当前数据包括 费用，保险，报名需求项，退款条件
+                        plid = str(uuid.uuid1())
+                        update_dict.setdefault('PLcreate', user.USid)
+                        # update_dict.setdefault('PLcreate', data.get('plimg'))
+                        # update_dict.setdefault('PLstartTime', data.get('plstarttime'))
+                        # update_dict.setdefault('PLstatus', PlayStatus(int(data.get('plstatus', 0))).value)
+                        # update_dict.setdefault('PLendTime', data.get('plendtime'))
+                        update_dict.setdefault('PLid', plid)
+                        # update_dict.update({'PLid', plid})
+                        current_app.logger.info('get old play id {}'.format(play.PLid))
+                        play = None
+                        play = Play.create(update_dict)
+                        current_app.logger.info('get update dict {}'.format(update_dict))
+
+                        db.session.add(play)
+                        self._update_cost_and_insurance(data, play)
+                        self._auto_playstatus(play)
+                        return Success('重新发起成功', data=plid)
+                    play.update(update_dict)
                     db.session.add(play)
                     self._update_cost_and_insurance(data, play)
                     self._auto_playstatus(play)
-                    return Success('重新发起成功', data=plid)
-                play.update(update_dict)
-                db.session.add(play)
-                self._update_cost_and_insurance(data, play)
-                self._auto_playstatus(play)
-                return Success('更新成功', data=plid)
+                    return Success('更新成功', data=plid)
 
             data = parameter_required(
                 {'plimg': '活动封面', 'plstarttime': '开始时间', 'plendtime': '结束时间', 'pllocation': '活动地点',
@@ -604,7 +621,7 @@ class CPlay():
                 'PLstartTime': data.get('plstarttime'),
                 'PLendTime': data.get('plendtime'),
                 'PLlocation': self.split_item.join(data.get('pllocation', [])),
-                'PLnum': int(data.get('plnum')),
+                'PLnum': plnum,
                 'PLtitle': data.get('pltitle'),
                 'PLcontent': json.dumps(data.get('plcontent')),
                 'PLcreate': usid,
@@ -1309,7 +1326,7 @@ class CPlay():
             if not cost:
                 error_dict.get('costs').append(costid)
                 continue
-            if cost.Plid and cost.Plid != plid:
+            if cost.PLid and cost.PLid != plid:
                 # 重新绑定
                 cost = Cost.create({
                     "COSid": str(uuid.uuid1()),
@@ -1360,6 +1377,7 @@ class CPlay():
             pdtimedelta = timedelta(days=(pdinstance.PDdeltaDay or 0), hours=(pdinstance.PDdeltaHour or 0) + 1)
             pdid = str(uuid.uuid1())
             if pdinstance.PLid and pdinstance.PLid != plid:
+                # 重新绑定
                 pdinstance = PlayDiscount.create({
                     "PDid": pdid,
                     "PDdeltaDay": pdinstance.PDdeltaDay,
@@ -1377,7 +1395,16 @@ class CPlay():
         for prename in prs_list:
             pre = PlayRequire.query.filter_by(PREname=prename, PLid=plid, isdelete=False).first()
             if pre:
-                pre.update({'PLid': plid, 'PREsort': presort})
+                if pre.PLid and pre.PLid != plid:
+                    # 重新绑定
+                    pre = PlayRequire.create({
+                        'PREid': str(uuid.uuid1()),
+                        'PREname': prename,
+                        'PLid': plid,
+                        'PREsort': presort
+                    })
+                else:
+                    pre.update({'PLid': plid, 'PREsort': presort})
             else:
                 pre = PlayRequire.create({
                     'PREid': str(uuid.uuid1()),
@@ -1624,7 +1651,7 @@ class CPlay():
     def _update_elvalue(self, plid, data):
         preid_list = list()
         value_dict = dict()
-        user_value = data.get('elvalue')
+        user_value = data.get('elvalue', list())
         for value in user_value:
             preid = value.get('preid')
             pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
@@ -1912,9 +1939,6 @@ class CPlay():
             return
         play.PLcreate = makeover.MOsuccessor
         play.PLstatus = PlayStatus.publish.value
-        # 删除转让单
-        # makeover.isdelete = True
-
         db.session.add(play)
         db.session.add(makeover)
 
@@ -1964,3 +1988,12 @@ class CPlay():
         mo.fill('agreemen', re_c)
         mo.fill('MOassignor', assignor_name)
         mo.fill('MOsuccessor', successor_name)
+
+    def _is_restart(self, play):
+        el_list = EnterLog.query.filter(
+            EnterLog.PLid == play.PLid,
+            EnterLog.isdelete == false(),
+            EnterLog.ELstatus <= EnterLogStatus.success.value,
+            EnterLog.ELstatus > EnterLogStatus.error.value).all()
+
+        return play.PLstatus == PlayStatus.close.value and el_list
