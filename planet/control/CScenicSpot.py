@@ -359,9 +359,10 @@ class CScenicSpot(BASEAPPROVAL):
             counts = self._my_home_page_count(getattr(request, 'user').id)
             top = self._init_top_dict(counts)
         else:
-            return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
-                                         'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
-                                 'travelrecord': []})
+            # return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
+            #                              'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
+            #                      'travelrecord': []})
+            raise TokenError('请重新登录')
 
         trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
                                                    TravelRecord.AuthorID.in_(ucl_list))

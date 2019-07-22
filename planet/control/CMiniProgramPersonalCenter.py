@@ -11,6 +11,7 @@ from planet.common.error_response import ParamsError
 from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
+from planet.extensions.tasks import auto_agree_task
 from planet.models.scenicspot import Guide
 from planet.models.user import User, UserWallet, CashNotes, CoveredCertifiedNameLog
 from planet.models.join import EnterLog, EnterCost
@@ -132,7 +133,7 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
                                            'GUtelphone': gutelphone,
                                            'GUidentification': guidentification,
                                            'GUimg': data.get('guimg'),
-                                           'GUstatus': GuideApplyStatus.agree.value  # todo 暂时默认为通过,缺少后台审批
+                                           'GUstatus': GuideApplyStatus.auditing.value
                                            })
             db.session.add(guide_instance)
 
@@ -144,8 +145,9 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
                                                                'OldIdentityNumber': oldidentitynumber,
                                                                'NewIdentityNumber': guidentification
                                                                }))
-        super(CMiniProgramPersonalCenter, self).create_approval('toguide', user.USid, guide_instance.GUid)
-        return Success('认证成功', {'guid': guide_instance.GUid})
+        avid = super(CMiniProgramPersonalCenter, self).create_approval('toguide', user.USid, guide_instance.GUid)
+        auto_agree_task.apply_async(args=[avid], countdown=5, expires=1 * 60, )  # 提交5秒后自动通过
+        return Success('提交成功', {'guid': guide_instance.GUid})
 
     @phone_required
     def guide(self):
