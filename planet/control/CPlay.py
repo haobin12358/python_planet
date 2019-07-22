@@ -1212,8 +1212,8 @@ class CPlay():
                 db.session.add(makeover)
                 return StatusError('活动转让已取消')
             makeover.MOpayNo = opayno
-
             db.session.add(makeover)
+
         # 支付
         openid = user.USopenid1
         pay_args = self._add_pay_detail(**{
@@ -1865,6 +1865,8 @@ class CPlay():
             current_app.logger.info('导游 {} 已删除, {} 正在承接活动'.format(play.PLcreate, makeover.MOsuccessor))
             return
         self._incount(guide, mount_price)
+        # 如果存在报名记录，清理掉
+        EnterLog.query.filter_by(PLid=play.PLid, USid=makeover.MOsuccessor, isdelete=False).delete_(synchronize_session=False)
 
     def _fill_mo(self, play, mo, detail=False):
         mo.add('createtime')
