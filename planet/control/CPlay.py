@@ -90,7 +90,7 @@ class CPlay():
                 pd_role += '{}天'.format(pd.PDdeltaDay)
             if pd.PDdeltaHour:
                 pd_role += '{}时'.format(pd.PDdeltaHour)
-            pd_role += '前,扣款 {}'.format(pd.PDprice)
+            pd_role += '内,退款 {}'.format(pd.PDprice)
             pd_role_list.append(pd_role)
 
         role = "{} {}".format(role_words, ';'.join(pd_role_list))
