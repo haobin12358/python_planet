@@ -23,6 +23,7 @@ from planet.config.http_config import API_HOST
 from planet.config.secret import QXSignName, HelpTemplateCode
 
 from planet.control.BaseControl import BaseController
+from planet.control.CTemplates import CTemplates
 from planet.extensions.register_ext import db, conn, mini_wx_pay
 
 from planet.extensions.tasks import start_play, end_play, celery
@@ -43,6 +44,7 @@ class CPlay():
         self.connect_item = '-'
         self.basecontrol = BaseController()
         self.guidelevel = 5
+        self.temp = CTemplates()
 
     """get 接口 """
 
@@ -516,6 +518,7 @@ class CPlay():
                 'PPpayJson': json.dumps(data)
             })
             db.session.add(pp)
+
             if pp.PPpayType == PlayPayType.enterlog.value:
                 self._enter_log(pp)
             elif pp.PPpayType == PlayPayType.undertake.value:
@@ -878,6 +881,7 @@ class CPlay():
         plid = data.get('plid')
         elid = data.get('elid')
         repay = data.get('repay')
+
         opayno = self._opayno()
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         user = get_current_user()
@@ -960,8 +964,15 @@ class CPlay():
             raise ParamsError('客户端或商品来源错误')
 
         pay_args = self._add_pay_detail(opayno=opayno,
-                                        body=body, PPpayMount=mount_price, openid=openid, PPcontent=el.ELid,
+                                        body=body, PPpayMount=mount_price, openid=openid, PPcontent=elid,
                                         PPpayType=PlayPayType.enterlog.value)
+
+        prepay_id = pay_args.get('package').split('prepay_id=')[-1]
+        prepay_id_key = '{}{}{}'.format(elid, self.split_item, user.USid)
+        current_app.logger.info('{} = {}'.format(prepay_id_key, prepay_id))
+        if conn.get(prepay_id_key):
+            conn.delete(prepay_id_key)
+        conn.set(prepay_id_key, prepay_id)
 
         response = {
             'pay_type': PayType.wechat_pay.name,
@@ -1894,9 +1905,13 @@ class CPlay():
     def _enter_log(self, pp):
         # 修改当前用户参加状态
         el = EnterLog.query.filter(EnterLog.ELpayNo == pp.PPpayno, EnterLog.isdelete == false()).first()
+
         if not el:
             current_app.logger.info('当前报名单不存在 {} '.format(pp.PPpayno))
             return
+        prepay_id = conn.get('{}{}{}'.format(el.ELid, self.split_item, el.USid))
+        prepay_id = str(prepay_id, encoding='utf-8')
+        current_app.logger.info('prepayid = {}'.format(prepay_id))
         el.ELstatus = EnterLogStatus.success.value
         db.session.add(el)
         # 金额进入导游账号
@@ -1919,6 +1934,8 @@ class CPlay():
             return
 
         self._incount(guide, mount_price)
+        # self.temp.enter(el.PLid, prepay_id)
+        # self.temp.enter.apply_async(args=[el.PLid, prepay_id], countdown=5 * 60, expires=1 * 60,)
 
     def _undertake(self, pp):
         mount_price = Decimal(str(pp.PPpayMount))
@@ -1988,6 +2005,14 @@ class CPlay():
         mo.fill('agreemen', re_c)
         mo.fill('MOassignor', assignor_name)
         mo.fill('MOsuccessor', successor_name)
+
+    def test(self):
+        data = request.json
+        elid = data.get('elid')
+        form_id = data.get('form_id')
+        # mini_wx_pay
+        self.temp.enter(elid, form_id)
+        return Success
 
     def _is_restart(self, play):
         el_list = EnterLog.query.filter(
