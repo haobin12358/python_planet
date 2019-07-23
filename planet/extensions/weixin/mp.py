@@ -420,3 +420,18 @@ class WeixinMP(object):
         miniprogram and kwargs.setdefault("miniprogram", miniprogram)
         # print kwargs
         return self.post("/message/template/send", kwargs)
+
+    def msg_sec_check(self, content):
+        """
+        检查一段文本是否含有违法违规内容。
+        :param content: 文本内容
+        """
+        return self.post("/msg_sec_check", {'content': content}, prefix="/wxa")
+
+    def img_sec_check(self, media):
+        """
+        校验一张图片是否含有违法违规内容。
+        :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
+        """
+        return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
+
