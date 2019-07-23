@@ -356,10 +356,18 @@ class CPlay():
     @phone_required
     def get_current_play(self):
         user = get_current_user()
-
-        play = Play.query.join(EnterLog, EnterLog.PLid == Play.PLid).filter(
+        now = datetime.now()
+        play = Play.query.filter(
             Play.PLstatus == PlayStatus.activity.value,
-            or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid)).first()
+            Play.isdelete == false(),
+            Play.PLstartTime <= now,
+            Play.PLendTime >= now,
+            or_(Play.PLcreate == user.USid,
+                and_(EnterLog.ELstatus == EnterLogStatus.success.value,
+                     EnterLog.PLid == Play.PLid,
+                     EnterLog.isdelete == false(),
+                     EnterLog.USid == user.USid),
+                )).first()
         if not play:
             raise StatusError('当前无开启活动')
         self._fill_play(play, user)
@@ -984,8 +992,10 @@ class CPlay():
 
     @phone_required
     def set_signin(self):
-        data = parameter_required(('plid',))
+        data = parameter_required()
         plid = data.get('plid')
+        if not plid:
+            raise StatusError('当前无开启活动')
         user = get_current_user()
         with db.auto_commit():
             play = Play.query.filter(Play.PLid == plid, Play.isdelete == false()).first()
@@ -1053,7 +1063,7 @@ class CPlay():
 
     @phone_required
     def create_notice(self):
-        data = parameter_required({'plid': '', 'nocontent': '公告内容'})
+        data = parameter_required({'plid': '没有开启中的活动', 'nocontent': '公告内容'})
         user = get_current_user()
         plid = data.get('plid')
         nocontent = data.get('nocontent')
@@ -1252,8 +1262,8 @@ class CPlay():
                     current_app.logger.info('用户 {} 直接 支付 {} 转让单'.format(user.USname, makeover.MOid))
                 else:
                     raise StatusError('当前转让单已{}，请勿支付'.format(MakeOverStatus(makeover.MOstatus).zh_value))
-            if makeover.MOsuccessor != user.USid:
-                raise AuthorityError('当前活动不能承接支付')
+            if makeover.MOassignor != user.USid:
+                raise AuthorityError('当前活动不能支付')
             # 活动单状态
             if play.PLstatus < PlayStatus.makeover.value:
                 makeover.isdelete = False
@@ -1668,6 +1678,9 @@ class CPlay():
             pr = PlayRequire.query.filter_by(PREid=preid, isdelete=False).first()
             if not pr:
                 continue
+            if not value.get('value') and value.get('value') != 0:
+                continue
+
             name = pr.PREname
             if name == self.realname:
                 value_dict.update(realname=True)
@@ -1949,7 +1962,7 @@ class CPlay():
         if not play:
             # 活动已删除，钱进入用户账户
             current_app.logger.info('活动已删除')
-            user = User.query.filter_by(USid=makeover.MOsuccessor, isdelete=False).first()
+            user = User.query.filter_by(USid=makeover.MOassignor, isdelete=False).first()
             if user:
                 # 付款用户不存在，钱进入平台
                 self._incount(user, mount_price)
@@ -1959,7 +1972,7 @@ class CPlay():
         db.session.add(play)
         db.session.add(makeover)
 
-        # 钱进入原领队账户
+        # 钱进入新领队账户
         guide = User.query.filter_by(USid=makeover.MOassignor, isdelete=False).first()
         if not guide:
             # 导游不存在，钱进入平台账户
@@ -1990,12 +2003,12 @@ class CPlay():
             assignor_name = '旗行官方'
 
         else:
-            assignor_name = assignor.USname
+            assignor_name = assignor.USrealname or assignor.USname
         if not successor:
             current_app.logger.info('{} 的承接人不存在'.format(mo.MOid))
             successor_name = '旗行官方'
         else:
-            successor_name = successor.USname
+            successor_name = successor.USrealname or successor.USname
 
         agreement = Agreement.query.filter_by(AMtype=0, isdelete=False).order_by(Agreement.updatetime.desc()).first()
         content = agreement.AMcontent

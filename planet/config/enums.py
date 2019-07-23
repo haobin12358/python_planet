@@ -704,6 +704,14 @@ class PlanetMessageStatus(Enum):
     hide = 10, '隐藏'
 
 
+class UserMessageTyep(Enum):
+    txt = 0, '文本'
+    img = 1, '图片'
+    voice = 2, '语音'
+    video = 3, '视频'
+    loc = 4, '定位'
+
+
 class CorrectNumType(Enum):
     composite_index = 0, '上证指数'
     lottery_3d = 1, '福彩3D'
