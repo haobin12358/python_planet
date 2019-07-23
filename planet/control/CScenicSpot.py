@@ -275,13 +275,14 @@ class CScenicSpot(BASEAPPROVAL):
             raise ParamsError('trstatus 参数错误')
         trtype = str(data.get('trtype'))
         if trtype == str(TravelRecordType.raiders.value):  # 攻略
-            parameter_required(('trproducts', 'trbudget', 'trcontent', 'trlocation'), datafrom=data)
+            parameter_required({'trproducts': '推荐携带物品', 'trbudget': '预算',
+                                'trcontent': '活动详情', 'trlocation': '景区'}, datafrom=data)
             tr_dict = self._create_raiders(data)
         elif trtype == str(TravelRecordType.travels.value):  # 游记
-            parameter_required(('trtitle', 'trcontent', 'trlocation'), datafrom=data)
+            parameter_required({'trtitle': '标题', 'trcontent': '游记内容', 'trlocation': '景区'}, datafrom=data)
             tr_dict = self._create_travels(data)
         elif trtype == str(TravelRecordType.essay.value):  # 随笔
-            parameter_required(('text',), datafrom=data)
+            parameter_required({'text': '随笔内容'}, datafrom=data)
             tr_dict = self._create_essay(data)
         else:
             raise ParamsError('type 参数错误')
@@ -358,9 +359,10 @@ class CScenicSpot(BASEAPPROVAL):
             counts = self._my_home_page_count(getattr(request, 'user').id)
             top = self._init_top_dict(counts)
         else:
-            return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
-                                         'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
-                                 'travelrecord': []})
+            # return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
+            #                              'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
+            #                      'travelrecord': []})
+            raise TokenError('请重新登录')
 
         trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
                                                    TravelRecord.AuthorID.in_(ucl_list))
@@ -536,7 +538,7 @@ class CScenicSpot(BASEAPPROVAL):
             creator_type = ApplyFrom.platform.value
         else:
             raise TokenError('请重新登录')
-        data = parameter_required(('latitude', 'longitude', 'toimage'))
+        data = parameter_required({'latitude': '纬度', 'longitude': '经度', 'toimage': '图片'})
         latitude, longitude = data.get('latitude'), data.get('longitude')
         latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
         if common_user() and latitude and longitude:

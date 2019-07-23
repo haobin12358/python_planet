@@ -11,7 +11,7 @@ from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityTyp
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
-    TimeLimitedActivity, UserActivationCode, ActivationCodeApply
+    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver
 
 
 # 添加一些默认的数据
@@ -284,20 +284,20 @@ def check_abnormal_sale_volume():
                                                          OrderPart.PRid == product.PRid,
                                                          OrderPart.OPisinORA == False).count()
             print('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
-            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(
+                product.PRid, product.PRsalesValue, opcount))
             # 修正商品销量
             product.update({'PRsalesValue': opcount}, null='no')
             db.session.add(product)
             # 修正商品月销量
-            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
-                                                                                                      OrderMain.OMid == OrderPart.OMid
-                                                                                                      ).filter(
+            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(
+                OrderMain,OrderMain.OMid == OrderPart.OMid).filter(
                 OrderMain.isdelete == False,
                 OrderPart.isdelete == False,
                 OrderMain.OMstatus != -40,
                 OrderPart.PRid == product.PRid,
                 OrderPart.OPisinORA == False
-                ).group_by(
+            ).group_by(
                 extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
             for o in ops:
                 # print(o)
@@ -345,7 +345,8 @@ def check_product_from():
                 print("该商品不在供应商商品关联表中")
 
             a = '平台' if str(pr.PRfrom) == '0' else '供应商'
-            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
+            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(
+                pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
             # 避免操作错误，暂时注释掉，使用时取消注释
             print("  >>> 开始修改 <<< ")
             pr.update({'PRfrom': 10, 'CreaterId': pb.SUid})
@@ -384,11 +385,11 @@ def add_uac_acaid():
         for user_act_code in user_act_codes:
 
             if user_act_code.ACAid == None:
-                createtime=user_act_code.createtime
+                createtime = user_act_code.createtime
                 # print(createtime)
                 cratetime_list.append(createtime)
-                createtime1 = createtime+datetime.timedelta(hours=3)
-                createtime2 = createtime-datetime.timedelta(hours=3)
+                createtime1 = createtime + datetime.timedelta(hours=3)
+                createtime2 = createtime - datetime.timedelta(hours=3)
                 aca = ActivationCodeApply.query.filter(
                     ActivationCodeApply.USid == user_act_code.USid,
                     ActivationCodeApply.updatetime <= createtime1,
@@ -400,6 +401,15 @@ def add_uac_acaid():
                     user_act_code.update({'ACAid': aca.ACAid})
                     db.session.add(user_act_code)
         print({}.fromkeys(cratetime_list).keys())
+
+
+def init_make_over():
+    with db.auto_commit():
+        mo = MakeOver.create({
+            'Moid': 1,
+        })
+        db.session.add(mo)
+
 
 if __name__ == '__main__':
     app = create_app()

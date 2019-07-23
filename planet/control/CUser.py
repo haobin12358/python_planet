@@ -1823,12 +1823,27 @@ class CUser(SUser, BASEAPPROVAL):
         try:
             get_data = mplogin.jscode2session(code)
             current_app.logger.info('get_code2session_response: {}'.format(get_data))
-            session_key = get_data.session_key
-            openid = get_data.openid
-            unionid = get_data.unionid
+            session_key = get_data.get('session_key')
+            openid = get_data.get('openid')
+            unionid = get_data.get('unionid')
         except Exception as e:
             current_app.logger.error('mp_login_error : {}'.format(e))
             raise WXLoginError
+        if not unionid or not openid:
+            current_app.logger.info('pre get unionid: {}'.format(unionid))
+            current_app.logger.info('pre get openid: {}'.format(openid))
+            encrypteddata = info.get('encryptedData')
+            iv = info.get('iv')
+            try:
+                encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
+                unionid = encrypted_user_info.get('unionId')
+                openid = encrypted_user_info.get('openId')
+                current_app.logger.info('encrypted_user_info: {}'.format(encrypted_user_info))
+            except Exception as e:
+                current_app.logger.error('用户信息解密失败: {}'.format(e))
+
+        current_app.logger.info('get unionid is {}'.format(unionid))
+        current_app.logger.info('get openid is {}'.format(openid))
         user = User.query.filter_by_(USopenid1=openid).first()
         if user:
             current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
@@ -1838,8 +1853,8 @@ class CUser(SUser, BASEAPPROVAL):
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
         head = self._get_local_head(userinfo.get("avatarUrl"), openid)
-        sex = int(userinfo.get('gender', 1)) - 1
-
+        sex = userinfo.get('gender')
+        sex = int(sex) - 1 if str(sex) in '12' else 0
         if args.get('secret_usid'):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
@@ -1900,13 +1915,6 @@ class CUser(SUser, BASEAPPROVAL):
             setattr(userloggintime, 'UserAgent', useragent[4])
         db.session.add(userloggintime)
 
-        # user_info = info.get('userInfo')
-        # current_app.logger.info(f'userInfo:{user_info}')
-        # encrypteddata = info.get('encryptedData')
-        # iv = info.get('iv')
-        # encrypted_user_info = self._decrypt_encrypted_user_data(encrypteddata, session_key, iv)
-        # current_app.logger.info(f'plain_text: {encrypted_user_info.decode()}')
-
         token = usid_to_token(user.USid, level=user.USlevel, username=user.USname)
         binded_phone = True if user and user.UStelphone else False
         data = {'token': token, 'binded_phone': binded_phone, 'session_key': session_key}
@@ -1917,15 +1925,16 @@ class CUser(SUser, BASEAPPROVAL):
     @get_session
     def bind_phone(self):
         """小程序绑定手机号更新用户"""
-        data = parameter_required(('phonenumber', 'session_key'))
-
+        data = parameter_required(('session_key',))
+        phone = data.get('phonenumber')
+        if not phone:
+            raise ParamsError('为获得更优质的服务，请允许授权您的手机号码')
         user = User.query.filter(User.USid == request.user.id,
                                  User.isdelete == False,
                                  User.UStelphone.is_(None)).first()
         if not user:
             raise TokenError('该用户已绑定过手机号码')
 
-        phone = data.get('phonenumber')
         session_key = data.get('session_key')
         current_app.logger.info('手机加密数据为{}'.format(phone))
         encrypteddata = phone.get('encryptedData')
@@ -2034,7 +2043,7 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USheader = user_openid.USheader
                 # user.USsupper1 = user_openid.USsupper1
                 # user.USsupper2 = user_openid.USsupper2
-                user.USopenid1 = user_openid.USopenid1
+                # user.USopenid1 = user_openid.USopenid1
                 # user.USopenid2 = user_openid.USopenid2
                 user.USopenid2 = user_openid.USopenid2
             return_user = user

@@ -650,7 +650,7 @@ class CTrialCommodity(COrder, BASEAPPROVAL):
         auto_cancle_order.apply_async(args=([omid],), countdown=30 * 60, expires=40 * 60, )
         # 生成支付信息
         body = product_instance.TCtitle
-        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body, openid=user.USopenid1 or user.USopenid2)
+        pay_args = self._pay_detail(omclient, opaytype, opayno, float(small_total), body, openid=user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,

@@ -872,7 +872,7 @@ class CGuessGroup(COrder, BASEAPPROVAL):
         # 生成支付信息
         body = product_instance.PRtitle
         pay_args = self._pay_detail(omclient, opaytype, opayno, round(float(small_total), 2), body,
-                                    openid=user.USopenid2 or user.USopenid1)
+                                    openid=user.USopenid2)
         response = {
             'pay_type': PayType(opaytype).name,
             'opaytype': opaytype,
