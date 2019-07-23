@@ -419,7 +419,7 @@ class WeixinMP(object):
         url and kwargs.setdefault("url", url)
         miniprogram and kwargs.setdefault("miniprogram", miniprogram)
         # print kwargs
-        return self.post("/message/template/send", kwargs)
+        return self.post("/message/wxopen/template/send", kwargs)
 
     def msg_sec_check(self, content):
         """
@@ -434,4 +434,3 @@ class WeixinMP(object):
         :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
         """
         return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
-

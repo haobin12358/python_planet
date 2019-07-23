@@ -704,6 +704,14 @@ class PlanetMessageStatus(Enum):
     hide = 10, '隐藏'
 
 
+class UserMessageTyep(Enum):
+    txt = 0, '文本'
+    img = 1, '图片'
+    voice = 2, '语音'
+    video = 3, '视频'
+    loc = 4, '定位'
+
+
 class CorrectNumType(Enum):
     composite_index = 0, '上证指数'
     lottery_3d = 1, '福彩3D'
@@ -798,7 +806,7 @@ class PlayPayType(Enum):
 
 class TemplateID(Enum):
     """小程序模板id"""
-    enter = 'enter', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    enter = 'enter', 'Q1x_k7hWf2bj4Wfn3aWzsmY3-ij-gtDgdcOjzBTjYtQ'
     cancel = 'cancel', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     gather = 'gather', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     activity = 'activity', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'

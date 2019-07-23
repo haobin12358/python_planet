@@ -18,6 +18,7 @@ from flask.json import JSONEncoder as _JSONEncoder
 from planet.common.error_response import AuthorityError, ParamsError
 from planet.common.success_response import Success
 # from planet.control.BaseControl import JSONEncoder
+from planet.config.enums import UserMessageTyep
 from planet.extensions.register_ext import conn
 
 # from planet.models import UserPlatfromMessage
@@ -191,8 +192,14 @@ class Mynamespace(Namespace):
         roomid = data.get('roid')
         message = data.get('umsgtext')
         umsgtype = data.get('umsgtype') or 0
+        try:
+            umsgtype = UserMessageTyep(int(umsgtype)).value
+        except:
+            umsgtype = 0
+
         if message == "":
             return return_res(ParamsError('内容不能为空'))
+
         from planet.control.CMessage import CMessage
         cmsg = CMessage()
         umsg = cmsg.send_msg(message, umsgtype, roomid, userid)

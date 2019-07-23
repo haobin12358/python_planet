@@ -10,7 +10,7 @@ from flask_sqlalchemy import SQLAlchemy as _SQLAlchemy
 from planet.common.query_session import Query
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
     appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert, \
-    MiniProgramAppId, MiniProgramWxpay_notify_url
+    MiniProgramAppId, MiniProgramWxpay_notify_url, miniprogram_dir, subscribe_dir, MiniProgramAppSecret
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -53,9 +53,12 @@ mp_server = WeixinMP(SERVICE_APPID, SERVICE_APPSECRET,
                      jt_path=os.path.join(server_dir, ".jsapi_ticket"))
 
 mp_subscribe = WeixinMP(SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET,
-                     ac_path=os.path.join(server_dir, ".access_token"),
-                     jt_path=os.path.join(server_dir, ".jsapi_ticket"))
+                     ac_path=os.path.join(subscribe_dir, ".access_token"),
+                     jt_path=os.path.join(subscribe_dir, ".jsapi_ticket"))
 
+mp_miniprogram = WeixinMP(MiniProgramAppId, MiniProgramAppSecret,
+                     ac_path=os.path.join(miniprogram_dir, ".access_token"),
+                     jt_path=os.path.join(miniprogram_dir, ".jsapi_ticket"))
 
 conn = redis.Redis(host='localhost', port=6379, db=1)
 # conn = redis.Redis(host='119.3.47.90', port=6379, db=2)  # todo  合并之前改回去 ！！！
