@@ -720,6 +720,7 @@ class TravelRecordStatus(Enum):
     """时光记录状态"""
     draft = 0, '草稿'
     published = 1, '已发布'
+    auditing = 2, '审核中'
 
 
 class UserPlanetMessageStatus(Enum):

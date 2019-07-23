@@ -11,7 +11,8 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
     EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, mp_miniprogram
+from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import EnterLog, Play, Approval
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet
@@ -290,10 +291,22 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 'TRstatus': data.get('trstatus')
+                                 # 'TRstatus': data.get('trstatus')
+                                 'TRstatus': TravelRecordStatus.auditing.value
                                  }
             travelrecord_dict.update(tr_dict)
+            try:
+                check_content = travelrecord_dict.get('TRcontent')
+                if trtype == str(TravelRecordType.essay.value):
+                    check_content = json.loads(check_content).get('text')
+                mp_miniprogram.msg_sec_check(check_content)
+            except WeixinMPError:
+                travelrecord_dict['isdelete'] = True
             db.session.add(TravelRecord.create(travelrecord_dict))
+        try:
+            current_app.logger.info('content_sec_check: {}'.format(mp_miniprogram.msg_sec_check(check_content)))
+        except WeixinMPError:
+            raise ParamsError('您输入的内容含有部分敏感词汇,请检查后重新发布')
         return Success('发布成功', {'trid': travelrecord_dict['TRid']})
 
     @staticmethod
@@ -322,11 +335,14 @@ class CScenicSpot(BASEAPPROVAL):
     def _create_essay(data):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
+        # if image:
+        #     current_app.logger.error("图片校验测试")
+        #     current_app.logger.error(mp_miniprogram.img_sec_check(image))
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:
             raise ParamsError('不能同时选择图片和视频')
-        if len(image) > 9:
+        if image and len(image) > 9:
             raise ParamsError('最多可上传9张图片')
         video = {'url': video.get('url'),
                  'thumbnail': video.get('thumbnail'),
@@ -363,9 +379,12 @@ class CScenicSpot(BASEAPPROVAL):
             #                              'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
             #                      'travelrecord': []})
             raise TokenError('请重新登录')
-
-        trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
-                                                   TravelRecord.AuthorID.in_(ucl_list))
+        base_filter = [TravelRecord.isdelete == false()]
+        if not (common_user() and option == 'my'):
+            base_filter.append(TravelRecord.AuthorID.in_(ucl_list))
+            if not is_admin():
+                base_filter.append(TravelRecord.TRstatus == TravelRecordStatus.published.value)
+        trecords_query = TravelRecord.query.filter(*base_filter)
         if date:
             if not re.match(r'^\d{4}-\d{2}$', date):
                 raise ParamsError('查询日期格式错误')
@@ -465,7 +484,9 @@ class CScenicSpot(BASEAPPROVAL):
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
 
-        trecord.fill('travelrecordtype_zh', TravelRecordType(trecord.TRtype).zh_value)
+        trecord.fill('travelrecordtype_zh',
+                     TravelRecordStatus.auditing.zh_value if trecord.TRstatus == TravelRecordStatus.auditing.value
+                     else TravelRecordType(trecord.TRtype).zh_value)
         author = User.query.filter_by_(USid=trecord.AuthorID).first()
         author_info = None if not author else {'usname': author.USname,
                                                'usid': author.USid,
