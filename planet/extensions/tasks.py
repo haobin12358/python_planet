@@ -17,7 +17,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
     CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits, MagicBoxJoinStatus, \
-    ActivityDepositStatus
+    ActivityDepositStatus, PlayStatus
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
@@ -25,7 +25,7 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play
 
 celery = Celery()
 
@@ -1143,6 +1143,32 @@ def start_timelimited(tlaid):
     with db.auto_commit():
         tla.TLAstatus = TimeLimitedStatus.starting.value
     current_app.logger.info('修改限时活动为开始 结束')
+
+
+@celery.task()
+def start_play(plid):
+
+    current_app.logger.info('开始修改活动为开始 plid {}'.format(plid))
+    current_app.logger.info('开始修改活动为开始 plid {}'.format(type(plid)))
+    with db.auto_commit():
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        if play:
+            current_app.logger.info('活动存在 plid {}'.format(plid))
+            play.PLstatus = PlayStatus.activity.value
+
+    current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
+
+
+@celery.task()
+def end_play(plid):
+    current_app.logger.info('开始修改活动为开始 plid {}'.format(plid))
+    with db.auto_commit():
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        if play:
+            current_app.logger.info('活动存在 plid {}'.format(plid))
+            play.PLstatus = PlayStatus.close.value
+
+    current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
 
 
 if __name__ == '__main__':

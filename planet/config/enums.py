@@ -106,11 +106,13 @@ class ApplyFrom(Enum):
 
 
 class ApplyStatus(Enum):
+    lose_effect = -40, '已失效'
     shelves = -30, '已下架'
     cancle = -20, '已撤销'
     reject = -10, '已拒绝'
     wait_check = 0, '审核中'
     agree = 10, '已同意'
+    lose_agree = 20, '重新审核中'
 
 
 class OrderRefundOrstatus(Enum):
@@ -294,8 +296,11 @@ class GuessNumAwardStatus(Enum):
 
 class TrialCommodityStatus(Enum):
     """试用商品状态"""
+
+    lose_effect = -20, '已失效'
     cancel = -10, '已取消'
     upper = 0, '已上架'
+    lose_upper = 10, '重新审核中'
     # off_shelves = 10, '已下架'
     auditing = 20, '审核中'
     reject = 30, '下架/审核失败'
@@ -346,9 +351,11 @@ class UserLoginTimetype(Enum):
 
 
 class WXLoginFrom(Enum):
-    service = 0, '服务号'
-    subscribe = 1, '订阅号'
-    app = 2, '移动端'
+    service = 0, '订阅号'
+    subscribe = 1, '服务号'
+    miniprogram = 2, '小程序'
+    blog = 3, '网页blog'
+    app = 4, '移动端'
 
 
 class BankName(Enum):
@@ -569,6 +576,7 @@ class UserCommissionStatus(Enum):
     in_account = 1, '已到账'
     out_count = 2, '已提现'
 
+
 #
 # class ApprovalStatus(Enum):
 #     """审批流状态"""
@@ -698,11 +706,121 @@ class PlanetMessageStatus(Enum):
     hide = 10, '隐藏'
 
 
+class UserMessageTyep(Enum):
+    txt = 0, '文本'
+    img = 1, '图片'
+    voice = 2, '语音'
+    video = 3, '视频'
+    loc = 4, '定位'
+
+
 class CorrectNumType(Enum):
     composite_index = 0, '上证指数'
     lottery_3d = 1, '福彩3D'
 
 
+class TravelRecordType(Enum):
+    """时光记录类别"""
+    raiders = 0, '攻略'
+    travels = 1, '游记'
+    essay = 2, '随笔'
+
+
+class TravelRecordStatus(Enum):
+    """时光记录状态"""
+    draft = 0, '草稿'
+    published = 1, '已发布'
+    auditing = 2, '审核中'
+
+
+class UserPlanetMessageStatus(Enum):
+    unread = 0, '未读'
+    read = 1, '已读'
+
+
+class PlayStatus(Enum):
+    draft = 0, '草稿'
+    publish = 1, '组队中'
+    activity = 2, '活动中'
+    close = 3, '已关闭'
+    makeover = 4, '转让中'
+    wait_pay = 5, '待支付'
+
+
+class EnterCostType(Enum):
+    cost = 0, '费用'
+    insurance = 1, '保险'
+
+
+class EnterLogStatus(Enum):
+    wait_pay = 0, '待支付'
+    success = 1, '成功'
+    cancel = 2, '用户取消'
+    refund = 3, '退款并取消'
+    canceled = 4, '领队取消'
+    error = -1, '异常'
+
+
+# class UserLevel(Enum):
+class MiniUserGrade(Enum):
+    normal = 0, '游客'
+    guide = 5, '导游'
+
+
+class SigninLogStatus(Enum):
+    wait = 0, '未签到'
+    success = 1, '已签到'
+
+
+class CollectStatus(Enum):
+    atob = 0, '已关注'
+    aandb = 1, '互相关注'
+    none = 2, '未关注'
+
+
+class MiniProgramBannerPosition(Enum):
+    """小程序轮播图位置"""
+    index = 0, '首页'
+    travel = 1, '出游页'
+
+
+class GuideApplyStatus(Enum):
+    """导游申请状态"""
+    agree = 1, '已审核'
+    auditing = 0, '审核中'
+    refuse = -1, '已拒绝'
+
+
+class MakeOverStatus(Enum):
+    """小程序活动转让状态"""
+    wait_confirm = 0, '待确认'
+    wait_pay = 1, '待支付'
+    success = 2, '成功'
+    refuse = -1, '拒绝'
+    cancle = -2, '取消'
+
+
+class PlayPayType(Enum):
+    """小程序支付流水类型"""
+    enterlog = 10, '报名'
+    undertake = 20, '承接'
+
+
+class TemplateID(Enum):
+    """小程序模板id"""
+    enter = 'enter', 'Q1x_k7hWf2bj4Wfn3aWzsmY3-ij-gtDgdcOjzBTjYtQ'
+    cancel = 'cancel', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    gather = 'gather', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    activity = 'activity', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    signin = 'signin', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    setsignin = 'setsignin', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    makeover = 'makeover', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    toilet = 'toilet', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    accomplished = 'accomplished', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    guide = 'guide', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+    agreement = 'agreement', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+
+
 if __name__ == '__main__':
-    print(UserSearchHistoryType.news.value)
+    print(TemplateID('enterlog').zh_value)
     # import

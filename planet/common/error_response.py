@@ -116,3 +116,9 @@ class InsufficientConditionsError(BaseError):
     status = 405
     status_code = 40513
     message = '条件不足'
+
+
+class NeedPhone(BaseError):
+    status = 405
+    status_code = 405014
+    message = '为获得更优质的服务，请允许授权您的手机号码'

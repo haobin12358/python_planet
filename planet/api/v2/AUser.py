@@ -22,6 +22,7 @@ class AUser(Resource):
             'wx_login': self.user.wx_login,  # 微信登录
             'wx_login_silent': self.user.wx_login_silent,  # 静默登录
             'bing_telphone': self.user.bing_telphone,  # 微信登录绑定手机号
+            'bind_phone': self.user.bind_phone,  # 小程序绑定手机号
             'update_admin_password': self.user.update_admin_password,  # 修改管理员密码
             'supplizer_login': self.user.supplizer_login,  # 供应商登录
             'apply_cash': self.user.apply_cash,  # 提现申请
@@ -35,6 +36,9 @@ class AUser(Resource):
             'set_paycode': self.user.set_paycode,  # 修改支付密码
             'check_code': self.user.check_code,  # 验证手机
             'check_paycode': self.user.check_paycode,  # 验证手机
+            'mp_login': self.user.mini_program_login,  # 小程序登录
+            'blog_login': self.user.blog_login,  # 网页blog登录
+
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
         }
@@ -71,5 +75,7 @@ class AUser(Resource):
             'wx_callback': self.user.wx_callback,  # 转发回调接口
             'get_home_top': self.user.get_home_top,  # 用户主页顶部信息
             'data_overview': self.user.user_data_overview,  # 用户数据折线图概览
+            'blog_callback': self.user.blog_callback,  # blog获取code时的回调
+
         }
         return apis

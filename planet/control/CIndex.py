@@ -6,12 +6,12 @@ from planet.common.error_response import SystemError, ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import token_required, admin_required, is_admin
-from planet.config.enums import ProductStatus, ProductBrandStatus, AdminActionS
+from planet.config.enums import ProductStatus, ProductBrandStatus, AdminActionS, MiniProgramBannerPosition
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import cache, db
 from planet.extensions.validates.index import IndexListBannerForm, IndexSetBannerForm, IndexUpdateBannerForm
 from planet.models import Items, ProductBrand, BrandWithItems, Products, ProductItems, IndexBanner, \
-    HypermarketIndexBanner, Entry, Admin
+    HypermarketIndexBanner, Entry, Admin, MiniProgramBanner
 from planet.service.SIndex import SIndex
 
 
@@ -243,3 +243,50 @@ class CIndex:
                 Entry.query.filter(
                     Entry.ENid != enid, Entry.isdelete == False, Entry.ENtype == en.ENtype).update({'ENshow': False})
         return Success(msg, {'enid': enid})
+
+    @admin_required
+    def set_mp_banner(self):
+        """小程序轮播图"""
+        data = parameter_required(('mpbpicture',))
+        mpbid = data.get('mpbid')
+        mpb_dict = {'MPBpicture': data.get('mpbpicture'),
+                    'MPBsort': data.get('mpbsort'),
+                    'MPBshow': data.get('mpbshow'),
+                    'MPBposition': data.get('mpbposition'),
+                    'contentlink': data.get('contentlink')}
+        with db.auto_commit():
+            if not mpbid:
+                mpb_dict['MPBid'] = str(uuid.uuid1())
+                mpb_dict['ADid'] = getattr(request, 'user').id
+                mpb_instance = MiniProgramBanner.create(mpb_dict)
+                BASEADMIN().create_action(AdminActionS.insert.value, 'MiniProgramBanner', mpb_instance.MPBid)
+                msg = '添加成功'
+            else:
+                mpb_instance = MiniProgramBanner.query.filter_by_(MPBid=mpbid).first_('未找到该轮播图信息')
+                if data.get('delete'):
+                    mpb_instance.update({'isdelete': True})
+                    BASEADMIN().create_action(AdminActionS.delete.value, 'MiniProgramBanner', mpb_instance.MPBid)
+                    msg = '删除成功'
+                else:
+                    mpb_instance.update(mpb_dict, null='not')
+                    BASEADMIN().create_action(AdminActionS.update.value, 'MiniProgramBanner', mpb_instance.MPBid)
+                    msg = '编辑成功'
+            db.session.add(mpb_instance)
+        return Success(message=msg, data={'mpbid': mpb_instance.MPBid})
+
+    def list_mp_banner(self):
+        """小程序轮播图获取"""
+        args = parameter_required(('mpbposition',))
+        mpbposition = args.get('mpbposition')
+        if str(mpbposition) not in '01':
+            raise ParamsError('mpbposition 参数错误')
+        filter_args = []
+        if not is_admin():
+            filter_args.append(MiniProgramBanner.MPBshow == True)
+        mpbs = MiniProgramBanner.query.filter(MiniProgramBanner.isdelete == False,
+                                              MiniProgramBanner.MPBposition == mpbposition,
+                                              *filter_args
+                                              ).order_by(MiniProgramBanner.MPBsort.asc(),
+                                                         MiniProgramBanner.createtime.desc()).all()
+        [x.hide('ADid') for x in mpbs]
+        return Success(data=mpbs)

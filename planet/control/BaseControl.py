@@ -16,7 +16,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -50,7 +50,7 @@ class BASEADMIN():
         detail['data'] = detail['data'].decode()
 
         admin_action = {
-            'AAid':str(uuid.uuid1()),
+            'AAid': str(uuid.uuid1()),
             'ADid': request.user.id,
             'AAaction': AAaction,
             'AAmodel': AAmodel,
@@ -502,6 +502,21 @@ class BASEAPPROVAL():
         product = fill_gp_child_method(gp)
         return start_model, product
 
+    def __fill_totoilet(self, startid, contentid):
+        start = User.query.filter_by_(USid=startid).first() or \
+                Admin.query.filter_by_(ADid=startid).first()
+        content = Toilet.query.filter_by_(TOid=contentid).first()
+        if not start or not content:
+            return None, None
+        return start, content
+
+    def __fill_toguide(self, startid, contentid):
+        start = User.query.filter_by_(USid=startid).first()
+        content = Guide.query.filter_by_(GUid=contentid).first()
+        if not start or not content:
+            return None, None
+        return start, content
+
     def __fill_approval(self, pt, start, content, **kwargs):
         if pt.PTid == 'tocash':
             return self.__fill_cash(start, content, **kwargs)
@@ -534,6 +549,10 @@ class BASEAPPROVAL():
             return self.__fill_integral(start, content)
         elif pt.PTid == 'togroupgoods':
             return self.__fill_groupgoods(start, content)
+        elif pt.PTid == 'totoilet':
+            return self.__fill_totoilet(start, content)
+        elif pt.PTid == 'toguide':
+            return self.__fill_toguide(start, content)
         else:
             raise ParamsError('参数异常， 请检查审批类型是否被删除。如果新增了审批类型，请联系开发实现后续逻辑')
 
@@ -570,3 +589,25 @@ class BaseController:
         user_commision = price * user_rate  # 给用户的佣金
         current_user_comm = current_user_rate * user_commision
         return self.get_two_float(current_user_comm)
+
+    @staticmethod
+    def get_user_location(lat, lng, usid):
+        from planet.common.get_location import GetLocation
+        from planet.models.user import UserLocation
+        gl = GetLocation(lat, lng)
+        result = gl.result
+        with db.auto_commit():
+            ul = UserLocation.create({
+                'ULid': str(uuid.uuid1()),
+                'ULformattedAddress': result.get('formatted_address'),
+                'ULcountry': result.get('addressComponent').get('country'),
+                'ULprovince': result.get('addressComponent').get('province'),
+                'ULcity': result.get('addressComponent').get('city'),
+                'ULdistrict': result.get('addressComponent').get('district'),
+                'ULresult': json.dumps(result),
+                'ULlng': result.get('location').get('lng'),
+                'ULlat': result.get('location').get('lat'),
+                'USid': usid,
+            })
+            db.session.add(ul)
+        return ul.ULformattedAddress

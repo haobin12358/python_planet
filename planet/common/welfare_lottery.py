@@ -12,9 +12,6 @@ class WelfareLottery(object):
     url_backup = 'http://kaijiang.zhcw.com/zhcw/html/3d/list_1.html'
     kaicai_url = 'http://f.apiplus.net/fc3d-1.json'
 
-    # today = datetime.date.today() - datetime.timedelta(days=1)
-    today = datetime.date.today()
-
     proxies = {
         "http": "http://163.204.243.80:9999",
         "https": "https://183.128.141.213:8188",
@@ -46,7 +43,12 @@ class WelfareLottery(object):
     base_headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
                                   " Chrome/74.0.3729.131 Safari/537.3"}
 
-    def fetch(self, url, headers, data=None, json=False):
+    def __init__(self):
+        # today = datetime.date.today() - datetime.timedelta(days=1)
+        self.today = datetime.date.today()
+
+    @staticmethod
+    def fetch(url, headers, data=None, json=False):
         try:
             response = requests.get(url=url, headers=headers, params=data, timeout=60)
         except requests.exceptions.ConnectionError:
@@ -61,17 +63,22 @@ class WelfareLottery(object):
 
     def get_response(self):
         data = {"name": "3d",
-                "issueCount": '',
+                "issueCount": "",
                 "issueStart": "",
                 "issueEnd": "",
                 "dayStart": str(self.today),
                 "dayEnd": str(self.today),
-                "pageNo": ""
+                "pageNo": "",
+                "MmEwMD": """3m9Z7Gm5LyH_racZ.qXLxjmUudh1sqwf4a8PJbUCJOkfCzAb23zp_JjQUoLh89jokkEkxqqenNswVMigop1Qk
+                2xn7LaZbx8iVsjn04uILeUYIAejjmrREjGAFgUDeWhfTxiaoCzCBPfIBrf2WwzbnnE32_fJIHbJdbYeNfLFAYc5TCACZvJkaqeB
+                ZuCVLXgLCdJXGwkrwA9BVXFbuaAQdMkiwqRVC1ocWnEGHtO6aDIRG4WqxgRtUDvmwZuQ_RsI31UWbTHEi2GygRQA91kvz5KwtPj
+                EjjINESh22drnCH7P6qdsYPOMsqwcpNO4hVdWWcaiEqoU9Js5uD5PI7WsTWZYpgvP8dyvW6tD22VUfpD137ATQkXNXAT7I7I_Cy
+                QGZo14uw.0NBvnVbHBWtNqVeMkdEIditBejV5pRaesfef1rud"""
                 }
         res = self.fetch(self.url, self.headers, data, json=True)
         if not res:
             current_app.logger.error('今日福彩官网连接异常：{}'.format(self.today))
-            return self.back_up_response()
+            return self.kaicai_api()
         current_app.logger.info('Welfare Lottery 3D {} ：{}'.format(self.today, res.get('message')))
         result = res.get('result') or {}
         if result:
@@ -81,7 +88,7 @@ class WelfareLottery(object):
         code = result.get('code')
         if not (date and code and nums):
             current_app.logger.error('福彩官网数据异常: {}'.format(result))
-            return self.back_up_response()
+            return self.kaicai_api()
         resp = [date, code]
         resp.extend(nums.split(','))
         return resp
@@ -102,6 +109,7 @@ class WelfareLottery(object):
             current_app.logger.error('中彩网数据异常：{}'.format(result))
             return self.kaicai_api()
         result = result[0]
+        current_app.logger.info('中彩网获得数据: {}'.format(result))
         return result
 
     def kaicai_api(self):
@@ -109,11 +117,12 @@ class WelfareLottery(object):
         res = self.fetch(self.kaicai_url, self.base_headers, json=True)
         if not res:
             current_app.logger.error('今日开彩网连接异常：{}'.format(self.today))
-            time.sleep(3)
+            time.sleep(5)
             return self.back_up_response()
         data = res.get('data')
+        current_app.logger.info('开彩网获得数据: {}'.format(data))
         if not (isinstance(data, list) and len(data) > 0):
-            time.sleep(3)
+            time.sleep(5)
             return self.back_up_response()
         expect = data[0].get('expect')
         opencode = data[0].get('opencode')
@@ -121,9 +130,10 @@ class WelfareLottery(object):
         if opentime[:10] == str(self.today):
             resp = [opentime[:10], expect]
             resp.extend(opencode.split(','))
-            print(resp)
+            current_app.logger.info('kaicai return data：{}'.format(resp))
             return resp
-        return
+        time.sleep(5)
+        return self.back_up_response()
 
 
 if __name__ == '__main__':

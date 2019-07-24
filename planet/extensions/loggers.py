@@ -56,9 +56,9 @@ class LoggerHandler():
         # app.logger.addHandler(stream_handler)
 
     def error_handler(self):
-        @self.app.errorhandler(404)
-        def error404(e):
-            return ApiError(u'接口未注册' + request.path)
+        # @self.app.errorhandler(404)
+        # def error404(e):
+        #     return ApiError(u'接口未注册' + request.path)
 
         @self.app.errorhandler(Exception)
         def framework_error(e):
