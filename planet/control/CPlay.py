@@ -1693,7 +1693,7 @@ class CPlay():
             PlayRequire.isdelete == false()).all()
         if play_require_list:
             prname = [pr.PREname for pr in play_require_list]
-            raise ParamsError('缺失参数 {}'.format(prname))
+            raise ParamsError('请填写 {}'.format(prname))
         return value_dict
         # value_dict = json.dumps(data.get('elvalue'))
         # return value_dict
