@@ -1,9 +1,10 @@
 import re
 import uuid
+import math
 from datetime import datetime
 from decimal import Decimal
 from flask import current_app, request
-from sqlalchemy import false, func, extract, and_, or_
+from sqlalchemy import false, extract, or_
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required
@@ -14,8 +15,8 @@ from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models.scenicspot import Guide
 from planet.models.user import User, UserWallet, CashNotes, CoveredCertifiedNameLog
-from planet.models.join import EnterLog, EnterCost
-from planet.models.play import Play
+from planet.models.join import EnterLog, CancelApply
+from planet.models.play import Play, PlayPay
 
 
 class CMiniProgramPersonalCenter(BASEAPPROVAL):
@@ -25,19 +26,15 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
         """我的钱包页（消费记录、提现记录）"""
         args = request.args.to_dict()
         date, option = args.get('date'), args.get('option')
-        filter_args, transactions, withdraw = [], None, None
+        transactions, withdraw = None, None
         user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
         if date and not re.match(r'^20\d{2}-\d{2}$', str(date)):
             raise ParamsError('date 格式错误')
         year, month = str(date).split('-') if date else (datetime.now().year, datetime.now().month)
         if option == 'expense':
-            filter_args.extend((extract('month', EnterLog.createtime) == month,
-                                extract('year', EnterLog.createtime) == year))
-            transactions, total = self._get_transactions(user, filter_args)
+            transactions, total = self._get_transactions(user, year, month, args)
         elif option == 'withdraw':
-            filter_args.extend((extract('month', CashNotes.createtime) == month,
-                                extract('year', CashNotes.createtime) == year))
-            transactions, total = self._get_withdraw(user, filter_args)
+            transactions, total = self._get_withdraw(user, year, month)
         else:
             raise ParamsError('type 参数错误')
         user_wallet = UserWallet.query.filter(UserWallet.isdelete == false(), UserWallet.USid == user.USid).first()
@@ -63,38 +60,74 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
         return Success(data=response)
 
     @staticmethod
-    def _get_transactions(user, filter_args):
-        res = db.session.query(Play.PLname, EnterLog.createtime, func.sum(EnterCost.ECcost), EnterLog.ELstatus,
-                               EnterLog.USid
-                               ).filter(Play.isdelete == false(),
-                                        EnterLog.isdelete == false(),
-                                        EnterCost.isdelete == false(),
-                                        EnterCost.ELid == EnterLog.ELid,
-                                        EnterLog.PLid == Play.PLid,
-                                        or_(and_(EnterLog.USid == user.USid,
-                                                 EnterLog.ELstatus.in_(
-                                                     (EnterLogStatus.success.value, EnterLogStatus.refund.value,
-                                                      EnterLogStatus.canceled.value))),
-                                            and_(Play.PLcreate == user.USid,
-                                                 EnterLog.ELstatus == EnterLogStatus.success.value)),
-                                        *filter_args
-                                        ).order_by(EnterLog.createtime.desc(), origin=True
-                                                   ).all_with_page()
-        transactions = [
-            {'title': i[0], 'time': i[1],
-             'amount': -i[2] if i[3] == EnterLogStatus.success.value and i[4] == user.USid else i[2]}
-            for i in res if i[0] is not None]
+    def _get_transactions(user, year, month, args):
+        pp_query = db.session.query(PlayPay.PPpayMount.label('amount'),
+                                    PlayPay.createtime.label('time'),
+                                    Play.PLtitle.label('title'),
+                                    EnterLog.USid.label('usid')
+                                    ).join(EnterLog,
+                                           EnterLog.ELid == PlayPay.PPcontent
+                                           ).join(Play, Play.PLid == EnterLog.PLid
+                                                  ).filter(PlayPay.isdelete == false(),
+                                                           EnterLog.isdelete == false(),
+                                                           Play.isdelete == false(),
+                                                           or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid),
+                                                           EnterLog.ELstatus.in_((EnterLogStatus.success.value,
+                                                                                  EnterLogStatus.refund.value,
+                                                                                  EnterLogStatus.canceled.value)),
+                                                           extract('month', PlayPay.createtime) == month,
+                                                           extract('year', PlayPay.createtime) == year
+                                                           ).all()
+        transactions = [{'amount': i[0] if i[3] != user.USid else -i[0],
+                         'time': i[1], 'title': '[报名] ' + i[2] if i[3] == user.USid else '[团员报名] ' + i[2]
+                         } for i in pp_query if i[0] is not None]
+        ca_query = db.session.query(CancelApply.CAPprice.label('amout'),
+                                    CancelApply.createtime.label('time'),
+                                    Play.PLtitle.label('title'),
+                                    EnterLog.USid.label('usid')
+                                    ).join(EnterLog,
+                                           EnterLog.ELid == CancelApply.ELid
+                                           ).join(Play, Play.PLid == EnterLog.PLid
+                                                  ).filter(EnterLog.isdelete == false(),
+                                                           CancelApply.isdelete == false(),
+                                                           Play.isdelete == false(),
+                                                           or_(Play.PLcreate == user.USid, EnterLog.USid == user.USid),
+                                                           EnterLog.ELstatus.in_((EnterLogStatus.success.value,
+                                                                                  EnterLogStatus.refund.value,
+                                                                                  EnterLogStatus.canceled.value)),
+                                                           extract('month', CancelApply.createtime) == month,
+                                                           extract('year', CancelApply.createtime) == year
+                                                           ).all()
+        [transactions.append({'amount': i[0] if i[3] == user.USid else -i[0],
+                              'time': i[1],
+                              'title': '[退团] ' + i[2] if i[3] == user.USid else '[团员退出] ' + i[2]}
+                             ) for i in ca_query if i[0] is not None]
+        transactions.sort(key=lambda x: x.get('time'), reverse=True)
         total = sum(i.get('amount', 0) for i in transactions)
         for item in transactions:
             item['amount'] = '+ ¥{}'.format(item['amount']) if item['amount'] >= 0 else '- ¥{}'.format(-item['amount'])
         total = ' ¥{}'.format(total) if total >= 0 else ' - ¥{}'.format(-total)
+
+        # 筛选后重新分页
+        page_num = args.get('page_num', 1)
+        page_size = args.get('page_size', 15)
+        page_num = int(page_num) if re.match(r'^\d+$', str(page_num)) and int(page_num) > 0 else 1
+        page_size = int(page_size) if re.match(r'^\d+$', str(page_size)) and int(page_size) > 0 else 15
+        mount = len(transactions)
+        page_all = math.ceil(float(mount) / int(page_size))
+        start = (page_num - 1) * page_size
+        end = page_num * page_size
+        transactions = transactions[start: end]
+        request.page_all = page_all
+        request.mount = mount
         return transactions, total
 
     @staticmethod
-    def _get_withdraw(user, filter_args):
+    def _get_withdraw(user, year, month):
         res = db.session.query(CashNotes.CNstatus, CashNotes.createtime, CashNotes.CNcashNum
                                ).filter(CashNotes.isdelete == false(), CashNotes.USid == user.USid,
-                                        *filter_args
+                                        extract('month', CashNotes.createtime) == month,
+                                        extract('year', CashNotes.createtime) == year
                                         ).order_by(CashNotes.createtime.desc(), origin=True).all_with_page()
         withdraw = [{'title': ApprovalAction(i[0]).zh_value, 'time': i[1], 'amount': i[2]}
                     for i in res if i[0] is not None]
