@@ -821,6 +821,12 @@ class TemplateID(Enum):
     agreement = 'agreement', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
 
 
+class CategoryType(Enum):
+    green = 0, '全平台'
+    black  = 1, '品牌'
+    orange = 2, '折扣券'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import

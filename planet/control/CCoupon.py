@@ -11,7 +11,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import is_admin, token_required, is_tourist, admin_required, is_supplizer
 from planet.config.cfgsetting import ConfigSettings
-from planet.config.enums import ItemType, SupplizerDepositLogType, AdminAction, AdminActionS
+from planet.config.enums import ItemType, SupplizerDepositLogType, AdminAction, AdminActionS, CategoryType
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db
 from planet.extensions.validates.trade import CouponUserListForm, CouponListForm, CouponCreateForm, CouponFetchForm, \
@@ -47,15 +47,28 @@ class CCoupon(object):
                 CouponItem.ITid == itid,
                 CouponItem.isdelete == False
             )
+
         if suid:
             coupons = coupons.filter(
                 Coupon.SUid == suid
             )
         coupons = coupons.order_by(Coupon.createtime.desc(), Coupon.COid).all_with_page()
+        return_coupons = list()
         for coupon in coupons:
             # 标签
+            if itid and itid == 'home_recommend_category' and usid:
+                coupon_user = CouponUser.query.filter(
+                    CouponUser.isdelete == False,
+                    CouponUser.COid == coupon.COid,
+                    CouponUser.USid == usid
+                ).first()
+                if coupon_user:
+                    current_app.logger.info('coupon_user ={}'.format(coupon_user))
+                    continue
             self._coupon(coupon, usid=usid)
-        return Success(data=coupons)
+
+            return_coupons.append(coupon)
+        return Success(data=return_coupons)
 
     def get(self):
         data = parameter_required(('coid',))
@@ -483,6 +496,7 @@ class CCoupon(object):
     def _title_subtitle(coupon):
         # 使用对象限制
         coupon_fors = CouponFor.query.filter_by_({'COid': coupon.COid}).all()
+        coupon_type = CategoryType.green.value
         if len(coupon_fors) == 1:
             if coupon_fors[0].PCid:
                 category = ProductCategory.query.filter_by_({'PCid': coupon_fors[0].PCid}).first()
@@ -490,12 +504,14 @@ class CCoupon(object):
                 left_logo = category['PCpic']
                 left_text = category.PCname
             elif coupon_fors[0].PBid:
+                coupon_type = CategoryType.black.value
                 brand = ProductBrand.query.filter_by_({'PBid': coupon_fors[0].PBid}).first()
                 title = '{}品牌专用'.format(brand.PBname)
                 left_logo = brand['PBlogo']
                 left_text = brand.PBname
                 coupon.fill('brands', [brand])
             elif coupon_fors[0].PRid:
+                coupon_type = CategoryType.black.value
                 product = Products.query.filter(Products.PRid == coupon_fors[0].PRid).first()
                 brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first()
                 product.fill('brand', brand)
@@ -505,6 +521,7 @@ class CCoupon(object):
                 coupon.fill('products', [product])
         elif coupon_fors:
             # 多品牌
+            coupon_type = CategoryType.black.value
             cfg = ConfigSettings()
             pbids = [x.PBid for x in coupon_fors if x.PBid]
             left_logo = cfg.get_item('planet', 'logo')
@@ -552,7 +569,12 @@ class CCoupon(object):
             subtitle += '可用'
         else:
             subtitle += '可叠加'
+
+        if coupon.COdiscount and coupon.COdiscount != 10:
+            coupon_type = CategoryType.orange.value
+
         return {
+            'coupon_type': coupon_type,
             'title': title,
             'subtitle': subtitle,
             'left_logo': left_logo,
