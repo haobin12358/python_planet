@@ -854,7 +854,7 @@ class CPlay():
     @phone_required
     def set_gather(self):
         """发起集合点"""
-        data = parameter_required({'latitude': '维度', 'longitude': '经度', 'time': '时间'})
+        data = parameter_required({'latitude': '纬度', 'longitude': '经度', 'time': '时间'})
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
