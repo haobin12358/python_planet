@@ -823,7 +823,7 @@ class TemplateID(Enum):
 
 class CategoryType(Enum):
     green = 0, '全平台'
-    black  = 1, '品牌'
+    black = 1, '品牌'
     orange = 2, '折扣券'
 
 
