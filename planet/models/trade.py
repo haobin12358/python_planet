@@ -85,7 +85,7 @@ class OrderPart(Base):
     OPid = Column(String(64), primary_key=True)
     OMid = Column(String(64), nullable=False, comment='订单id')
     SKUid = Column(String(64), nullable=False, comment='skuid')
-    PRid = Column(String(64),  nullable=False, comment='商品id')
+    PRid = Column(String(64), nullable=False, comment='商品id')
     PRattribute = Column(Text, comment='商品属性 ["网络","颜色","存储"]')
     SKUattriteDetail = Column(Text, nullable=False, comment='sku详情[]')
     SKUprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='单价')
@@ -117,7 +117,7 @@ class OrderPart(Base):
 
     @property
     def order_coupon(self):
-         return OrderCoupon.query.filter(OrderCoupon.isdelete == False, OrderCoupon.OMid == self.OMid).first()
+        return OrderCoupon.query.filter(OrderCoupon.isdelete == False, OrderCoupon.OMid == self.OMid).first()
 
     @property
     def PRcreateId(self):
@@ -238,7 +238,8 @@ class OrderLogistics(Base):
     # OPid = Column(String(125), comment='副单物流')
     OLcompany = Column(String(32), nullable=False, comment='物流公司')
     OLexpressNo = Column(String(64), nullable=False, comment='物流单号')
-    OLsearchStatus = Column(String(8), default=0, comment='物流查询状态(待用字段) polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')
+    OLsearchStatus = Column(String(8), default=0,
+                            comment='物流查询状态(待用字段) polling:监控中，shutdown:结束，abort:中止，updateall：重新推送。')
     OLsignStatus = Column(Integer, default=0, comment='签收状态 0：快递收件(揽件) 1.在途中 2.正在派件 3.已签收 4.派送失败 -1 异常数据')
     OLdata = Column(Text, comment='查询结果')
     OLlastresult = Column(Text, comment='物流最后状态')
@@ -281,6 +282,8 @@ class Coupon(Base):
     SUid = Column(String(64), comment='来源供应商, 如为空则为平台')
     ADid = Column(String(64), comment='创建人')
     COcode = Column(Integer, default=0, comment='是否需要兑换码，0 不需要 1 需要')
+    COsort = Column(Integer, default=1, comment='优惠券排序')
+
 
 class CouponItem(Base):
     """优惠券标签中间表"""
@@ -327,7 +330,7 @@ class ActivationCodeApply(Base):
     USid = Column(String(64), nullable=False, comment='提交用户id')
     ACAname = Column(String(32), nullable=False, comment='收款人姓名')
     ACAbankSn = Column(String(32), nullable=False, comment='收款银行卡号')
-    ACAbankname= Column(String(125), nullable=False, comment='开户行')
+    ACAbankname = Column(String(125), nullable=False, comment='开户行')
     ACAvouchers = Column(Text, url_list=True, comment='凭证列表')
     ACAapplyStatus = Column(Integer, default=0, comment='0, 审核中 10 已同意, -10 已拒绝')
 
@@ -335,7 +338,7 @@ class ActivationCodeApply(Base):
 class UserActivationCode(Base):
     """用户拥有的激活码"""
     __tablename__ = 'UserActivationCode'
-    ACAid =  Column(String(64))
+    ACAid = Column(String(64))
     UACid = Column(String(64), primary_key=True)
     USid = Column(String(64), index=True, nullable=False, comment='拥有者')
     UACcode = Column(String(16), nullable=False, index=True, comment='激活码, 两个小写字母加5个数字')

@@ -409,7 +409,7 @@ class CPlay():
         data = parameter_required(('plid',))
         plid = data.get('plid')
         sis = SignInSet.query.filter(SignInSet.PLid == plid, SignInSet.isdelete == false()).order_by(
-            SignInSet.createtime.desc()).first_('签到已失效')
+            SignInSet.createtime.desc()).first_('当前没有签到记录')
 
         sils = SignInLog.query.filter(
             SignInLog.SISid == sis.SISid, SignInLog.isdelete == false()).order_by(SignInLog.createtime.desc()).all()
@@ -549,7 +549,7 @@ class CPlay():
             try:
                 plnum = int(plnum)
             except:
-                plnum = 10 ^ 6
+                plnum = 10 ** 6
             if plid:
                 play = Play.query.filter_by(PLid=plid, isdelete=False).first()
                 # 优先判断删除
@@ -1693,7 +1693,7 @@ class CPlay():
             PlayRequire.isdelete == false()).all()
         if play_require_list:
             prname = [pr.PREname for pr in play_require_list]
-            raise ParamsError('缺失参数 {}'.format(prname))
+            raise ParamsError('请填写 {}'.format(prname))
         return value_dict
         # value_dict = json.dumps(data.get('elvalue'))
         # return value_dict

@@ -661,12 +661,12 @@ def create_settlenment():
         su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
         from planet.control.COrder import COrder
         corder = COrder()
+        today = datetime.now()
+        pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
+        tomonth_22 = date(year=today.year, month=today.month, day=22)
+        pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
         for su in su_list:
-            today = datetime.now()
             # today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
-            pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
-            tomonth_22 = date(year=today.year, month=today.month, day=22)
-            pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
             su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
                 UserCommission.USid == su.SUid,
                 UserCommission.isdelete == False,
@@ -688,12 +688,15 @@ def create_settlenment():
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
                 'SSdealamount': float('%.2f' % float(ss_total)),
-                'SSstatus': SupplizerSettementStatus.settlementing.value
+                'SSstatus': SupplizerSettementStatus.checking.value
             })
             db.session.add(ss)
             db.session.flush()
             corder._create_settlement_excel(su.SUid, ss)
-
+        from planet.config.secret import BASEDIR
+        sourcepath = os.path.join(BASEDIR, 'img', 'xls', str(today.year), str(today.month))
+        tarfilename = os.path.join(sourcepath, '{}-{}.tar.gz'.format(today.year, today.month))
+        corder.create_tar(tarfilename, sourcepath)
 
 @celery.task(name='get_logistics')
 def get_logistics():

@@ -67,7 +67,8 @@ class CItems:
                                                                  ProductScene.PStimelimited == True).all()]
             items_query = items_query.filter(Items.ITauthority == ItemAuthrity.no_limit.value,
                                              Items.ITposition.in_([ItemPostion.scene.value,
-                                                                   ItemPostion.news_bind.value]
+                                                                   ItemPostion.news_bind.value,
+                                                                   ItemPostion.index.value]
                                                                   ),
                                              Items.ITid.notin_(time_limit_itids),
                                              Items.ITid != 'planet_featured'
