@@ -317,17 +317,6 @@ class BrandBanner(Base):
     PBid = Column(String(64), comment='关联品牌')
 
 
-#
-# class BrandRecommendProduct(Base):
-#     """品牌推荐商品"""
-#     __tablename__ = 'BrandRecommendProduct'
-#     BRPid = Column(String(64), primary_key=True)
-#     PBid = Column(String(64), comment='品牌id')
-#     PRid = Column(String(64), comment='商品id')
-#     BRPsort = Column(Integer, default=1, comment='展示权重')
-#     BRPprice = Column(DECIMAL(precision=28, scale=2), comment='推荐价格')
-#
-
 class BrandTweets(Base):
     """品牌动态"""
     __tablename__ = 'BrandTweets'
@@ -369,3 +358,14 @@ class BrandTweets(Base):
 #     SUid = Column(String(64), nullable=False, comment='供应商id')
 #     PRnum = Column(Integer, nullable=False, comment='数量')
 #     # sku?
+#
+#
+# class BrandRecommendProduct(Base):
+#     """品牌推荐商品"""
+#     __tablename__ = 'BrandRecommendProduct'
+#     BRPid = Column(String(64), primary_key=True)
+#     PBid = Column(String(64), comment='品牌id')
+#     PRid = Column(String(64), comment='商品id')
+#     BRPsort = Column(Integer, default=1, comment='展示权重')
+#     BRPprice = Column(DECIMAL(precision=28, scale=2), comment='推荐价格')
+#
