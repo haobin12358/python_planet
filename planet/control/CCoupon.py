@@ -84,11 +84,13 @@ class CCoupon(object):
         items = Items.query.join(CouponItem, CouponItem.ITid == Items.ITid).filter(
             CouponItem.COid == coupon.COid
         ).all()
+        fill_con = kwargs.get('fill_con', True)
         if not is_admin() and not is_supplizer():
             coupon.COcanCollect = self._can_collect(coupon)
         # 优惠券使用对象
-        coupon.fill('items', items)
-        coupon.fill('title_subtitle', self._title_subtitle(coupon))
+        if fill_con:
+            coupon.fill('items', items)
+        coupon.fill('title_subtitle', self._title_subtitle(coupon, fill_con))
         coupon.fill('cocode', bool(coupon.COcode))
         usid = kwargs.get('usid')
         if usid:
@@ -493,7 +495,7 @@ class CCoupon(object):
         return Success('领取成功')
 
     @staticmethod
-    def _title_subtitle(coupon):
+    def _title_subtitle(coupon, fill_con=True):
         # 使用对象限制
         coupon_fors = CouponFor.query.filter_by_({'COid': coupon.COid}).all()
         coupon_type = CategoryType.green.value
@@ -509,16 +511,20 @@ class CCoupon(object):
                 title = '{}品牌专用'.format(brand.PBname)
                 left_logo = brand['PBlogo']
                 left_text = brand.PBname
-                coupon.fill('brands', [brand])
+                if fill_con:
+                    coupon.fill('brands', [brand])
             elif coupon_fors[0].PRid:
                 coupon_type = CategoryType.black.value
                 product = Products.query.filter(Products.PRid == coupon_fors[0].PRid).first()
                 brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first()
-                product.fill('brand', brand)
+                if fill_con:
+                    product.fill('brand', brand)
                 title = '单品专用'.format(product.PRtitle)
                 left_logo = product['PRmainpic']
                 left_text = product.PRtitle
-                coupon.fill('products', [product])
+                if fill_con:
+
+                    coupon.fill('products', [product])
         elif coupon_fors:
             # 多品牌
             coupon_type = CategoryType.black.value
@@ -535,7 +541,8 @@ class CCoupon(object):
                         brands.append(brand)
                         for_brand.append(brand.PBname)
                 left_text = '{}通用'.format('/'.join(for_brand))
-                coupon.fill('brands', brands)
+                if fill_con:
+                    coupon.fill('brands', brands)
             # 多商品
             else:
                 prids = [x.PRid for x in coupon_fors if x.PRid]
@@ -546,12 +553,14 @@ class CCoupon(object):
                 for prid in prids:
                     product = Products.query.filter(Products.PRid == prid).first()
                     brand = ProductBrand.query.filter(ProductBrand.PBid == product.PBid).first()
-                    product.fill('brand', brand)
+                    if fill_con:
+                        product.fill('brand', brand)
                     if product:
                         products.append(product)
                         for_product.append(product.PRtitle)
                 left_text = '{}通用'.format('/'.join(for_product))
-                coupon.fill('products', products)
+                if fill_con:
+                    coupon.fill('products', products)
             # 多类目 暂时没有多类目优惠券
             pass
         else:
