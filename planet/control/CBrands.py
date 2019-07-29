@@ -39,9 +39,11 @@ class CBrands(object):
         itids = data.itids.data
         suid = data.suid.data
         pbbackgroud = data.pbbackgroud.data
+        pbsort = data.pbsort.data
         with self.sproduct.auto_commit() as s:
             s_list = []
             pbid = str(uuid.uuid1())
+            pbsort = self._check_sort(pbsort, model=ProductBrand, default=1)
             pb_dict = {
                 'PBid': pbid,
                 'PBlogo': pblogo,
@@ -49,6 +51,7 @@ class CBrands(object):
                 'PBdesc': pbdesc,
                 'PBlinks': pblinks,
                 'PBbackgroud': pbbackgroud,
+                'PBsort': pbsort,
                 'SUid': suid,
                 'PBintegralPayRate': data.pbintegralpayrate.data
             }
@@ -73,7 +76,7 @@ class CBrands(object):
         form = BrandsListForm().valid_data()
         pbstatus = dict(form.pbstatus.choices).get(form.pbstatus.data)
         free = dict(form.free.choices).get(form.free.data)
-        time_order = dict(form.time_order.choices).get(form.time_order.data)
+        # time_order = dict(form.time_order.choices).get(form.time_order.data)
         itid = form.itid.data
         itid = itid.split('|') if itid else []
         kw = form.kw.data
@@ -105,7 +108,8 @@ class CBrands(object):
             brand_query = brand_query.filter(
                 ProductBrand.PBname.contains(kw)
             )
-        brands = brand_query.order_by(time_order).all_with_page()
+        brands = brand_query.order_by(ProductBrand.PBsort.asc(), ProductBrand.createtime.desc()).all_with_page()
+
         for brand in brands:
             brand.fill('PBstatus_en', ProductBrandStatus(brand.PBstatus).name)
             brand.fill('PBstatus_zh', ProductBrandStatus(brand.PBstatus).zh_value)
@@ -205,12 +209,17 @@ class CBrands(object):
         suid = data.suid.data
         pbbackgroud = data.pbbackgroud.data
         pbid = data.pbid.data
+        pbsort = data.pbsort.data
 
         with self.sproduct.auto_commit() as s:
             s_list = []
             product_brand_instance = s.query(ProductBrand).filter_by_({
                 'PBid': pbid
             }).first_('不存在的品牌')
+            if pbsort:
+                pbsort = self._check_sort(pbsort, model=ProductBrand)
+            else:
+                pbsort = None
             product_brand_instance.update({
                 'PBlogo': pblogo,
                 'PBname': pbname,
@@ -218,6 +227,7 @@ class CBrands(object):
                 'PBlinks': pblinks,
                 'PBbackgroud': pbbackgroud,
                 'SUid': suid,
+                'PBsort': pbsort,
                 'PBintegralPayRate': data.pbintegralpayrate.data
             })
             s_list.append(product_brand_instance)
@@ -319,8 +329,19 @@ class CBrands(object):
         # 推荐商品
         if recommend_pr:
             brand_recommend_product = self._recommend_pb_product(brand.PBid).all()[:product_num]
+            pr_supplement_id = list()
             if brand_recommend_product:
-                for product in brand_recommend_product: product.fields = product_fields
+                for product in brand_recommend_product:
+                    product.fields = product_fields
+                    pr_supplement_id.append(product.PRid)
+
+            supplement_num = product_num - len(brand_recommend_product)
+            if supplement_num:
+                supplement_product = Products.query.filter(
+                    Products.isdelete == false(), Products.PBid == brand.PBid).order_by(
+                    Products.createtime.desc(), Products.PRid.notin_(pr_supplement_id)).all()
+                brand_recommend_product.extend(supplement_product[:supplement_num])
+            if brand_recommend_product:
                 brand.fill('recommend', brand_recommend_product)
 
         # 新品推荐
@@ -412,7 +433,7 @@ class CBrands(object):
                 current_app.logger.info('转置json 出错 bbcontent = {} e = {}'.format(bbcontent, e))
         bbsort = data.get('bbsort')
         if bbsort:
-            bbsort = self._check_sort(bbsort, pbid)
+            bbsort = self._check_sort(bbsort, model=BrandBanner, filter_args=[BrandBanner.PBid == pbid], default=1)
         with db.auto_commit():
             if bbid:
                 if data.get('delete'):
@@ -440,16 +461,19 @@ class CBrands(object):
 
         return Success('添加成功', data=bbid)
 
-    def _check_sort(self, sort, pbid):
+    def _check_sort(self, sort, model=BrandBanner, filter_args=[], default=None):
+        if not sort:
+            return default
         try:
             sort = int(sort)
         except:
-            current_app.logger.info('转置数字失败 sort = {} ,pbid = {}'.format(sort, pbid))
+            current_app.logger.info('转置数字失败 sort = {}'.format(sort))
+            return default
 
         if sort < 1:
             return 1
 
-        bbcount = BrandBanner.query.filter(BrandBanner.PBid == pbid, BrandBanner.isdelete == false()).count()
+        bbcount = model.query.filter(model.isdelete == false(), *filter_args).count()
         if sort > bbcount:
             if bbcount >= 1:
                 return bbcount
