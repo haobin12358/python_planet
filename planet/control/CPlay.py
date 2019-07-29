@@ -1653,11 +1653,12 @@ class CPlay():
             raise StatusError('该活动已结束')
         if play.PLcreate == user.USid:
             raise ParamsError('报名的是自己创建的')
-
         return bool(self._check_user_play(user, play))
 
     def _check_user_play(self, user, play):
         # 查询同一时间是否有其他已参与活动
+        # todo 未知漏洞 活动中的用户可以创建时间冲突活动
+
         return Play.query.filter(
             or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
                 and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
