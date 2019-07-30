@@ -32,6 +32,7 @@ class Products(Base):
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     PRcode = Column(String(64), comment='商品的外部编号')
     PRpromotion = Column(Text, comment='商品推广基图')
+    PRsort = Column(Integer, default=1, comment='权重')
 
     @orm.reconstructor
     def __init__(self):
@@ -108,6 +109,7 @@ class ProductBrand(Base):
     PBslogan = Column(String(128), comment='品牌slogan')
     PBthemeColor = Column(String(16), comment='主题色')
     PBpublicity = Column(Text, url_list=True, comment='品牌文化宣传图list')
+    PBsort = Column(Integer, default=1, comment='权重')
 
 
 class BrandWithItems(Base):

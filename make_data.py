@@ -114,6 +114,7 @@ def make_items():
             'ITid': 'home_recommend_category',
             'ITname': '优惠券推荐',
             'ITdesc': '首页下推荐优惠券',
+            'ITtype': ItemType.coupon.value,
             'ITposition': ItemPostion.index.value,
             'ITauthority': ItemAuthrity.no_limit.value,
         })
