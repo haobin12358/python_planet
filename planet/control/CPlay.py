@@ -506,27 +506,35 @@ class CPlay():
 
     """post 接口"""
 
-    def wechat_notify(self):
+    def wechat_notify(self, **kwargs):
         """微信支付回调接口"""
-        data = self.wx_pay.to_dict(request.data)
-        if not self.wx_pay.check(data):
-            return self.wx_pay.reply(u"签名验证失败", False)
-        out_trade_no = data.get('out_trade_no')
-        current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
-
+        redirect = kwargs.get('redirect')
         with db.auto_commit():
-            pp = PlayPay.query.filter_by(PPpayno=out_trade_no, isdelete=False).first()
+            if not redirect:
+                data = self.wx_pay.to_dict(request.data)
 
-            if not pp:
-                # 支付流水不存在 钱放在平台
-                return self.wx_pay.reply("OK", True).decode()
-            pp.update({
-                'PPpaytime': data.get('time_end'),
-                'PPpaysn': data.get('transaction_id'),
-                'PPpayJson': json.dumps(data)
-            })
+                if not self.wx_pay.check(data):
+                    return self.wx_pay.reply(u"签名验证失败", False)
+
+                out_trade_no = data.get('out_trade_no')
+                current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
+
+                pp = PlayPay.query.filter_by(PPpayno=out_trade_no, isdelete=False).first()
+                if not pp:
+                    # 支付流水不存在 钱放在平台
+                    return self.wx_pay.reply("OK", True).decode()
+                pp.update({
+                    'PPpaytime': data.get('time_end'),
+                    'PPpaysn': data.get('transaction_id'),
+                    'PPpayJson': json.dumps(data)
+                })
+
+            else:
+                pp = kwargs.get('pp')
+                pp.update({
+                    'PPpaytime': datetime.now(),
+                })
             db.session.add(pp)
-
             if pp.PPpayType == PlayPayType.enterlog.value:
                 self._enter_log(pp)
             elif pp.PPpayType == PlayPayType.undertake.value:
@@ -970,24 +978,29 @@ class CPlay():
             OrderFrom(omfrom)
         except Exception as e:
             raise ParamsError('客户端或商品来源错误')
-
-        pay_args = self._add_pay_detail(opayno=opayno,
+        redirect = False
+        if mount_price == Decimal('0'):
+            redirect = True
+        pay_args = self._add_pay_detail(opayno=opayno, redirect=redirect,
                                         body=body, PPpayMount=mount_price, openid=openid, PPcontent=elid,
                                         PPpayType=PlayPayType.enterlog.value)
 
-        prepay_id = pay_args.get('package').split('prepay_id=')[-1]
-        prepay_id_key = '{}{}{}'.format(elid, self.split_item, user.USid)
-        current_app.logger.info('{} = {}'.format(prepay_id_key, prepay_id))
-        if conn.get(prepay_id_key):
-            conn.delete(prepay_id_key)
-        conn.set(prepay_id_key, prepay_id)
+        # prepay_id = pay_args.get('package').split('prepay_id=')[-1]
+        # prepay_id_key = '{}{}{}'.format(elid, self.split_item, user.USid)
+        # current_app.logger.info('{} = {}'.format(prepay_id_key, prepay_id))
+
+        # if conn.get(prepay_id_key):
+        #     conn.delete(prepay_id_key)
+        # conn.set(prepay_id_key, prepay_id)
 
         response = {
             'pay_type': PayType.wechat_pay.name,
             'opaytype': PayType.wechat_pay.value,
             'elid': elid,
+            'redirect': redirect,
             'args': pay_args
         }
+        current_app.logger.info('response = {}'.format(response))
         return Success(data=response)
 
     @phone_required
@@ -1148,6 +1161,9 @@ class CPlay():
                 'CAPprice': return_price
             })
             db.session.add(cap)
+            if return_price == Decimal('0'):
+                # 如果金额为0 不走微信
+                return Success()
 
             if API_HOST != 'https://www.bigxingxing.com':
                 return_price = 0.01
@@ -1274,7 +1290,9 @@ class CPlay():
 
         # 支付
         openid = user.USopenid1
+        redirect = True if Decimal(str(makeover.MOprice)) == Decimal('0') else False
         pay_args = self._add_pay_detail(**{
+            'redirect': redirect,
             'body': '转让{}...'.format(play.PLname[:10]),
             'PPpayMount': makeover.MOprice,
             'openid': openid,
@@ -1286,6 +1304,7 @@ class CPlay():
             'pay_type': PayType.wechat_pay.name,
             'opaytype': PayType.wechat_pay.value,
             'moid': moid,
+            'redirect': redirect,
             'args': pay_args
         }
         return Success(data=response)
@@ -1729,7 +1748,11 @@ class CPlay():
                 'PPpayMount': mountprice,
             })
             db.session.add(pp)
-            return self._pay_detail(kwargs.get('body'), float(mountprice),
+
+        if kwargs.get('redirect'):
+            self.wechat_notify(redirect=True, pp=pp)
+
+        return self._pay_detail(kwargs.get('body'), float(mountprice),
                                     kwargs.get('opayno'), kwargs.get('openid'))
 
     def _pay_detail(self, body, mount_price, opayno, openid):
@@ -1802,9 +1825,8 @@ class CPlay():
         return str(lat), str(long)
 
     def _auto_playstatus(self, play):
-        current_app.logger.info('plid = {} 是否创建异步开启互动任务 {} {}'.format(play.PLid,
-                                                                      play.PLstatus == PlayStatus.publish.value,
-                                                                      play.PLstatus))
+        current_app.logger.info('plid = {} 是否创建异步开启互动任务 {} {}'.format(
+            play.PLid, play.PLstatus == PlayStatus.publish.value, play.PLstatus))
 
         if play.PLstatus == PlayStatus.publish.value:
             start_connid = 'startplay{}'.format(play.PLid)
@@ -1923,9 +1945,9 @@ class CPlay():
         if not el:
             current_app.logger.info('当前报名单不存在 {} '.format(pp.PPpayno))
             return
-        prepay_id = conn.get('{}{}{}'.format(el.ELid, self.split_item, el.USid))
-        prepay_id = str(prepay_id, encoding='utf-8')
-        current_app.logger.info('prepayid = {}'.format(prepay_id))
+        # prepay_id = conn.get('{}{}{}'.format(el.ELid, self.split_item, el.USid))
+        # prepay_id = str(prepay_id, encoding='utf-8')
+        # current_app.logger.info('prepayid = {}'.format(prepay_id))
         el.ELstatus = EnterLogStatus.success.value
         db.session.add(el)
         # 金额进入导游账号
