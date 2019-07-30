@@ -27,6 +27,7 @@ class AScenicSpot(Resource):
             'update': self.cscenicspot.update,                          # 编辑景区
             'delete': self.cscenicspot.delete,                          # 删除景区
             'add_travelrecord': self.cscenicspot.add_travelrecord,      # 发布时光记录
+            'del_travelrecord': self.cscenicspot.del_travelrecord,      # 删除时光记录
             'add_toilet': self.cscenicspot.add_toilet,                  # 添加厕所
             'update_toilet': self.cscenicspot.update_toilet             # 编辑厕所
         }

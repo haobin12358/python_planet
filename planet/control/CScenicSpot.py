@@ -266,6 +266,18 @@ class CScenicSpot(BASEAPPROVAL):
         return Success(data=raiders)
 
     @phone_required
+    def del_travelrecord(self):
+        """删除时光记录"""
+        User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        trid = parameter_required('trid').get('trid')
+        travelrecord = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                                 TravelRecord.TRid == trid).first_('未找到该记录')
+        with db.auto_commit():
+            travelrecord.update({'isdelete': True})
+            db.session.add(travelrecord)
+        return Success('删除成功', {'trid': trid})
+
+    @phone_required
     def add_travelrecord(self):
         """创建时光记录"""
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
@@ -291,8 +303,8 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 # 'TRstatus': data.get('trstatus')
-                                 'TRstatus': TravelRecordStatus.auditing.value
+                                 'TRstatus': data.get('trstatus')
+                                 # 'TRstatus': TravelRecordStatus.auditing.value
                                  }
             travelrecord_dict.update(tr_dict)
             try:
@@ -374,16 +386,17 @@ class CScenicSpot(BASEAPPROVAL):
             ucl_list = [ucl[0] for ucl in ucl_list]
             counts = self._my_home_page_count(getattr(request, 'user').id)
             top = self._init_top_dict(counts)
+        elif is_admin():
+            ucl_list = top = None
         else:
             # return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
             #                              'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
             #                      'travelrecord': []})
             raise TokenError('请重新登录')
         base_filter = [TravelRecord.isdelete == false()]
-        if not (common_user() and option == 'my'):
+        if not (common_user() and option == 'my') and not is_admin():
             base_filter.append(TravelRecord.AuthorID.in_(ucl_list))
-            if not is_admin():
-                base_filter.append(TravelRecord.TRstatus == TravelRecordStatus.published.value)
+            base_filter.append(TravelRecord.TRstatus == TravelRecordStatus.published.value)
         trecords_query = TravelRecord.query.filter(*base_filter)
         if date:
             if not re.match(r'^\d{4}-\d{2}$', date):
@@ -449,7 +462,7 @@ class CScenicSpot(BASEAPPROVAL):
     def _fill_travelrecord(trecord):
         """填充时光记录详情"""
         if trecord.TRtype == TravelRecordType.essay.value:  # 随笔
-            trecord.fields = ['TRid', 'TRlocation', 'TRtype']
+            trecord.fields = ['TRid', 'TRlocation', 'TRtype', 'TRstatus']
             content = json.loads(trecord.TRcontent)
             trecord.fill('text', content.get('text', '...'))
             trecord.fill('image', content.get('image'))
@@ -462,14 +475,14 @@ class CScenicSpot(BASEAPPROVAL):
                 showtype = 'text'
             trecord.fill('showtype', showtype)
         elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
-            trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent']
+            trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent', 'TRstatus']
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
             trecord.fill('picture', img_path)
             text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
         else:  # 攻略
-            trecord.fields = ['TRid', 'TRlocation', 'TRbudget', 'TRproducts', 'TRtype', 'TRcontent']
+            trecord.fields = ['TRid', 'TRlocation', 'TRbudget', 'TRproducts', 'TRtype', 'TRcontent', 'TRstatus']
             trecord.fill('trtitle', '{}游玩攻略'.format(trecord.TRlocation))
             trproducts_str = None
             if trecord.TRproducts:
@@ -487,6 +500,7 @@ class CScenicSpot(BASEAPPROVAL):
         trecord.fill('travelrecordtype_zh',
                      TravelRecordStatus.auditing.zh_value if trecord.TRstatus == TravelRecordStatus.auditing.value
                      else TravelRecordType(trecord.TRtype).zh_value)
+        trecord.fill('trstatus_zh', TravelRecordStatus(trecord.TRstatus).zh_value)
         author = User.query.filter_by_(USid=trecord.AuthorID).first()
         author_info = None if not author else {'usname': author.USname,
                                                'usid': author.USid,
@@ -638,7 +652,7 @@ class CScenicSpot(BASEAPPROVAL):
             if common_user() and latitude and longitude:
                 self.BaseController.get_user_location(latitude, longitude, getattr(request, 'user').id)
             scale = args.get('scale', 14)
-            variable = self.scale_dict.get(int(scale))
+            variable = self.scale_dict.get(int(float(scale)))
             toilets = toilet_query.filter(Toilet.TOstatus == ApprovalAction.agree.value,
                                           Toilet.latitude <= float(latitude) + variable,
                                           Toilet.latitude >= float(latitude) - variable,
