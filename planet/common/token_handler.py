@@ -30,6 +30,7 @@ def binded_phone():
         return getattr(get_current_user(), 'UStelphone', False)
     raise TokenError()
 
+
 def is_admin():
     """是否是管理员"""
     return hasattr(request, 'user') and request.user.model == 'Admin'
