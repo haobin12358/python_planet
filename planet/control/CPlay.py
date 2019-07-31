@@ -219,6 +219,8 @@ class CPlay():
         """查看集合点"""
         args = request.args.to_dict()
         my_lat, my_long = args.get('latitude'), args.get('longitude')
+        if not my_lat or my_lat == 'null':
+            raise ParamsError('请允许授权位置信息，以便为您展示活动集合地点')
         my_lat, my_long = self.check_lat_and_long(my_lat, my_long)
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         can_post, gather_location, my_location = False, None, None

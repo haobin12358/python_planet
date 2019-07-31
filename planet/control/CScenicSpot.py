@@ -303,8 +303,8 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 'TRstatus': data.get('trstatus')
-                                 # 'TRstatus': TravelRecordStatus.auditing.value
+                                 # 'TRstatus': data.get('trstatus')
+                                 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
                                  }
             travelrecord_dict.update(tr_dict)
             try:
@@ -646,8 +646,11 @@ class CScenicSpot(BASEAPPROVAL):
                 toilet.hide('creatorID', 'creatorType')
                 toilet.fill('tostatus_zh', ApprovalAction(toilet.TOstatus).zh_value)
         else:
-            parameter_required(('latitude', 'longitude'), datafrom=args)
+            parameter_required({'latitude': '请允许授权位置信息，以便为您展示附近的厕所',
+                                'longitude': '请允许授权位置信息，以便为您展示附近的厕所'}, datafrom=args)
             latitude, longitude = args.get('latitude'), args.get('longitude')
+            if latitude == 'null':
+                raise ParamsError('请允许授权位置信息，以便为您展示附近的厕所')
             latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
             if common_user() and latitude and longitude:
                 self.BaseController.get_user_location(latitude, longitude, getattr(request, 'user').id)
