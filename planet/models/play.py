@@ -119,6 +119,7 @@ class SuccessorSearchLog(Base):
     USrealname = Column(String(255), comment='承接人真实姓名')
     UStelphone = Column(String(13), comment='手机号')
     USidentification = Column(String(24), comment='身份证号')
+    PLid = Column(String(64), comment='活动id')
 
 
 class PlayPay(Base):

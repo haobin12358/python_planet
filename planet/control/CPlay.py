@@ -1190,6 +1190,7 @@ class CPlay():
                 'MOassignor': user.USid,
                 'MOsuccessor': mosuccessor.USid if mosuccessor else None,
                 'USrealname': data.get('usrealname'),
+                'PLid': data.get('plid'),
                 'UStelphone': data.get('ustelphone'),
                 'USidentification': data.get('usidentification'),
             })
@@ -1753,7 +1754,7 @@ class CPlay():
             self.wechat_notify(redirect=True, pp=pp)
 
         return self._pay_detail(kwargs.get('body'), float(mountprice),
-                                    kwargs.get('opayno'), kwargs.get('openid'))
+                                kwargs.get('opayno'), kwargs.get('openid'))
 
     def _pay_detail(self, body, mount_price, opayno, openid):
         body = re.sub("[\s+\.\!\/_,$%^*(+\"\'\-_]+|[+——！，。？、~@#￥%……&*（）]+", '', body)
@@ -2021,6 +2022,11 @@ class CPlay():
             mo.fill('enternum', play.enternum)
         assignor = User.query.filter_by(USid=mo.MOassignor, isdelete=False).first()
         successor = User.query.filter_by(USid=mo.MOsuccessor, isdelete=False).first()
+        ssl = SuccessorSearchLog.query.filter(
+            SuccessorSearchLog.isdelete == false(), SuccessorSearchLog.PLid == play.PLid,
+            SuccessorSearchLog.MOassignor == mo.MOassignor, SuccessorSearchLog.MOsuccessor == mo.MOsuccessor).order_by(
+            SuccessorSearchLog.createtime.desc()).first()
+
         if not assignor:
             current_app.logger.info('{} 的转让人不存在'.format(mo.MOid))
             assignor_name = '旗行官方'
@@ -2030,14 +2036,15 @@ class CPlay():
         if not successor:
             current_app.logger.info('{} 的承接人不存在'.format(mo.MOid))
             successor_name = '旗行官方'
+            tel = '15079564121'
         else:
-            successor_name = successor.USrealname or successor.USname
-
+            successor_name = ssl.USrealname if ssl else successor.USrealname or successor.USname
+            tel = ssl.UStelphone if ssl else successor.UStelphone
         agreement = Agreement.query.filter_by(AMtype=0, isdelete=False).order_by(Agreement.updatetime.desc()).first()
         content = agreement.AMcontent
 
         re_c = content.format(assignor_name, play.PLname, play.PLstartTime, play.PLendTime, successor_name,
-                              '', mo.MOprice, successor_name, successor_name, mo.createtime)
+                              tel, mo.MOprice, assignor_name, successor_name, mo.createtime)
         mo.fill('agreemen', re_c)
         mo.fill('MOassignor', assignor_name)
         mo.fill('MOsuccessor', successor_name)
