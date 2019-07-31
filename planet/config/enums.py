@@ -234,6 +234,7 @@ class AdminLevel(Enum):
     super_admin = 1, '超级管理员'
     common_admin = 2, '普通管理员'
     agent = 3, '供应商'
+    finance = 4, '财务'
 
 
 class AdminStatus(Enum):
@@ -624,6 +625,7 @@ class UserMediaType(Enum):
 
 
 class SupplizerSettementStatus(Enum):
+    checking = -2, '财务审核中'
     settlementing = 0, '结算中'
     settlemented = 1, '已结算'
     approvaling = -1, '结算异常处理中'
@@ -817,6 +819,12 @@ class TemplateID(Enum):
     accomplished = 'accomplished', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     guide = 'guide', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     agreement = 'agreement', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+
+
+class CategoryType(Enum):
+    green = 0, '全平台'
+    black = 1, '品牌'
+    orange = 2, '折扣券'
 
 
 if __name__ == '__main__':
