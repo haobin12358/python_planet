@@ -13,7 +13,7 @@ from planet.common.base_service import get_session
 from planet.config.enums import UserIdentityStatus, PermissionNotesType, AdminLevel, \
     AdminStatus, UserLoginTimetype, ApplyStatus, ApprovalAction, ProductStatus, NewsStatus, NewsAwardStatus, \
     UserCommissionType, UserCommissionStatus, TrialCommodityStatus, ApplyFrom, \
-    SupplizerSettementStatus, CashFor, AdminActionS, WXLoginFrom, GuideApplyStatus
+    SupplizerSettementStatus, CashFor, AdminActionS, WXLoginFrom, GuideApplyStatus, MiniUserGrade
 
 from planet.common.error_response import ParamsError, SystemError, NotFound, AuthorityError
 from planet.common.success_response import Success
@@ -1364,6 +1364,9 @@ class CApproval(BASEAPPROVAL):
         if not guide:
             return
         guide.GUstatus = GuideApplyStatus.agree.value
+        user = User.query.filter_by_(USid=approval_model.AVstartid).first()
+        if user:
+            user.USminiLevel = MiniUserGrade.guide.value
 
     def refuse_guide(self, approval_model):
         guide = Guide.query.filter_by_(GUid=approval_model.AVcontent).first()

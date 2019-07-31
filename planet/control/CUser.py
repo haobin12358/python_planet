@@ -15,7 +15,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS, MiniUserGrade
+    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus
 
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
@@ -40,8 +40,8 @@ from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommi
 
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -544,7 +544,8 @@ class CUser(SUser, BASEAPPROVAL):
             cast(UserIntegral.createtime, Date) == today).first()
         user.fill('signin', bool(ui))
         self.__user_fill_uw_total(user)
-
+        guide = Guide.query.filter_by(isdelete=False, USid=user.USid, GUstatus=GuideApplyStatus.agree.value).first()
+        user.fill('guide', bool(guide))
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
         user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
