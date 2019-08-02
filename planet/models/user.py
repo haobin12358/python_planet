@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
-from sqlalchemy import Integer, String, Text, Float, Boolean, DateTime, DECIMAL
+from sqlalchemy import Integer, String, Text, Boolean, DateTime, DECIMAL, orm
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from planet.common.base_model import Base, Column
@@ -13,10 +13,14 @@ class User(Base):
     __tablename__ = "User"
     USid = Column(String(64), primary_key=True)
     USname = Column(String(255), nullable=False, comment='用户名')
+    UScustomizeName = Column(String(255), comment='自定义昵称')
     USrealname = Column(String(255), comment='用户真实姓名')
     UStelphone = Column(String(13), comment='手机号')
     USgender = Column(Integer, default=0, comment='性别 {0: man, 1: woman')
     USbirthday = Column(DateTime, comment='出生日期')
+    UScustomizeBirthday = Column(DateTime, comment='自定义生日')
+    USareaId = Column(String(64), comment='用户自定义地区')
+    UScustomizeHeader = Column(Text, url=True, comment='用户自定义头像')
     USidentification = Column(String(24), comment='身份证号')
     USheader = Column(Text, default='用户头像', url=True)
     USopenid1 = Column(Text, comment='小程序 openid')
@@ -41,6 +45,14 @@ class User(Base):
     USplayName = Column(String(255), comment='小程序伪真实姓名')
     USunread = Column(Integer, default=0, comment='未读信息数')
     USminiLevel = Column(Integer, default=0, comment='小程序等级')
+
+    @orm.reconstructor
+    def __init__(self):
+        super(User, self).__init__()
+        self.hide('UScustomizeName', 'UScustomizeBirthday', 'UScustomizeHeader')
+        self.USname = self.UScustomizeName or self.USname
+        self.USbirthday = self.UScustomizeBirthday or self.USbirthday
+        self.USheader = self.UScustomizeHeader or self.USheader
 
 
 class UserLoginTime(Base):
@@ -120,6 +132,7 @@ class Admin(Base):
     ADstatus = Column(Integer, default=0, comment='账号状态，{0:正常, 1: 被冻结, 2: 已删除}')
     # ADcreateTime = Column(DateTime, default=datetime.now(), comment='创建时间')
     ADunread = Column(Integer, default=0, comment='未读消息数')
+
 
 class AdminActions(Base):
     """

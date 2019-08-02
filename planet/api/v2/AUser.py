@@ -38,6 +38,7 @@ class AUser(Resource):
             'check_paycode': self.user.check_paycode,  # 验证手机
             'mp_login': self.user.mini_program_login,  # 小程序登录
             'blog_login': self.user.blog_login,  # 网页blog登录
+            'update_usinfo': self.user.update_usinfo,  # 小程序编辑个人信息
 
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,
