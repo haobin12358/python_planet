@@ -1186,7 +1186,10 @@ class CPlay():
         with db.auto_commit():
             user = get_current_user()
             mosuccessor = User.query.filter_by(UStelphone=data.get('ustelphone'), isdelete=False).first()
-
+            if not mosuccessor:
+                raise ParamsError('无此用户或承接人手机号填写错误，请核对后重试')
+            if mosuccessor.USid == user.USid:
+                raise StatusError('不允许将活动转让给自己')
             ssl = SuccessorSearchLog.create({
                 'SSLid': str(uuid.uuid1()),
                 'MOassignor': user.USid,
@@ -1196,16 +1199,12 @@ class CPlay():
                 'UStelphone': data.get('ustelphone'),
                 'USidentification': data.get('usidentification'),
             })
-
             db.session.add(ssl)
-            if not mosuccessor:
-                raise ParamsError('查无此人')
 
             # 活动校验
             play = Play.query.filter_by(PLid=data.get('plid'), isdelete=False).first_('活动不存在')
             if play.PLstatus >= PlayStatus.activity.value:
                 raise StatusError('活动已开始')
-            user = get_current_user()
             # 价格校验
             moprice = validate_price(str(data.get('moprice') or 0))
 
@@ -1504,16 +1503,16 @@ class CPlay():
             current_app.logger.info('结束时间转换完成')
         except:
             current_app.logger.error('转时间失败  开始时间 {}  结束时间 {}'.format(data.get('plstarttime'), data.get('plendtime')))
-            raise ParamsError
+            raise ParamsError('请检查活动时间是否填写正确')
 
         if now > plstart:
             current_app.logger.info('now is {} plstart is {}'.format(now, plstart))
-            raise ParamsError('开始时间不能小于当前时间')
+            raise ParamsError('活动开始时间不能小于当前时间')
 
         duration = plend - plstart
         if duration.days < 0:
             current_app.logger.error('起止时间有误')
-            raise ParamsError
+            raise ParamsError('活动开始时间不能小于结束时间')
         # 修改数据格式
         data['plstarttime'] = plstart
         data['plendtime'] = plend
@@ -1539,7 +1538,7 @@ class CPlay():
 
     def _fill_play(self, play, user=None):
         play.fill('PLlocation', str(play.PLlocation).split(self.split_item))
-        play.fill('PLproducts', str(play.PLproducts).split(self.split_item))
+        play.fill('PLproducts', str(play.PLproducts).split(self.split_item) if play.PLproducts else [])
         play.fill('PLcontent', json.loads(play.PLcontent))
         play.fill('plstatus_zh', PlayStatus(play.PLstatus).zh_value)
         play.fill('plstatus_en', PlayStatus(play.PLstatus).name)
@@ -1722,10 +1721,16 @@ class CPlay():
         # return value_dict
 
     def _trans_time(self, time_str):
-        if re.match(r'^.*(:\d{2}){2}$', time_str):
-            return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
-        else:
-            return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
+        return_str = None
+        try:
+            if re.match(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', time_str):
+                return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+            elif re.match(r'^\d{4}(-\d{2}){2} \d{2}:\d{2}$', time_str):
+                return_str = datetime.strptime(time_str, '%Y-%m-%d %H:%M')
+        except ValueError:
+            return_str = None
+        if not return_str:
+            raise ParamsError('请检查活动时间是否填写正确')
         return return_str
 
     def _random_num(self, numlen=4):
