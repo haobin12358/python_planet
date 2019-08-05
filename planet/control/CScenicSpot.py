@@ -34,6 +34,10 @@ class CScenicSpot(BASEAPPROVAL):
                            8: 4, 9: 3, 10: 3, 11: 2, 12: 2, 13: 1,
                            14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1}
 
+    @staticmethod
+    def ac_callback():
+        return mp_miniprogram.access_token
+
     @admin_required
     def add(self):
         """添加景区介绍"""
@@ -303,8 +307,8 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 # 'TRstatus': data.get('trstatus')
-                                 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
+                                 'TRstatus': data.get('trstatus')
+                                 # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
                                  }
             travelrecord_dict.update(tr_dict)
             try:
@@ -557,7 +561,7 @@ class CScenicSpot(BASEAPPROVAL):
             TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
             TravelRecord.createtime.desc(),
-            TravelRecord.TRsort).all_with_page()
+            TravelRecord.TRsort.asc(), TravelRecord.createtime.desc()).all_with_page()
         [self._fill_travelrecord(x) for x in tr_list]
         return Success(data=tr_list)
 

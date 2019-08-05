@@ -25,7 +25,7 @@ from planet.common.error_response import ParamsError, SystemError, TokenError, T
 from planet.common.success_response import Success
 from planet.common.base_service import get_session
 from planet.common.token_handler import token_required, usid_to_token, is_shop_keeper, is_hign_level_admin, is_admin, \
-    admin_required, is_supplizer, common_user, get_current_user, phone_required
+    admin_required, is_supplizer, common_user, get_current_user
 from planet.common.default_head import GithubAvatarGenerator
 from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
@@ -2012,7 +2012,7 @@ class CUser(SUser, BASEAPPROVAL):
                                               User.USunionid.is_(None),
                                               User.USopenid1.is_(None)).first()
         if phone_binded_user:
-            current_app.logger.info('该手机号已存在绑定用户: {}， 删除新用户: {}'.format(user.USid, phone_binded_user.USid))
+            current_app.logger.info('该手机号已存在绑定用户: {}， 删除新用户: {}'.format(phone_binded_user.USid, user.USid))
             phone_binded_user.USunionid = user.USunionid
             phone_binded_user.USopenid1 = user.USopenid1
             user.isdelete = True  # 已有H5绑定手机号的删除小程序新建的用户

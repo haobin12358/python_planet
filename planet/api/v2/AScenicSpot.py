@@ -17,7 +17,8 @@ class AScenicSpot(Resource):
             'raiders_list': self.cscenicspot.get_raiders_list,          # 景区下推荐攻略列表
             'get_team_travelrecord': self.cscenicspot.get_team,         # 团队广场下推荐攻略列表
             'get_toilet': self.cscenicspot.get_toilet,                  # 厕所详情
-            'toilet_list': self.cscenicspot.toilet_list                 # 厕所列表
+            'toilet_list': self.cscenicspot.toilet_list,                # 厕所列表
+            'ac_callback': self.cscenicspot.ac_callback,                # 多服务器access_token共用回调
         }
         return apis
 
