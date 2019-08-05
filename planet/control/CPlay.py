@@ -2004,7 +2004,7 @@ class CPlay():
         db.session.add(makeover)
 
         # 钱进入新领队账户
-        guide = User.query.filter_by(USid=makeover.MOassignor, isdelete=False).first()
+        guide = User.query.filter_by(USid=makeover.MOsuccessor, isdelete=False).first()
         if not guide:
             # 导游不存在，钱进入平台账户
             current_app.logger.info('导游 {} 已删除, {} 正在承接活动'.format(play.PLcreate, makeover.MOsuccessor))
