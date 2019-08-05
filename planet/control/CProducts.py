@@ -213,7 +213,7 @@ class CProducts(BaseController):
 
         current_app.logger.info('start get product list {}'.format(datetime.now()))
         try:
-            order, desc_asc = data.get('order_type', 'prsort|desc').split('|')  # 排序方式
+            order, desc_asc = data.get('order_type', 'prsort|asc').split('|')  # 排序方式
             order_enum = {
                 'time': Products.createtime,
                 'sale_value': Products.PRsalesValue,
