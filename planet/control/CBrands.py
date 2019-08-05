@@ -27,6 +27,8 @@ class CBrands(object):
         self.itid_re_ca = 'home_recommend_category'
         self.prfields = ['PRprice', 'PRtitle', 'PRmainpic', 'PRlinePrice', 'PRid']
         self.br_new = 5
+        # 前台不展示的pbid（野， 大行星）
+        self.hide_pbid = ('68bad064-14e9-11e9-b226-00163e13a3e3', '9e8692a4-43c0-11e9-b590-00163e13a3e3')
 
     @token_required
     def create(self):
@@ -108,6 +110,8 @@ class CBrands(object):
             brand_query = brand_query.filter(
                 ProductBrand.PBname.contains(kw)
             )
+        if common_user():
+            brand_query = brand_query.filter(ProductBrand.PBid.notin_(self.hide_pbid))
         brands = brand_query.order_by(ProductBrand.PBsort.asc(), ProductBrand.createtime.desc()).all_with_page()
 
         for brand in brands:
