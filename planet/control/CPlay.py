@@ -844,8 +844,7 @@ class CPlay():
         # 发送求救短信
         for index, usphone in enumerate(phone_list):
             params = {"name": helper_list[index], "name2": user.USname, "telphone": user.UStelphone}
-            # todo 签名未审核通过，上线前替换 sign_name=QXSignName
-            response_send_message = SendSMS(usphone, params, templatecode=HelpTemplateCode)
+            response_send_message = SendSMS(usphone, params, sign_name=QXSignName, templatecode=HelpTemplateCode)
             if response_send_message:
                 current_app.logger.info('send help sms param: {}'.format(params))
         # 求救记录
@@ -910,7 +909,7 @@ class CPlay():
                 raise StatusError(self.conflict)
             # 优先检测是否继续支付
             if repay:
-                el = EnterLog.query.filter_by(PLid=plid, isdelete=False).first_('报名记录已删除')
+                el = EnterLog.query.filter_by(PLid=plid, isdelete=False, USid=user.USid).first_('报名记录已删除')
                 if el.ELstatus != EnterLogStatus.wait_pay.value:
                     raise StatusError('当前报名记录已支付或者已删除')
                 elid = el.ELid
@@ -1233,7 +1232,8 @@ class CPlay():
             user = get_current_user()
             if self._check_user_play(user, play):
                 raise StatusError(self.conflict)
-            makeover = MakeOver.query.filter_by(PLid=plid, isdelete=False).first_('转让记录已失效')
+            makeover = MakeOver.query.filter_by(PLid=plid, isdelete=False,
+                                                MOstatus=MakeOverStatus.wait_confirm.value).first_('转让记录已失效')
             if play.PLstatus < PlayStatus.makeover.value:
                 makeover.isdelete = True
                 return StatusError('转让已取消')
@@ -1271,7 +1271,9 @@ class CPlay():
 
                 makeover = MakeOver.query.filter(
                     MakeOver.PLid == plid,
-                    MakeOver.isdelete == false()).first_('转让单已失效')
+                    MakeOver.isdelete == false(),
+                    MakeOver.MOstatus == MakeOverStatus.wait_pay.value
+                ).first_('转让单已失效')
             else:
                 raise ParamsError('活动或转让单参数缺失')
             # 转让单状态
@@ -1673,7 +1675,11 @@ class CPlay():
         if play.PLstatus != PlayStatus.publish.value:
             raise StatusError('该活动已结束')
         if play.PLcreate == user.USid:
-            raise ParamsError('报名的是自己创建的')
+            raise ParamsError('活动的是自己创建的')
+        if EnterLog.query.filter(EnterLog.isdelete == false(), EnterLog.USid == user.USid,
+                                 EnterLog.ELstatus == EnterLogStatus.success.value,
+                                 EnterLog.PLid == play.PLid).first():
+            raise StatusError('您已成功报名')
         return bool(self._check_user_play(user, play))
 
     def _check_user_play(self, user, play):
@@ -1681,8 +1687,12 @@ class CPlay():
         # todo 未知漏洞 活动中的用户可以创建时间冲突活动
 
         return Play.query.filter(
-            or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
-                and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
+            # or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
+            #     and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
+            or_(and_(Play.PLstartTime >= play.PLstartTime, Play.PLendTime <= play.PLendTime),
+                and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLstartTime),
+                and_(Play.PLstartTime <= play.PLendTime, Play.PLendTime >= play.PLendTime),
+                and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLendTime)),
             or_(and_(EnterLog.USid == user.USid,
                      EnterLog.PLid == Play.PLid,
                      EnterLog.ELstatus == EnterLogStatus.success.value,
@@ -1747,7 +1757,8 @@ class CPlay():
         with db.auto_commit():
             mountprice = kwargs.get('PPpayMount')
             if Decimal(str(mountprice)) <= Decimal('0'):
-                mountprice = Decimal('0.01')
+                # mountprice = Decimal('0.01')
+                mountprice = Decimal('0.00')
             pp = PlayPay.create({
                 'PPid': str(uuid.uuid1()),
                 'PPpayno': kwargs.get('opayno'),
@@ -1759,6 +1770,7 @@ class CPlay():
 
         if kwargs.get('redirect'):
             self.wechat_notify(redirect=True, pp=pp)
+            return ''
 
         return self._pay_detail(kwargs.get('body'), float(mountprice),
                                 kwargs.get('opayno'), kwargs.get('openid'))
@@ -1805,11 +1817,13 @@ class CPlay():
                 'UWtotal': Decimal(str(price)),
                 'UWcash': Decimal(str(price)),
             })
-
+            current_app.logger.info('无钱包')
         else:
+            current_app.logger.info('用户钱包原金额: {}'.format(uw.UWcash))
             uw.UWbalance = Decimal(str(uw.UWbalance)) + Decimal(str(price))
             uw.UWtotal = Decimal(str(uw.UWtotal)) + Decimal(str(price))
             uw.UWcash = Decimal(str(uw.UWcash)) + Decimal(str(price))
+        current_app.logger.info('uwid: {} ; 入账 {} 元; 现为 {} 元'.format(uw.UWid, price, uw.UWcash))
         db.session.add(uw)
 
     @staticmethod
