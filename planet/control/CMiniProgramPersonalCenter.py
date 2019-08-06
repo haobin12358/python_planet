@@ -113,7 +113,8 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
         transactions.sort(key=lambda x: x.get('time'), reverse=True)
         total = sum(i.get('amount', 0) for i in transactions)
         for item in transactions:
-            item['amount'] = '+ ¥{}'.format(item['amount']) if item['amount'] >= 0 else '- ¥{}'.format(-item['amount'])
+            item['amount'] = '+ ¥{}'.format(item['amount']) if item['amount'] > 0 else '- ¥{}'.format(
+                -item['amount']) if item['amount'] != 0 else '  ¥{}'.format(-item['amount'])
         total = ' ¥{}'.format(total) if total >= 0 else ' - ¥{}'.format(-total)
 
         # 筛选后重新分页
