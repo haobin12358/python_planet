@@ -1675,7 +1675,7 @@ class CPlay():
         if play.PLstatus != PlayStatus.publish.value:
             raise StatusError('该活动已结束')
         if play.PLcreate == user.USid:
-            raise ParamsError('活动的是自己创建的')
+            raise ParamsError('活动是自己创建的')
         if EnterLog.query.filter(EnterLog.isdelete == false(), EnterLog.USid == user.USid,
                                  EnterLog.ELstatus == EnterLogStatus.success.value,
                                  EnterLog.PLid == play.PLid).first():

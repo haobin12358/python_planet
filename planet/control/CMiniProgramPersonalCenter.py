@@ -9,14 +9,14 @@ from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required
 from planet.common.error_response import ParamsError
-from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus
+from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus, MakeOverStatus, PlayPayType
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
 from planet.models.scenicspot import Guide
 from planet.models.user import User, UserWallet, CashNotes, CoveredCertifiedNameLog
 from planet.models.join import EnterLog, CancelApply
-from planet.models.play import Play, PlayPay
+from planet.models.play import Play, PlayPay, MakeOver
 
 
 class CMiniProgramPersonalCenter(BASEAPPROVAL):
@@ -68,12 +68,32 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
              EnterLog.ELstatus.in_((EnterLogStatus.success.value,
                                     EnterLogStatus.refund.value,
                                     EnterLogStatus.canceled.value)),
+             PlayPay.PPpayType == PlayPayType.enterlog.value,
              extract('month', PlayPay.createtime) == month,
              extract('year', PlayPay.createtime) == year)
         ).all()
         transactions = [{'amount': i[0] if i[3] != user.USid else -i[0],
                          'time': i[1], 'title': '[报名] ' + i[2] if i[3] == user.USid else '[团员报名] ' + i[2]
                          } for i in pp_query if i[0] is not None]
+        mo_query = db.session.query(PlayPay.PPpayMount.label('amount'),
+                                    PlayPay.createtime.label('time'),
+                                    Play.PLtitle.label('title'),
+                                    MakeOver.MOsuccessor.label('usid')).join(
+            MakeOver, MakeOver.MOid == PlayPay.PPcontent
+        ).join(Play, Play.PLid == MakeOver.PLid
+               ).filter(Play.isdelete == false(),
+                        MakeOver.isdelete == false(),
+                        PlayPay.isdelete == false(),
+                        PlayPay.PPpayType == PlayPayType.undertake.value,
+                        MakeOver.MOstatus == MakeOverStatus.success.value,
+                        or_(MakeOver.MOassignor == user.USid, MakeOver.MOsuccessor == user.USid),
+                        extract('month', PlayPay.createtime) == month,
+                        extract('year', PlayPay.createtime) == year
+                        ).all()
+        [transactions.append({'amount': i[0] if i[3] == user.USid else -i[0],
+                              'time': i[1],
+                              'title': '[承接] ' + i[2] if i[3] == user.USid else '[转让] ' + i[2]}
+                             ) for i in mo_query if i[0] is not None]
         ca_query = self._expenditure_query_expression(
             (CancelApply.CAPprice.label('amout'),
              CancelApply.createtime.label('time'),
