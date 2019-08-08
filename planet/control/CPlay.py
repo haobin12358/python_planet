@@ -1571,11 +1571,15 @@ class CPlay():
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
 
+            is_join = bool(el and el.ELstatus == EnterLogStatus.success.value)
+
             play.fill('joinstatus', bool(
                 (play.PLcreate != user.USid) and
-                (not el or el.ELstatus != EnterLogStatus.success.value) and
+                not is_join and
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
+
+            play.fill('is_join', is_join)
 
             isrefund = False
             if el:
