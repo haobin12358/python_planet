@@ -1,12 +1,14 @@
 import json
+import os
 import random
 import uuid
 import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import current_app, request
-from sqlalchemy import Date, or_, and_, false, extract
+import tablib
+from flask import current_app, request, send_from_directory
+from sqlalchemy import Date, or_, and_, false, extract, func
 
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, ApiError
@@ -20,7 +22,7 @@ from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayTy
 from planet.common.Inforsend import SendSMS
 
 from planet.config.http_config import API_HOST
-from planet.config.secret import QXSignName, HelpTemplateCode
+from planet.config.secret import QXSignName, HelpTemplateCode, BASEDIR
 
 from planet.control.BaseControl import BaseController
 from planet.control.CTemplates import CTemplates
@@ -45,6 +47,7 @@ class CPlay():
         self.basecontrol = BaseController()
         self.guidelevel = 5
         self.temp = CTemplates()
+        self.base_headers = ['序号', '昵称']
 
     """get 接口 """
 
@@ -2108,3 +2111,48 @@ class CPlay():
             EnterLog.ELstatus > EnterLogStatus.error.value).all()
 
         return play.PLstatus == PlayStatus.close.value and el_list
+
+    @phone_required
+    def download_team_user_info(self):
+        """下载活动报名信息"""
+        data = parameter_required('plid')
+        now = datetime.now()
+        play = Play.query.filter(Play.isdelete == false(), Play.PLid == data.get('plid'),
+                                 Play.PLcreate == getattr(request, 'user').id).first_('活动不存在或已删除')
+        rows, headers = self._init_rows(play)
+        res = tablib.Dataset(*rows, headers=headers, title=play.PLname)
+        aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
+        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
+        xls_name = play.PLid + '.xls'
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
+        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
+        if not os.path.isdir(abs_dir):
+            os.makedirs(abs_dir)
+        with open(abs_file, 'wb') as f:
+            f.write(res.xls)
+        return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
+
+    def _init_rows(self, play):
+        headers = self.base_headers
+        rows, plre_list = [], []
+        playrequires = db.session.query(func.group_concat(PlayRequire.PREname)
+                                        ).filter(PlayRequire.isdelete == false(),
+                                                 PlayRequire.PLid == play.PLid
+                                                 ).scalar()
+        if playrequires:
+            plre_list = str(playrequires).split(',')
+        headers.extend(plre_list)
+        headers.append('报名状态')
+        enter_logs = EnterLog.query.filter(EnterLog.isdelete == false(),
+                                           EnterLog.PLid == play.PLid,
+                                           EnterLog.ELstatus.in_((EnterLogStatus.success.value,
+                                                                  EnterLogStatus.refund.value))).all()
+        for index, el in enumerate(enter_logs):
+            elvalue = json.loads(el.ELvalue)
+            username = db.session.query(User.USname).filter(User.isdelete == false(), User.USid == el.USid).scalar()
+            row = [index + 1, username]
+            for item in plre_list:
+                row.append(elvalue.get(item))
+            row.append(EnterLogStatus(el.ELstatus).zh_value)
+            rows.append(row)
+        return rows, headers

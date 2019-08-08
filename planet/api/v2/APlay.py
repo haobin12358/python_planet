@@ -30,6 +30,7 @@ class APlay(Resource):
             'get_make_over': self.cplay.get_make_over,
             'get_make_over_list': self.cplay.get_make_over_list,
             'get_undertake_agreement': self.cplay.get_undertake_agreement,
+            'download_team': self.cplay.download_team_user_info,
         }
         return apis
 
