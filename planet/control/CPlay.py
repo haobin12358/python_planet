@@ -1008,24 +1008,6 @@ class CPlay():
         current_app.logger.info('response = {}'.format(response))
         return Success(data=response)
 
-    @staticmethod
-    def _del_other_enterlog(elid, play, user):
-        current_app.logger.info('get elid is: {}'.format(elid))
-        # 删除其他可能存在的待支付报名记录
-        other_el = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.isdelete == false(),
-                                         EnterLog.USid == user.USid, EnterLog.ELid != elid,
-                                         EnterLog.ELstatus == EnterLogStatus.wait_pay.value
-                                         ).all()
-        other_elid = []
-        for oel in other_el:
-            other_elid.append(oel.ELid)
-            oel.isdelete = True
-        if other_elid:
-            current_app.logger.info('存在其余未支付记录: ELid: {}'.format(other_elid))
-            PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent.in_(other_elid)
-                                 ).delete_(synchronize_session=False)
-        PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
-                             ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
     @phone_required
     def set_signin(self):
         data = parameter_required()
@@ -1589,11 +1571,15 @@ class CPlay():
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
 
+            is_join = bool(el and el.ELstatus == EnterLogStatus.success.value)
+
             play.fill('joinstatus', bool(
                 (play.PLcreate != user.USid) and
-                (not el or el.ELstatus != EnterLogStatus.success.value) and
+                not is_join and
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
+
+            play.fill('is_join', is_join)
 
             isrefund = False
             if el:
@@ -2108,3 +2094,22 @@ class CPlay():
             EnterLog.ELstatus > EnterLogStatus.error.value).all()
 
         return play.PLstatus == PlayStatus.close.value and el_list
+
+    @staticmethod
+    def _del_other_enterlog(elid, play, user):
+        current_app.logger.info('get elid is: {}'.format(elid))
+        # 删除其他可能存在的待支付报名记录
+        other_el = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.isdelete == false(),
+                                         EnterLog.USid == user.USid, EnterLog.ELid != elid,
+                                         EnterLog.ELstatus == EnterLogStatus.wait_pay.value
+                                         ).all()
+        other_elid = []
+        for oel in other_el:
+            other_elid.append(oel.ELid)
+            oel.isdelete = True
+        if other_elid:
+            current_app.logger.info('存在其余未支付记录: ELid: {}'.format(other_elid))
+            PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent.in_(other_elid)
+                                 ).delete_(synchronize_session=False)
+        PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
+                             ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
