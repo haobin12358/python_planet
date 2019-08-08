@@ -509,6 +509,26 @@ class CPlay():
             self._fill_mo(play, mo)
         return Success(data=mo_list)
 
+    @phone_required
+    def download_team_user_info(self):
+        """下载活动报名信息"""
+        data = parameter_required('plid')
+        now = datetime.now()
+        play = Play.query.filter(Play.isdelete == false(), Play.PLid == data.get('plid'),
+                                 Play.PLcreate == getattr(request, 'user').id).first_('活动不存在或已删除')
+        rows, headers = self._init_rows(play)
+        res = tablib.Dataset(*rows, headers=headers, title=play.PLname)
+        aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
+        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
+        xls_name = play.PLid + '.xls'
+        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
+        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
+        if not os.path.isdir(abs_dir):
+            os.makedirs(abs_dir)
+        with open(abs_file, 'wb') as f:
+            f.write(res.xls)
+        return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
+
     """post 接口"""
 
     def wechat_notify(self, **kwargs):
@@ -1011,24 +1031,6 @@ class CPlay():
         current_app.logger.info('response = {}'.format(response))
         return Success(data=response)
 
-    @staticmethod
-    def _del_other_enterlog(elid, play, user):
-        current_app.logger.info('get elid is: {}'.format(elid))
-        # 删除其他可能存在的待支付报名记录
-        other_el = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.isdelete == false(),
-                                         EnterLog.USid == user.USid, EnterLog.ELid != elid,
-                                         EnterLog.ELstatus == EnterLogStatus.wait_pay.value
-                                         ).all()
-        other_elid = []
-        for oel in other_el:
-            other_elid.append(oel.ELid)
-            oel.isdelete = True
-        if other_elid:
-            current_app.logger.info('存在其余未支付记录: ELid: {}'.format(other_elid))
-            PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent.in_(other_elid)
-                                 ).delete_(synchronize_session=False)
-        PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
-                             ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
     @phone_required
     def set_signin(self):
         data = parameter_required()
@@ -1592,11 +1594,15 @@ class CPlay():
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
 
+            is_join = bool(el and el.ELstatus == EnterLogStatus.success.value)
+
             play.fill('joinstatus', bool(
                 (play.PLcreate != user.USid) and
-                (not el or el.ELstatus != EnterLogStatus.success.value) and
+                not is_join and
                 (int(enter_num) < int(play.PLnum)) and
                 (play.PLstatus == PlayStatus.publish.value)))
+
+            play.fill('is_join', is_join)
 
             isrefund = False
             if el:
@@ -2112,26 +2118,6 @@ class CPlay():
 
         return play.PLstatus == PlayStatus.close.value and el_list
 
-    @phone_required
-    def download_team_user_info(self):
-        """下载活动报名信息"""
-        data = parameter_required('plid')
-        now = datetime.now()
-        play = Play.query.filter(Play.isdelete == false(), Play.PLid == data.get('plid'),
-                                 Play.PLcreate == getattr(request, 'user').id).first_('活动不存在或已删除')
-        rows, headers = self._init_rows(play)
-        res = tablib.Dataset(*rows, headers=headers, title=play.PLname)
-        aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
-        abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
-        xls_name = play.PLid + '.xls'
-        aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
-        abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
-        if not os.path.isdir(abs_dir):
-            os.makedirs(abs_dir)
-        with open(abs_file, 'wb') as f:
-            f.write(res.xls)
-        return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
-
     def _init_rows(self, play):
         headers = self.base_headers
         rows, plre_list = [], []
@@ -2156,3 +2142,22 @@ class CPlay():
             row.append(EnterLogStatus(el.ELstatus).zh_value)
             rows.append(row)
         return rows, headers
+
+    @staticmethod
+    def _del_other_enterlog(elid, play, user):
+        current_app.logger.info('get elid is: {}'.format(elid))
+        # 删除其他可能存在的待支付报名记录
+        other_el = EnterLog.query.filter(EnterLog.PLid == play.PLid, EnterLog.isdelete == false(),
+                                         EnterLog.USid == user.USid, EnterLog.ELid != elid,
+                                         EnterLog.ELstatus == EnterLogStatus.wait_pay.value
+                                         ).all()
+        other_elid = []
+        for oel in other_el:
+            other_elid.append(oel.ELid)
+            oel.isdelete = True
+        if other_elid:
+            current_app.logger.info('存在其余未支付记录: ELid: {}'.format(other_elid))
+            PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent.in_(other_elid)
+                                 ).delete_(synchronize_session=False)
+        PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
+                             ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
