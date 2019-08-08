@@ -1880,10 +1880,9 @@ class CPlay():
     def _auto_playstatus(self, play):
         current_app.logger.info('plid = {} 是否创建异步开启互动任务 {} {}'.format(
             play.PLid, play.PLstatus == PlayStatus.publish.value, play.PLstatus))
-
+        start_connid = 'startplay{}'.format(play.PLid)
+        end_connid = 'endplay{}'.format(play.PLid)
         if play.PLstatus == PlayStatus.publish.value:
-            start_connid = 'startplay{}'.format(play.PLid)
-            end_connid = 'endplay{}'.format(play.PLid)
             self._cancle_celery(start_connid)
             self._cancle_celery(end_connid)
             starttime = play.PLstartTime
@@ -1902,6 +1901,9 @@ class CPlay():
             #     conn.delete(end_connid)
             conn.set(start_connid, start_task_id)
             conn.set(end_connid, end_task_id)
+        elif play.PLstatus == PlayStatus.close.value:
+            self._cancle_celery(start_connid)
+            self._cancle_celery(end_connid)
 
     @staticmethod
     def _is_tourism_leader(usid):
