@@ -4,13 +4,14 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, extract
+from sqlalchemy import or_, false, extract, and_
 from planet.common.error_response import ParamsError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
     EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
+from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import EnterLog, Play, Approval
@@ -481,7 +482,8 @@ class CScenicSpot(BASEAPPROVAL):
         elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
             trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent', 'TRstatus']
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
-            trecord.fill('picture', img_path)
+            trecord.fill('picture', (img_path if str(img_path).startswith('http') else
+                                     API_HOST + img_path if img_path else None))
             text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
@@ -496,7 +498,8 @@ class CScenicSpot(BASEAPPROVAL):
             if trecord.TRbudget:
                 trecord.fill('trbudget_str', '¥{}'.format(round(float(trecord.TRbudget), 2)))
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
-            trecord.fill('picture', img_path)
+            trecord.fill('picture', (img_path if str(img_path).startswith('http') else
+                                     API_HOST + img_path if img_path else None))
             text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
@@ -548,22 +551,53 @@ class CScenicSpot(BASEAPPROVAL):
     def get_team(self):
         """团队广场下内容"""
         data = parameter_required(('plid',))
-        tr_list = TravelRecord.query.filter(
-            Play.PLid == data.get('plid'),
-            Play.PLid == EnterLog.PLid,
+        tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
+        [self._fill_travelrecord(x) for x in tr_list]
+        return Success(data=tr_list)
+
+    @staticmethod
+    def _filter_team_travelrecord(plid):
+        return TravelRecord.query.filter(
+            Play.PLid == plid,
             Play.isdelete == false(),
-            EnterLog.isdelete == false(),
-            EnterLog.ELstatus == EnterLogStatus.success.value,
-            or_(EnterLog.USid == TravelRecord.AuthorID, Play.PLcreate == TravelRecord.AuthorID),
+            or_(and_(EnterLog.USid == TravelRecord.AuthorID,
+                     Play.PLid == EnterLog.PLid,
+                     EnterLog.isdelete == false(),
+                     EnterLog.ELstatus == EnterLogStatus.success.value),
+                Play.PLcreate == TravelRecord.AuthorID),
             TravelRecord.createtime <= Play.PLendTime,
             TravelRecord.createtime >= Play.PLstartTime,
             TravelRecord.isdelete == false(),
             TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
-            TravelRecord.createtime.desc(),
-            TravelRecord.TRsort.asc(), TravelRecord.createtime.desc()).all_with_page()
-        [self._fill_travelrecord(x) for x in tr_list]
-        return Success(data=tr_list)
+            TravelRecord.createtime.desc())
+
+    def get_team_album(self):
+        """团队相册"""
+        data = parameter_required('plid')
+        res = []
+        tr_list = self._filter_team_travelrecord(data.get('plid')).all()
+        [res.extend(self._filter_media(tr)) for tr in tr_list]
+        request.mount = len(res)
+        return Success(data=res)
+
+    @staticmethod
+    def _filter_media(trecord):
+        res = []
+        if trecord.TRtype == TravelRecordType.essay.value:  # 随笔
+            content = json.loads(trecord.TRcontent)
+            if content.get('image'):
+                [res.append({'type': 'image', 'url': img if img.startswith('http') else API_HOST + img})
+                 for img in content.get('image')]
+            if content.get('video'):
+                temp_dict = content.get('video')
+                temp_dict['type'] = 'video'
+                res.append(temp_dict)
+        else:  # 游记、攻略
+            images = PyQuery(trecord.TRcontent)('img')
+            [res.append({'type': 'image', 'url': img.attrib.get('src') if str(img.attrib.get('src')).startswith(
+                'http') else API_HOST + img.attrib.get('src') if img.attrib.get('src') else None}) for img in images]
+        return res
 
     def add_toilet(self):
         """添加厕所"""

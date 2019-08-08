@@ -19,6 +19,7 @@ class AScenicSpot(Resource):
             'get_toilet': self.cscenicspot.get_toilet,                  # 厕所详情
             'toilet_list': self.cscenicspot.toilet_list,                # 厕所列表
             'ac_callback': self.cscenicspot.ac_callback,                # 多服务器access_token共用回调
+            'get_team_album': self.cscenicspot.get_team_album,          # 团队相册
         }
         return apis
 
