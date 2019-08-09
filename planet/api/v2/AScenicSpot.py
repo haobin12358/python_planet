@@ -31,6 +31,7 @@ class AScenicSpot(Resource):
             'add_travelrecord': self.cscenicspot.add_travelrecord,      # 发布时光记录
             'del_travelrecord': self.cscenicspot.del_travelrecord,      # 删除时光记录
             'add_toilet': self.cscenicspot.add_toilet,                  # 添加厕所
-            'update_toilet': self.cscenicspot.update_toilet             # 编辑厕所
+            'update_toilet': self.cscenicspot.update_toilet,            # 编辑厕所
+            'share_content': self.cscenicspot.share_content,            # 团队广场分享前自定义内容
         }
         return apis

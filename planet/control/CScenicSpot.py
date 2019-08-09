@@ -16,9 +16,10 @@ from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import EnterLog, Play, Approval
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
-from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet
+from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
 from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
 from planet.control.CPlay import CPlay
+from planet.control.CUser import CUser
 from pyquery import PyQuery
 
 
@@ -28,6 +29,7 @@ class CScenicSpot(BASEAPPROVAL):
         self.BaseAdmin = BASEADMIN()
         self.BaseController = BaseController()
         self.cplay = CPlay()
+        self.cuser = CUser()
         # self.scale_dict = {3: 1000000, 4: 500000, 5: 200000, 6: 100000, 7: 50000,
         #                    8: 50000, 9: 20000, 10: 10000, 11: 5000, 12: 2000, 13: 1000,
         #                    14: 500, 15: 200, 16: 100, 17: 50, 18: 50, 19: 20, 20: 10}
@@ -206,7 +208,7 @@ class CScenicSpot(BASEAPPROVAL):
         current_app.logger.info('query finished : {}'.format(datetime.now()))
         for scenicspot in all_scenicspot:
             parent = None
-            if scenicspot.ParentID and is_admin():
+            if scenicspot.ParentID:
                 parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
                                                      ).filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
@@ -230,22 +232,21 @@ class CScenicSpot(BASEAPPROVAL):
         scenicspot.hide('ParentID', 'ADid')
         parent = address_info = None
         recommend_raiders = []
-        if is_admin():
-            # 地址处理
-            address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
-                                       AddressCity.ACname, AddressArea.AAid, AddressArea.AAname).filter(
-                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
-                AddressArea.AAid == scenicspot.AAid).first_('地址有误')
-            address_info = [{'apid': address[0], 'apname': address[1]},
-                            {'acid': address[2], 'acname': address[3]},
-                            {'aaid': address[4], 'aaname': address[5]}]
-            # 关联景区
-            if scenicspot.ParentID:
-                parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
-                                                     ).filter_by_(SSPid=scenicspot.ParentID).first()
-                if parent_scenicspot:
-                    parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
-        else:  # 非管理员显示推荐攻略
+        # 地址处理
+        address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
+                                   AddressCity.ACname, AddressArea.AAid, AddressArea.AAname).filter(
+            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
+            AddressArea.AAid == scenicspot.AAid).first_('地址有误')
+        address_info = [{'apid': address[0], 'apname': address[1]},
+                        {'acid': address[2], 'acname': address[3]},
+                        {'aaid': address[4], 'aaname': address[5]}]
+        # 关联景区
+        if scenicspot.ParentID:
+            parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
+                                                 ).filter_by_(SSPid=scenicspot.ParentID).first()
+            if parent_scenicspot:
+                parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
+        if not is_admin():  # 非管理员显示推荐攻略
             recommend_raiders = TravelRecord.query.filter(
                 TravelRecord.isdelete == false(),
                 TravelRecord.TRtype == TravelRecordType.raiders.value,
@@ -575,9 +576,27 @@ class CScenicSpot(BASEAPPROVAL):
     def get_team_album(self):
         """团队相册"""
         data = parameter_required('plid')
-        res = []
-        tr_list = self._filter_team_travelrecord(data.get('plid')).all()
-        [res.extend(self._filter_media(tr)) for tr in tr_list]
+        secret_usid = data.get('secret_usid')
+        csc = None
+        if secret_usid:
+            try:
+                superid = self.cuser._base_decode(secret_usid)
+                current_app.logger.info('secret_usid --> superid {}'.format(superid))
+            except Exception as e:
+                current_app.logger.error('解析secret_usid时失败： {}'.format(e))
+                superid = ''
+            csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
+                                                     CustomizeShareContent.USid == superid,
+                                                     CustomizeShareContent.CSCtype == 1,
+                                                     CustomizeShareContent.PLid == data.get('plid')
+                                                     ).order_by(CustomizeShareContent.createtime.desc()).first()
+        if csc:
+            current_app.logger.info('get cscid: {}'.format(csc.CSCid))
+            res = json.loads(csc.Album)
+        else:
+            res = []
+            tr_list = self._filter_team_travelrecord(data.get('plid')).all()
+            [res.extend(self._filter_media(tr)) for tr in tr_list]
         request.mount = len(res)
         return Success(data=res)
 
@@ -598,6 +617,24 @@ class CScenicSpot(BASEAPPROVAL):
             [res.append({'type': 'image', 'url': img.attrib.get('src') if str(img.attrib.get('src')).startswith(
                 'http') else API_HOST + img.attrib.get('src') if img.attrib.get('src') else None}) for img in images]
         return res
+
+    @phone_required
+    def share_content(self):
+        """分享前自定义内容"""
+        data = parameter_required('plid')
+        album, trids = data.get('album', []), data.get('trids', [])
+        if not album and not trids:
+            return Success()
+        assert isinstance(album, list), 'album 格式错误'
+        assert isinstance(trids, list), 'trids 格式错误'
+        with db.auto_commit():
+            db.session.add(CustomizeShareContent.create({'CSCid': str(uuid.uuid1()),
+                                                         'USid': getattr(request, 'user').id,
+                                                         'PLid': data.get('plid'),
+                                                         'Album': json.dumps(album),
+                                                         'TRids': json.dumps(trids),
+                                                         'CSCtype': data.get('type', 1)}))
+        return Success('成功')
 
     def add_toilet(self):
         """添加厕所"""
