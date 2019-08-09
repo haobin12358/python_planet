@@ -517,7 +517,7 @@ class CPlay():
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == data.get('plid'),
                                  Play.PLcreate == getattr(request, 'user').id).first_('活动不存在或已删除')
         rows, headers = self._init_rows(play)
-        res = tablib.Dataset(*rows, headers=headers, title=play.PLname)
+        res = tablib.Dataset(*rows, headers=headers, title=str(play.PLname)[:27] + '...')
         aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
         abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
         xls_name = play.PLid + '.xls'
