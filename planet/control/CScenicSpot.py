@@ -349,8 +349,7 @@ class CScenicSpot(BASEAPPROVAL):
                 'TRlocation': data.get('trlocation')
                 }
 
-    @staticmethod
-    def _create_essay(data):
+    def _create_essay(self, data):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
         # if image:
@@ -362,18 +361,24 @@ class CScenicSpot(BASEAPPROVAL):
             raise ParamsError('不能同时选择图片和视频')
         if image and len(image) > 9:
             raise ParamsError('最多可上传9张图片')
-        video = {'url': video.get('url'),
+        video = {'url': self._check_upload_url(video.get('url')),
                  'thumbnail': video.get('thumbnail'),
                  'duration': video.get('duration')
                  } if video else None
         content = {'text': text,
-                   'image': image,
+                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image],
                    'video': video
                    }
         content = json.dumps(content)
         return {'TRcontent': content,
                 'TRlocation': data.get('trlocation')
                 }
+
+    @staticmethod
+    def _check_upload_url(url, msg='视频上传出错，请重新上传(视频时长需大于3秒，小于60秒)'):
+        if not url or str(url).endswith('undefined'):
+            raise ParamsError(msg)
+        return url
 
     def travelrecord_list(self):
         """时光记录（个人中心）列表"""
