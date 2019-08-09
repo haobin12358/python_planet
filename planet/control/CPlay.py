@@ -14,7 +14,7 @@ from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, ApiError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
-from planet.common.token_handler import get_current_user, phone_required, common_user
+from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
     CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType
@@ -181,13 +181,15 @@ class CPlay():
                     EnterLog.isdelete == false()),
                 Play.PLcreate == user.USid),
             Play.isdelete == false(),
-            extract('month', Play.PLstartTime) == month,
-            extract('year', Play.PLstartTime) == year,
+
         }
         if playstatus:
             filter_args.add(Play.PLstatus == PlayStatus.publish.value)
         else:
             filter_args.add(Play.PLstatus != PlayStatus.publish.value)
+            filter_args.add(extract('month', Play.PLstartTime) == month)
+            filter_args.add(extract('year', Play.PLstartTime) == year)
+
         play_list = Play.query.filter(*filter_args).order_by(Play.PLstartTime.desc()).all_with_page()
         for play in play_list:
             self._fill_play(play, user)
@@ -197,6 +199,7 @@ class CPlay():
 
         return Success(data=play_list)
 
+    @token_required
     def get_all_play(self):
         data = parameter_required()
         plstatus = data.get('plstatus')
@@ -207,6 +210,8 @@ class CPlay():
         if plstatus is not None:
             filter_args.add(Play.PLstatus == int(plstatus))
         # if
+        if not is_admin:
+            filter_args = {Play.PLstatus == PlayStatus.publish.value}
 
         plays_list = Play.query.filter(*filter_args).order_by(
             Play.createtime.desc()).all_with_page()
@@ -1685,8 +1690,8 @@ class CPlay():
         # required_cost = Cost.query.filter(Cost.PLid == plid, Cost.isdelete == False)
 
         # 删除不用的
-        EnterCost.query.filter(EnterCost.ECid.notin_(ecid), EnterCost.isdelete == False).delete_(
-            synchronize_session=False)
+        EnterCost.query.filter(EnterCost.ECid.notin_(ecid), EnterCost.ELid == el.ELid,
+                               EnterCost.isdelete == false()).delete_(synchronize_session=False)
 
     def _create_entercost(self, elid, eccontent, ectype, eccost):
         ecmodel = EnterCost.create({
