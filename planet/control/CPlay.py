@@ -520,16 +520,19 @@ class CPlay():
         play = Play.query.filter(Play.isdelete == false(), Play.PLid == data.get('plid'),
                                  Play.PLcreate == getattr(request, 'user').id).first_('活动不存在或已删除')
         rows, headers = self._init_rows(play)
-        res = tablib.Dataset(*rows, headers=headers, title=play.PLname)
+        res = tablib.Dataset(*rows, headers=headers, title=str(play.PLname)[:27] + '...')
         aletive_dir = 'img/xls/{year}/{month}/{day}'.format(year=now.year, month=now.month, day=now.day)
         abs_dir = os.path.join(BASEDIR, 'img', 'xls', str(now.year), str(now.month), str(now.day))
         xls_name = play.PLid + '.xls'
         aletive_file = '{dir}/{xls_name}'.format(dir=aletive_dir, xls_name=xls_name)
+        current_app.logger.info('aletive_file :{}'.format(aletive_file))
         abs_file = os.path.abspath(os.path.join(BASEDIR, aletive_file))
         if not os.path.isdir(abs_dir):
             os.makedirs(abs_dir)
         with open(abs_file, 'wb') as f:
             f.write(res.xls)
+        if data.get('read'):
+            return Success(data={'url': API_HOST + '/' + aletive_file})
         return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
 
     """post 接口"""
