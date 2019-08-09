@@ -181,13 +181,15 @@ class CPlay():
                     EnterLog.isdelete == false()),
                 Play.PLcreate == user.USid),
             Play.isdelete == false(),
-            extract('month', Play.PLstartTime) == month,
-            extract('year', Play.PLstartTime) == year,
+
         }
         if playstatus:
             filter_args.add(Play.PLstatus == PlayStatus.publish.value)
         else:
             filter_args.add(Play.PLstatus != PlayStatus.publish.value)
+            filter_args.add(extract('month', Play.PLstartTime) == month)
+            filter_args.add(extract('year', Play.PLstartTime) == year)
+
         play_list = Play.query.filter(*filter_args).order_by(Play.PLstartTime.desc()).all_with_page()
         for play in play_list:
             self._fill_play(play, user)
