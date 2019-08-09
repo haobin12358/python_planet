@@ -191,6 +191,7 @@ class CFile(object):
                 s = Serializer(current_app.config['SECRET_KEY'])
                 token = request.form.get('token') or request.args.get('token')
                 user = s.loads(token)
+                current_app.logger.info('current user : {}'.format(user))
                 usid = user.get('id')
         except SignatureExpired:
             raise TokenError('登录超时，请重新登录')

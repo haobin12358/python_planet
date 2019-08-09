@@ -62,12 +62,18 @@ class CompressPicture(object):
             else:
                 new_width = ori_w
                 new_height = ori_h
-        dst_img = ori_img + '_' + str(new_width) + 'x' + str(new_height) + '.' + shuffix  # 拼接图片尺寸在最后
-
-        if can_compress:
-            im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
-        else:
-            im.save(dst_img, quality=save_q)
+        try:
+            dst_img = ori_img + '_' + str(new_width) + 'x' + str(new_height) + '.' + shuffix  # 拼接图片尺寸在最后
+            if can_compress:
+                im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
+            else:
+                im.save(dst_img, quality=save_q)
+        except OSError:  # PNG图片被手动强制保存为JPG的情况 Error: cannot write mode RGBA as JPEG
+            dst_img = ori_img + '_' + str(new_width) + 'x' + str(new_height) + '.png'  # 保存时改回PNG格式
+            if can_compress:
+                im.resize((new_width, new_height), image.ANTIALIAS).save(dst_img, quality=save_q)
+            else:
+                im.save(dst_img, quality=save_q)
 
         # 根据EXIF旋转压缩后的图片为正确可读方向
         old_img = image.open(dst_img)
