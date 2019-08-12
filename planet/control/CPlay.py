@@ -183,9 +183,15 @@ class CPlay():
             Play.isdelete == false(),
 
         }
-        if playstatus:
+        if playstatus == 1:
+            # 获取组队中 不分时间
             filter_args.add(Play.PLstatus == PlayStatus.publish.value)
+        elif playstatus == 2:
+            # 获取全部
+            pass
+        # elif playstatus == 0:
         else:
+            # 获取历史团队 时间筛选 默认当前年月
             filter_args.add(Play.PLstatus != PlayStatus.publish.value)
             filter_args.add(extract('month', Play.PLstartTime) == month)
             filter_args.add(extract('year', Play.PLstartTime) == year)
@@ -1724,21 +1730,22 @@ class CPlay():
     def _check_user_play(self, user, play):
         # 查询同一时间是否有其他已参与活动
         # todo 未知漏洞 活动中的用户可以创建时间冲突活动
+        return False  # 8/12 修改不再限制活动时间
 
-        return Play.query.filter(
-            # or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
-            #     and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
-            or_(and_(Play.PLstartTime >= play.PLstartTime, Play.PLendTime <= play.PLendTime),
-                and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLstartTime),
-                and_(Play.PLstartTime <= play.PLendTime, Play.PLendTime >= play.PLendTime),
-                and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLendTime)),
-            or_(and_(EnterLog.USid == user.USid,
-                     EnterLog.PLid == Play.PLid,
-                     EnterLog.ELstatus == EnterLogStatus.success.value,
-                     EnterLog.isdelete == false()),
-                Play.PLcreate == user.USid),
-            Play.isdelete == false(),
-            Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
+        # return Play.query.filter(
+        #     # or_(and_(Play.PLendTime <= play.PLendTime, play.PLstartTime <= Play.PLendTime),
+        #     #     and_(Play.PLstartTime <= play.PLendTime, play.PLstartTime <= Play.PLstartTime)),
+        #     or_(and_(Play.PLstartTime >= play.PLstartTime, Play.PLendTime <= play.PLendTime),
+        #         and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLstartTime),
+        #         and_(Play.PLstartTime <= play.PLendTime, Play.PLendTime >= play.PLendTime),
+        #         and_(Play.PLstartTime <= play.PLstartTime, Play.PLendTime >= play.PLendTime)),
+        #     or_(and_(EnterLog.USid == user.USid,
+        #              EnterLog.PLid == Play.PLid,
+        #              EnterLog.ELstatus == EnterLogStatus.success.value,
+        #              EnterLog.isdelete == false()),
+        #         Play.PLcreate == user.USid),
+        #     Play.isdelete == false(),
+        #     Play.PLstatus < PlayStatus.close.value, Play.PLid != play.PLid).all()
 
     def _update_elvalue(self, plid, data):
         preid_list = list()
