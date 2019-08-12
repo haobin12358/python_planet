@@ -17,7 +17,7 @@ from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TemplateID
 
 from planet.common.Inforsend import SendSMS
 
@@ -32,7 +32,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay
+    SuccessorSearchLog, PlayPay, TemplateFormId
 
 
 class CPlay():
@@ -548,6 +548,7 @@ class CPlay():
     def wechat_notify(self, **kwargs):
         """微信支付回调接口"""
         redirect = kwargs.get('redirect')
+        formid = kwargs.get('formid')
         with db.auto_commit():
             if not redirect:
                 data = self.wx_pay.to_dict(request.data)
@@ -575,7 +576,7 @@ class CPlay():
                 })
             db.session.add(pp)
             if pp.PPpayType == PlayPayType.enterlog.value:
-                self._enter_log(pp)
+                self._enter_log(pp, formid=formid)
             elif pp.PPpayType == PlayPayType.undertake.value:
                 current_app.logger.info('开始修改转让单')
                 self._undertake(pp)
@@ -931,11 +932,8 @@ class CPlay():
 
     @phone_required
     def join(self):
-        data = parameter_required(('plid',))
-        plid = data.get('plid')
-        elid = data.get('elid')
-        repay = data.get('repay')
-
+        data = parameter_required(('plid', 'formid'))
+        plid, elid, repay, formid = data.get('plid'), data.get('elid'), data.get('repay'), data.get('formid')
         opayno = self._opayno()
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         user = get_current_user()
@@ -1023,7 +1021,7 @@ class CPlay():
         redirect = False
         if mount_price == Decimal('0'):
             redirect = True
-        pay_args = self._add_pay_detail(opayno=opayno, redirect=redirect,
+        pay_args = self._add_pay_detail(opayno=opayno, redirect=redirect, formid=formid,
                                         body=body, PPpayMount=mount_price, openid=openid, PPcontent=elid,
                                         PPpayType=PlayPayType.enterlog.value)
 
@@ -1353,9 +1351,6 @@ class CPlay():
             'args': pay_args
         }
         return Success(data=response)
-
-    # def recreate(self):
-    #
 
     """内部方法"""
 
@@ -1800,8 +1795,10 @@ class CPlay():
         location.fill('isleader', isleader)
 
     def _add_pay_detail(self, **kwargs):
+        # tf = None
         with db.auto_commit():
             mountprice = kwargs.get('PPpayMount')
+            fromid = kwargs.get('fromid')
             if Decimal(str(mountprice)) <= Decimal('0'):
                 # mountprice = Decimal('0.01')
                 mountprice = Decimal('0.00')
@@ -1813,11 +1810,25 @@ class CPlay():
                 'PPpayMount': mountprice,
             })
             db.session.add(pp)
+            TemplateFormId.query.filter_by(TFcontent=kwargs.get('ppcontent'), isdelete=False,
+                                           TFtype=kwargs.get('PPpayType')).delete_(synchronize_session=False)
+
+            tf = TemplateFormId.create({
+                'TFid': str(uuid.uuid1()),
+                'TFfromId': fromid,
+                'TFtype': kwargs.get('PPpayType'),
+                'TFcontent': kwargs.get('ppcontent')
+            })
+            db.session.add(tf)
 
         if kwargs.get('redirect'):
-            self.wechat_notify(redirect=True, pp=pp)
+            self.wechat_notify(redirect=True, pp=pp, formid=fromid)
             return ''
-
+        # pay_args =
+        # prepay_id = pay_args.get('package').split('prepay_id=')[-1]
+        # current_app.logger.info('当前支付需获取prepayid= {}'.format(prepay_id))
+        # tf.TFformId = prepay_id
+        # db.session.add(tf)
         return self._pay_detail(kwargs.get('body'), float(mountprice),
                                 kwargs.get('opayno'), kwargs.get('openid'))
 
@@ -2008,7 +2019,7 @@ class CPlay():
             return self._opayno()
         return opayno
 
-    def _enter_log(self, pp):
+    def _enter_log(self, pp, formid=None):
         # 修改当前用户参加状态
         el = EnterLog.query.filter(EnterLog.ELpayNo == pp.PPpayno, EnterLog.isdelete == false()).first()
 
@@ -2040,7 +2051,15 @@ class CPlay():
             return
 
         self._incount(guide, mount_price)
-        # self.temp.enter(el.PLid, prepay_id)
+        # 通知
+        if not formid:
+            templateform = TemplateFormId.query.filter(TemplateFormId.TFtype == PlayPayType.enterlog.value,
+                                                       TemplateFormId.TFcontent == el.ELid,
+                                                       TemplateFormId.isdelete == false()).first()
+            if templateform:
+                formid = templateform.TFformId
+
+        self.temp.enter(el, formid)
         # self.temp.enter.apply_async(args=[el.PLid, prepay_id], countdown=5 * 60, expires=1 * 60,)
 
     def _undertake(self, pp):
