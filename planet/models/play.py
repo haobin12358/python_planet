@@ -134,3 +134,11 @@ class PlayPay(Base):
     PPpaysn = Column(String(64), comment='第三方支付流水')
     PPpayJson = Column(Text, comment='回调原文')
     PPpaymarks = Column(String(255), comment='备注')
+
+
+class TemplateFormId(Base):
+    """小程序模板formid"""
+    TFid = Column(String(64), primary_key=True)
+    TFtype = Column(Integer, default=1, comment='模板类型')
+    TFformId = Column(String(64), nullable=False, comment='formid')
+    TFcontent = Column(String(64), comment='关联id')
