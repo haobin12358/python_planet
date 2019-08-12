@@ -557,7 +557,18 @@ class CScenicSpot(BASEAPPROVAL):
     def get_team(self):
         """团队广场下内容"""
         data = parameter_required(('plid',))
-        tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
+        secret_usid = data.get('secret_usid')
+        csc = None
+        if secret_usid:
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+        if csc:
+            current_app.logger.info('get cscid: {}'.format(csc.CSCid))
+            trids = json.loads(csc.TRids)
+            tr_list = TravelRecord.query.filter(TravelRecord.isdelete == false(), TravelRecord.TRid.in_(trids),
+                                                TravelRecord.TRstatus == TravelRecordStatus.published.value
+                                                ).order_by(TravelRecord.createtime.desc()).all_with_page()
+        else:
+            tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
         [self._fill_travelrecord(x) for x in tr_list]
         return Success(data=tr_list)
 
@@ -584,17 +595,7 @@ class CScenicSpot(BASEAPPROVAL):
         secret_usid = data.get('secret_usid')
         csc = None
         if secret_usid:
-            try:
-                superid = self.cuser._base_decode(secret_usid)
-                current_app.logger.info('secret_usid --> superid {}'.format(superid))
-            except Exception as e:
-                current_app.logger.error('解析secret_usid时失败： {}'.format(e))
-                superid = ''
-            csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
-                                                     CustomizeShareContent.USid == superid,
-                                                     CustomizeShareContent.CSCtype == 1,
-                                                     CustomizeShareContent.PLid == data.get('plid')
-                                                     ).order_by(CustomizeShareContent.createtime.desc()).first()
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
         if csc:
             current_app.logger.info('get cscid: {}'.format(csc.CSCid))
             res = json.loads(csc.Album)
@@ -604,6 +605,21 @@ class CScenicSpot(BASEAPPROVAL):
             [res.extend(self._filter_media(tr)) for tr in tr_list]
         request.mount = len(res)
         return Success(data=res)
+
+    def get_customize_share_content(self, secret_usid, plid):
+        try:
+            superid = self.cuser._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
+        except Exception as e:
+            current_app.logger.error('解析secret_usid时失败： {}'.format(e))
+            superid = ''
+        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') else 1
+        csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
+                                                 CustomizeShareContent.USid == superid,
+                                                 CustomizeShareContent.CSCtype == csctype,
+                                                 CustomizeShareContent.PLid == plid
+                                                 ).order_by(CustomizeShareContent.createtime.desc()).first()
+        return csc
 
     @staticmethod
     def _filter_media(trecord):
@@ -628,7 +644,9 @@ class CScenicSpot(BASEAPPROVAL):
         """分享前自定义内容"""
         data = parameter_required('plid')
         album, trids = data.get('album', []), data.get('trids', [])
-        if not album and not trids:
+        detail = data.get('detail')
+        if not album and not trids and detail:
+            current_app.logger.info('本次未编辑内容')
             return Success()
         assert isinstance(album, list), 'album 格式错误'
         assert isinstance(trids, list), 'trids 格式错误'
@@ -638,7 +656,8 @@ class CScenicSpot(BASEAPPROVAL):
                                                          'PLid': data.get('plid'),
                                                          'Album': json.dumps(album),
                                                          'TRids': json.dumps(trids),
-                                                         'CSCtype': data.get('type', 1)}))
+                                                         'CSCtype': data.get('type', 1),
+                                                         'Detail': detail}))
         return Success('成功')
 
     def add_toilet(self):

@@ -11,10 +11,11 @@ from flask import current_app, request, send_from_directory
 from sqlalchemy import Date, or_, and_, false, extract, func
 
 from planet.common.chinesenum import to_chinese4
-from planet.common.error_response import ParamsError, StatusError, AuthorityError, ApiError
+from planet.common.error_response import ParamsError, StatusError, AuthorityError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
-from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin
+from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin, \
+    binded_phone
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
     CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TemplateID
@@ -27,7 +28,6 @@ from planet.config.secret import QXSignName, HelpTemplateCode, BASEDIR
 from planet.control.BaseControl import BaseController
 from planet.control.CTemplates import CTemplates
 from planet.extensions.register_ext import db, conn, mini_wx_pay
-
 from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
@@ -101,15 +101,23 @@ class CPlay():
         role = "{} {}".format(role_words, ';'.join(pd_role_list))
         return Success(data={'discounts': discounts, 'role': role})
 
-    @phone_required
     def get_play(self):
+        if not (request.url_root.endswith('share.bigxingxing.com:443/') or binded_phone()):
+            raise TokenError
         data = parameter_required(('plid',))
         plid = data.get('plid')
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
+        secret_usid = data.get('secret_usid')
         self._fill_play(play)
         self._fill_costs(play)
         self._fill_insurances(play)
         self._fill_discount(play)
+        csc = None
+        if secret_usid:
+            from planet.control.CScenicSpot import CScenicSpot
+            csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+        if csc and not csc.Detail:
+            play.PLcontent = None
         return Success(data=play)
 
     @phone_required
