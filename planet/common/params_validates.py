@@ -12,6 +12,10 @@ def parameter_required(required=None, others='allow', filter_none=True, forbidde
     others: 如果是allow, 则代表不会清除其他参数
     filter_none: True表示会过滤到空值(空列表, 空字符串, None等除了0之外的False值)
     forbidden: 必需要清除的字段
+    例如：
+    required = ('latitude', 'longitude') return message: 必要参数缺失: 'latitude', 'longitude'
+    required = {'latitude': '纬度', 'longitude': '经度'} return message: 请填写: 纬度, 经度
+    required = 'latitude' return message: 必要参数缺失: 'latitude'
     """
     if datafrom is None:
         data = request.json or request.args.to_dict() or {}
@@ -22,9 +26,17 @@ def parameter_required(required=None, others='allow', filter_none=True, forbidde
             k: v for k, v in data.items() if v or v == 0
         }
     if required:
-        missed = list(filter(lambda x: x not in data, required))
-        if missed:
-            raise ParamsError('必要参数缺失或为空: ' + ', '.join(missed))
+        if isinstance(required, tuple):
+            missed = list(filter(lambda x: x not in data, required))
+            if missed:
+                raise ParamsError('必要参数缺失: ' + ', '.join(missed))
+        elif isinstance(required, dict):
+            missed = [required.get(x) if required.get(x) else x for x in required.keys() if x not in data]
+            if missed:
+                raise ParamsError('请填写: ' + ', '.join(missed))
+        elif isinstance(required, str):
+            if required not in data:
+                raise ParamsError('必要参数缺失: ' + required)
     if others != 'allow':
         data = {
             k: v for k, v in data.items() if k in required

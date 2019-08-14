@@ -32,6 +32,7 @@ class Products(Base):
     PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
     PRcode = Column(String(64), comment='商品的外部编号')
     PRpromotion = Column(Text, comment='商品推广基图')
+    PRsort = Column(Integer, default=1, comment='权重')
 
     @orm.reconstructor
     def __init__(self):
@@ -105,6 +106,10 @@ class ProductBrand(Base):
     PBstatus = Column(Integer, default=0, comment='状态 0正常, 10下架')
     SUid = Column(String(64), comment='品牌供应商, 为空则为平台')
     PBintegralPayRate = Column(Integer, comment='该品牌下商品可用星币抵扣百分比的分子，为空则说明支付时不能用星币抵扣')
+    PBslogan = Column(String(128), comment='品牌slogan')
+    PBthemeColor = Column(String(16), comment='主题色')
+    PBpublicity = Column(Text, url_list=True, comment='品牌文化宣传图list')
+    PBsort = Column(Integer, default=1, comment='权重')
 
 
 class BrandWithItems(Base):
@@ -295,14 +300,32 @@ class IntegralProductSku(Base):
     IPid = Column(String(64), nullable=False, comment='星币商品id')
     IPSstock = Column(BIGINT, comment='库存')
     SKUid = Column(String(64), comment='商品skuid')
-    SKUprice = Column(BIGINT,  nullable=False, comment='sku星币价格')
+    SKUprice = Column(BIGINT, nullable=False, comment='sku星币价格')
 
 
 class ProductSum(Base):
     __tablename__ = 'ProductSum'
     PSid = Column(String(64), primary_key=True)
-    USid = Column(String(64),  comment='用户id')
+    USid = Column(String(64), comment='用户id')
     PRid = Column(String(64), nullable=False, comment='商品id')
+
+
+class BrandBanner(Base):
+    """品牌banner"""
+    __tablename__ = 'BrandBanner'
+    BBid = Column(String(64), primary_key=True)
+    BBcontent = Column(Text, comment='banner url json')
+    BBsort = Column(Integer, default=1, comment='banner权重')
+    PBid = Column(String(64), comment='关联品牌')
+
+
+class BrandTweets(Base):
+    """品牌动态"""
+    __tablename__ = 'BrandTweets'
+    BTid = Column(String(64), primary_key=True)
+    BTmainPic = Column(Text, url=True, comment='动态封面图')
+    BTcontent = Column(Text, comment='内容 json')
+
 # class SupplizerBrand(Base):
 #     """供应商品牌表"""
 #     SUBid = Column(String(64), primary_key=True)
@@ -337,3 +360,14 @@ class ProductSum(Base):
 #     SUid = Column(String(64), nullable=False, comment='供应商id')
 #     PRnum = Column(Integer, nullable=False, comment='数量')
 #     # sku?
+#
+#
+# class BrandRecommendProduct(Base):
+#     """品牌推荐商品"""
+#     __tablename__ = 'BrandRecommendProduct'
+#     BRPid = Column(String(64), primary_key=True)
+#     PBid = Column(String(64), comment='品牌id')
+#     PRid = Column(String(64), comment='商品id')
+#     BRPsort = Column(Integer, default=1, comment='展示权重')
+#     BRPprice = Column(DECIMAL(precision=28, scale=2), comment='推荐价格')
+#

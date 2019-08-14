@@ -4,19 +4,22 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, extract
+from sqlalchemy import or_, false, extract, and_, func
 from planet.common.error_response import ParamsError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
     EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
-from planet.extensions.register_ext import db
+from planet.config.http_config import API_HOST
+from planet.extensions.register_ext import db, mp_miniprogram
+from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import EnterLog, Play, Approval
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
-from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet
+from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
 from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
 from planet.control.CPlay import CPlay
+from planet.control.CUser import CUser
 from pyquery import PyQuery
 
 
@@ -26,12 +29,17 @@ class CScenicSpot(BASEAPPROVAL):
         self.BaseAdmin = BASEADMIN()
         self.BaseController = BaseController()
         self.cplay = CPlay()
+        self.cuser = CUser()
         # self.scale_dict = {3: 1000000, 4: 500000, 5: 200000, 6: 100000, 7: 50000,
         #                    8: 50000, 9: 20000, 10: 10000, 11: 5000, 12: 2000, 13: 1000,
         #                    14: 500, 15: 200, 16: 100, 17: 50, 18: 50, 19: 20, 20: 10}
         self.scale_dict = {3: 10, 4: 10, 5: 10, 6: 10, 7: 5,
                            8: 4, 9: 3, 10: 3, 11: 2, 12: 2, 13: 1,
                            14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1}
+
+    @staticmethod
+    def ac_callback():
+        return mp_miniprogram.access_token
 
     @admin_required
     def add(self):
@@ -200,7 +208,7 @@ class CScenicSpot(BASEAPPROVAL):
         current_app.logger.info('query finished : {}'.format(datetime.now()))
         for scenicspot in all_scenicspot:
             parent = None
-            if scenicspot.ParentID and is_admin():
+            if scenicspot.ParentID:
                 parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
                                                      ).filter_by_(SSPid=scenicspot.ParentID).first()
                 if parent_scenicspot:
@@ -224,22 +232,21 @@ class CScenicSpot(BASEAPPROVAL):
         scenicspot.hide('ParentID', 'ADid')
         parent = address_info = None
         recommend_raiders = []
-        if is_admin():
-            # 地址处理
-            address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
-                                       AddressCity.ACname, AddressArea.AAid, AddressArea.AAname).filter(
-                AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
-                AddressArea.AAid == scenicspot.AAid).first_('地址有误')
-            address_info = [{'apid': address[0], 'apname': address[1]},
-                            {'acid': address[2], 'acname': address[3]},
-                            {'aaid': address[4], 'aaname': address[5]}]
-            # 关联景区
-            if scenicspot.ParentID:
-                parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
-                                                     ).filter_by_(SSPid=scenicspot.ParentID).first()
-                if parent_scenicspot:
-                    parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
-        else:  # 非管理员显示推荐攻略
+        # 地址处理
+        address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
+                                   AddressCity.ACname, AddressArea.AAid, AddressArea.AAname).filter(
+            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
+            AddressArea.AAid == scenicspot.AAid).first_('地址有误')
+        address_info = [{'apid': address[0], 'apname': address[1]},
+                        {'acid': address[2], 'acname': address[3]},
+                        {'aaid': address[4], 'aaname': address[5]}]
+        # 关联景区
+        if scenicspot.ParentID:
+            parent_scenicspot = db.session.query(ScenicSpot.SSPid, ScenicSpot.SSPname
+                                                 ).filter_by_(SSPid=scenicspot.ParentID).first()
+            if parent_scenicspot:
+                parent = {'sspid': parent_scenicspot[0], 'sspname': parent_scenicspot[1]}
+        if not is_admin():  # 非管理员显示推荐攻略
             recommend_raiders = TravelRecord.query.filter(
                 TravelRecord.isdelete == false(),
                 TravelRecord.TRtype == TravelRecordType.raiders.value,
@@ -265,6 +272,18 @@ class CScenicSpot(BASEAPPROVAL):
         return Success(data=raiders)
 
     @phone_required
+    def del_travelrecord(self):
+        """删除时光记录"""
+        User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
+        trid = parameter_required('trid').get('trid')
+        travelrecord = TravelRecord.query.filter(TravelRecord.isdelete == false(),
+                                                 TravelRecord.TRid == trid).first_('未找到该记录')
+        with db.auto_commit():
+            travelrecord.update({'isdelete': True})
+            db.session.add(travelrecord)
+        return Success('删除成功', {'trid': trid})
+
+    @phone_required
     def add_travelrecord(self):
         """创建时光记录"""
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
@@ -275,13 +294,14 @@ class CScenicSpot(BASEAPPROVAL):
             raise ParamsError('trstatus 参数错误')
         trtype = str(data.get('trtype'))
         if trtype == str(TravelRecordType.raiders.value):  # 攻略
-            parameter_required(('trproducts', 'trbudget', 'trcontent', 'trlocation'), datafrom=data)
+            parameter_required({'trproducts': '推荐携带物品', 'trbudget': '预算',
+                                'trcontent': '活动详情', 'trlocation': '景区'}, datafrom=data)
             tr_dict = self._create_raiders(data)
         elif trtype == str(TravelRecordType.travels.value):  # 游记
-            parameter_required(('trtitle', 'trcontent', 'trlocation'), datafrom=data)
+            parameter_required({'trtitle': '标题', 'trcontent': '游记内容', 'trlocation': '景区'}, datafrom=data)
             tr_dict = self._create_travels(data)
         elif trtype == str(TravelRecordType.essay.value):  # 随笔
-            parameter_required(('text',), datafrom=data)
+            parameter_required({'text': '随笔内容'}, datafrom=data)
             tr_dict = self._create_essay(data)
         else:
             raise ParamsError('type 参数错误')
@@ -290,9 +310,21 @@ class CScenicSpot(BASEAPPROVAL):
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
                                  'TRstatus': data.get('trstatus')
+                                 # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
                                  }
             travelrecord_dict.update(tr_dict)
+            try:
+                check_content = travelrecord_dict.get('TRcontent')
+                if trtype == str(TravelRecordType.essay.value):
+                    check_content = json.loads(check_content).get('text')
+                mp_miniprogram.msg_sec_check(check_content)
+            except WeixinMPError:
+                travelrecord_dict['isdelete'] = True
             db.session.add(TravelRecord.create(travelrecord_dict))
+        try:
+            current_app.logger.info('content_sec_check: {}'.format(mp_miniprogram.msg_sec_check(check_content)))
+        except WeixinMPError:
+            raise ParamsError('您输入的内容含有部分敏感词汇,请检查后重新发布')
         return Success('发布成功', {'trid': travelrecord_dict['TRid']})
 
     @staticmethod
@@ -317,28 +349,36 @@ class CScenicSpot(BASEAPPROVAL):
                 'TRlocation': data.get('trlocation')
                 }
 
-    @staticmethod
-    def _create_essay(data):
+    def _create_essay(self, data):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
+        # if image:
+        #     current_app.logger.error("图片校验测试")
+        #     current_app.logger.error(mp_miniprogram.img_sec_check(image))
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:
             raise ParamsError('不能同时选择图片和视频')
-        if len(image) > 9:
+        if image and len(image) > 9:
             raise ParamsError('最多可上传9张图片')
-        video = {'url': video.get('url'),
+        video = {'url': self._check_upload_url(video.get('url')),
                  'thumbnail': video.get('thumbnail'),
                  'duration': video.get('duration')
                  } if video else None
         content = {'text': text,
-                   'image': image,
+                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image] if image else None,
                    'video': video
                    }
         content = json.dumps(content)
         return {'TRcontent': content,
                 'TRlocation': data.get('trlocation')
                 }
+
+    @staticmethod
+    def _check_upload_url(url, msg='视频上传出错，请重新上传(视频时长需大于3秒，小于60秒)'):
+        if not url or str(url).endswith('undefined'):
+            raise ParamsError(msg)
+        return url
 
     def travelrecord_list(self):
         """时光记录（个人中心）列表"""
@@ -357,13 +397,18 @@ class CScenicSpot(BASEAPPROVAL):
             ucl_list = [ucl[0] for ucl in ucl_list]
             counts = self._my_home_page_count(getattr(request, 'user').id)
             top = self._init_top_dict(counts)
+        elif is_admin():
+            ucl_list = top = None
         else:
-            return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
-                                         'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
-                                 'travelrecord': []})
-
-        trecords_query = TravelRecord.query.filter(TravelRecord.isdelete == false(),
-                                                   TravelRecord.AuthorID.in_(ucl_list))
+            # return Success(data={'top': {'followed': 0, 'fens': 0, 'published': 0,
+            #                              'usname': None, 'usheader': None, 'usminilevel': None, 'concerned': False},
+            #                      'travelrecord': []})
+            raise TokenError('请重新登录')
+        base_filter = [TravelRecord.isdelete == false()]
+        if not (common_user() and option == 'my') and not is_admin():
+            base_filter.append(TravelRecord.AuthorID.in_(ucl_list))
+            base_filter.append(TravelRecord.TRstatus == TravelRecordStatus.published.value)
+        trecords_query = TravelRecord.query.filter(*base_filter)
         if date:
             if not re.match(r'^\d{4}-\d{2}$', date):
                 raise ParamsError('查询日期格式错误')
@@ -428,7 +473,7 @@ class CScenicSpot(BASEAPPROVAL):
     def _fill_travelrecord(trecord):
         """填充时光记录详情"""
         if trecord.TRtype == TravelRecordType.essay.value:  # 随笔
-            trecord.fields = ['TRid', 'TRlocation', 'TRtype']
+            trecord.fields = ['TRid', 'TRlocation', 'TRtype', 'TRstatus']
             content = json.loads(trecord.TRcontent)
             trecord.fill('text', content.get('text', '...'))
             trecord.fill('image', content.get('image'))
@@ -441,14 +486,15 @@ class CScenicSpot(BASEAPPROVAL):
                 showtype = 'text'
             trecord.fill('showtype', showtype)
         elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
-            trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent']
+            trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent', 'TRstatus']
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
-            trecord.fill('picture', img_path)
+            trecord.fill('picture', (img_path if str(img_path).startswith('http') else
+                                     API_HOST + img_path if img_path else None))
             text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
         else:  # 攻略
-            trecord.fields = ['TRid', 'TRlocation', 'TRbudget', 'TRproducts', 'TRtype', 'TRcontent']
+            trecord.fields = ['TRid', 'TRlocation', 'TRbudget', 'TRproducts', 'TRtype', 'TRcontent', 'TRstatus']
             trecord.fill('trtitle', '{}游玩攻略'.format(trecord.TRlocation))
             trproducts_str = None
             if trecord.TRproducts:
@@ -458,12 +504,16 @@ class CScenicSpot(BASEAPPROVAL):
             if trecord.TRbudget:
                 trecord.fill('trbudget_str', '¥{}'.format(round(float(trecord.TRbudget), 2)))
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
-            trecord.fill('picture', img_path)
+            trecord.fill('picture', (img_path if str(img_path).startswith('http') else
+                                     API_HOST + img_path if img_path else None))
             text_content = PyQuery(trecord.TRcontent)('p').eq(0).text()
             text_content = '{}...'.format(text_content) if text_content else None
             trecord.fill('text', text_content)
 
-        trecord.fill('travelrecordtype_zh', TravelRecordType(trecord.TRtype).zh_value)
+        trecord.fill('travelrecordtype_zh',
+                     TravelRecordStatus.auditing.zh_value if trecord.TRstatus == TravelRecordStatus.auditing.value
+                     else TravelRecordType(trecord.TRtype).zh_value)
+        trecord.fill('trstatus_zh', TravelRecordStatus(trecord.TRstatus).zh_value)
         author = User.query.filter_by_(USid=trecord.AuthorID).first()
         author_info = None if not author else {'usname': author.USname,
                                                'usid': author.USid,
@@ -507,22 +557,113 @@ class CScenicSpot(BASEAPPROVAL):
     def get_team(self):
         """团队广场下内容"""
         data = parameter_required(('plid',))
-        tr_list = TravelRecord.query.filter(
-            Play.PLid == data.get('plid'),
-            Play.PLid == EnterLog.PLid,
+        secret_usid = data.get('secret_usid')
+        csc = None
+        if secret_usid:
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+        if csc:
+            current_app.logger.info('get cscid: {}'.format(csc.CSCid))
+            trids = json.loads(csc.TRids)
+            tr_list = TravelRecord.query.filter(TravelRecord.isdelete == false(), TravelRecord.TRid.in_(trids),
+                                                TravelRecord.TRstatus == TravelRecordStatus.published.value
+                                                )
+            if trids:
+                tr_list = tr_list.order_by(func.field(TravelRecord.TRid, *trids))
+            tr_list = tr_list.all()
+        else:
+            tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
+        [self._fill_travelrecord(x) for x in tr_list]
+        return Success(data=tr_list)
+
+    @staticmethod
+    def _filter_team_travelrecord(plid):
+        return TravelRecord.query.filter(
+            Play.PLid == plid,
             Play.isdelete == false(),
-            EnterLog.isdelete == false(),
-            EnterLog.ELstatus == EnterLogStatus.success.value,
-            or_(EnterLog.USid == TravelRecord.AuthorID, Play.PLcreate == TravelRecord.AuthorID),
+            or_(and_(EnterLog.USid == TravelRecord.AuthorID,
+                     Play.PLid == EnterLog.PLid,
+                     EnterLog.isdelete == false(),
+                     EnterLog.ELstatus == EnterLogStatus.success.value),
+                Play.PLcreate == TravelRecord.AuthorID),
             TravelRecord.createtime <= Play.PLendTime,
             TravelRecord.createtime >= Play.PLstartTime,
             TravelRecord.isdelete == false(),
             TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
-            TravelRecord.createtime.desc(),
-            TravelRecord.TRsort).all_with_page()
-        [self._fill_travelrecord(x) for x in tr_list]
-        return Success(data=tr_list)
+            TravelRecord.createtime.desc())
+
+    def get_team_album(self):
+        """团队相册"""
+        data = parameter_required('plid')
+        secret_usid = data.get('secret_usid')
+        csc = None
+        if secret_usid:
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+        if csc:
+            current_app.logger.info('get cscid: {}'.format(csc.CSCid))
+            res = json.loads(csc.Album)
+        else:
+            res = []
+            tr_list = self._filter_team_travelrecord(data.get('plid')).all()
+            [res.extend(self._filter_media(tr)) for tr in tr_list]
+        request.mount = len(res)
+        return Success(data=res)
+
+    def get_customize_share_content(self, secret_usid, plid):
+        try:
+            superid = self.cuser._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
+        except Exception as e:
+            current_app.logger.error('解析secret_usid时失败： {}'.format(e))
+            superid = ''
+        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') else 1
+        csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
+                                                 CustomizeShareContent.USid == superid,
+                                                 CustomizeShareContent.CSCtype == csctype,
+                                                 CustomizeShareContent.PLid == plid
+                                                 ).order_by(CustomizeShareContent.createtime.desc()).first()
+        return csc
+
+    @staticmethod
+    def _filter_media(trecord):
+        res = []
+        if trecord.TRtype == TravelRecordType.essay.value:  # 随笔
+            content = json.loads(trecord.TRcontent)
+            if content.get('image'):
+                [res.append({'type': 'image', 'url': img if img.startswith('http') else API_HOST + img})
+                 for img in content.get('image')]
+            if content.get('video'):
+                temp_dict = content.get('video')
+                temp_dict['type'] = 'video'
+                res.append(temp_dict)
+        else:  # 游记、攻略
+            images = PyQuery(trecord.TRcontent)('img')
+            [res.append({'type': 'image', 'url': img.attrib.get('src') if str(img.attrib.get('src')).startswith(
+                'http') else API_HOST + img.attrib.get('src') if img.attrib.get('src') else None}) for img in images]
+        return res
+
+    @phone_required
+    def share_content(self):
+        """分享前自定义内容"""
+        data = parameter_required('plid')
+        album, trids = data.get('album', []), data.get('trids', [])
+        detail = data.get('detail')
+        # if not album and not trids and detail:
+        #     current_app.logger.info('本次未编辑内容')
+        #     return Success()
+        assert isinstance(album, list), 'album 格式错误'
+        assert isinstance(trids, list), 'trids 格式错误'
+        if not all(map(lambda x: isinstance(x, str), trids)):
+            raise ParamsError('trids格式错误')
+        with db.auto_commit():
+            db.session.add(CustomizeShareContent.create({'CSCid': str(uuid.uuid1()),
+                                                         'USid': getattr(request, 'user').id,
+                                                         'PLid': data.get('plid'),
+                                                         'Album': json.dumps(album),
+                                                         'TRids': json.dumps(trids),
+                                                         'CSCtype': data.get('type', 1),
+                                                         'Detail': detail}))
+        return Success('成功')
 
     def add_toilet(self):
         """添加厕所"""
@@ -536,7 +677,7 @@ class CScenicSpot(BASEAPPROVAL):
             creator_type = ApplyFrom.platform.value
         else:
             raise TokenError('请重新登录')
-        data = parameter_required(('latitude', 'longitude', 'toimage'))
+        data = parameter_required({'latitude': '纬度', 'longitude': '经度', 'toimage': '图片'})
         latitude, longitude = data.get('latitude'), data.get('longitude')
         latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
         if common_user() and latitude and longitude:
@@ -609,13 +750,16 @@ class CScenicSpot(BASEAPPROVAL):
                 toilet.hide('creatorID', 'creatorType')
                 toilet.fill('tostatus_zh', ApprovalAction(toilet.TOstatus).zh_value)
         else:
-            parameter_required(('latitude', 'longitude'), datafrom=args)
+            parameter_required({'latitude': '请允许授权位置信息，以便为您展示附近的厕所',
+                                'longitude': '请允许授权位置信息，以便为您展示附近的厕所'}, datafrom=args)
             latitude, longitude = args.get('latitude'), args.get('longitude')
+            if latitude == 'null':
+                raise ParamsError('请允许授权位置信息，以便为您展示附近的厕所')
             latitude, longitude = self.cplay.check_lat_and_long(latitude, longitude)
             if common_user() and latitude and longitude:
                 self.BaseController.get_user_location(latitude, longitude, getattr(request, 'user').id)
             scale = args.get('scale', 14)
-            variable = self.scale_dict.get(int(scale))
+            variable = self.scale_dict.get(int(float(scale)))
             toilets = toilet_query.filter(Toilet.TOstatus == ApprovalAction.agree.value,
                                           Toilet.latitude <= float(latitude) + variable,
                                           Toilet.latitude >= float(latitude) - variable,

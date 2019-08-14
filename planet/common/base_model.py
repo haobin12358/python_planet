@@ -123,10 +123,15 @@ class Base(db.Model):
             is_url_list = getattr(cls_attr, 'url_list', None)
             is_url = getattr(cls_attr, 'url', None)
             if is_url:
-                if isinstance(v, str) and v.startswith(MEDIA_HOST):  # 如果链接中有httphost, 则需要去掉
-                    setattr(self, k, v[len(MEDIA_HOST):])
-                else:
-                    setattr(self, k, v)
+                if isinstance(v, str):
+                    if v.startswith(MEDIA_HOST):  # 如果链接中有httphost, 则需要去掉
+                        v = v[len(MEDIA_HOST):]
+                    elif v.startswith(HTTP_HOST):
+                        v = v[len(HTTP_HOST):]
+
+                setattr(self, k, v)
+                # else:
+                #     setattr(self, k, v)
             elif isinstance(v, list) and is_url_list:
                 v_items = []
                 for v_item in v:

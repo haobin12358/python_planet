@@ -6,22 +6,20 @@ import re
 import datetime
 import uuid
 from decimal import Decimal
-
 import requests
 from flask import request, current_app, redirect
-from sqlalchemy import extract, or_, func, cast, Date
+from sqlalchemy import extract, or_, func, cast, Date, false
 from werkzeug.security import generate_password_hash, check_password_hash
 from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS, MiniUserGrade
-
+    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
     BlogAppSecret
 from planet.config.http_config import PLANET_SERVICE, PLANET_SUBSCRIBE, PLANET, API_HOST
-from planet.common.params_validates import parameter_required
+from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.error_response import ParamsError, SystemError, TokenError, TimeError, NotFound, AuthorityError, \
     WXLoginError, StatusError, InsufficientConditionsError
 from planet.common.success_response import Success
@@ -37,11 +35,11 @@ from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
-
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
-    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision,\
-    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount
+    CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
+    Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
+    AddressProvince, AddressCity, CoveredCertifiedNameLog
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -55,7 +53,7 @@ class CUser(SUser, BASEAPPROVAL):
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
     USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
-                   'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode']
+                   'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode', 'USareaId']
 
     def __init__(self):
         super(CUser, self).__init__()
@@ -507,8 +505,51 @@ class CUser(SUser, BASEAPPROVAL):
         }
         return Success('获取验证码成功', data=response)
 
-    # def wx_login(self):
-    #     pass
+    @token_required
+    def update_usinfo(self):
+        """更新个人资料"""
+        user = self.get_user_by_id(getattr(request, 'user').id)
+        data = parameter_required()
+        usrealname, ustelphone = data.get('usrealname'), data.get('ustelphone')
+        usidentification = data.get('usidentification')
+        usareaid, usbirthday = data.get('aaid') or data.get('usareaid'), data.get('usbirthday')
+        usbirthday = validate_arg(r'^\d{4}-\d{2}-\d{2}$', usbirthday, '请按正确的生日格式填写')
+        if usareaid:
+            db.session.query(AddressArea.AAid).filter(AddressArea.AAid == usareaid).first_('请选择正确的地区')
+        if ustelphone and not re.match(r'^1\d{10}$', ustelphone):
+            raise ParamsError('请填写正确的手机号码')
+        if usrealname:
+            checked_name = self._verify_chinese(usrealname)
+            if not checked_name or len(checked_name[0]) < 2:
+                raise ParamsError('请正确填写真实姓名')
+        oldname = user.USrealname
+        oldidentitynumber = user.USidentification
+        with db.auto_commit():
+            if usidentification and not re.match(r'.*\*$', usidentification):
+                if len(usidentification) < 18:
+                    raise ParamsError('请正确填写身份证号码')
+                if usrealname:
+                    self.check_idcode({'usrealname': usrealname, 'usidentification': usidentification}, user)  # 调用实名认证
+            user.update({'UScustomizeName': data.get('usname'),
+                         'UScustomizeBirthday': usbirthday,
+                         'USareaId': usareaid,
+                         'UScustomizeHeader': data.get('usheader'),
+                         })
+            if not user.UStelphone and ustelphone:
+                phone_user = User.query.filter(User.isdelete == false(), User.UStelphone == ustelphone).first()
+                if phone_user and phone_user.USid != user.USid:
+                    raise ParamsError('您输入的手机号已有其他账号关联，请核对手机号是否输入有误或联系客服处理')
+                user.update({'UStelphone': ustelphone})
+            db.session.add(user)
+            if oldname and usrealname and oldname != usrealname:
+                current_app.logger.info('old name: {} ; new name: {}'.format(oldname, usrealname))
+                db.session.add(CoveredCertifiedNameLog.create({'CNLid': str(uuid.uuid1()),
+                                                               'OldName': oldname,
+                                                               'NewName': usrealname,
+                                                               'OldIdentityNumber': oldidentitynumber,
+                                                               'NewIdentityNumber': usidentification
+                                                               }))
+        return Success('修改成功')
 
     @token_required
     def get_home(self):
@@ -544,6 +585,20 @@ class CUser(SUser, BASEAPPROVAL):
             cast(UserIntegral.createtime, Date) == today).first()
         user.fill('signin', bool(ui))
         self.__user_fill_uw_total(user)
+        guide = Guide.query.filter_by(isdelete=False, USid=user.USid, GUstatus=GuideApplyStatus.agree.value).first()
+        user.fill('guide', bool(guide))
+        usarea = db.session.query(AddressProvince.APname, AddressCity.ACname, AddressArea.AAname).filter(
+            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
+            AddressArea.AAid == user.USareaId).first()
+        user.fill('usarea_str', '-'.join(usarea) if usarea else '')
+        address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
+                                   AddressCity.ACname, AddressArea.AAid, AddressArea.AAname).filter(
+            AddressArea.ACid == AddressCity.ACid, AddressCity.APid == AddressProvince.APid,
+            AddressArea.AAid == user.USareaId).first()
+        usarea_info = [{'apid': address[0], 'apname': address[1]},
+                       {'acid': address[2], 'acname': address[3]},
+                       {'aaid': address[4], 'aaname': address[5]}] if address else []
+        user.fill('usarea_info', usarea_info)
 
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
@@ -1853,7 +1908,8 @@ class CUser(SUser, BASEAPPROVAL):
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
         head = self._get_local_head(userinfo.get("avatarUrl"), openid)
-        sex = int(userinfo.get('gender', 1)) - 1
+        sex = userinfo.get('gender')
+        sex = int(sex) - 1 if str(sex) in '12' else 0
         if args.get('secret_usid'):
             try:
                 superid = self._base_decode(args.get('secret_usid'))
@@ -1928,11 +1984,11 @@ class CUser(SUser, BASEAPPROVAL):
         phone = data.get('phonenumber')
         if not phone:
             raise ParamsError('为获得更优质的服务，请允许授权您的手机号码')
-        user = User.query.filter(User.USid == request.user.id,
-                                 User.isdelete == False,
+        user = User.query.filter(User.USid == getattr(request, 'user').id,
+                                 User.isdelete == false(),
                                  User.UStelphone.is_(None)).first()
         if not user:
-            raise TokenError('该用户已绑定过手机号码')
+            raise TokenError('您已绑定过手机号码，请重新登录')
 
         session_key = data.get('session_key')
         current_app.logger.info('手机加密数据为{}'.format(phone))
@@ -1956,7 +2012,7 @@ class CUser(SUser, BASEAPPROVAL):
                                               User.USunionid.is_(None),
                                               User.USopenid1.is_(None)).first()
         if phone_binded_user:
-            current_app.logger.info('该手机号已存在绑定用户: {}， 删除新用户: {}'.format(user.USid, phone_binded_user.USid))
+            current_app.logger.info('该手机号已存在绑定用户: {}， 删除新用户: {}'.format(phone_binded_user.USid, user.USid))
             phone_binded_user.USunionid = user.USunionid
             phone_binded_user.USopenid1 = user.USopenid1
             user.isdelete = True  # 已有H5绑定手机号的删除小程序新建的用户
@@ -2042,7 +2098,7 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USheader = user_openid.USheader
                 # user.USsupper1 = user_openid.USsupper1
                 # user.USsupper2 = user_openid.USsupper2
-                user.USopenid1 = user_openid.USopenid1
+                # user.USopenid1 = user_openid.USopenid1
                 # user.USopenid2 = user_openid.USopenid2
                 user.USopenid2 = user_openid.USopenid2
             return_user = user
@@ -2374,10 +2430,7 @@ class CUser(SUser, BASEAPPROVAL):
         upid = form.upid.data
         commision_level = form.commision_level.data
 
-        user_query = User.query.filter(
-            User.isdelete == False,
-            User.USopenid1.is_(None)
-        )
+        user_query = User.query.filter(User.isdelete == false())
         if level is None:  # 默认获取代理商
             user_query = user_query.filter(
                 User.USlevel >= 2,

@@ -116,6 +116,7 @@ class CouponCreateForm(BaseForm):
     itids = FieldList(StringField(), validators=[DataRequired('请指定所在标签')])
     cousenum = IntegerField('可叠加使用数量', default=1)
     cocode = BooleanField('是否需要兑换码', default=False)
+    cosort = IntegerField('排序权重', default=1)
 
     def valid_data(self):
         if self.prids.data and self.pbids.data:

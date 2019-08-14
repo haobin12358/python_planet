@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import request, current_app
-from sqlalchemy import or_, and_, not_, func
+from sqlalchemy import or_, and_, not_, func, false
 
 from planet.common.assemble_picture import AssemblePicture
 from planet.common.error_response import NotFound, ParamsError, AuthorityError, StatusError, DumpliError
@@ -213,11 +213,13 @@ class CProducts(BaseController):
 
         current_app.logger.info('start get product list {}'.format(datetime.now()))
         try:
-            order, desc_asc = data.get('order_type', 'time|desc').split('|')  # 排序方式
+            order, desc_asc = data.get('order_type', 'prsort|asc').split('|')  # 排序方式
             order_enum = {
                 'time': Products.createtime,
                 'sale_value': Products.PRsalesValue,
                 'price': Products.PRprice,
+                # 'pbsort':  ProductBrand.PBsort,
+                'prsort': Products.PRsort,
             }
             assert order in order_enum and desc_asc in ['desc', 'asc'], 'order_type 参数错误'
         except Exception as e:
@@ -318,7 +320,7 @@ class CProducts(BaseController):
             query = query.outerjoin(ProductSku, ProductSku.PRid == Products.PRid
                                     ).filter(ProductSku.isdelete == False, ProductSku.SKUsn.ilike('%{}%'.format(skusn)))
 
-        products = query.filter_(*filter_args).order_by(by_order).all_with_page()
+        products = query.filter_(*filter_args).order_by(by_order, Products.createtime.desc()).all_with_page()
         # 填充
         current_app.logger.info('end query and start fill product {}'.format(datetime.now()))
         for product in products:
@@ -574,6 +576,15 @@ class CProducts(BaseController):
             # if prattribute:
             #     prattribute = json.dumps(prattribute)
             product = s.query(Products).filter_by_({'PRid': prid}).first_('商品不存在')
+            prsort = data.get('prsort')
+            try:
+                prsort = int(prsort)
+            except:
+                raise ParamsError('权重只能为整数')
+
+            if prsort and int(product.PRsort) != prsort and not is_admin():
+                raise AuthorityError('权重只能管理员修改')
+
             prmarks = data.get('prmarks')  # 备注
             if prmarks:
                 try:
@@ -682,6 +693,12 @@ class CProducts(BaseController):
                 'PRdescription': prdescription,
                 'PRstatus': ProductStatus.auditing.value,
             }
+            if prsort and prsort != int(product.PRsort):
+                current_app.logger.info('admin {} update prid {} prsort as {}'.format(
+                    request.user.username, prid, product.PRsort, prsort))
+                prsort = self._check_sort(prsort, default=1)
+                product_dict.setdefault('PRsort', prsort)
+
             if is_admin():
                 product_dict['PRfeatured'] = prfeatured
             # if product.PRstatus == ProductStatus.sell_out.value:
@@ -1247,3 +1264,22 @@ class CProducts(BaseController):
                               )
         return Success(data=kw_list_rs)
 
+    def _check_sort(self, sort, model=Products, filter_args=[], default=None):
+        if not sort:
+            return default
+        try:
+            sort = int(sort)
+        except:
+            current_app.logger.info('转置数字失败 sort = {}'.format(sort))
+            return default
+
+        if sort < 1:
+            return 1
+
+        bbcount = model.query.filter(model.isdelete == false(), *filter_args).count()
+        if sort > bbcount:
+            if bbcount >= 1:
+                return bbcount
+            else:
+                return 1
+        return sort

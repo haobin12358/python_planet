@@ -6,10 +6,10 @@ from flask import request, current_app
 from PIL import Image
 
 from planet.common.compress_picture import CompressPicture
-from planet.common.error_response import NotFound, ParamsError, SystemError
+from planet.common.error_response import NotFound, ParamsError, SystemError, TokenError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
-from planet.common.token_handler import token_required, is_tourist
+from planet.common.token_handler import is_tourist
 from planet.common.video_extraction_thumbnail import video2frames
 from planet.config.http_config import API_HOST
 from planet.extensions.qiniu.storage import QiniuStorage
@@ -182,15 +182,19 @@ class CFile(object):
         import string
         import random
         myStr = string.ascii_letters + '12345678'
+        from itsdangerous import SignatureExpired
         try:
             if hasattr(request, 'user'):
                 usid = request.user.id
             else:
                 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
                 s = Serializer(current_app.config['SECRET_KEY'])
-                token = request.form.get('token')
+                token = request.form.get('token') or request.args.get('token')
                 user = s.loads(token)
+                current_app.logger.info('current user : {}'.format(user))
                 usid = user.get('id')
+        except SignatureExpired:
+            raise TokenError('登录超时，请重新登录')
         except Exception as e:
             current_app.logger.error('Error is {}'.format(e))
             usid = 'anonymous'

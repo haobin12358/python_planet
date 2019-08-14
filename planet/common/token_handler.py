@@ -25,7 +25,10 @@ def usid_to_token(id, model='User', level=0, expiration='', username='none'):
 
 def binded_phone():
     """是否已绑定手机号"""
-    return common_user() and getattr(get_current_user(), 'UStelphone', False)
+    # return common_user() and getattr(get_current_user(), 'UStelphone', False)
+    if common_user():
+        return getattr(get_current_user(), 'UStelphone', False)
+    raise TokenError()
 
 
 def is_admin():
@@ -62,6 +65,7 @@ def admin_required(func):
         if not is_admin():
             raise AuthorityError()
         return func(self, *args, **kwargs)
+
     return inner
 
 
@@ -70,6 +74,7 @@ def token_required(func):
         if not is_tourist():
             return func(self, *args, **kwargs)
         raise TokenError()
+
     return inner
 
 
@@ -78,22 +83,23 @@ def phone_required(func):
         if binded_phone():
             return func(self, *args, **kwargs)
         raise NeedPhone()
+
     return inner
 
 
 def get_current_user():
     usid = request.user.id
     from planet.models import User
-    return User.query.filter(User.USid == usid, User.isdelete == False).first()
+    return User.query.filter(User.USid == usid, User.isdelete == False).first_('用户信息有误')
 
 
 def get_current_admin():
     adid = request.user.id
     from planet.models import Admin
-    return Admin.query.filter(Admin.ADid == adid, Admin.isdelete == False).first()
+    return Admin.query.filter(Admin.ADid == adid, Admin.isdelete == False).first_('用户信息有误')
 
 
-
-
-
-
+def get_current_supplizer():
+    suid = request.user.id
+    from planet.models import Supplizer
+    return Supplizer.query.filter(Supplizer.SUid == suid, Supplizer.isdelete == False).first_('用户信息有误')

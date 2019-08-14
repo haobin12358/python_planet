@@ -418,8 +418,8 @@ def guess_group_expired_revert():
         current_app.logger.error('>>> 过期拼团商品退还库存错误: {}<<<'.format(e))
     finally:
         current_app.logger.info(f'>>> 过期拼团商品退还库存结束，共{count}个商品退还库存，仍有{pending_count}个商品在进行拼团<<<')
-        
-        
+
+
 @celery.task(name='magic_box_expired_revert')
 def magic_box_expired_revert():
     """过期魔术礼盒"""
@@ -661,12 +661,12 @@ def create_settlenment():
         su_list = Supplizer.query.filter(Supplizer.isdelete == False).all()
         from planet.control.COrder import COrder
         corder = COrder()
+        today = datetime.now()
+        pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
+        tomonth_22 = date(year=today.year, month=today.month, day=22)
+        pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
         for su in su_list:
-            today = datetime.now()
             # today = datetime.strptime('2019-04-22 00:00:00', '%Y-%m-%d %H:%M:%S')
-            pre_month = date(year=today.year, month=today.month, day=1) - timedelta(days=1)
-            tomonth_22 = date(year=today.year, month=today.month, day=22)
-            pre_month_22 = date(year=pre_month.year, month=pre_month.month, day=22)
             su_comiission = db.session.query(func.sum(UserCommission.UCcommission)).filter(
                 UserCommission.USid == su.SUid,
                 UserCommission.isdelete == False,
@@ -679,7 +679,7 @@ def create_settlenment():
                 #     and_(
                 cast(UserCommission.updatetime, Date) < tomonth_22,
                 cast(UserCommission.updatetime, Date) >= pre_month_22,
-                    # ))
+                # ))
             ).first()
             ss_total = su_comiission[0] or 0
             ss = SupplizerSettlement.create({
@@ -688,11 +688,15 @@ def create_settlenment():
                 'SSid': str(uuid.uuid1()),
                 'SUid': su.SUid,
                 'SSdealamount': float('%.2f' % float(ss_total)),
-                'SSstatus': SupplizerSettementStatus.settlementing.value
+                'SSstatus': SupplizerSettementStatus.checking.value
             })
             db.session.add(ss)
             db.session.flush()
             corder._create_settlement_excel(su.SUid, ss)
+        from planet.config.secret import BASEDIR
+        sourcepath = os.path.join(BASEDIR, 'img', 'xls', str(today.year), str(today.month))
+        tarfilename = os.path.join(sourcepath, '{}-{}.tar.gz'.format(today.year, today.month))
+        corder.create_tar(tarfilename, sourcepath)
 
 
 @celery.task(name='get_logistics')
@@ -1145,10 +1149,15 @@ def start_timelimited(tlaid):
 @celery.task()
 def start_play(plid):
     current_app.logger.info('开始修改活动为开始 plid {}'.format(plid))
+    current_app.logger.info('开始修改活动为开始 plid {}'.format(type(plid)))
     with db.auto_commit():
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if play:
-            play.PLstatus = PlayStatus.publish.value
+            current_app.logger.info('活动存在 plid {}'.format(plid))
+            if play.PLstatus == PlayStatus.close.value:
+                current_app.logger.info('活动已关闭，不再重复开启')
+                return
+            play.PLstatus = PlayStatus.activity.value
 
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
 
@@ -1159,6 +1168,7 @@ def end_play(plid):
     with db.auto_commit():
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if play:
+            current_app.logger.info('活动存在 plid {}'.format(plid))
             play.PLstatus = PlayStatus.close.value
 
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))

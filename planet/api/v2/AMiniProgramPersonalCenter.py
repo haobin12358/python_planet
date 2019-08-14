@@ -16,6 +16,7 @@ class AMiniProgramPersonalCenter(Resource):
     def get(self, personalcenter):
         apis = {
             'my_wallet': self.cmppc.my_wallet,
-            'guide': self.cmppc.guide
+            'guide': self.cmppc.guide,
+            'data_statistics': self.cmppc.data_statistics
         }
         return apis

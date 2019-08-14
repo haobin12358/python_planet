@@ -11,33 +11,33 @@ from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityTyp
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
-    TimeLimitedActivity, UserActivationCode, ActivationCodeApply
+    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver
 
 
 # 添加一些默认的数据
 def make_items():
     with db.auto_commit():
         s_list = []
-        index_hot_items = Items.create({  # 人气热卖标签
-            'ITid': 'index_hot',  # id为'index'
-            'ITname': '人气热卖',
-            'ITdesc': '这是首页的人气热卖',
-            'ITtype': ItemType.product.value,
-            'ITauthority': ItemAuthrity.no_limit.value,
-            'ITposition': ItemPostion.index.value
-        })
-        s_list.append(index_hot_items)
-
-        news_product_evaluation = Items.create({
-            'ITid': 'product_evaluation',
-            'ITname': '商品评测',
-            'ITsort': 1,
-            'ITdesc': '圈子默认标签',
-            'ITtype': ItemType.news.value,
-            'ITauthority': ItemAuthrity.no_limit.value,
-        })
-        s_list.append(news_product_evaluation)
-
+        # index_hot_items = Items.create({  # 人气热卖标签
+        #     'ITid': 'index_hot',  # id为'index'
+        #     'ITname': '人气热卖',
+        #     'ITdesc': '这是首页的人气热卖',
+        #     'ITtype': ItemType.product.value,
+        #     'ITauthority': ItemAuthrity.no_limit.value,
+        #     'ITposition': ItemPostion.index.value
+        # })
+        # s_list.append(index_hot_items)
+        #
+        # news_product_evaluation = Items.create({
+        #     'ITid': 'product_evaluation',
+        #     'ITname': '商品评测',
+        #     'ITsort': 1,
+        #     'ITdesc': '圈子默认标签',
+        #     'ITtype': ItemType.news.value,
+        #     'ITauthority': ItemAuthrity.no_limit.value,
+        # })
+        # s_list.append(news_product_evaluation)
+        #
         # 暂时不需要这两类了
         # news_bind_product = Items.create({
         #     'ITid': 'news_bind_product',
@@ -59,48 +59,66 @@ def make_items():
         # })
         # s_list.append(news_bind_coupon)
 
-        index_brands_items = Items.create({
-            'ITid': 'index_brand',
-            'ITname': '品牌推荐',
-            'ITdesc': '这是首页才会出现的品牌推荐',
-            'ITtype': ItemType.brand.value,
-            'ITposition': ItemPostion.index.value
-        })
-        s_list.append(index_brands_items)
-        index_brands_product_items = Items.create({
-            'ITid': 'index_brand_product',
-            'ITname': '品牌推荐商品',
-            'ITdesc': '这是首页才会出现的品牌商品',
-            'ITposition': ItemPostion.index.value
-        })
-        s_list.append(index_brands_product_items)
-
-        index_recommend_product_for_you_items = Items.create({
-            'ITid': 'index_recommend_product_for_you',
-            'ITname': '首页为您推荐',
-            'ITdesc': '首页的为您推荐的商品',
-            'ITposition': ItemPostion.index.value
-        })
-        s_list.append(index_recommend_product_for_you_items)
-
-        upgrade_product = Items.create({
-            'ITid': 'upgrade_product',
-            'ITname': '开店大礼包',
-            'ITdesc': '开店大礼包',
-            'ITposition': ItemPostion.other.value,
-            'ITauthority': ItemAuthrity.other.value,
-        })
-        s_list.append(upgrade_product)
-
-        planet_featured = Items.create({
-            'ITid': 'planet_featured',
-            'ITname': '大行星精选',
-            'ITdesc': '场景推荐页下固定的大行星精选',
-            'ITsort': -1,
+        # index_brands_items = Items.create({
+        #     'ITid': 'index_brand',
+        #     'ITname': '品牌推荐',
+        #     'ITdesc': '这是首页才会出现的品牌推荐',
+        #     'ITtype': ItemType.brand.value,
+        #     'ITposition': ItemPostion.index.value
+        # })
+        # s_list.append(index_brands_items)
+        # index_brands_product_items = Items.create({
+        #     'ITid': 'index_brand_product',
+        #     'ITname': '品牌推荐商品',
+        #     'ITdesc': '这是首页才会出现的品牌商品',
+        #     'ITposition': ItemPostion.index.value
+        # })
+        # s_list.append(index_brands_product_items)
+        #
+        # index_recommend_product_for_you_items = Items.create({
+        #     'ITid': 'index_recommend_product_for_you',
+        #     'ITname': '首页为您推荐',
+        #     'ITdesc': '首页的为您推荐的商品',
+        #     'ITposition': ItemPostion.index.value
+        # })
+        # s_list.append(index_recommend_product_for_you_items)
+        #
+        # upgrade_product = Items.create({
+        #     'ITid': 'upgrade_product',
+        #     'ITname': '开店大礼包',
+        #     'ITdesc': '开店大礼包',
+        #     'ITposition': ItemPostion.other.value,
+        #     'ITauthority': ItemAuthrity.other.value,
+        # })
+        # s_list.append(upgrade_product)
+        #
+        # planet_featured = Items.create({
+        #     'ITid': 'planet_featured',
+        #     'ITname': '大行星精选',
+        #     'ITdesc': '场景推荐页下固定的大行星精选',
+        #     'ITsort': -1,
+        #     'ITposition': ItemPostion.index.value,
+        #     'ITauthority': ItemAuthrity.admin_only.value,
+        # })
+        # s_list.append(planet_featured)
+        home_recommend = Items.create({
+            'ITid': 'home_recommend',
+            'ITname': '新品推荐',
+            'ITdesc': '首页下新品推荐商品',
             'ITposition': ItemPostion.index.value,
-            'ITauthority': ItemAuthrity.admin_only.value,
+            'ITauthority': ItemAuthrity.no_limit.value,
         })
-        s_list.append(planet_featured)
+        s_list.append(home_recommend)
+
+        home_recommend_category = Items.create({
+            'ITid': 'home_recommend_category',
+            'ITname': '优惠券推荐',
+            'ITdesc': '首页下推荐优惠券',
+            'ITtype': ItemType.coupon.value,
+            'ITposition': ItemPostion.index.value,
+            'ITauthority': ItemAuthrity.no_limit.value,
+        })
+        s_list.append(home_recommend_category)
 
         db.session.add_all(s_list)
 
@@ -284,20 +302,20 @@ def check_abnormal_sale_volume():
                                                          OrderPart.PRid == product.PRid,
                                                          OrderPart.OPisinORA == False).count()
             print('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
-            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(product.PRid, product.PRsalesValue, opcount))
+            current_app.logger.info('当前PRid: {}, 销量数为{}, 订单count{}'.format(
+                product.PRid, product.PRsalesValue, opcount))
             # 修正商品销量
             product.update({'PRsalesValue': opcount}, null='no')
             db.session.add(product)
             # 修正商品月销量
-            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(OrderMain,
-                                                                                                      OrderMain.OMid == OrderPart.OMid
-                                                                                                      ).filter(
+            ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(
+                OrderMain,OrderMain.OMid == OrderPart.OMid).filter(
                 OrderMain.isdelete == False,
                 OrderPart.isdelete == False,
                 OrderMain.OMstatus != -40,
                 OrderPart.PRid == product.PRid,
                 OrderPart.OPisinORA == False
-                ).group_by(
+            ).group_by(
                 extract('month', OrderPart.createtime)).order_by(extract('month', OrderPart.createtime).asc()).all()
             for o in ops:
                 # print(o)
@@ -345,7 +363,8 @@ def check_product_from():
                 print("该商品不在供应商商品关联表中")
 
             a = '平台' if str(pr.PRfrom) == '0' else '供应商'
-            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
+            print("商品名 {} 来源于 {} 关联的品牌是  {} 当前 createID:{} 创建时间为 {}".format(
+                pr.PRtitle, a, pb.PBname, pr.CreaterId, pr.createtime))
             # 避免操作错误，暂时注释掉，使用时取消注释
             print("  >>> 开始修改 <<< ")
             pr.update({'PRfrom': 10, 'CreaterId': pb.SUid})
@@ -384,11 +403,11 @@ def add_uac_acaid():
         for user_act_code in user_act_codes:
 
             if user_act_code.ACAid == None:
-                createtime=user_act_code.createtime
+                createtime = user_act_code.createtime
                 # print(createtime)
                 cratetime_list.append(createtime)
-                createtime1 = createtime+datetime.timedelta(hours=3)
-                createtime2 = createtime-datetime.timedelta(hours=3)
+                createtime1 = createtime + datetime.timedelta(hours=3)
+                createtime2 = createtime - datetime.timedelta(hours=3)
                 aca = ActivationCodeApply.query.filter(
                     ActivationCodeApply.USid == user_act_code.USid,
                     ActivationCodeApply.updatetime <= createtime1,
@@ -401,6 +420,15 @@ def add_uac_acaid():
                     db.session.add(user_act_code)
         print({}.fromkeys(cratetime_list).keys())
 
+
+def init_make_over():
+    with db.auto_commit():
+        mo = MakeOver.create({
+            'Moid': 1,
+        })
+        db.session.add(mo)
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -409,7 +437,7 @@ if __name__ == '__main__':
         # print(admin.__dict__)
         # print(admin_str)
         # make_acvitity()
-        # make_items()
+        make_items()
         # make_permissiontype()
         # make_admin()
         # cexcel = CExcel()
@@ -421,5 +449,5 @@ if __name__ == '__main__':
         # check_abnormal_sale_volume()
         # check_product_from()
         # change_tla_status()
-        add_uac_acaid()
+        # add_uac_acaid()
         pass

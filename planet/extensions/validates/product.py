@@ -28,6 +28,7 @@ class BrandsCreateForm(BaseForm):
     suid = StringField()
     pbbackgroud = StringField(validators=[Length(1, 255)])
     pbintegralpayrate = IntegerField('允许星币抵扣的百分数的分子')
+    pbsort = IntegerField('权重')
 
     def validate_suid(self, raw):
         if raw.data:

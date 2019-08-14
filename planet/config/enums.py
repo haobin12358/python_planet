@@ -234,6 +234,7 @@ class AdminLevel(Enum):
     super_admin = 1, '超级管理员'
     common_admin = 2, '普通管理员'
     agent = 3, '供应商'
+    finance = 4, '财务'
 
 
 class AdminStatus(Enum):
@@ -624,6 +625,7 @@ class UserMediaType(Enum):
 
 
 class SupplizerSettementStatus(Enum):
+    checking = -2, '财务审核中'
     settlementing = 0, '结算中'
     settlemented = 1, '已结算'
     approvaling = -1, '结算异常处理中'
@@ -704,6 +706,14 @@ class PlanetMessageStatus(Enum):
     hide = 10, '隐藏'
 
 
+class UserMessageTyep(Enum):
+    txt = 0, '文本'
+    img = 1, '图片'
+    voice = 2, '语音'
+    video = 3, '视频'
+    loc = 4, '定位'
+
+
 class CorrectNumType(Enum):
     composite_index = 0, '上证指数'
     lottery_3d = 1, '福彩3D'
@@ -720,6 +730,7 @@ class TravelRecordStatus(Enum):
     """时光记录状态"""
     draft = 0, '草稿'
     published = 1, '已发布'
+    auditing = 2, '审核中'
 
 
 class UserPlanetMessageStatus(Enum):
@@ -808,6 +819,12 @@ class TemplateID(Enum):
     accomplished = 'accomplished', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     guide = 'guide', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     agreement = 'agreement', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
+
+
+class CategoryType(Enum):
+    green = 0, '全平台'
+    black = 1, '品牌'
+    orange = 2, '折扣券'
 
 
 if __name__ == '__main__':

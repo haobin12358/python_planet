@@ -415,14 +415,22 @@ class WeixinMP(object):
         """
         kwargs.setdefault("template_id", template_id)
         kwargs.setdefault("touser", touser)
-        # kwargs.setdefault("weapp_template_msg", {
-        #     'template_id': template_id,
-        #     'data': data,
-        #     'form_id': kwargs.get('form_id'),
-        #     'page': "",
-        #     'emphasis_keyword': "keyword1.DATA",
-        # })
-        # url and kwargs.setdefault("url", url)
-        # miniprogram and kwargs.setdefault("miniprogram", miniprogram)
+        kwargs.setdefault("data", data)
+        url and kwargs.setdefault("url", url)
+        miniprogram and kwargs.setdefault("miniprogram", miniprogram)
         # print kwargs
         return self.post("/message/wxopen/template/send", kwargs)
+
+    def msg_sec_check(self, content):
+        """
+        检查一段文本是否含有违法违规内容。
+        :param content: 文本内容
+        """
+        return self.post("/msg_sec_check", {'content': content}, prefix="/wxa")
+
+    def img_sec_check(self, media):
+        """
+        校验一张图片是否含有违法违规内容。
+        :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
+        """
+        return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
