@@ -16,6 +16,7 @@ class AIndex(Resource):
             'list_hypermarket_banner': self.cindex.list_hypermarket_banner,
             'get_entry': self.cindex.get_entry,
             'list_linkcontent': self.cindex.list_linkcontent,
+            'get_linkcontent': self.cindex.get_linkcontent,
             'list_mp_banner': self.cindex.list_mp_banner
 
         }

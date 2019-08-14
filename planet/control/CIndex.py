@@ -336,3 +336,12 @@ class CIndex:
             current_app.logger.info('开始创建富文本内容 lcid = {}'.format(lc.LCid))
             db.session.add(lc)
             return Success('添加成功', data=lc.LCid)
+
+
+    def get_linkcontent(self):
+        data = parameter_required('lcid')
+        lcid = data.get('lcid')
+        lc = LinkContent.query.filter_by(LCid=lcid, isdelete=False).first()
+        if not lc:
+            raise ParamsError('链接失效')
+        return Success(data=lc)
