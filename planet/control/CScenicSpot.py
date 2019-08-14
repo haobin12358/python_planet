@@ -4,7 +4,7 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, extract, and_
+from sqlalchemy import or_, false, extract, and_, func
 from planet.common.error_response import ParamsError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
@@ -366,7 +366,7 @@ class CScenicSpot(BASEAPPROVAL):
                  'duration': video.get('duration')
                  } if video else None
         content = {'text': text,
-                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image],
+                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image] if image else None,
                    'video': video
                    }
         content = json.dumps(content)
@@ -566,7 +566,10 @@ class CScenicSpot(BASEAPPROVAL):
             trids = json.loads(csc.TRids)
             tr_list = TravelRecord.query.filter(TravelRecord.isdelete == false(), TravelRecord.TRid.in_(trids),
                                                 TravelRecord.TRstatus == TravelRecordStatus.published.value
-                                                ).order_by(TravelRecord.createtime.desc()).all_with_page()
+                                                )
+            if trids:
+                tr_list = tr_list.order_by(func.field(TravelRecord.TRid, *trids))
+            tr_list = tr_list.all()
         else:
             tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
         [self._fill_travelrecord(x) for x in tr_list]
@@ -645,11 +648,13 @@ class CScenicSpot(BASEAPPROVAL):
         data = parameter_required('plid')
         album, trids = data.get('album', []), data.get('trids', [])
         detail = data.get('detail')
-        if not album and not trids and detail:
-            current_app.logger.info('本次未编辑内容')
-            return Success()
+        # if not album and not trids and detail:
+        #     current_app.logger.info('本次未编辑内容')
+        #     return Success()
         assert isinstance(album, list), 'album 格式错误'
         assert isinstance(trids, list), 'trids 格式错误'
+        if not all(map(lambda x: isinstance(x, str), trids)):
+            raise ParamsError('trids格式错误')
         with db.auto_commit():
             db.session.add(CustomizeShareContent.create({'CSCid': str(uuid.uuid1()),
                                                          'USid': getattr(request, 'user').id,
