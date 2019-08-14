@@ -940,7 +940,7 @@ class CPlay():
 
     @phone_required
     def join(self):
-        data = parameter_required(('plid', 'formid'))
+        data = parameter_required(('plid',))
         plid, elid, repay, formid = data.get('plid'), data.get('elid'), data.get('repay'), data.get('formid')
         opayno = self._opayno()
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
