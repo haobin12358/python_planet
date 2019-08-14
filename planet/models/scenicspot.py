@@ -1,6 +1,5 @@
-from sqlalchemy import String, Text, Integer, DECIMAL
+from sqlalchemy import String, Text, Integer, DECIMAL, Boolean
 from sqlalchemy.dialects.mysql import LONGTEXT
-
 from planet.common.base_model import Base, Column
 
 
@@ -43,6 +42,7 @@ class CustomizeShareContent(Base):
     PLid = Column(String(64), comment='活动id')
     Album = Column(LONGTEXT, comment='分享相册 json')
     TRids = Column(Text, comment='trid json')
+    Detail = Column(Boolean, default=True, comment='活动详情')
     CSCtype = Column(Integer, default=1, comment='类型 1：分享相册 2：分享团队广场页面')
 
 

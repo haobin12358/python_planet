@@ -4,7 +4,7 @@ import uuid
 import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, extract, and_
+from sqlalchemy import or_, false, extract, and_, func
 from planet.common.error_response import ParamsError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
@@ -366,7 +366,7 @@ class CScenicSpot(BASEAPPROVAL):
                  'duration': video.get('duration')
                  } if video else None
         content = {'text': text,
-                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image],
+                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image] if image else None,
                    'video': video
                    }
         content = json.dumps(content)
@@ -557,7 +557,21 @@ class CScenicSpot(BASEAPPROVAL):
     def get_team(self):
         """团队广场下内容"""
         data = parameter_required(('plid',))
-        tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
+        secret_usid = data.get('secret_usid')
+        csc = None
+        if secret_usid:
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+        if csc:
+            current_app.logger.info('get cscid: {}'.format(csc.CSCid))
+            trids = json.loads(csc.TRids)
+            tr_list = TravelRecord.query.filter(TravelRecord.isdelete == false(), TravelRecord.TRid.in_(trids),
+                                                TravelRecord.TRstatus == TravelRecordStatus.published.value
+                                                )
+            if trids:
+                tr_list = tr_list.order_by(func.field(TravelRecord.TRid, *trids))
+            tr_list = tr_list.all()
+        else:
+            tr_list = self._filter_team_travelrecord(data.get('plid')).all_with_page()
         [self._fill_travelrecord(x) for x in tr_list]
         return Success(data=tr_list)
 
@@ -584,17 +598,7 @@ class CScenicSpot(BASEAPPROVAL):
         secret_usid = data.get('secret_usid')
         csc = None
         if secret_usid:
-            try:
-                superid = self.cuser._base_decode(secret_usid)
-                current_app.logger.info('secret_usid --> superid {}'.format(superid))
-            except Exception as e:
-                current_app.logger.error('解析secret_usid时失败： {}'.format(e))
-                superid = ''
-            csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
-                                                     CustomizeShareContent.USid == superid,
-                                                     CustomizeShareContent.CSCtype == 1,
-                                                     CustomizeShareContent.PLid == data.get('plid')
-                                                     ).order_by(CustomizeShareContent.createtime.desc()).first()
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
         if csc:
             current_app.logger.info('get cscid: {}'.format(csc.CSCid))
             res = json.loads(csc.Album)
@@ -604,6 +608,21 @@ class CScenicSpot(BASEAPPROVAL):
             [res.extend(self._filter_media(tr)) for tr in tr_list]
         request.mount = len(res)
         return Success(data=res)
+
+    def get_customize_share_content(self, secret_usid, plid):
+        try:
+            superid = self.cuser._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
+        except Exception as e:
+            current_app.logger.error('解析secret_usid时失败： {}'.format(e))
+            superid = ''
+        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') else 1
+        csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
+                                                 CustomizeShareContent.USid == superid,
+                                                 CustomizeShareContent.CSCtype == csctype,
+                                                 CustomizeShareContent.PLid == plid
+                                                 ).order_by(CustomizeShareContent.createtime.desc()).first()
+        return csc
 
     @staticmethod
     def _filter_media(trecord):
@@ -628,17 +647,22 @@ class CScenicSpot(BASEAPPROVAL):
         """分享前自定义内容"""
         data = parameter_required('plid')
         album, trids = data.get('album', []), data.get('trids', [])
-        if not album and not trids:
-            return Success()
+        detail = data.get('detail')
+        # if not album and not trids and detail:
+        #     current_app.logger.info('本次未编辑内容')
+        #     return Success()
         assert isinstance(album, list), 'album 格式错误'
         assert isinstance(trids, list), 'trids 格式错误'
+        if not all(map(lambda x: isinstance(x, str), trids)):
+            raise ParamsError('trids格式错误')
         with db.auto_commit():
             db.session.add(CustomizeShareContent.create({'CSCid': str(uuid.uuid1()),
                                                          'USid': getattr(request, 'user').id,
                                                          'PLid': data.get('plid'),
                                                          'Album': json.dumps(album),
                                                          'TRids': json.dumps(trids),
-                                                         'CSCtype': data.get('type', 1)}))
+                                                         'CSCtype': data.get('type', 1),
+                                                         'Detail': detail}))
         return Success('成功')
 
     def add_toilet(self):
