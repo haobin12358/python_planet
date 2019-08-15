@@ -288,6 +288,7 @@ class CScenicSpot(BASEAPPROVAL):
         """创建时光记录"""
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         data = parameter_required(('trtype', 'trstatus'))
+        plid = data.get('plid')
         try:
             TravelRecordStatus(data.get('trstatus'))
         except Exception:
@@ -309,8 +310,9 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 'TRstatus': data.get('trstatus')
+                                 'TRstatus': data.get('trstatus'),
                                  # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
+                                 'PLid': plid if plid else None
                                  }
             travelrecord_dict.update(tr_dict)
             try:
@@ -585,8 +587,9 @@ class CScenicSpot(BASEAPPROVAL):
                      EnterLog.isdelete == false(),
                      EnterLog.ELstatus == EnterLogStatus.success.value),
                 Play.PLcreate == TravelRecord.AuthorID),
-            TravelRecord.createtime <= Play.PLendTime,
-            TravelRecord.createtime >= Play.PLstartTime,
+            or_(and_(TravelRecord.createtime <= Play.PLendTime,
+                     TravelRecord.createtime >= Play.PLstartTime),
+                TravelRecord.PLid == plid),
             TravelRecord.isdelete == false(),
             TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(

@@ -240,6 +240,7 @@ class CPlay():
     def get_gather(self):
         """查看集合点"""
         args = request.args.to_dict()
+        plid = args.get('plid')
         my_lat, my_long = args.get('latitude'), args.get('longitude')
         if not my_lat or my_lat == 'null':
             raise ParamsError('请允许授权位置信息，以便为您展示活动集合地点')
@@ -249,7 +250,7 @@ class CPlay():
         button_name = '暂无活动'
         if my_lat and my_long:
             self.basecontrol.get_user_location(my_lat, my_long, user.USid)  # 记录位置
-        my_created_play = self._is_tourism_leader(user.USid)
+        my_created_play = self._is_tourism_leader(user.USid, plid)
 
         if my_created_play:  # 是领队，显示上次定位点，没有为null
             can_post = True
@@ -263,7 +264,7 @@ class CPlay():
                                                           last_anchor_point.GAlon,
                                                           '上次集合 {}'.format(str(last_anchor_point.GAtime)[11:16]))
         else:  # 非领队
-            my_joined_play = self._ongoing_play_joined(user.USid)
+            my_joined_play = self._ongoing_play_joined(user.USid, plid)
             if my_joined_play:  # 存在参加的进行中的活动
                 button_name = '等待集合'
                 gather_point = Gather.query.filter(Gather.isdelete == false(),
@@ -282,8 +283,10 @@ class CPlay():
     @phone_required
     def identity(self):
         """身份判断"""
+        args = parameter_required('plid')
+        plid = args.get('plid')
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
-        is_leader = self._is_tourism_leader(user.USid)
+        is_leader = self._is_tourism_leader(user.USid, plid)
         return Success(data={'is_leader': bool(is_leader)})
 
     @phone_required
@@ -861,29 +864,31 @@ class CPlay():
         latitude, longitude = data.get('latitude'), data.get('longitude')
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         self.basecontrol.get_user_location(latitude, longitude, user.USid)
-        my_created_play = self._is_tourism_leader(user.USid)  # 是否领队
-        phone_list, helper_list, plid = [], [], None
-        if my_created_play:
-            plid = my_created_play.PLid
-            usphones = db.session.query(User.UStelphone, User.USname).join(EnterLog, EnterLog.USid == User.USid).filter(
-                EnterLog.isdelete == false(),
-                EnterLog.PLid == my_created_play.PLid,
-                EnterLog.ELstatus == EnterLogStatus.success.value,
-                User.isdelete == false()
-            ).all()
-            phone_list = list(map(lambda x: x[0], usphones))
-            helper_list = list(map(lambda x: x[1], usphones))
+        my_created_plays = self._is_tourism_leader(user.USid)  # 是否领队
+        phone_list, helper_list, plids = [], [], []
+        if my_created_plays:
+            for my_created_play in my_created_plays:
+                plids.append(my_created_play.PLid)
+                usphones = db.session.query(User.UStelphone, User.USname).join(
+                    EnterLog, EnterLog.USid == User.USid).filter(
+                    EnterLog.isdelete == false(),
+                    EnterLog.PLid == my_created_play.PLid,
+                    EnterLog.ELstatus == EnterLogStatus.success.value,
+                    User.isdelete == false()
+                ).all()
+                phone_list.extend(list(map(lambda x: x[0], usphones)))
+                helper_list.extend(list(map(lambda x: x[1], usphones)))
             current_app.logger.info('领队正在求救')
-        else:
-            my_joined_play = self._ongoing_play_joined(user.USid)
-            if my_joined_play:
-                plid = my_joined_play.PLid
+        my_joined_plays = self._ongoing_play_joined(user.USid)
+        if my_joined_plays:
+            for my_joined_play in my_joined_plays:
+                plids.append(my_joined_play.PLid)
                 phone = db.session.query(User.UStelphone, User.USname).filter(
                     User.isdelete == false(),
                     User.USid == my_joined_play.PLcreate).first()
                 phone_list.append(phone[0])
                 helper_list.append(phone[1])
-                current_app.logger.info('团员正在求救')
+            current_app.logger.info('团员正在求救')
         if not phone_list:
             raise StatusError('当前没有参加活动')
         # 发送求救短信
@@ -899,7 +904,7 @@ class CPlay():
                                              'UStelphone': user.UStelphone,
                                              'USlatitude': latitude,
                                              'USlongitude': longitude,
-                                             'PLid': plid,
+                                             'PLid': json.dumps(plids),
                                              'HRphones': json.dumps(phone_list)})
             db.session.add(help_record)
 
@@ -908,7 +913,8 @@ class CPlay():
     @phone_required
     def set_gather(self):
         """发起集合点"""
-        data = parameter_required({'latitude': '纬度', 'longitude': '经度', 'time': '时间'})
+        data = parameter_required({'latitude': '纬度', 'longitude': '经度', 'time': '时间', 'plid': ''})
+        plid = data.get('plid')
         latitude, longitude, time = data.get('latitude'), data.get('longitude'), data.get('time')
         if not re.match(r'^[0-2][0-9]:[0-6][0-9]$', str(time)):
             raise ParamsError('集合时间格式错误')
@@ -919,7 +925,7 @@ class CPlay():
         latitude, longitude = self.check_lat_and_long(latitude, longitude)
         if latitude and longitude:
             self.basecontrol.get_user_location(latitude, longitude, user.USid)
-        my_created_play = self._is_tourism_leader(user.USid)
+        my_created_play = self._is_tourism_leader(user.USid, plid)
         if not my_created_play:
             raise StatusError('您没有正在进行的活动')
         if not (my_created_play.PLstartTime <= gather_time <= my_created_play.PLendTime):
@@ -1929,28 +1935,40 @@ class CPlay():
             self._cancle_celery(end_connid)
 
     @staticmethod
-    def _is_tourism_leader(usid):
+    def _is_tourism_leader(usid, plid=None):
         """是否是领队"""
         if not usid:
             return
-        now = datetime.now()
+        if not plid:
+            now = datetime.now()
+            return Play.query.filter(Play.isdelete == false(),
+                                     Play.PLstatus == PlayStatus.activity.value,
+                                     Play.PLstartTime <= now,
+                                     Play.PLendTime >= now,
+                                     Play.PLcreate == usid).all()
         return Play.query.filter(Play.isdelete == false(),
-                                 Play.PLstatus == PlayStatus.activity.value,
-                                 Play.PLstartTime <= now,
-                                 Play.PLendTime >= now,
+                                 Play.PLid == plid,  # 0814 修改为根据plid判断身份
                                  Play.PLcreate == usid).first()
 
     @staticmethod
-    def _ongoing_play_joined(usid):
+    def _ongoing_play_joined(usid, plid=None):
         """是否有正在参加的活动"""
         if not usid:
             return
-        now = datetime.now()
+        if not plid:
+            now = datetime.now()
+            return Play.query.join(EnterLog, EnterLog.PLid == Play.PLid
+                                   ).filter(Play.isdelete == false(),
+                                            Play.PLstatus == PlayStatus.activity.value,
+                                            Play.PLstartTime <= now,
+                                            Play.PLendTime >= now,
+                                            EnterLog.isdelete == false(),
+                                            EnterLog.USid == usid,
+                                            EnterLog.ELstatus == EnterLogStatus.success.value,
+                                            ).all()
         return Play.query.join(EnterLog, EnterLog.PLid == Play.PLid
                                ).filter(Play.isdelete == false(),
-                                        Play.PLstatus == PlayStatus.activity.value,
-                                        Play.PLstartTime <= now,
-                                        Play.PLendTime >= now,
+                                        Play.PLid == plid,
                                         EnterLog.isdelete == false(),
                                         EnterLog.USid == usid,
                                         EnterLog.ELstatus == EnterLogStatus.success.value,
