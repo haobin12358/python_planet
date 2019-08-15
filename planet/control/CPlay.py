@@ -876,8 +876,8 @@ class CPlay():
                     EnterLog.ELstatus == EnterLogStatus.success.value,
                     User.isdelete == false()
                 ).all()
-                phone_list.extend(list(map(lambda x: x[0], usphones)))
-                helper_list.extend(list(map(lambda x: x[1], usphones)))
+                phone_list.extend(map(lambda x: x[0], usphones))
+                helper_list.extend(map(lambda x: x[1], usphones))
             current_app.logger.info('领队正在求救')
         my_joined_plays = self._ongoing_play_joined(user.USid)
         if my_joined_plays:
