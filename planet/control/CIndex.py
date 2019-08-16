@@ -16,7 +16,7 @@ from planet.service.SIndex import SIndex
 
 
 class CIndex:
-    LCBASE = '/pages/travel/scenicDetail?sspid={}'
+    LCBASE = '/pages/personal/richText?lcid=={}'
 
     def __init__(self):
         self.sindex = SIndex()
