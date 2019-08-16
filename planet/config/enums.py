@@ -808,7 +808,7 @@ class PlayPayType(Enum):
 
 class TemplateID(Enum):
     """小程序模板id"""
-    enter = 'enter', 'Q1x_k7hWf2bj4Wfn3aWzsmY3-ij-gtDgdcOjzBTjYtQ'
+    enter = 'enter', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     cancel = 'cancel', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     gather = 'gather', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
     activity = 'activity', 's3OkZQ1Q28VGtqdehYWq46TVj7eTasc8uluJJDoxxKA'
