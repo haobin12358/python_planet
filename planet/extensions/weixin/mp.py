@@ -13,9 +13,7 @@ import requests
 
 from .base import Map, WeixinError
 
-
 __all__ = ("WeixinMPError", "WeixinMP")
-
 
 DEFAULT_DIR = os.getenv("HOME", os.getcwd())
 
@@ -434,3 +432,23 @@ class WeixinMP(object):
         :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
         """
         return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
+
+    def get_wxacode_unlimit(self, scene, **kwargs):
+        """
+
+        :param scene: 参数 a=1&b=2
+        :param kwargs: {
+        page: 路由,
+        width: 二维码宽度默认430,
+        auto_color: 自动配置线条颜色,
+        line_color: auto_color 为 false 时生效，使用 rgb 设置颜色 例如 {"r":"xxx","g":"xxx","b":"xxx"} 十进制表示,
+        is_hyaline: 是否需要透明底色，为 true 时，生成透明底色的小程序
+        }
+        :return:
+        """
+        # page = kwargs.get('page')
+        # if not isinstance(scene, str):
+        # scene = json.dumps(scene)
+
+        kwargs['scene'] = scene
+        return self.post('/getwxacodeunlimit', kwargs, prefix='/wxa')
