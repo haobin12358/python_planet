@@ -601,7 +601,7 @@ class CScenicSpot(BASEAPPROVAL):
         secret_usid = data.get('secret_usid')
         csc = None
         if secret_usid:
-            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'), album=True)
         if csc:
             current_app.logger.info('get cscid: {}'.format(csc.CSCid))
             res = json.loads(csc.Album)
@@ -612,14 +612,14 @@ class CScenicSpot(BASEAPPROVAL):
         request.mount = len(res)
         return Success(data=res)
 
-    def get_customize_share_content(self, secret_usid, plid):
+    def get_customize_share_content(self, secret_usid, plid, album=False):
         try:
             superid = self.cuser._base_decode(secret_usid)
             current_app.logger.info('secret_usid --> superid {}'.format(superid))
         except Exception as e:
             current_app.logger.error('解析secret_usid时失败： {}'.format(e))
             superid = ''
-        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') else 1
+        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') or not album else 1
         csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
                                                  CustomizeShareContent.USid == superid,
                                                  CustomizeShareContent.CSCtype == csctype,
