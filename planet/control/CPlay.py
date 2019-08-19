@@ -13,6 +13,7 @@ from sqlalchemy import Date, or_, and_, false, extract, func
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
+from planet.common.playpicture import PlayPicture
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin, \
     binded_phone
@@ -2204,3 +2205,27 @@ class CPlay():
                                  ).delete_(synchronize_session=False)
         PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
                              ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
+
+    @phone_required
+    def get_promotion(self):
+        data = parameter_required('plid')
+        plid = data.get('plid')
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        if not play:
+            raise ParamsError('活动已删除')
+        self._fill_costs(play, show=False)
+        self._fill_insurances(play, show=False)
+        starttime = self._check_time(play.PLstartTime)
+        endtime = self._check_time(play.PLendTime, fmt='%m/%d')
+
+        playpicture = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum)
+
+    def _check_time(self, time_model, fmt='%Y/%m/%d'):
+        if isinstance(time_model, datetime):
+            return time_model.strftime(fmt)
+        else:
+            try:
+                return datetime.strptime(str(time_model), '%Y-%m-%d %H:%M:%S').strftime(fmt)
+            except:
+                current_app.logger.error('时间转换错误')
+                raise StatusError('系统异常，请联系客服解决')
