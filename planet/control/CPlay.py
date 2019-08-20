@@ -2213,12 +2213,20 @@ class CPlay():
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if not play:
             raise ParamsError('活动已删除')
+        user = get_current_user()
         self._fill_costs(play, show=False)
         self._fill_insurances(play, show=False)
         starttime = self._check_time(play.PLstartTime)
         endtime = self._check_time(play.PLendTime, fmt='%m/%d')
 
-        playpicture = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum)
+        local_path, promotion_path = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum, user.USid, plid)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        try:
+            qiniu.save(local_path, filename=promotion_path[1:])
+        except Exception as e:
+            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+        return Success(data=promotion_path)
 
     def _check_time(self, time_model, fmt='%Y/%m/%d'):
         if isinstance(time_model, datetime):

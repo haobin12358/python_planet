@@ -34,7 +34,7 @@ class PlayPicture():
     res_path = '../extensions/staticres/'
     pro_1 = '跟旗行一起游山玩水'
     pro_2 = '长按扫码加入我们'
-
+    temp_path = ''
 
     def _get_path(self, fold):
         """获取服务器上文件路径"""
@@ -67,7 +67,7 @@ class PlayPicture():
             head.write(content.content)
         return filedbname
 
-    def create(self, path, plname, starttime, endtime, playprice):
+    def create(self, path, plname, starttime, endtime, playprice, usid, plid):
         if not str(path).startswith('/img'):
             if not (str(path).startswith('http') or str(path).startswith('https')):
                 return
@@ -82,11 +82,12 @@ class PlayPicture():
             plname = plname[:30] + '..'
 
         new_im = img.open(path)
-        shuffix = path.split('.')[-1]
+        shuffix = str(path).split('.')[-1]
         x, y = new_im.size
         if x != 750 or y != 1010:
-            new_im.resize((750, 1010), img.LANCZOS).save('temp.{}'.format(shuffix))
-            new_im = img.open('temp.' + shuffix)
+            temp_path = os.path.join(self._get_path('tmp')[0], 'temp{}.{}'.format(str(uuid.uuid1()), shuffix))
+            new_im.resize((750, 1010), img.LANCZOS).save(temp_path)
+            new_im = img.open(temp_path)
         # 模糊处理
         new_im = new_im.filter(MyGaussianBlur(radius=30))
         dw = imd.Draw(new_im)
@@ -99,8 +100,10 @@ class PlayPicture():
         # 内容图片
         inner_im = img.open(path)
         if x != 640 or y != 374:
-            inner_im.resize((640, 374), img.LANCZOS).save('temp2.{}'.format(shuffix))
-            inner_im = img.open('temp2.{}'.format(shuffix))
+            temp_path = os.path.join(self._get_path('tmp')[0], 'temp2{}.{}'.format(str(uuid.uuid1()), shuffix))
+
+            inner_im.resize((640, 374), img.LANCZOS).save(temp_path)
+            inner_im = img.open(temp_path)
         new_im.paste(inner_im, (55, 90))
 
         # 活动内容
@@ -128,7 +131,6 @@ class PlayPicture():
         price_x = 680 - len(str(playprice) * 26)
         dw.text((price_x, 600), playprice, font=pricefont, fill='#000000')
 
-        new_im.save('nomask.{}'.format(shuffix))
         # pro1
         profont_1 = imf.truetype(os.path.join(self.res_path, 'PangMenZhengDao.ttf'), 52)
         dw.text((47, 831), self.pro_1, font=profont_1, fill='#FFFFFF')
@@ -137,8 +139,14 @@ class PlayPicture():
         dw.text((47, 875), self.pro_2, font=profont_2, fill='#FFFFFF')
         # 小程序码底层矩形
         self.draw_round_rec(dw, 'white', 555, 789, 160, 160, 40)
-        # new_im.show()
 
+        # new_im.show()
+        new_im_path, new_im_db_path = self._get_path('play')
+
+        db_path = os.path.join(new_im_db_path, '{}{}.{}'.format(plid, usid, shuffix))
+        local_path = os.path.join(new_im_path, '{}{}.{}'.format(plid, usid, shuffix))
+        new_im.save(local_path)
+        return local_path, db_path
 
     def draw_round_rec(self, dw, color, x, y, w, h, r):
         """
@@ -190,4 +198,4 @@ if __name__ == '__main__':
     starttime = '2019/6/10'
     endtime = '6/12'
     playprice = '1.56'
-    pp = PlayPicture().create(path, plame, starttime, endtime, playprice)
+    # pp = PlayPicture().create(path, plame, starttime, endtime, playprice)
