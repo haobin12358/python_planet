@@ -545,8 +545,8 @@ class CPlay():
         starttime = self._check_time(play.PLstartTime)
         endtime = self._check_time(play.PLendTime, fmt='%m/%d')
 
-        local_path, promotion_path = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum,
-                                                          user.USid, plid)
+        local_path, promotion_path = PlayPicture().create(
+            play.PLimg, play.PLname, starttime, endtime, str(play.playsum), user.USid, plid)
         from planet.extensions.qiniu.storage import QiniuStorage
         qiniu = QiniuStorage(current_app)
         try:

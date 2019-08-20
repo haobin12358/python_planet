@@ -31,10 +31,12 @@ class MyGaussianBlur(ImageFilter.Filter):
 
 
 class PlayPicture():
-    res_path = '../extensions/staticres/'
-    pro_1 = '跟旗行一起游山玩水'
-    pro_2 = '长按扫码加入我们'
-    temp_path = ''
+    # res_path = '../extensions/staticres/'
+    def __init__(self):
+        self.res_path = os.path.join(current_app.config['BASEDIR'], 'planet', 'extensions', 'staticres')
+        self.pro_1 = '跟旗行一起游山玩水'
+        self.pro_2 = '长按扫码加入我们'
+        self.temp_path = ''
 
     def _get_path(self, fold):
         """获取服务器上文件路径"""
@@ -72,16 +74,20 @@ class PlayPicture():
             if not (str(path).startswith('http') or str(path).startswith('https')):
                 return
             else:
+                current_app.logger.info('当前图片路由{} 不在当前服务，需拉取资源'.format(path))
                 path = self._get_fetch(path)
         else:
-            if not os.path.isfile(path):
+            # path =
+
+            if not os.path.isfile(os.path.join(current_app.config['BASEDIR'], path[1:])):
+                current_app.logger.info('当前图片路由{} 不在当前服务，需从图片服务器拉取资源'.format(path))
                 path = self._get_fetch(path, qiniu=True)
 
         # new_im = img.new('RGBA', (750, 1010), color='white')
         if len(plname) >= 34:
             plname = plname[:30] + '..'
-
-        new_im = img.open(path)
+        local_path = os.path.join(current_app.config['BASEDIR'], path[1:])
+        new_im = img.open(local_path)
         shuffix = str(path).split('.')[-1]
         x, y = new_im.size
         if x != 750 or y != 1010:
@@ -98,7 +104,7 @@ class PlayPicture():
         # self.drawRoundRec(new_im, 'white', 35, 50, 680, 680, 60)
         self.drawrec(dw, 'white', 35, 46, 680, 680)
         # 内容图片
-        inner_im = img.open(path)
+        inner_im = img.open(local_path)
         if x != 640 or y != 374:
             temp_path = os.path.join(self._get_path('tmp')[0], 'temp2{}.{}'.format(str(uuid.uuid1()), shuffix))
 
