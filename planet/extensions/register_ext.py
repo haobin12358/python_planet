@@ -11,7 +11,7 @@ from planet.common.query_session import Query
 from planet.config.http_config import API_HOST
 from planet.config.secret import DB_PARAMS, alipay_appid, alipay_notify, app_private_path, alipay_public_key_path, \
     appid, mch_id, mch_key, wxpay_notify_url, BASEDIR, server_dir, cache_redis, apiclient_key, apiclient_cert, \
-    MiniProgramAppId, MiniProgramWxpay_notify_url, miniprogram_dir, subscribe_dir, MiniProgramAppSecret
+    MiniProgramAppId, MiniProgramWxpay_notify_url, miniprogram_dir, subscribe_dir, MiniProgramAppSecret, SENTRY_DSN
 from planet.extensions.weixin import WeixinPay
 from .loggers import LoggerHandler
 from .weixin.mp import WeixinMP
@@ -85,3 +85,7 @@ def register_ext(app, logger_file='/tmp/planet_version2/'):
     LoggerHandler(app, file=logger_file).error_handler()
     from planet.extensions.tasks import celery
     celery.init_app(app)
+    if API_HOST == 'https://www.bigxingxing.com':
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(dsn=SENTRY_DSN, integrations=[FlaskIntegration()], send_default_pii=True)
