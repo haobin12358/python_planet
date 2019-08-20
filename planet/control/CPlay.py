@@ -533,6 +533,29 @@ class CPlay():
         return Success(data=mo_list)
 
     @phone_required
+    def get_promotion(self):
+        data = parameter_required('plid')
+        plid = data.get('plid')
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        if not play:
+            raise ParamsError('活动已删除')
+        user = get_current_user()
+        self._fill_costs(play, show=False)
+        self._fill_insurances(play, show=False)
+        starttime = self._check_time(play.PLstartTime)
+        endtime = self._check_time(play.PLendTime, fmt='%m/%d')
+
+        local_path, promotion_path = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum,
+                                                          user.USid, plid)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        try:
+            qiniu.save(local_path, filename=promotion_path[1:])
+        except Exception as e:
+            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+        return Success(data=promotion_path)
+
+    @phone_required
     def download_team_user_info(self):
         """下载活动报名信息"""
         data = parameter_required('plid')
@@ -2205,28 +2228,6 @@ class CPlay():
                                  ).delete_(synchronize_session=False)
         PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
                              ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
-
-    @phone_required
-    def get_promotion(self):
-        data = parameter_required('plid')
-        plid = data.get('plid')
-        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
-        if not play:
-            raise ParamsError('活动已删除')
-        user = get_current_user()
-        self._fill_costs(play, show=False)
-        self._fill_insurances(play, show=False)
-        starttime = self._check_time(play.PLstartTime)
-        endtime = self._check_time(play.PLendTime, fmt='%m/%d')
-
-        local_path, promotion_path = PlayPicture().create(play.PLimg, play.PLname, starttime, endtime, play.playsum, user.USid, plid)
-        from planet.extensions.qiniu.storage import QiniuStorage
-        qiniu = QiniuStorage(current_app)
-        try:
-            qiniu.save(local_path, filename=promotion_path[1:])
-        except Exception as e:
-            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
-        return Success(data=promotion_path)
 
     def _check_time(self, time_model, fmt='%Y/%m/%d'):
         if isinstance(time_model, datetime):
