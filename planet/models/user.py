@@ -38,6 +38,7 @@ class User(Base):
     USlevel = Column(Integer, default=1, comment='等级 {1：普通游客，2：代理商, 3: 申请成代理商中}')
     USfrom = Column(Integer, default=1, comment='注册来源 {1: 微信h5, 2: app}')
     USqrcode = Column(Text, url=True, comment='用户二维码')
+    USwxacode = Column(Text, url=True, comment='用户小程序码')
     USpaycode = Column(Text, comment='支付密码')
     UScontinuous = Column(Integer, default=0, comment='连续签到天数')
     UStoAgentTime = Column(DateTime, comment='成为代理商时间')
@@ -344,3 +345,12 @@ class UserHomeCount(Base):
     UHCid = Column(String(64), primary_key=True)
     UHid = Column(String(64), nullable=False, comment='主页用户id')
     USid = Column(String(64), nullable=False, comment='用户id')
+
+
+class SharingParameters(Base):
+    """短分享参数"""
+    __tablename__ = 'SharingParameters'
+    SPSid = Column(Integer, autoincrement=True, primary_key=True, comment='主键，同时作为缩短的参数')
+    USid = Column(String(64), comment='用户id')
+    SPScontent = Column(Text, comment='分享的原参数')
+    SPSname = Column(String(30), comment='分享的参数名 如: secret_usid, plid')
