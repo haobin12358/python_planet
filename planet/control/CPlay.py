@@ -33,7 +33,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay, SharingParameters
+    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation
 
 
 class CPlay():
@@ -103,22 +103,40 @@ class CPlay():
         return Success(data={'discounts': discounts, 'role': role})
 
     def get_play(self):
-        if not (request.url_root.endswith('share.bigxingxing.com:443/') or binded_phone()):
-            raise TokenError
+
         data = parameter_required(('plid',))
         plid = data.get('plid')
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         secret_usid = data.get('secret_usid')
+        from_url = request.url_root.endswith('share.bigxingxing.com:443/')
+        if not (from_url or secret_usid or binded_phone()):
+            raise TokenError
+        csc = None
+        if secret_usid:
+            if from_url:
+                from planet.control.CScenicSpot import CScenicSpot
+                csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+            else:
+                if common_user() and secret_usid != request.user.id:
+                    superid = self._base_decode(secret_usid)
+                    current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                    with db.auto_commit():
+                        uin = UserInvitation.create({
+                            'UINid': str(uuid.uuid1()),
+                            'USInviter': secret_usid,
+                            'USInvited': request.user.id
+                        })
+                        current_app.logger.info('已创建邀请记录')
+                        db.session.add(uin)
+
         self._fill_play(play)
         self._fill_costs(play)
         self._fill_insurances(play)
         self._fill_discount(play)
-        csc = None
-        if secret_usid:
-            from planet.control.CScenicSpot import CScenicSpot
-            csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+
         if csc and not csc.Detail:
             play.PLcontent = None
+
         return Success(data=play)
 
     @phone_required
@@ -549,7 +567,9 @@ class CPlay():
         # 获取微信二维码
         from planet.control.CUser import CUser
         cuser = CUser()
-        params_key = cuser.shorten_parameters('{}&secret_usid={}'.format(params, usid), usid, 'params')
+        if 'secret_usid' not in params:
+            params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
+        params_key = cuser.shorten_parameters(params, usid, 'params')
         wxacode_path = cuser.wxacode_unlimit(
             usid, {'params': params_key}, img_name='{}{}'.format(usid, plid), )
         local_path, promotion_path = PlayPicture().create(
@@ -561,7 +581,12 @@ class CPlay():
                 qiniu.save(local_path, filename=promotion_path[1:])
             except Exception as e:
                 current_app.logger.info('上传七牛云失败，{}'.format(e.args))
-        return Success(data=promotion_path)
+        scene = cuser.dict_to_query_str({'params': params_key})
+        current_app.logger.info('get scene = {}'.format(scene))
+        return Success(data={
+            'promotion_path': promotion_path,
+            'scene': scene
+        })
 
     @phone_required
     def download_team_user_info(self):
@@ -1687,6 +1712,7 @@ class CPlay():
             play.fill('isrefund', isrefund)
         else:
             play.fill('editstatus', False)
+            play.fill('playtype', True)
             play.fill('joinstatus',
                       bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
@@ -2258,3 +2284,8 @@ class CPlay():
             except:
                 current_app.logger.error('时间转换错误')
                 raise StatusError('系统异常，请联系客服解决')
+
+    def _base_decode(self, raw, raw_name='secret_usid'):
+        import base64
+        decoded = base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+        return decoded
