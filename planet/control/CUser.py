@@ -307,7 +307,7 @@ class CUser(SUser, BASEAPPROVAL):
         filedbname = os.path.join(savedbpath, '{}.jpg'.format(img_name))
         current_app.logger.info('filename: {} ; filedbname: {}'.format(filename, filedbname))
         if not scene:
-            scene = {'secret_usid': self.shorten_parameters(secret_usid, usid, 'secret_usid')}  # 缩短secret_usid
+            scene = {'params': self.shorten_parameters('secret_usid={}'.format(secret_usid), usid, 'params')}
         scene_str = self.dict_to_query_str(scene)
         current_app.logger.info('get scene str: {}'.format(scene_str))
         try:
