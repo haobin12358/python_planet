@@ -69,7 +69,7 @@ class PlayPicture():
             head.write(content.content)
         return filedbname
 
-    def create(self, path, plname, starttime, endtime, playprice, usid, plid):
+    def create(self, path, plname, starttime, endtime, playprice, usid, plid, wxacode):
         if not str(path).startswith('/img'):
             if not (str(path).startswith('http') or str(path).startswith('https')):
                 return
@@ -144,8 +144,13 @@ class PlayPicture():
         profont_2 = imf.truetype(os.path.join(self.res_path, 'PingFangSCRegular.ttf'), 32)
         dw.text((47, 875), self.pro_2, font=profont_2, fill='#FFFFFF')
         # 小程序码底层矩形
-        self.draw_round_rec(dw, 'white', 555, 789, 160, 160, 40)
-
+        # self.draw_round_rec(dw, 'white', 555, 789, 160, 160, 40)
+        # 小程序码
+        wxacode = img.open(os.path.join(current_app.config['BASEDIR'], wxacode[1:]))
+        temp_path = os.path.join(self._get_path('tmp')[0], 'temp3{}.{}'.format(str(uuid.uuid1()), shuffix))
+        wxacode.resize((160, 160), img.LANCZOS).save(temp_path)
+        wxacode = img.open(temp_path)
+        new_im.paste(wxacode, (555, 789))
         # new_im.show()
         new_im_path, new_im_db_path = self._get_path('play')
 

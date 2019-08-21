@@ -33,7 +33,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay
+    SuccessorSearchLog, PlayPay, SharingParameters
 
 
 class CPlay():
@@ -536,23 +536,31 @@ class CPlay():
     def get_promotion(self):
         data = parameter_required('plid')
         plid = data.get('plid')
+        params = data.get('params')
         play = Play.query.filter_by(PLid=plid, isdelete=False).first()
         if not play:
             raise ParamsError('活动已删除')
         user = get_current_user()
+        usid = user.USid
         self._fill_costs(play, show=False)
         self._fill_insurances(play, show=False)
         starttime = self._check_time(play.PLstartTime)
         endtime = self._check_time(play.PLendTime, fmt='%m/%d')
-
+        # 获取微信二维码
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        params_key = cuser.shorten_parameters('{}&secret_usid={}'.format(params, usid), usid, 'params')
+        wxacode_path = cuser.wxacode_unlimit(
+            usid, {'params': params_key}, img_name='{}{}'.format(usid, plid), )
         local_path, promotion_path = PlayPicture().create(
-            play.PLimg, play.PLname, starttime, endtime, str(play.playsum), user.USid, plid)
+            play.PLimg, play.PLname, starttime, endtime, str(play.playsum), usid, plid, wxacode_path)
         from planet.extensions.qiniu.storage import QiniuStorage
         qiniu = QiniuStorage(current_app)
-        try:
-            qiniu.save(local_path, filename=promotion_path[1:])
-        except Exception as e:
-            current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                qiniu.save(local_path, filename=promotion_path[1:])
+            except Exception as e:
+                current_app.logger.info('上传七牛云失败，{}'.format(e.args))
         return Success(data=promotion_path)
 
     @phone_required
@@ -577,6 +585,18 @@ class CPlay():
         if data.get('read'):
             return Success(data={'url': API_HOST + '/' + aletive_file})
         return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
+
+    def get_params(self):
+        data = parameter_required()
+        # from planet.control.CUser import CUser
+        # cuser = CUser()
+        params_value = data.get('value')
+        key = data.get('key')
+
+        params = db.session.query(
+            SharingParameters.SPScontent).filter(SharingParameters.SPSid == params_value,
+                                                 SharingParameters.SPSname == key).scalar()
+        return Success(data=params)
 
     """post 接口"""
 
