@@ -29,7 +29,9 @@ class APlay(Resource):
             'get_mosuccessor': self.cplay.get_mosuccessor,
             'get_make_over': self.cplay.get_make_over,
             'get_make_over_list': self.cplay.get_make_over_list,
+            'get_promotion': self.cplay.get_promotion,
             'get_undertake_agreement': self.cplay.get_undertake_agreement,
+            'get_params': self.cplay.get_params,
             'download_team': self.cplay.download_team_user_info,
         }
         return apis

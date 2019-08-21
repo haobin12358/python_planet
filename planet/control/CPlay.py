@@ -13,6 +13,7 @@ from sqlalchemy import Date, or_, and_, false, extract, func
 from planet.common.chinesenum import to_chinese4
 from planet.common.error_response import ParamsError, StatusError, AuthorityError, TokenError
 from planet.common.params_validates import parameter_required, validate_price
+from planet.common.playpicture import PlayPicture
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin, \
     binded_phone
@@ -32,7 +33,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay
+    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation
 
 
 class CPlay():
@@ -102,22 +103,40 @@ class CPlay():
         return Success(data={'discounts': discounts, 'role': role})
 
     def get_play(self):
-        if not (request.url_root.endswith('share.bigxingxing.com:443/') or binded_phone()):
-            raise TokenError
+
         data = parameter_required(('plid',))
         plid = data.get('plid')
         play = Play.query.filter_by(PLid=plid, isdelete=False).first_('活动已删除')
         secret_usid = data.get('secret_usid')
+        from_url = request.url_root.endswith('share.bigxingxing.com:443/')
+        if not (from_url or secret_usid or binded_phone()):
+            raise TokenError
+        csc = None
+        if secret_usid:
+            if from_url:
+                from planet.control.CScenicSpot import CScenicSpot
+                csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+            else:
+                if common_user() and secret_usid != request.user.id:
+                    superid = self._base_decode(secret_usid)
+                    current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                    with db.auto_commit():
+                        uin = UserInvitation.create({
+                            'UINid': str(uuid.uuid1()),
+                            'USInviter': secret_usid,
+                            'USInvited': request.user.id
+                        })
+                        current_app.logger.info('已创建邀请记录')
+                        db.session.add(uin)
+
         self._fill_play(play)
         self._fill_costs(play)
         self._fill_insurances(play)
         self._fill_discount(play)
-        csc = None
-        if secret_usid:
-            from planet.control.CScenicSpot import CScenicSpot
-            csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+
         if csc and not csc.Detail:
             play.PLcontent = None
+
         return Success(data=play)
 
     @phone_required
@@ -532,6 +551,44 @@ class CPlay():
         return Success(data=mo_list)
 
     @phone_required
+    def get_promotion(self):
+        data = parameter_required('plid')
+        plid = data.get('plid')
+        params = data.get('params')
+        play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        if not play:
+            raise ParamsError('活动已删除')
+        user = get_current_user()
+        usid = user.USid
+        self._fill_costs(play, show=False)
+        self._fill_insurances(play, show=False)
+        starttime = self._check_time(play.PLstartTime)
+        endtime = self._check_time(play.PLendTime, fmt='%m/%d')
+        # 获取微信二维码
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        if 'secret_usid' not in params:
+            params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
+        params_key = cuser.shorten_parameters(params, usid, 'params')
+        wxacode_path = cuser.wxacode_unlimit(
+            usid, {'params': params_key}, img_name='{}{}'.format(usid, plid), )
+        local_path, promotion_path = PlayPicture().create(
+            play.PLimg, play.PLname, starttime, endtime, str(play.playsum), usid, plid, wxacode_path)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                qiniu.save(local_path, filename=promotion_path[1:])
+            except Exception as e:
+                current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+        scene = cuser.dict_to_query_str({'params': params_key})
+        current_app.logger.info('get scene = {}'.format(scene))
+        return Success(data={
+            'promotion_path': promotion_path,
+            'scene': scene
+        })
+
+    @phone_required
     def download_team_user_info(self):
         """下载活动报名信息"""
         data = parameter_required('plid')
@@ -553,6 +610,18 @@ class CPlay():
         if data.get('read'):
             return Success(data={'url': API_HOST + '/' + aletive_file})
         return send_from_directory(abs_dir, xls_name, as_attachment=True, cache_timeout=-1)
+
+    def get_params(self):
+        data = parameter_required()
+        # from planet.control.CUser import CUser
+        # cuser = CUser()
+        params_value = data.get('value')
+        key = data.get('key')
+
+        params = db.session.query(
+            SharingParameters.SPScontent).filter(SharingParameters.SPSid == params_value,
+                                                 SharingParameters.SPSname == key).scalar()
+        return Success(data=params)
 
     """post 接口"""
 
@@ -1643,6 +1712,7 @@ class CPlay():
             play.fill('isrefund', isrefund)
         else:
             play.fill('editstatus', False)
+            play.fill('playtype', True)
             play.fill('joinstatus',
                       bool((int(enter_num) < int(play.PLnum)) and (play.PLstatus == PlayStatus.publish.value)))
 
@@ -2204,3 +2274,18 @@ class CPlay():
                                  ).delete_(synchronize_session=False)
         PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == elid
                              ).delete_(synchronize_session=False)  # 删除之前未支付成功的记录
+
+    def _check_time(self, time_model, fmt='%Y/%m/%d'):
+        if isinstance(time_model, datetime):
+            return time_model.strftime(fmt)
+        else:
+            try:
+                return datetime.strptime(str(time_model), '%Y-%m-%d %H:%M:%S').strftime(fmt)
+            except:
+                current_app.logger.error('时间转换错误')
+                raise StatusError('系统异常，请联系客服解决')
+
+    def _base_decode(self, raw, raw_name='secret_usid'):
+        import base64
+        decoded = base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+        return decoded
