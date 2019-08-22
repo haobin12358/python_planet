@@ -682,7 +682,9 @@ class CUser(SUser, BASEAPPROVAL):
                        {'acid': address[2], 'acname': address[3]},
                        {'aaid': address[4], 'aaname': address[5]}] if address else []
         user.fill('usarea_info', usarea_info)
-
+        if not user.USwxacode:
+            with db.auto_commit():
+                user.USwxacode = self.wxacode_unlimit(user.USid)
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
         user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
