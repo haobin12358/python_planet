@@ -230,7 +230,7 @@ class CScenicSpot(BASEAPPROVAL):
         sspid = args.get('sspid')
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         scenicspot.hide('ParentID', 'ADid')
-        parent = address_info = None
+        parent = None
         recommend_raiders = []
         # 地址处理
         address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,

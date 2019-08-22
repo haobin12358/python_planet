@@ -1713,7 +1713,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         if upperd:
             uin = UserInvitation.create({
-                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({
@@ -1841,7 +1841,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         if upperd:
             uin = UserInvitation.create({
-                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({
@@ -2031,16 +2031,17 @@ class CUser(SUser, BASEAPPROVAL):
                 'USunionid': unionid,
                 'USwxacode': self.wxacode_unlimit(usid)
             }
-            if upperd:
-                # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
-                if upperd.USlevel == self.AGENT_TYPE:
-                    user_dict.setdefault('USsupper1', upperd.USid)
-                    user_dict.setdefault('USsupper2', upperd.USsupper1)
-                    user_dict.setdefault('USsupper3', upperd.USsupper2)
+            # if upperd:
+            #     # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
+            #     if upperd.USlevel == self.AGENT_TYPE:
+            #         user_dict.setdefault('USsupper1', upperd.USid)
+            #         user_dict.setdefault('USsupper2', upperd.USsupper1)
+            #         user_dict.setdefault('USsupper3', upperd.USsupper2)
             user = User.create(user_dict)
             db.session.add(user)
         if upperd:
-            uin = UserInvitation.create({'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+            uin = UserInvitation.create(
+                {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),

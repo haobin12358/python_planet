@@ -254,6 +254,7 @@ class UserInvitation(Base):
     UINid = Column(String(64), primary_key=True)
     USInviter = Column(String(64), comment='邀请人')
     USInvited = Column(String(64), comment='被邀请人')
+    UINapi = Column(String(100), comment='触发此次记录的api')
 
 
 class UserWallet(Base):

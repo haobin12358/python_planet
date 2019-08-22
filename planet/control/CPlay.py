@@ -124,7 +124,8 @@ class CPlay():
                         uin = UserInvitation.create({
                             'UINid': str(uuid.uuid1()),
                             'USInviter': superid,
-                            'USInvited': request.user.id
+                            'USInvited': request.user.id,
+                            'UINapi': request.path
                         })
                         current_app.logger.info('已创建邀请记录')
                         db.session.add(uin)
