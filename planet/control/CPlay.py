@@ -2201,7 +2201,7 @@ class CPlay():
         if not successor:
             current_app.logger.info('{} 的承接人不存在'.format(mo.MOid))
             successor_name = '旗行官方'
-            tel = '15079564121'
+            tel = '19817444373'
         else:
             successor_name = ssl.USrealname if ssl else successor.USrealname or successor.USname
             tel = ssl.UStelphone if ssl else successor.UStelphone
