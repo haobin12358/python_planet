@@ -113,17 +113,17 @@ class CPlay():
             raise TokenError
         csc = None
         if secret_usid:
+            superid = self._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
             if from_url:
                 from planet.control.CScenicSpot import CScenicSpot
                 csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
             else:
-                if common_user() and secret_usid != request.user.id:
-                    superid = self._base_decode(secret_usid)
-                    current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                if common_user() and superid != request.user.id:
                     with db.auto_commit():
                         uin = UserInvitation.create({
                             'UINid': str(uuid.uuid1()),
-                            'USInviter': secret_usid,
+                            'USInviter': superid,
                             'USInvited': request.user.id
                         })
                         current_app.logger.info('已创建邀请记录')
