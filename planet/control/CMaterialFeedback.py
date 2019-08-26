@@ -8,7 +8,7 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required, get_current_user, token_required, is_admin, admin_required
-from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus
+from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus, ApplyFrom
 from planet.extensions.register_ext import db
 from planet.models import UserMaterialFeedback, MaterialFeedbackLinkage, Linkage, Ticket, TicketLinkage, UserWallet, \
     User
@@ -89,11 +89,25 @@ class CMaterialFeedback():
             umf = UserMaterialFeedback.query.filter_by(
                 UMFid=umfid, UMFstatus=UserMaterialFeedbackStatus.wait.value, isdelete=False).first_('素材反馈已处理')
             ticket = Ticket.query.filter_by(TIid=umf.TIid, isdelete=False).first_('票务已删除')
+            price = Decimal(str(ticket.TIdeposit)).quantize(Decimal('0.00'))
             # 退钱
-            user_wallet = UserWallet.query.filter_by(USid=umf.USid)
-            user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + Decimal(str(ticket.TIdeposit))
-            user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + Decimal(str(ticket.TIdeposit))
-            user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + Decimal(str(ticket.TIdeposit))
+            user_wallet = UserWallet.query.filter_by(USid=umf.USid).first()
+            if user_wallet:
+
+                user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + price
+                user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + price
+                user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + price
+            else:
+                user_wallet_instance = UserWallet.create({
+                    'UWid': str(uuid.uuid1()),
+                    'USid': umf.USid,
+                    'UWbalance': price,
+                    'UWtotal': price,
+                    'UWcash': price,
+                    # 'UWexpect': user_commision.UCcommission,
+                    'CommisionFor': ApplyFrom.user.value
+                })
+                db.session.add(user_wallet_instance)
             # 同一票务的其他凭证修改状态为已处理
             UserMaterialFeedback.query.filter_by(UMFid=umfid, isdelete=False).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
