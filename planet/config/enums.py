@@ -827,6 +827,16 @@ class CategoryType(Enum):
     orange = 2, '折扣券'
 
 
+class LinkageShareType(Enum):
+    screenshot = 0, '仅截图'
+    links = 1, '截图+链接'
+
+
+class UserMaterialFeedbackStatus(Enum):
+    wait = 0, '待退押金'
+    refund = 1, '已退'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import
