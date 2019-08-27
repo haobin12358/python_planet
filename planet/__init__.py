@@ -195,7 +195,7 @@ def register(app):
     v2.add_url_rule('/scenicspot/<string:scenicspot>', view_func=AScenicSpot.as_view('scenicspot'))  # 景区
     v2.add_url_rule('/guessgroup/<string:guessgroup>', view_func=AGuessGroup.as_view('guessgroup'))  # 拼团竞猜
     v2.add_url_rule('/play/<string:play>', view_func=APlay.as_view('play'))  # 活动
-    v2.add_url_rule('/play/<string:feedback>', view_func=AMaterialFeedback.as_view('feedback'))  # 素材反馈
+    v2.add_url_rule('/feedback/<string:feedback>', view_func=AMaterialFeedback.as_view('feedback'))  # 素材反馈
     v2.add_url_rule('/personalcenter/<string:personalcenter>',
                     view_func=AMiniProgramPersonalCenter.as_view('personalcenter'))  # 小程序个人中心
 

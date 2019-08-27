@@ -23,7 +23,8 @@ class CMaterialFeedback():
         data = parameter_required('tiid')
         tiid = data.get('tiid')
         # tiid 合法性校验
-        ticket = Ticket.query.filter_by(TIid=tiid, isdelete=false).first_('ttid 失效')
+        # ticket = Ticket.query.filter_by(TIid=tiid, isdelete=false).first_('ttid 失效')
+        ticket = Ticket.query.filter(Ticket.TIid == tiid, Ticket.isdelete == false()).first_('ttid 失效')
         # umf = UserMaterialFeedback.query.filter_by()
         user = get_current_user()
         umfdetails, umlocation, mfls = data.get('umfdetails'), data.get('umlocation'), data.get('mfls')
@@ -56,14 +57,14 @@ class CMaterialFeedback():
         data = parameter_required('tiid')
         tiid = data.get('tiid')
         # tiid 合法性校验
-        Ticket.query.filter_by(TIid=tiid, isdelete=false).first_('ttid 失效')
+        Ticket.query.filter_by(TIid=tiid, isdelete=False).first_('ttid 失效')
         filter_args = {
             UserMaterialFeedback.TIid == tiid,
             UserMaterialFeedback.isdelete == false()
         }
         # if not is_admin():
         filter_args.add(UserMaterialFeedback.USid == request.user.id)
-        umf = UserMaterialFeedback.query.filter(*filter_args).first()
+        umf = UserMaterialFeedback.query.filter(*filter_args).order_by(UserMaterialFeedback.createtime.desc()).first()
         if not umf:
             return Success()
         self._fill_umf(umf)
@@ -74,7 +75,7 @@ class CMaterialFeedback():
         data = parameter_required('tiid')
         tiid = data.get('tiid')
         # tiid 合法性校验
-        Ticket.query.filter_by(TIid=tiid, isdelete=false).first_('ttid 失效')
+        Ticket.query.filter_by(TIid=tiid, isdelete=False).first_('ttid 失效')
         umfs = UserMaterialFeedback.query.filter_by(TIid=tiid, isdelete=False).all_with_page()
         for umf in umfs:
             self._fill_umf(umf)
@@ -114,10 +115,15 @@ class CMaterialFeedback():
 
         return Success
 
+    @admin_required
     def get_details(self):
         data = parameter_required('umfid')
         umfid = data.get('umfid')
+        umf = UserMaterialFeedback.query.filter_by(UMFid=umfid, isdelete=False).first_('素材反馈已删除')
 
+        self._fill_umf(umf)
+        self._fill_user(umf)
+        return Success(data=umf)
 
     def _fill_umf(self, umf):
         umf.add('createtime')
