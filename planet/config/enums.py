@@ -827,6 +827,28 @@ class CategoryType(Enum):
     orange = 2, '折扣券'
 
 
+class TicketStatus(Enum):
+    """票务状态"""
+    ready = 0, '未开始'
+    active = 1, '抢票中'
+    interrupt = 2, '中止'
+    over = 3, '已结束'
+
+
+class TicketsOrderStatus(Enum):
+    """已购票状态"""
+    not_won = -1, '未中奖'
+    pending = 0, '待开奖'
+    has_won = 1, '中奖'
+    completed = 2, '已出票'
+
+
+class TicketDepositType(Enum):
+    """票务押金类型"""
+    grab = 0, '抢票押金'
+    patch = 1, '补交押金'
+
+
 class LinkageShareType(Enum):
     screenshot = 0, '仅截图'
     links = 1, '截图+链接'
