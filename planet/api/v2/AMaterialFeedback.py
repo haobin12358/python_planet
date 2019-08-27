@@ -11,6 +11,7 @@ class AMaterialFeedback(Resource):
             'get': self.cmf.get,
             'list': self.cmf.list,
             'details': self.cmf.get_details,
+            'get_ticket_linkage': self.cmf.get_ticket_linkage,
         }
         return apis
 

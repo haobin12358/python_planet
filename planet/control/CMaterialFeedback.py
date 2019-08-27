@@ -135,26 +135,6 @@ class CMaterialFeedback():
         self._fill_user(umf)
         return Success(data=umf)
 
-    def _fill_umf(self, umf):
-        umf.fields = ['UMFid', 'UMFlocation', 'UMFstatus', 'TIid']
-        content = json.loads(umf.UMFdetails)
-        umf.fill('text', content.get('text', '...'))
-        umf.fill('image', content.get('image'))
-        umf.fill('video', content.get('video'))
-        if content.get('image'):
-            showtype = 'image'
-        elif content.get('video'):
-            showtype = 'video'
-        else:
-            showtype = 'text'
-        umf.fill('showtype', showtype)
-
-        umf.add('createtime')
-        mfl_list = MaterialFeedbackLinkage.query.filter_by(UMFid=umf.UMFid, isdelete=False).all()
-        for mfl in mfl_list:
-            self._fill_mfl(mfl)
-        umf.fill('mfls', mfl_list)
-
     def _fill_mfl(self, mfl):
         la = Linkage.query.filter(Linkage.LIid == mfl.LIid, Linkage.isdelete == false()).first()
         mfl.fill('linkage', la)
@@ -208,3 +188,35 @@ class CMaterialFeedback():
         if not url or str(url).endswith('undefined'):
             raise ParamsError(msg)
         return url
+
+    def _fill_umf(self, umf):
+        umf.fields = ['UMFid', 'UMFlocation', 'UMFstatus', 'TIid']
+        content = json.loads(umf.UMFdetails)
+        umf.fill('text', content.get('text', '...'))
+        umf.fill('image', content.get('image'))
+        umf.fill('video', content.get('video'))
+        if content.get('image'):
+            showtype = 'image'
+        elif content.get('video'):
+            showtype = 'video'
+        else:
+            showtype = 'text'
+        umf.fill('showtype', showtype)
+
+        umf.add('createtime')
+        mfl_list = MaterialFeedbackLinkage.query.filter_by(UMFid=umf.UMFid, isdelete=False).all()
+        for mfl in mfl_list:
+            self._fill_mfl(mfl)
+        umf.fill('mfls', mfl_list)
+
+    def get_ticket_linkage(self):
+        data = parameter_required('tiid')
+        tiid = data.get('tiid')
+        Ticket.query.filter_by(TIid=tiid, isdelete=False).first_('票已删')
+        tl_list = TicketLinkage.query.filter(
+            TicketLinkage.isdelete == false(),
+            TicketLinkage.TIid == tiid,
+        ).all()
+        for tl in tl_list:
+            self._fill_mfl(tl)
+        return Success(data=tl_list)
