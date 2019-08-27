@@ -11,6 +11,7 @@ class UserMaterialFeedback(Base):
     __tablename__ = 'UserMaterialFeedback'
     UMFid = Column(String(64), primary_key=True)
     UMFdetails = Column(Text)
+    UMimg = Column(Text, url=True)
     UMFlocation = Column(Text)
     UMFstatus = Column(Integer, default=0, comment='0 未退押金 1 已退')
     TIid = Column(String(64), comment='门票id')

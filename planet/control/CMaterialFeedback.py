@@ -1,7 +1,8 @@
+import json
 import uuid
 from decimal import Decimal
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import false
 
 from planet.common.error_response import ParamsError
@@ -27,15 +28,16 @@ class CMaterialFeedback():
         ticket = Ticket.query.filter(Ticket.TIid == tiid, Ticket.isdelete == false()).first_('ttid 失效')
         # umf = UserMaterialFeedback.query.filter_by()
         user = get_current_user()
-        umfdetails, umlocation, mfls = data.get('umfdetails'), data.get('umlocation'), data.get('mfls')
+        mfls = data.get('mfls')
+        umf_dict = self._create_umdetails(data)
+
         with db.auto_commit():
-            umf = UserMaterialFeedback.create({
+            umf_dict.update({
                 'UMFid': str(uuid.uuid1()),
-                'UMFdetails': umfdetails,
-                'UMFlocation': umlocation,
                 'TIid': tiid,
                 'USid': user.USid
             })
+            umf = UserMaterialFeedback.create(umf_dict)
             db.session.add(umf)
             instance_list = []
             for mfl in mfls:
@@ -82,6 +84,7 @@ class CMaterialFeedback():
             self._fill_user(umf)
         return Success(data=umfs)
 
+    @admin_required
     def refund(self):
         data = parameter_required('umfid')
         umfid = data.get('umfid')
@@ -94,10 +97,17 @@ class CMaterialFeedback():
             # 退钱
             user_wallet = UserWallet.query.filter_by(USid=umf.USid).first()
             if user_wallet:
+                current_app.logger.info(
+                    'get uw before change UWbalance = {}, UWtotal= {} UWcash = {}'.format(
+                        user_wallet.UWbalance, user_wallet.UWtotal, user_wallet.UWcash))
 
                 user_wallet.UWbalance = Decimal(str(user_wallet.UWbalance or 0)) + price
                 user_wallet.UWtotal = Decimal(str(user_wallet.UWtotal or 0)) + price
                 user_wallet.UWcash = Decimal(str(user_wallet.UWcash or 0)) + price
+                current_app.logger.info(
+                    'get uw after change UWbalance = {}, UWtotal= {} UWcash = {}'.format(
+                        user_wallet.UWbalance, user_wallet.UWtotal, user_wallet.UWcash))
+
             else:
                 user_wallet_instance = UserWallet.create({
                     'UWid': str(uuid.uuid1()),
@@ -126,6 +136,19 @@ class CMaterialFeedback():
         return Success(data=umf)
 
     def _fill_umf(self, umf):
+        umf.fields = ['UMFid', 'UMFlocation', 'UMFstatus', 'TIid']
+        content = json.loads(umf.UMFdetails)
+        umf.fill('text', content.get('text', '...'))
+        umf.fill('image', content.get('image'))
+        umf.fill('video', content.get('video'))
+        if content.get('image'):
+            showtype = 'image'
+        elif content.get('video'):
+            showtype = 'video'
+        else:
+            showtype = 'text'
+        umf.fill('showtype', showtype)
+
         umf.add('createtime')
         mfl_list = MaterialFeedbackLinkage.query.filter_by(UMFid=umf.UMFid, isdelete=False).all()
         for mfl in mfl_list:
@@ -154,3 +177,34 @@ class CMaterialFeedback():
             umf.fill('USname', user.USname)
             umf.fill('UStelphone', user.UStelphone)
             umf.fill('USheader', user['USheader'])
+
+    def _create_umdetails(self, data):
+        """内容"""
+        text, image, video = data.get('text'), data.get('image'), data.get('video')
+        # if image:
+        #     current_app.logger.error("图片校验测试")
+        #     current_app.logger.error(mp_miniprogram.img_sec_check(image))
+        if image and not isinstance(image, list):
+            raise ParamsError('image 格式错误')
+        if image and video:
+            raise ParamsError('不能同时选择图片和视频')
+        if image and len(image) > 9:
+            raise ParamsError('最多可上传9张图片')
+        video = {'url': self._check_upload_url(video.get('url')),
+                 'thumbnail': video.get('thumbnail'),
+                 'duration': video.get('duration')
+                 } if video else None
+        content = {'text': text,
+                   'image': [self._check_upload_url(i, msg='图片格式错误, 请检查后重新上传') for i in image] if image else None,
+                   'video': video
+                   }
+        content = json.dumps(content)
+        return {'UMFdetails': content,
+                'UMFlocation': data.get('umlocation')
+                }
+
+    @staticmethod
+    def _check_upload_url(url, msg='视频上传出错，请重新上传(视频时长需大于3秒，小于60秒)'):
+        if not url or str(url).endswith('undefined'):
+            raise ParamsError(msg)
+        return url
