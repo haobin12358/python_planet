@@ -176,7 +176,7 @@ class CFile(object):
     def allowed_folder(folder):
         return folder if folder in ['index', 'product', 'temp', 'item', 'news', 'category', 'video', 'avatar',
                                     'voucher', 'idcard', 'brand', 'activity', 'contract', 'play',
-                                    'scenicspot', 'raiders', 'travels', 'essay'] else 'temp'
+                                    'scenicspot', 'raiders', 'travels', 'essay', 'feedback', 'ticket'] else 'temp'
 
     def new_name(self, shuffix):
         import string
