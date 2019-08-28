@@ -18,6 +18,6 @@ class ATicket(Resource):
         apis = {
             'create': self.cticket.create_ticket,
             'update': self.cticket.update_ticket,
-            'order': self.cticket.order,
+            'pay': self.cticket.pay,
         }
         return apis

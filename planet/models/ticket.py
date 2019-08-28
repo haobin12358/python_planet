@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Integer, String, Text, DateTime, DECIMAL
+from sqlalchemy import orm, Integer, String, Text, DateTime, DECIMAL
 from sqlalchemy.dialects.mysql import LONGTEXT
 from planet.common.base_model import Base, Column
 
@@ -46,6 +46,13 @@ class Ticket(Base):
     TIstatus = Column(Integer, default=0, comment='抢票状态 0: 未开始, 1: 抢票中, 2: 中止 , 3: 已结束')
     TInum = Column(Integer, default=1, comment='数量')
     TIrewardnum = Column(LONGTEXT, comment='中奖号码')
+    TIabbreviation = Column(String(200), comment='列表页封面的简称')
+    TIcategory = Column(Text, comment='列表页显示的类型')
+
+    @orm.reconstructor
+    def __init__(self):
+        super(Ticket, self).__init__()
+        self.hide('TIcategory', 'TIrewardnum')
 
 
 class TicketDeposit(Base):

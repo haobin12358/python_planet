@@ -804,6 +804,7 @@ class PlayPayType(Enum):
     """小程序支付流水类型"""
     enterlog = 10, '报名'
     undertake = 20, '承接'
+    ticket = 30, '票务'
 
 
 class TemplateID(Enum):

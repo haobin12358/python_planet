@@ -1,40 +1,32 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
-import re
 from datetime import datetime
 from flask import current_app, request
-from sqlalchemy import or_, false, extract, and_, func
-from planet.common.error_response import ParamsError, TokenError
+from sqlalchemy import false
+from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
-    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus, TicketStatus, TicketsOrderStatus
-from planet.config.http_config import API_HOST
-from planet.extensions.register_ext import db, mp_miniprogram
-from planet.extensions.weixin.mp import WeixinMPError
-from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder
-from planet.models import EnterLog, Play, Approval
-from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
-from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
-from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
+from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, PayType
+from planet.extensions.register_ext import db
+from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit
+from planet.models.user import User
+from planet.control.BaseControl import BASEADMIN
 from planet.control.CPlay import CPlay
-from planet.control.CUser import CUser
 
 
-class CTicket(object):
+class CTicket(CPlay):
 
     def __init__(self):
+        super(CTicket, self).__init__()
         self.BaseAdmin = BASEADMIN()
-        self.cplay = CPlay()
-        self.cuser = CUser()
 
     @admin_required
     def create_ticket(self):
         """创建票务"""
         data = request.json
-        tistarttime, tiendtime, tiprice, tideposit, tinum, liids = self._validate_ticket_param(data)
+        tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory = self._validate_ticket_param(data)
         if Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIname == data.get('tiname')).first():
             raise ParamsError('该门票名称已存在')
         instance_list = []
@@ -52,6 +44,8 @@ class CTicket(object):
                                     'TIdeposit': tideposit,
                                     'TIstatus': TicketStatus.ready.value,
                                     'TInum': tinum,
+                                    'TIabbreviation': data.get('tiabbreviation'),
+                                    'TIcategory': ticategory
                                     })
             instance_list.append(ticket)
             for liid in liids:
@@ -79,17 +73,22 @@ class CTicket(object):
         isinstance_list = []
         with db.auto_commit():
             if data.get('delete'):
+                if ticket.TIstatus == TicketStatus.active.value:
+                    raise ParamsError('无法直接删除正在抢票中的活动')
                 ticket.update({'isdelete': True})
                 TicketLinkage.query.filter(TicketLinkage.isdelete == false(),
                                            TicketLinkage.TIid == ticket.TIid).delete_(synchronize_session=False)
                 self.BaseAdmin.create_action(AdminActionS.delete.value, 'Ticket', ticket.TIid)
-            elif ticket.TIstatus < TicketStatus.interrupt.value and data.get('interrupt'):
+            elif data.get('interrupt'):
+                if ticket.TIstatus > TicketStatus.active.value:
+                    raise StatusError('该状态下无法中止')
                 ticket.update({'TIstatus': TicketStatus.interrupt.value})
                 # todo 已有抢票产生时，中止活动，直接退钱？
             else:
                 if ticket.TIstatus < TicketStatus.interrupt.value:
                     raise ParamsError('仅可修改已中止或已结束的活动')
-                tistarttime, tiendtime, tiprice, tideposit, tinum, liids = self._validate_ticket_param(data)
+                # todo 编辑已结束的活动，影响已完成的显示，考虑是否重新创建
+                tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory = self._validate_ticket_param(data)
                 ticket.update({'TIname': data.get('tiname'),
                                'TIimg': data.get('tiimg'),
                                'TIstartTime': tistarttime,
@@ -101,6 +100,8 @@ class CTicket(object):
                                'TIdeposit': tideposit,
                                'TIstatus': TicketStatus.ready.value,
                                'TInum': tinum,
+                               'TIabbreviation': data.get('tiabbreviation'),
+                               'TIcategory': ticategory
                                })
                 TicketLinkage.query.filter(TicketLinkage.isdelete == false(),
                                            TicketLinkage.TIid == ticket.TIid).delete_()  # 删除原来的关联
@@ -121,8 +122,9 @@ class CTicket(object):
     @staticmethod
     def _validate_ticket_param(data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
-                            'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金',
-                            'tinum': '门票数量', 'tidetails': '详情'}, datafrom=data)
+                            'tiendtime': '抢票结束时间', 'tirules': '规则', 'tiprice': '票价', 'tideposit': '最低押金',
+                            'tinum': '门票数量', 'tidetails': '详情', 'tiabbreviation': '列表页活动类型简称',
+                            'ticategory': '列表页活动类型标签'}, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', data.get('tistarttime'), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', data.get('tiendtime'), '抢票结束时间格式错误')
         tistarttime, tiendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), (tistarttime, tiendtime))
@@ -141,7 +143,11 @@ class CTicket(object):
         liids = data.get('liids', [])
         if not isinstance(liids, list):
             raise ParamsError('liids 格式错误')
-        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids
+        ticategory = data.get('ticategory', [])
+        if not isinstance(ticategory, list):
+            raise ParamsError('ticategory 格式错误')
+        ticategory = json.dumps(ticategory)
+        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory
 
     def get_ticket(self):
         """门票详情"""
@@ -152,10 +158,13 @@ class CTicket(object):
             raise ParamsError
         ticketorder = None
         if tsoid:
+            if not common_user():
+                raise TokenError
             ticketorder = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                    TicketsOrder.USid == getattr(request, 'user').id,
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
         self._fill_ticket(ticket, ticketorder=ticketorder)
         return Success(data=ticket)
 
@@ -181,11 +190,25 @@ class CTicket(object):
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
         ticket.fill('residual', ticket.TInum)  # todo fake number ?
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
+        ticket.fill('ticategory', json.loads(ticket.TIcategory))
+        tirewardnum, residual_deposit = None, None
         if ticketorder:
             ticket.fill('tsoid', ticketorder.TSOid)
             ticket.fill('tsocode', ticketorder.TSOcode)
             ticket.fill('tsostatus', ticketorder.TSOstatus)
             ticket.fill('tsostatus_zh', TicketsOrderStatus(ticketorder.TSOstatus).zh_value)
+            if ticket.TIstatus == TicketStatus.over.value:
+                tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
+            if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:
+                residual_deposit = ticket.TIprice - ticket.TIdeposit
+        ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
+        ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
+        if is_admin():
+            linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
+                                         ).filter(Linkage.isdelete == false(),
+                                                  TicketLinkage.isdelete == false(),
+                                                  TicketLinkage.TIid == ticket.TIid).all()
+            ticket.fill('linkage', linkage)
 
     def list_ticket(self):
         """门票列表"""
@@ -198,10 +221,16 @@ class CTicket(object):
             filter_args.append(Ticket.TIstatus < TicketStatus.interrupt.value)
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
                                       ).order_by(Ticket.TIstatus.desc(), Ticket.createtime.asc()).all_with_page()
-        [self._fill_ticket(x) for x in tickets]
+        for ticket in tickets:
+            self._fill_ticket(ticket)
+            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus',
+                             'interrupt', 'tistatus_zh', 'ticategory']
+            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
         return Success(data=tickets)
 
     def _list_ticketorders(self):
+        import copy
         if not common_user():
             raise TokenError
         tos = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
@@ -210,8 +239,17 @@ class CTicket(object):
         res = []
         for to in tos:
             ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == to.TIid).first()
+            ticket = copy.deepcopy(ticket)
+            if not ticket:
+                current_app.logger.error('未找到ticket, tiid: {}'.format(to.TIid))
+                continue
             self._fill_ticket(ticket, to)
+            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid', 'tsocode',
+                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory']
+            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
             res.append(ticket)
+            del ticket
         return Success(data=res)
 
     def list_linkage(self):
@@ -220,17 +258,82 @@ class CTicket(object):
         return Success(data=linkages)
 
     @phone_required
-    def order(self):
+    def pay(self):
         """购买"""
-        data = parameter_required(('tiid', 'number'))
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == data.get('tiid')
-                                     ).first_('未找到该门票信息')
-        if ticket.TIstatus != TicketStatus.active.value:
-            raise ParamsError('放票尚未开始')
+        data = parameter_required()
+        tiid, tsoid, numbers = data.get('tiid'), data.get('tsoid'), data.get('num')
+        user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
+        opayno = super(CTicket, self)._opayno()
+        instance_list, tscode_list = [], []
         with db.auto_commit():
-            TicketsOrder.create({'TSOid': str(uuid.uuid1()),
-                                 'USid': getattr(request, 'user').id,
-                                 'TIid': ticket.TIid,
-                                 })
-        pass
+            if tiid and numbers:  # 抢票
+                if not (isinstance(numbers, int) and 0 < numbers < 11):
+                    raise ParamsError('数量错误, 单次可购票数 (1-10)')
+                ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == data.get('tiid')
+                                             ).first_('未找到该门票信息')
+                if ticket.TIstatus != TicketStatus.active.value:
+                    raise ParamsError('活动尚未开始')
+                mount_price = ticket.TIdeposit * numbers
+                last_tscode = db.session.query(TicketsOrder.TSOcode).filter(
+                    TicketsOrder.isdelete == false(),
+                    TicketsOrder.TIid == tiid,
+                    TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+                ).order_by(TicketsOrder.TSOcode.desc(),
+                           TicketsOrder.createtime.desc(),
+                           origin=True).scalar() or 0
+                current_app.logger.info('last tscode: {}'.format(last_tscode))
+                for i in range(numbers):
+                    last_tscode += 1
+                    tscode = last_tscode
+                    tscode_list.append(tscode)
+                    current_app.logger.info('tscode: {}'.format(tscode))
+                    ticket_order = self._creat_ticket_order(user.USid, tiid, tscode)
+                    ticket_deposit = self._creat_ticket_deposit(ticket_order.TSOid, TicketDepositType.grab.value,
+                                                                ticket.TIdeposit, opayno)
+                    instance_list.append(ticket_deposit)
+                    instance_list.append(ticket_order)
 
+            elif tsoid:  # 中奖后补押金
+                tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TSOid == tsoid,
+                                                TicketsOrder.USid == user.USid).first_('未找到该信息')
+                if tso.TSOstatus != TicketsOrderStatus.has_won.value:
+                    raise StatusError('支付条件未满足')
+                ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid
+                                             ).first_('未找到该门票信息')
+                mount_price = ticket.TIprice - ticket.TIdeposit
+                ticket_deposit = self._creat_ticket_deposit(tsoid, TicketDepositType.patch.value, mount_price, opayno)
+                instance_list.append(ticket_deposit)
+                tscode_list.append(tso.TSOcode)
+            else:
+                raise ParamsError
+
+            db.session.add_all(instance_list)
+        body = ticket.TIname[:16] + '...'
+        openid = user.USopenid1
+        pay_args = super(CTicket, self)._add_pay_detail(opayno=opayno, body=body, PPpayMount=mount_price, openid=openid,
+                                                        PPcontent=ticket.TIid,
+                                                        PPpayType=PlayPayType.ticket.value)
+        response = {
+            'pay_type': PayType.wechat_pay.name,
+            'opaytype': PayType.wechat_pay.value,
+            'tscode': tscode_list,
+            'args': pay_args
+        }
+        current_app.logger.info('response = {}'.format(response))
+        return Success(data=response)
+
+    @staticmethod
+    def _creat_ticket_deposit(tsoid, tdtype, mount, opayno):
+        return TicketDeposit.create({'TDid': str(uuid.uuid1()),
+                                     'TSOid': tsoid,
+                                     'TDdeposit': mount,
+                                     'TDtype': tdtype,
+                                     'OPayno': opayno})
+
+    @staticmethod
+    def _creat_ticket_order(usid, tiid, tscode):
+        return TicketsOrder.create({'TSOid': str(uuid.uuid1()),
+                                    'USid': usid,
+                                    'TIid': tiid,
+                                    'TSOcode': tscode,
+                                    'isdelete': True})
