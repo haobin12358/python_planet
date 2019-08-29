@@ -856,6 +856,7 @@ class LinkageShareType(Enum):
 
 
 class UserMaterialFeedbackStatus(Enum):
+    reject = -1, '未通过'
     wait = 0, '待退押金'
     refund = 1, '已退'
 

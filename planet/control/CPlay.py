@@ -641,8 +641,6 @@ class CPlay():
                 current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
 
                 pp = PlayPay.query.filter_by(PPpayno=out_trade_no, isdelete=False).first()
-                if pp.PPpayType == PlayPayType.ticket.value:
-                    self._ticket_order(pp)
                 if not pp:
                     # 支付流水不存在 钱放在平台
                     return self.wx_pay.reply("OK", True).decode()
@@ -663,6 +661,8 @@ class CPlay():
             elif pp.PPpayType == PlayPayType.undertake.value:
                 current_app.logger.info('开始修改转让单')
                 self._undertake(pp)
+            elif pp.PPpayType == PlayPayType.ticket.value:
+                self._ticket_order(pp)
             else:
                 current_app.logger.info('获取到异常数据 {}'.format(pp.__dict__))
                 return self.wx_pay.reply("OK", True).decode()
@@ -2310,6 +2310,7 @@ class CPlay():
             to = TicketsOrder.query.filter(TicketsOrder.TSOid == td.TSOid).first()
             if to and td.TDtype == TicketDepositType.grab.value:
                 current_app.logger.info('grap tosid: {}'.format(to.TSOid))
+                current_app.logger.info('grap toscode: {}'.format(to.TSOcode))
                 while TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
                                                 TicketsOrder.TSOcode == to.TSOcode,
                                                 TicketsOrder.TIid == to.TIid,

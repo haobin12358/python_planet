@@ -8,9 +8,10 @@ from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, PayType
+from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, PayType, \
+    UserMaterialFeedbackStatus
 from planet.extensions.register_ext import db
-from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit
+from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback
 from planet.models.user import User
 from planet.control.BaseControl import BASEADMIN
 from planet.control.CPlay import CPlay
@@ -203,6 +204,13 @@ class CTicket(CPlay):
                 residual_deposit = ticket.TIprice - ticket.TIdeposit
         ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
         ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
+        umf = UserMaterialFeedback.query.filter(UserMaterialFeedback.isdelete == false(),
+                                                UserMaterialFeedback.USid == getattr(request, 'user').id,
+                                                UserMaterialFeedback.TIid == ticket.TIid,
+                                                # UserMaterialFeedback.TSOid == ticketorder.TSOid,  # todo 修改完改回来
+                                                ).first()
+        umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
+        ticket.fill('umfstatus', umfstatus)
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
@@ -267,43 +275,11 @@ class CTicket(CPlay):
         instance_list, tscode_list = [], []
         with db.auto_commit():
             if tiid and numbers:  # 抢票
-                if not (isinstance(numbers, int) and 0 < numbers < 11):
-                    raise ParamsError('数量错误, 单次可购票数 (1-10)')
-                ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == data.get('tiid')
-                                             ).first_('未找到该门票信息')
-                if ticket.TIstatus != TicketStatus.active.value:
-                    raise ParamsError('活动尚未开始')
-                mount_price = ticket.TIdeposit * numbers
-                last_tscode = db.session.query(TicketsOrder.TSOcode).filter(
-                    TicketsOrder.isdelete == false(),
-                    TicketsOrder.TIid == tiid,
-                    TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
-                ).order_by(TicketsOrder.TSOcode.desc(),
-                           TicketsOrder.createtime.desc(),
-                           origin=True).scalar() or 0
-                current_app.logger.info('last tscode: {}'.format(last_tscode))
-                for i in range(numbers):
-                    last_tscode += 1
-                    tscode = last_tscode
-                    tscode_list.append(tscode)
-                    current_app.logger.info('tscode: {}'.format(tscode))
-                    ticket_order = self._creat_ticket_order(user.USid, tiid, tscode)
-                    ticket_deposit = self._creat_ticket_deposit(ticket_order.TSOid, TicketDepositType.grab.value,
-                                                                ticket.TIdeposit, opayno)
-                    instance_list.append(ticket_deposit)
-                    instance_list.append(ticket_order)
-
+                ticket, mount_price, instance_list, tscode_list = self._grap_ticket_order(tiid, numbers, user, opayno,
+                                                                                          instance_list, tscode_list)
             elif tsoid:  # 中奖后补押金
-                tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TSOid == tsoid,
-                                                TicketsOrder.USid == user.USid).first_('未找到该信息')
-                if tso.TSOstatus != TicketsOrderStatus.has_won.value:
-                    raise StatusError('支付条件未满足')
-                ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid
-                                             ).first_('未找到该门票信息')
-                mount_price = ticket.TIprice - ticket.TIdeposit
-                ticket_deposit = self._creat_ticket_deposit(tsoid, TicketDepositType.patch.value, mount_price, opayno)
-                instance_list.append(ticket_deposit)
-                tscode_list.append(tso.TSOcode)
+                ticket, mount_price, instance_list, tscode_list = self._patch_ticket_order(tsoid, user, opayno,
+                                                                                           instance_list, tscode_list)
             else:
                 raise ParamsError
 
@@ -321,6 +297,59 @@ class CTicket(CPlay):
         }
         current_app.logger.info('response = {}'.format(response))
         return Success(data=response)
+
+    def _grap_ticket_order(self, tiid, numbers, user, opayno, instance_list, tscode_list):
+        if not (isinstance(numbers, int) and 0 < numbers < 11):
+            raise ParamsError('数量错误, 单次可购票数 (1-10)')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid
+                                     ).first_('未找到该门票信息')
+        if ticket.TIstatus != TicketStatus.active.value:
+            raise ParamsError('活动尚未开始')
+        last_trade = TicketsOrder.query.filter(TicketsOrder.TIid == tiid,
+                                               TicketsOrder.USid == user.USid,
+                                               TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+                                               ).order_by(TicketsOrder.createtime.desc()).first()
+        if last_trade:
+            current_app.logger.info('last trade time: {}'.format(last_trade.createtime))
+            delta_time = datetime.now() - last_trade.createtime
+            current_app.logger.info('delta time: {}'.format(delta_time))
+            if delta_time.seconds < 6:
+                raise ParamsError('正在努力排队中, 请稍后尝试重新提交')
+        mount_price = ticket.TIdeposit * numbers
+        last_tscode = db.session.query(TicketsOrder.TSOcode).filter(
+            TicketsOrder.isdelete == false(),
+            TicketsOrder.TIid == tiid,
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+        ).order_by(TicketsOrder.TSOcode.desc(),
+                   TicketsOrder.createtime.desc(),
+                   origin=True).first() or 0
+        if last_tscode:
+            last_tscode = last_tscode[0]
+        current_app.logger.info('last tscode: {}'.format(last_tscode))
+        for i in range(numbers):
+            last_tscode += 1
+            tscode = last_tscode
+            tscode_list.append(tscode)
+            current_app.logger.info('tscode: {}'.format(tscode))
+            ticket_order = self._creat_ticket_order(user.USid, tiid, tscode)
+            ticket_deposit = self._creat_ticket_deposit(ticket_order.TSOid, TicketDepositType.grab.value,
+                                                        ticket.TIdeposit, opayno)
+            instance_list.append(ticket_deposit)
+            instance_list.append(ticket_order)
+        return ticket, mount_price, instance_list, tscode_list
+
+    def _patch_ticket_order(self, tsoid, user, opayno, instance_list, tscode_list):
+        tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TSOid == tsoid,
+                                        TicketsOrder.USid == user.USid).first_('未找到该信息')
+        if tso.TSOstatus != TicketsOrderStatus.has_won.value:
+            raise StatusError('支付条件未满足')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid
+                                     ).first_('未找到该门票信息')
+        mount_price = ticket.TIprice - ticket.TIdeposit
+        ticket_deposit = self._creat_ticket_deposit(tsoid, TicketDepositType.patch.value, mount_price, opayno)
+        instance_list.append(ticket_deposit)
+        tscode_list.append(tso.TSOcode)
+        return ticket, mount_price, instance_list, tscode_list
 
     @staticmethod
     def _creat_ticket_deposit(tsoid, tdtype, mount, opayno):
