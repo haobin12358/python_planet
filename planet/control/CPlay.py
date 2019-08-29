@@ -19,7 +19,8 @@ from planet.common.token_handler import get_current_user, phone_required, common
     binded_phone
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TicketDepositType, \
+    TicketsOrderStatus
 
 from planet.common.Inforsend import SendSMS
 
@@ -33,7 +34,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation
+    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation, TicketDeposit, TicketsOrder
 
 
 class CPlay():
@@ -640,6 +641,8 @@ class CPlay():
                 current_app.logger.info("This is wechat_notify, opayno is {}".format(out_trade_no))
 
                 pp = PlayPay.query.filter_by(PPpayno=out_trade_no, isdelete=False).first()
+                if pp.PPpayType == PlayPayType.ticket.value:
+                    self._ticket_order(pp)
                 if not pp:
                     # 支付流水不存在 钱放在平台
                     return self.wx_pay.reply("OK", True).decode()
@@ -2295,7 +2298,27 @@ class CPlay():
                 current_app.logger.error('时间转换错误')
                 raise StatusError('系统异常，请联系客服解决')
 
-    def _base_decode(self, raw, raw_name='secret_usid'):
+    def _base_decode(self, raw):
         import base64
         decoded = base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
         return decoded
+
+    @staticmethod
+    def _ticket_order(pp):
+        tds = TicketDeposit.query.filter(TicketDeposit.isdelete == false(), TicketDeposit.OPayno == pp.PPpayno).all()
+        for td in tds:
+            to = TicketsOrder.query.filter(TicketsOrder.TSOid == td.TSOid).first()
+            if to and td.TDtype == TicketDepositType.grab.value:
+                current_app.logger.info('grap tosid: {}'.format(to.TSOid))
+                while TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                TicketsOrder.TSOcode == to.TSOcode,
+                                                TicketsOrder.TIid == to.TIid,
+                                                TicketsOrder.TSOid != to.TSOid).first():
+                    current_app.logger.info('found conflict toscode: {}'.format(to.TSOcode))
+                    to.TSOcode += 1
+                to.isdelete = False
+                to.TSOstatus = TicketsOrderStatus.pending.value
+            elif to and td.TDtype == TicketDepositType.patch.value:
+                if to.TSOstatus == TicketsOrderStatus.has_won.value:
+                    current_app.logger.info('patch tosid: {}'.format(to.TSOid))
+                    to.TSOstatus = TicketsOrderStatus.completed.value
