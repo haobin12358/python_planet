@@ -856,20 +856,29 @@ class CPlay():
                         update_dict = self._get_update_dict(pd_instance, pd)
                         if update_dict.get('PDprice'):
                             update_dict.update(PDprice=pdprice)
-
                         pd_instance.update(update_dict)
+                        if not pd_instance.PDdeltaDay and not pd_instance.PDdeltaHour:
+                            raise ParamsError('时间差值不能为空')
                         instance_list.append(pd_instance)
                         pdid_list.append(pdid)
                         continue
                 pdid = str(uuid.uuid1())
-                if (not pd.get('pddeltaday') and pd.get('pddeltaday') != 0) and \
-                        (not pd.get('pddeltahour') and pd.get('pddeltahour') != 0):
+                try:
+                    pddeltaday = int(pd.get('pddeltaday')) or 0
+                except:
+                    pddeltaday = 0
+                try:
+                    pddeltahour = int(pd.get('pddeltahour')) or 0
+                except:
+                    pddeltahour = 0
+
+                if (not pddeltaday) and (not pddeltahour):
                     raise ParamsError('时间差值不能为空')
 
                 pd_instance = PlayDiscount.create({
                     "PDid": pdid,
-                    "PDdeltaDay": pd.get('pddeltaday'),
-                    "PDdeltaHour": pd.get('pddeltahour'),
+                    "PDdeltaDay": pddeltaday,
+                    "PDdeltaHour": pddeltahour,
                     "PDprice": pdprice,
                 })
                 instance_list.append(pd_instance)
