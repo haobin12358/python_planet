@@ -192,7 +192,7 @@ class CTicket(CPlay):
         ticket.fill('residual', ticket.TInum)  # todo fake number ?
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
         ticket.fill('ticategory', json.loads(ticket.TIcategory))
-        tirewardnum, residual_deposit = None, None
+        tirewardnum, residual_deposit, umf = None, None, None
         if ticketorder:
             ticket.fill('tsoid', ticketorder.TSOid)
             ticket.fill('tsocode', ticketorder.TSOcode)
@@ -202,15 +202,15 @@ class CTicket(CPlay):
                 tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
             if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:
                 residual_deposit = ticket.TIprice - ticket.TIdeposit
+            umf = UserMaterialFeedback.query.filter(UserMaterialFeedback.isdelete == false(),
+                                                    UserMaterialFeedback.USid == getattr(request, 'user').id,
+                                                    UserMaterialFeedback.TIid == ticket.TIid,
+                                                    UserMaterialFeedback.TSOid == ticketorder.TSOid,
+                                                    ).order_by(UserMaterialFeedback.createtime.desc()).first()
+        umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
+        ticket.fill('umfstatus', umfstatus)  # 反馈素材审核状态
         ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
         ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
-        umf = UserMaterialFeedback.query.filter(UserMaterialFeedback.isdelete == false(),
-                                                UserMaterialFeedback.USid == getattr(request, 'user').id,
-                                                UserMaterialFeedback.TIid == ticket.TIid,
-                                                # UserMaterialFeedback.TSOid == ticketorder.TSOid,  # todo 修改完改回来
-                                                ).first()
-        umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
-        ticket.fill('umfstatus', umfstatus)
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
