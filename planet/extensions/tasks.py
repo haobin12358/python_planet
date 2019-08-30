@@ -8,7 +8,7 @@ from decimal import Decimal
 import requests
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date, extract, func, or_, and_
+from sqlalchemy import cast, Date, extract, func, or_, and_, false
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
@@ -17,7 +17,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
     CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits, MagicBoxJoinStatus, \
-    ActivityDepositStatus, PlayStatus
+    ActivityDepositStatus, PlayStatus, TicketStatus
 
 from planet.extensions.register_ext import db
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
@@ -25,7 +25,7 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket
 
 celery = Celery()
 
@@ -1172,6 +1172,25 @@ def end_play(plid):
             play.PLstatus = PlayStatus.close.value
 
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
+
+
+@celery.task()
+def start_ticket(tiid):
+    current_app.logger.info('修改抢票为开始 tiid {}'.format(tiid))
+    try:
+        with db.auto_commit():
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
+            if not ticket:
+                current_app.logger.error(">>> 未找到此票 <<<")
+                return
+            if ticket.TIstatus != TicketStatus.ready.value:
+                current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
+                return
+            ticket.TIstatus = TicketStatus.active.value
+    except Exception as e:
+        current_app.logger.error("该票修改为开始时出错 : {} <<<".format(e))
+    finally:        
+        current_app.logger.info('修改抢票为开始任务结束 tiid {}'.format(tiid))
 
 
 if __name__ == '__main__':

@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import current_app, request
 from sqlalchemy import false
+from planet.extensions.tasks import start_ticket, celery
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, PayType, \
     UserMaterialFeedbackStatus
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback
 from planet.models.user import User
 from planet.control.BaseControl import BASEADMIN
@@ -39,7 +40,7 @@ class CTicket(CPlay):
                                     'TIstartTime': tistarttime,
                                     'TIendTime': tiendtime,
                                     'TIrules': data.get('tirules'),
-                                    'TIcertificate': data.get('ticertificate'),
+                                    'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
                                     'TIdetails': data.get('tidetails'),
                                     'TIprice': tiprice,
                                     'TIdeposit': tideposit,
@@ -58,7 +59,9 @@ class CTicket(CPlay):
                                            'TIid': ticket.TIid})
                 instance_list.append(tl)
             db.session.add_all(instance_list)
-        # todo 定时开始任务
+        # 定时开始任务
+        start_task_id = start_ticket.apply_async(args=(ticket.TIid,), eta=tistarttime - timedelta(hours=8))
+        # conn.set('start_ticket{}'.format(start_task_id), start_task_id)
         self.BaseAdmin.create_action(AdminActionS.insert.value, 'Ticket', ticket.TIid)
         return Success('创建成功', data={'tiid': ticket.TIid})
 
@@ -366,3 +369,11 @@ class CTicket(CPlay):
                                     'TIid': tiid,
                                     'TSOcode': tscode,
                                     'isdelete': True})
+
+    def _cancle_celery(self, conid):
+        exist_task_id = conn.get(conid)
+        if exist_task_id:
+            exist_task_id = str(exist_task_id, encoding='utf-8')
+            current_app.logger.info('已有任务id: {}'.format(exist_task_id))
+            celery.AsyncResult(exist_task_id).revoke()
+            conn.delete(conid)
