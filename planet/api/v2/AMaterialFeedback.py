@@ -18,6 +18,7 @@ class AMaterialFeedback(Resource):
     def post(self, feedback):
         apis = {
             'create': self.cmf.create,
+            'refuse': self.cmf.refuse,
             'refund': self.cmf.refund
         }
         return apis
