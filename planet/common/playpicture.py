@@ -202,11 +202,104 @@ class PlayPicture():
         # dw = imd.Draw(im)
         dw.rectangle((x, y, x + w, y + h), fill=color)
 
+    def create_ticket(self, path, tiname, starttime, endtime, playprice, usid, tiid, wxacode):
+        if not str(path).startswith('/img'):
+            if not (str(path).startswith('http') or str(path).startswith('https')):
+                return
+            else:
+                current_app.logger.info('当前图片路由{} 不在当前服务，需拉取资源'.format(path))
+                path = self._get_fetch(path)
+        else:
+            # path =
+
+            if not os.path.isfile(os.path.join(current_app.config['BASEDIR'], path[1:])):
+                current_app.logger.info('当前图片路由{} 不在当前服务，需从图片服务器拉取资源'.format(path))
+                path = self._get_fetch(path, qiniu=True)
+
+        # new_im = img.new('RGBA', (750, 1010), color='white')
+        if len(tiname) >= 34:
+            tiname = tiname[:30] + '..'
+        local_path = os.path.join(current_app.config['BASEDIR'], path[1:])
+        new_im = img.open(local_path)
+        shuffix = str(path).split('.')[-1]
+        x, y = new_im.size
+        if x != 750 or y != 1270:
+            temp_path = os.path.join(self._get_path('tmp')[0], 'temp{}.{}'.format(str(uuid.uuid1()), shuffix))
+            new_im.resize((750, 1270), img.LANCZOS).save(temp_path)
+            new_im = img.open(temp_path)
+        # 模糊处理
+        new_im = new_im.filter(MyGaussianBlur(radius=30))
+        dw = imd.Draw(new_im)
+        # 蒙版
+        black = img.new('RGBA', (750, 1270), color=(0, 0, 0, 60))
+        dw.bitmap((0, 0), black, fill=(0, 0, 0, 50))
+        # 大矩形
+        # self.drawRoundRec(new_im, 'white', 35, 50, 680, 680, 60)
+        self.drawrec(dw, 'white', 35, 50, 680, 940)
+        # 内容图片
+        inner_im = img.open(local_path)
+        if x != 640 or y != 640:
+            temp_path = os.path.join(self._get_path('tmp')[0], 'temp2{}.{}'.format(str(uuid.uuid1()), shuffix))
+
+            inner_im.resize((640, 640), img.LANCZOS).save(temp_path)
+            inner_im = img.open(temp_path)
+        new_im.paste(inner_im, (55, 90))
+
+        # 门票信息
+        tinamefont = imf.truetype(os.path.join(self.res_path, 'PingFang Medium_downcc.otf'), 40)
+        tinamelist = []
+        for index, end_limit in enumerate(range(0, len(tiname), 16)):
+            tinamelist.append(tiname[index * 16: end_limit + 16])
+
+        dw.text((55, 760), '\n'.join(tinamelist), font=tinamefont, fill='#000000')
+        # TODO 出游时间字段未定
+        # 出发时间
+        # timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 32)
+        # dw.text((55, 632), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
+        # ￥
+        icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 48)
+
+        # 小矩形
+        h_ = (len(str(playprice)) + 2) * 26
+        x_ = 693 - h_
+        self.drawrec(dw, '#FFCE00', x_ + 2, 643, h_ + 3, 34)
+
+        dw.text((x_, 610), '￥', font=icon_font, fill='#000000')
+
+        # 价格
+        pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
+        price_x = 680 - len(str(playprice) * 26)
+        dw.text((price_x, 600), playprice, font=pricefont, fill='#000000')
+
+        # pro1
+        profont_1 = imf.truetype(os.path.join(self.res_path, 'PangMenZhengDao.ttf'), 52)
+        dw.text((47, 1077), self.pro_1, font=profont_1, fill='#FFFFFF')
+        # pro2
+        profont_2 = imf.truetype(os.path.join(self.res_path, 'PingFangSCRegular.ttf'), 32)
+        dw.text((47, 1139), self.pro_2, font=profont_2, fill='#FFFFFF')
+        # 小程序码底层矩形
+        # self.draw_round_rec(dw, 'white', 555, 789, 160, 160, 40)
+        # 小程序码
+        wxacode = img.open(os.path.join(current_app.config['BASEDIR'], wxacode[1:]))
+        temp_path = os.path.join(self._get_path('tmp')[0], 'temp3{}.{}'.format(str(uuid.uuid1()), shuffix))
+        wxacode.resize((160, 160), img.LANCZOS).save(temp_path)
+        wxacode = img.open(temp_path)
+        new_im.paste(wxacode, (555, 1050))
+        # new_im.show()
+        new_im_path, new_im_db_path = self._get_path('play')
+
+        db_path = os.path.join(new_im_db_path, '{}{}.{}'.format(tiid, usid, shuffix))
+        local_path = os.path.join(new_im_path, '{}{}.{}'.format(tiid, usid, shuffix))
+        new_im.save(local_path)
+        return local_path, db_path
+
 
 if __name__ == '__main__':
-    path = r'D:\teamsystem\image\dxx-other\logo.png'
-    plame = '呼和浩特-希拉穆仁-响沙湾-达拉特旗-康巴什市区-成吉思汗陵-鄂尔多斯-公主府-蒙亮-大召寺·五日'
+    # path = r'D:\teamsystem\image\dxx-other\logo.png'
+    path = r'E:\liushuaibin\image\test.jpg'
+    tiname = '杭州富阳野生动物园门票 1张 杭州富阳野生动物园门票1张'
+    # plame = '呼和浩特-希拉穆仁-响沙湾-达拉特旗-康巴什市区-成吉思汗陵-鄂尔多斯-公主府-蒙亮-大召寺·五日'
     starttime = '2019/6/10'
     endtime = '6/12'
     playprice = '1.56'
-    # pp = PlayPicture().create(path, plame, starttime, endtime, playprice)
+    # pp = PlayPicture().create_ticket(path, plame, starttime, endtime, playprice)

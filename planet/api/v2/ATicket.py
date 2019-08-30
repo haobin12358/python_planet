@@ -10,6 +10,7 @@ class ATicket(Resource):
         apis = {
             'get': self.cticket.get_ticket,
             'list': self.cticket.list_ticket,
+            'get_promotion': self.cticket.get_promotion,
             'list_linkage': self.cticket.list_linkage,
         }
         return apis
