@@ -15,6 +15,7 @@ class UserMaterialFeedback(Base):
     UMFlocation = Column(Text)
     UMFstatus = Column(Integer, default=0, comment='0 未退押金 1 已退')
     TIid = Column(String(64), comment='门票id')
+    TSOid = Column(String(64), comment='购票记录id')
     USid = Column(String(64), comment='用户id')
 
 
