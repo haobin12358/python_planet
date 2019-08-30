@@ -9,9 +9,11 @@ from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
+from planet.common.playpicture import PlayPicture
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, PayType, \
     UserMaterialFeedbackStatus
 from planet.extensions.register_ext import db, conn
+from planet.config.secret import API_HOST
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback
 from planet.models.user import User
 from planet.control.BaseControl import BASEADMIN
@@ -377,3 +379,42 @@ class CTicket(CPlay):
             current_app.logger.info('已有任务id: {}'.format(exist_task_id))
             celery.AsyncResult(exist_task_id).revoke()
             conn.delete(conid)
+
+    @phone_required
+    def get_promotion(self):
+        data = parameter_required('tiid')
+        user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
+        tiid = data.get('tiid')        
+        params = data.get('params')
+        # play = Play.query.filter_by(PLid=plid, isdelete=False).first()
+        ticket = Ticket.query.filter(Ticket.TIid == tiid, Ticket.TIstatus < TicketStatus.interrupt.value,  Ticket.isdelete==false()).first_('活动已结束')
+        
+        usid = user.USid
+
+        starttime = None
+        endtime = None
+
+        # 获取微信二维码
+        from planet.control.CUser import CUser
+        cuser = CUser()
+        if 'secret_usid' not in params:
+            params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
+        params_key = cuser.shorten_parameters(params, usid, 'params')
+        wxacode_path = cuser.wxacode_unlimit(
+            usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), )
+        local_path, promotion_path = PlayPicture().create_ticket(
+            ticket.TIimg, ticket.TIname, starttime, endtime, str(0), usid, tiid, wxacode_path)
+        from planet.extensions.qiniu.storage import QiniuStorage
+        qiniu = QiniuStorage(current_app)
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                qiniu.save(local_path, filename=promotion_path[1:])
+            except Exception as e:
+                current_app.logger.info('上传七牛云失败，{}'.format(e.args))
+        scene = cuser.dict_to_query_str({'params': params_key})
+        current_app.logger.info('get scene = {}'.format(scene))
+        return Success(data={
+            'promotion_path': promotion_path,
+            'scene': scene
+        })
+
