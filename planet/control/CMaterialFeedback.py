@@ -99,7 +99,7 @@ class CMaterialFeedback():
             UserMaterialFeedback.query.filter(
                 UserMaterialFeedback.UMFid != umfid,
                                               UserMaterialFeedback.isdelete == false(),
-                                              UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.refuse.value,
+                                              UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.reject.value,
                                               UserMaterialFeedback.TSOid == umf.TSOid).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
 
