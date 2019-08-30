@@ -66,6 +66,9 @@ class CMaterialFeedback():
             umf = UserMaterialFeedback.query.filter_by(
                 UMFid=umfid, UMFstatus=UserMaterialFeedbackStatus.wait.value, isdelete=False).first_('素材反馈已处理')
             ticket = Ticket.query.filter_by(TIid=umf.TIid, isdelete=False).first_('票务已删除')
+            # 修改状态
+            umf.UMFstatus = UserMaterialFeedbackStatus.refund.value
+
             price = Decimal(str(ticket.TIprice)).quantize(Decimal('0.00'))
             # 退钱
             user_wallet = UserWallet.query.filter_by(USid=umf.USid).first()
@@ -93,8 +96,10 @@ class CMaterialFeedback():
                 })
                 db.session.add(user_wallet_instance)
             # 同一购票记录的其他凭证修改状态为已处理
-            UserMaterialFeedback.query.filter(UserMaterialFeedback.UMFid != umfid,
+            UserMaterialFeedback.query.filter(
+                UserMaterialFeedback.UMFid != umfid,
                                               UserMaterialFeedback.isdelete == false(),
+                                              UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.refuse.value,
                                               UserMaterialFeedback.TSOid == umf.TSOid).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
 
