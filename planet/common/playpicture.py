@@ -262,14 +262,14 @@ class PlayPicture():
         # 小矩形
         h_ = (len(str(playprice)) + 2) * 26
         x_ = 693 - h_
-        self.drawrec(dw, '#FFCE00', x_ + 2, 643, h_ + 3, 34)
+        self.drawrec(dw, '#FFCE00', x_ + 2, 913, h_ + 3, 34)
 
-        dw.text((x_, 610), '￥', font=icon_font, fill='#000000')
+        dw.text((x_, 884), '￥', font=icon_font, fill='#000000')
 
         # 价格
         pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
         price_x = 680 - len(str(playprice) * 26)
-        dw.text((price_x, 600), playprice, font=pricefont, fill='#000000')
+        dw.text((price_x, 874), playprice, font=pricefont, fill='#000000')
 
         # pro1
         profont_1 = imf.truetype(os.path.join(self.res_path, 'PangMenZhengDao.ttf'), 52)
