@@ -230,7 +230,7 @@ class CScenicSpot(BASEAPPROVAL):
         sspid = args.get('sspid')
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         scenicspot.hide('ParentID', 'ADid')
-        parent = address_info = None
+        parent = None
         recommend_raiders = []
         # 地址处理
         address = db.session.query(AddressProvince.APid, AddressProvince.APname, AddressCity.ACid,
@@ -288,6 +288,7 @@ class CScenicSpot(BASEAPPROVAL):
         """创建时光记录"""
         user = User.query.filter_by_(USid=getattr(request, 'user').id).first_('请重新登录')
         data = parameter_required(('trtype', 'trstatus'))
+        plid = data.get('plid')
         try:
             TravelRecordStatus(data.get('trstatus'))
         except Exception:
@@ -309,8 +310,9 @@ class CScenicSpot(BASEAPPROVAL):
             travelrecord_dict = {'TRid': str(uuid.uuid1()),
                                  'AuthorID': user.USid,
                                  'TRtype': trtype,
-                                 'TRstatus': data.get('trstatus')
+                                 'TRstatus': data.get('trstatus'),
                                  # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
+                                 'PLid': plid if plid else None
                                  }
             travelrecord_dict.update(tr_dict)
             try:
@@ -585,8 +587,9 @@ class CScenicSpot(BASEAPPROVAL):
                      EnterLog.isdelete == false(),
                      EnterLog.ELstatus == EnterLogStatus.success.value),
                 Play.PLcreate == TravelRecord.AuthorID),
-            TravelRecord.createtime <= Play.PLendTime,
-            TravelRecord.createtime >= Play.PLstartTime,
+            or_(and_(TravelRecord.createtime <= Play.PLendTime,
+                     TravelRecord.createtime >= Play.PLstartTime),
+                TravelRecord.PLid == plid),
             TravelRecord.isdelete == false(),
             TravelRecord.AuthorType == ApplyFrom.user.value,
             TravelRecord.TRstatus == TravelRecordStatus.published.value).order_by(
@@ -598,7 +601,7 @@ class CScenicSpot(BASEAPPROVAL):
         secret_usid = data.get('secret_usid')
         csc = None
         if secret_usid:
-            csc = self.get_customize_share_content(secret_usid, data.get('plid'))
+            csc = self.get_customize_share_content(secret_usid, data.get('plid'), album=True)
         if csc:
             current_app.logger.info('get cscid: {}'.format(csc.CSCid))
             res = json.loads(csc.Album)
@@ -609,14 +612,14 @@ class CScenicSpot(BASEAPPROVAL):
         request.mount = len(res)
         return Success(data=res)
 
-    def get_customize_share_content(self, secret_usid, plid):
+    def get_customize_share_content(self, secret_usid, plid, album=False):
         try:
             superid = self.cuser._base_decode(secret_usid)
             current_app.logger.info('secret_usid --> superid {}'.format(superid))
         except Exception as e:
             current_app.logger.error('解析secret_usid时失败： {}'.format(e))
             superid = ''
-        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') else 1
+        csctype = 2 if request.url_root.endswith('share.bigxingxing.com:443/') or not album else 1
         csc = CustomizeShareContent.query.filter(CustomizeShareContent.isdelete == false(),
                                                  CustomizeShareContent.USid == superid,
                                                  CustomizeShareContent.CSCtype == csctype,

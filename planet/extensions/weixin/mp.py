@@ -13,9 +13,7 @@ import requests
 
 from .base import Map, WeixinError
 
-
 __all__ = ("WeixinMPError", "WeixinMP")
-
 
 DEFAULT_DIR = os.getenv("HOME", os.getcwd())
 
@@ -75,11 +73,13 @@ class WeixinMP(object):
         self.ac_callback = ac_callback
         self.jt_callback = jt_callback
 
-    def fetch(self, method, url, params=None, data=None, headers=None):
+    def fetch(self, method, url, params=None, data=None, headers=None, buffer=False):
         req = requests.Request(method, url, params=params,
                                data=data, headers=headers)
         prepped = req.prepare()
         resp = self.session.send(prepped, timeout=20)
+        if resp.status_code == 200 and buffer:
+            return resp.content
         data = Map(resp.json())
         if data.errcode:
             msg = "%(errcode)d %(errmsg)s" % data
@@ -92,7 +92,7 @@ class WeixinMP(object):
         token and params.setdefault("access_token", self.access_token)
         return self.fetch("GET", url, params)
 
-    def post(self, path, data, prefix="/cgi-bin", json_encode=True, token=True):
+    def post(self, path, data, prefix="/cgi-bin", json_encode=True, token=True, buffer=False):
         url = "{0}{1}{2}".format(self.api_uri, prefix, path)
         params = {}
         token and params.setdefault("access_token", self.access_token)
@@ -102,7 +102,7 @@ class WeixinMP(object):
             # data = json.dumps(data)
             headers["Content-Type"] = "application/json;charset=UTF-8"
         # print url, params, headers, data
-        return self.fetch("POST", url, params=params, data=data, headers=headers)
+        return self.fetch("POST", url, params=params, data=data, headers=headers, buffer=buffer)
 
     @property
     def access_token(self):
@@ -434,3 +434,17 @@ class WeixinMP(object):
         :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
         """
         return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
+
+    def get_wxacode_unlimit(self, scene, **kwargs):
+        """
+        :param scene: 参数 a=1&b=2
+        :param kwargs: {
+        page: 跳转的小程序页面，默认主页 pages/index/index,
+        width: 二维码宽度默认430,
+        auto_color: 自动配置线条颜色,
+        line_color: auto_color 为 false 时生效，使用 rgb 设置颜色 例如 {"r":"xxx","g":"xxx","b":"xxx"} 十进制表示,
+        is_hyaline: 是否需要透明底色，为 true 时，生成透明底色的小程序
+        }
+        """
+        kwargs['scene'] = scene
+        return self.post('/getwxacodeunlimit', kwargs, prefix='/wxa', buffer=True)

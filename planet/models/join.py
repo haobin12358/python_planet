@@ -70,7 +70,7 @@ class HelpRecord(Base):
     UStelphone = Column(String(64), comment='求救人手机号')
     USlatitude = Column(String(64), comment='求救人所在纬度')
     USlongitude = Column(String(64), comment='求救人所在经度')
-    PLid = Column(String(64), comment='活动id')
+    PLid = Column(Text, comment='活动id')
     HRphones = Column(Text, comment='求救的手机号，list')
 
 

@@ -138,7 +138,7 @@ def gennerc_log(data, info='info'):
     if info == 'info':
         current_app.logger.info(data)
     else:
-        current_app.logger.error(data)
+        current_app.logger.error(data, exc_info=True)
     # try:
     #     current_app.logger.info(request.detail)
     # except Exception as e:

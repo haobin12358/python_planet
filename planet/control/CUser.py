@@ -33,13 +33,13 @@ from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
-from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay
+from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay, mp_miniprogram
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
-    AddressProvince, AddressCity, CoveredCertifiedNameLog
+    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters
 from .BaseControl import BASEAPPROVAL, BASEADMIN
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -52,7 +52,7 @@ class CUser(SUser, BASEAPPROVAL):
 
     AGENT_TYPE = 2
     POPULAR_NAME = '爆款'
-    USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender',
+    USER_FIELDS = ['USname', 'USheader', 'USintegral', 'USidentification', 'USlevel', 'USgender', 'USwxacode',
                    'UStelphone', 'USqrcode', 'USrealname', 'USbirthday', 'USpaycode', 'USareaId']
 
     def __init__(self):
@@ -193,14 +193,50 @@ class CUser(SUser, BASEAPPROVAL):
 
         user.fill('usexpect', float('%.2f' % uc_total))
 
-    def _base_decode(self, raw):
+    def _base_decode(self, raw, raw_name='secret_usid'):
         import base64
-        return base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+        if raw_name == 'secret_usid' and len(raw) < 20:
+            raw = self.get_origin_parameters(raw, raw_name)
+        decoded = base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
+        return decoded
 
     def _base_encode(self, raw):
         import base64
         raw = raw.encode()
         return base64.b64encode(raw).decode()
+
+    @staticmethod
+    def shorten_parameters(raw, usid, raw_name):
+        """
+        缩短分享参数
+        :param raw: 要分享的参数
+        :param usid: 用户id
+        :param raw_name: 分享参数名
+        :return: 缩短后的参数
+        """
+        spsid = db.session.query(SharingParameters.SPSid).filter(SharingParameters.SPScontent == raw,
+                                                                 SharingParameters.USid == usid,
+                                                                 SharingParameters.SPSname == raw_name
+                                                                 ).scalar()
+        current_app.logger.info('exist spsid : {}'.format(spsid))
+        if not spsid:
+            with db.auto_commit():
+                sps = SharingParameters.create({'USid': usid, 'SPScontent': raw, 'SPSname': raw_name})
+                db.session.add(sps)
+            spsid = sps.SPSid
+        return spsid
+
+    @staticmethod
+    def get_origin_parameters(param, spsname):
+        """
+        恢复被缩短的分享参数
+        :param param:  缩短的参数
+        :param spsname: 缩短的参数名
+        :return:  恢复好的原来的参数
+        """
+        return db.session.query(SharingParameters.SPScontent).filter(SharingParameters.SPSid == param,
+                                                                     SharingParameters.SPSname == spsname
+                                                                     ).scalar()
 
     def _get_local_head(self, headurl, openid):
         """转置微信头像到服务器，用以后续二维码生成"""
@@ -255,6 +291,53 @@ class CUser(SUser, BASEAPPROVAL):
             except Exception as e:
                 current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
         return filedbname
+
+    def wxacode_unlimit(self, usid, scene=None, img_name=None, **kwargs):
+        """
+        生成带参数的小程序码
+        :param usid: 用户id
+        :param scene: 需要携带的参数，dict型参数
+        :param img_name: 图片名，同一日再次生成同名图片会被替换
+        """
+        savepath, savedbpath = self._get_path('qrcode')
+        secret_usid = self._base_encode(usid)
+        if not img_name:  # 默认图片名称，再次生成会替换同名图片
+            img_name = secret_usid
+        filename = os.path.join(savepath, '{}.jpg'.format(img_name))
+        filedbname = os.path.join(savedbpath, '{}.jpg'.format(img_name))
+        current_app.logger.info('filename: {} ; filedbname: {}'.format(filename, filedbname))
+        if not scene:
+            scene = {'params': self.shorten_parameters('secret_usid={}'.format(secret_usid), usid, 'params')}
+        scene_str = self.dict_to_query_str(scene)
+        current_app.logger.info('get scene str: {}'.format(scene_str))
+        try:
+            with open(filename, 'wb') as f:
+                buffer = mp_miniprogram.get_wxacode_unlimit(scene_str, **kwargs)
+                if len(buffer) < 500:
+                    current_app.logger.error('buffer error：{}'.format(buffer))
+                    filedbname = None
+                f.write(buffer)
+        except Exception as e:
+            current_app.logger.error('生成个人小程序码失败：{}'.format(e))
+            filedbname = None
+
+        # 二维码上传到七牛云
+        if API_HOST == 'https://www.bigxingxing.com':
+            try:
+                self.qiniu.save(data=filename, filename=filedbname[1:])
+            except Exception as e:
+                current_app.logger.error('个人小程序码转存七牛云失败 ： {}'.format(e))
+        return filedbname
+
+    @staticmethod
+    def dict_to_query_str(kwargs):
+        """
+        :param kwargs: {'name':'python'， ‘age’:30}
+        :return 'name=python&age=30'
+        """
+        if not isinstance(kwargs, dict):
+            return
+        return '&'.join(map(lambda x: '{}={}'.format(x, kwargs.get(x)), kwargs.keys()))
 
     def _verify_cardnum(self, num):
         """获取所属行"""
@@ -599,7 +682,9 @@ class CUser(SUser, BASEAPPROVAL):
                        {'acid': address[2], 'acname': address[3]},
                        {'aaid': address[4], 'aaname': address[5]}] if address else []
         user.fill('usarea_info', usarea_info)
-
+        if not user.USwxacode:
+            with db.auto_commit():
+                user.USwxacode = self.wxacode_unlimit(user.USid)
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
         user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
@@ -1630,7 +1715,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         if upperd:
             uin = UserInvitation.create({
-                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({
@@ -1758,7 +1843,7 @@ class CUser(SUser, BASEAPPROVAL):
 
         if upperd:
             uin = UserInvitation.create({
-                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+                'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({
@@ -1931,6 +2016,8 @@ class CUser(SUser, BASEAPPROVAL):
             user.USopenid1 = openid
             user.USgender = sex
             user.USunionid = unionid
+            if not user.USwxacode:
+                user.USwxacode = self.wxacode_unlimit(usid)
         else:
             current_app.logger.info('This is a new guy : {}'.format(userinfo.get('nickName')))
             usid = str(uuid.uuid1())
@@ -1943,18 +2030,20 @@ class CUser(SUser, BASEAPPROVAL):
                 'USfrom': WXLoginFrom.miniprogram.value,
                 'USlevel': 1,
                 'USopenid1': openid,
-                'USunionid': unionid
+                'USunionid': unionid,
+                'USwxacode': self.wxacode_unlimit(usid)
             }
-            if upperd:
-                # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
-                if upperd.USlevel == self.AGENT_TYPE:
-                    user_dict.setdefault('USsupper1', upperd.USid)
-                    user_dict.setdefault('USsupper2', upperd.USsupper1)
-                    user_dict.setdefault('USsupper3', upperd.USsupper2)
+            # if upperd:
+            #     # 有邀请者，如果邀请者是店主，则绑定为粉丝，如果不是，则绑定为预备粉丝
+            #     if upperd.USlevel == self.AGENT_TYPE:
+            #         user_dict.setdefault('USsupper1', upperd.USid)
+            #         user_dict.setdefault('USsupper2', upperd.USsupper1)
+            #         user_dict.setdefault('USsupper3', upperd.USsupper2)
             user = User.create(user_dict)
             db.session.add(user)
         if upperd:
-            uin = UserInvitation.create({'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid})
+            uin = UserInvitation.create(
+                {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),

@@ -70,11 +70,26 @@ alembic downgrade 上个版本号 # 可在本次迁移文件头部中找到'Revi
 ```bash
 ./start.sh stop
 ```
-- 119测试服
+#### 119测试服
 
 - 数据库迁移需要先进入容器，在任意目录下使用 `ddd` 可进入容器bash下
 
 - 容器外任意目录下使用 `dss` 可重启服务
+
+- redis
+```bash
+redis-server /usr/local/redis/redis.conf
+```
+
+- supervisor
+```bash
+supervisord -c /opt/python_planet/supervisord.conf
+```
+
+- nginx && mysql
+```bash
+nginx && service mysql start
+```
 
 ## 日志
 
