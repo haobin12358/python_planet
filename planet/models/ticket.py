@@ -40,6 +40,8 @@ class Ticket(Base):
     TIimg = Column(Text, url=True, comment='封面图')
     TIstartTime = Column(DateTime, comment='开抢时间')
     TIendTime = Column(DateTime, comment='结束时间')
+    TItripStartTime = Column(DateTime, comment='票务有效期开始时间')
+    TItripEndTime = Column(DateTime, comment='票务有效期结束时间')
     TIrules = Column(Text, comment='规则')
     TIcertificate = Column(Text, url=True, comment='景区资质凭证')
     TIdetails = Column(Text, comment='票详情')
@@ -74,6 +76,7 @@ class TicketsOrder(Base):
     USid = Column(String(64), comment='用户')
     TIid = Column(String(64), comment='票id')
     TSOcode = Column(Integer, comment='抢票码')
+    TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
 
 

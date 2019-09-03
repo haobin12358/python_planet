@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from flask import current_app, request
-from sqlalchemy import false
+from sqlalchemy import false, func
 from planet.extensions.tasks import start_ticket, celery
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
@@ -212,10 +212,13 @@ class CTicket(CPlay):
                                                     UserMaterialFeedback.TIid == ticket.TIid,
                                                     UserMaterialFeedback.TSOid == ticketorder.TSOid,
                                                     ).order_by(UserMaterialFeedback.createtime.desc()).first()
+            ticket.fill('tsoqrcode',
+                        ticketorder.TSOqrcode if ticketorder.TSOstatus > TicketsOrderStatus.has_won.value else None)
         umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
         ticket.fill('umfstatus', umfstatus)  # 反馈素材审核状态
         ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
         ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
+        ticket.fill('triptime', '{} / {}'.format(ticket.TItripStartTime, ticket.TItripEndTime))
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
@@ -258,7 +261,7 @@ class CTicket(CPlay):
                 continue
             self._fill_ticket(ticket, to)
             ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid', 'tsocode',
-                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory']
+                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory', 'tsoqrcode']
             ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
                                                              ticket.TIstartTime.day, ticket.TIabbreviation))
             res.append(ticket)
@@ -269,6 +272,72 @@ class CTicket(CPlay):
         """所有联动平台"""
         linkages = Linkage.query.filter(Linkage.isdelete == false()).all()
         return Success(data=linkages)
+
+    @admin_required
+    def list_trade(self):
+        """门票购买记录"""
+        args = parameter_required('tiid')
+        tiid = args.get('tiid')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('无信息')
+        tos = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TIid == tiid
+                                        ).order_by(TicketsOrder.TSOstatus.desc(),
+                                                   TicketsOrder.createtime.desc()).all_with_page()
+        res = []
+        for to in tos:
+            usinfo = db.session.query(User.USname, User.USheader
+                                      ).filter(User.isdelete == false(), User.USid == to.USid).first()
+            if not usinfo:
+                continue
+            res.append({'usname': usinfo[0],
+                        'usheader': usinfo[1],
+                        'tsoid': to.TSOid,
+                        'createtime': to.createtime,
+                        'tsostatus': to.TSOstatus,
+                        'tsostatus_zh': TicketsOrderStatus(to.TSOstatus).zh_value
+                        })
+        trade_num, award_num = map(lambda x: db.session.query(func.count(TicketsOrder.TSOid)
+                                                              ).filter(TicketsOrder.isdelete == false(),
+                                                                       TicketsOrder.TIid == tiid,
+                                                                       TicketsOrder.TSOstatus == x,
+                                                                       ).scalar() or 0,
+                                   (TicketsOrderStatus.completed.value, TicketsOrderStatus.has_won.value))
+        ticket_info = {'tiid': ticket.TIid,
+                       'tiname': ticket.TIname,
+                       'time': '{} - {}'.format(ticket.TIstartTime, ticket.TIendTime),
+                       'tistatus': ticket.TIstatus,
+                       'tistatus_zh': TicketStatus(ticket.TIstatus).zh_value,
+                       'trade_num': '{} / {}'.format(trade_num, ticket.TInum),
+                       'award_num': '{} / {}'.format(award_num, ticket.TInum)}
+        return Success(data={'ticket': ticket_info,
+                             'ticketorder': res}
+                       )
+
+    @admin_required
+    def set_award(self):
+        """设置中奖"""
+        data = parameter_required('tsoid')
+        tsoid = data.get('tsoid')
+        ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                 TicketsOrder.TSOid == tsoid,
+                                                 TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+                                                 ).first_('状态错误')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
+        if not ticket or ticket.TIstatus not in (TicketStatus.active.value, TicketStatus.over.value):
+            raise ParamsError('票务状态异常')
+        award_num = db.session.query(func.count(TicketsOrder.TSOid)
+                                     ).filter(TicketsOrder.isdelete == false(),
+                                              TicketsOrder.TIid == ticket_order.TIid,
+                                              TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
+                                              ).scalar() or 0
+        current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
+        if award_num >= ticket.TInum:
+            raise StatusError('已达最大发放票数')
+        with db.auto_commit():
+            ticket_order.update({'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',  # todo 临时占位二维码
+                                 'TSOstatus': TicketsOrderStatus.has_won.value})
+            db.session.add(ticket_order)
+        # todo 校验最大发放数
+        return Success('设置成功', data=tsoid)
 
     @phone_required
     def pay(self):
