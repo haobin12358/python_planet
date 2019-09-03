@@ -1189,8 +1189,21 @@ def start_ticket(tiid):
             ticket.TIstatus = TicketStatus.active.value
     except Exception as e:
         current_app.logger.error("该票修改为开始时出错 : {} <<<".format(e))
-    finally:        
+    finally:
         current_app.logger.info('修改抢票为开始任务结束 tiid {}'.format(tiid))
+
+
+@celery.task(name='del_promotion')
+def del_promotion():
+    basepath = os.path.join(current_app.config['BASEDIR'], 'img', 'play')
+    del_num = 0
+    for root, dirs, files in os.walk(basepath):
+        for name in files:
+            if str(name).startswith('promotion'):
+                del_num += 1
+                os.remove(os.path.join(root, name))
+
+    current_app.logger.info('删除图片 {}'.format(del_num))
 
 
 if __name__ == '__main__':
@@ -1208,4 +1221,5 @@ if __name__ == '__main__':
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
         # welfare_lottery_3d()
-        guess_group_draw()
+        # guess_group_draw()
+        del_promotion()
