@@ -1195,15 +1195,18 @@ def start_ticket(tiid):
 
 @celery.task(name='del_promotion')
 def del_promotion():
-    basepath = os.path.join(current_app.config['BASEDIR'], 'img', 'play')
-    del_num = 0
-    for root, dirs, files in os.walk(basepath):
-        for name in files:
-            if str(name).startswith('promotion'):
-                del_num += 1
-                os.remove(os.path.join(root, name))
+    try:
+        basepath = os.path.join(current_app.config['BASEDIR'], 'img', 'play')
+        del_num = 0
+        for root, dirs, files in os.walk(basepath):
+            for name in files:
+                if str(name).startswith('promotion'):
+                    del_num += 1
+                    os.remove(os.path.join(root, name))
 
-    current_app.logger.info('删除图片 {}'.format(del_num))
+        current_app.logger.info('删除图片 {}'.format(del_num))
+    except Exception as e:
+        current_app.logger.info('删除图片失败 error = {}'.format(e))
 
 
 if __name__ == '__main__':
