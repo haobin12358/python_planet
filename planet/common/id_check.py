@@ -46,8 +46,3 @@ class DOIDCheck(object):
                 self.result = True
             else:
                 self.result = False
-
-
-if __name__ == '__main__':
-    result = DOIDCheck('刘帅斌', '620523199510080011').result
-    print(result)

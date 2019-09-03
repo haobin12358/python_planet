@@ -1190,7 +1190,7 @@ def start_ticket(tiid):
         connid = 'start_ticket{}'.format(ticket.TIid)
         conn_value = conn.get(connid)
         if conn_value:
-            current_app.logger.info('exist start ticket conn:{} / {} '.format(connid, str(conn_value), encoding='utf-8'))
+            current_app.logger.info('exist start ticket conn:{}/{}'.format(connid, str(conn_value), encoding='utf-8'))
             conn.delete(connid)
     except Exception as e:
         current_app.logger.error("该票修改为开始时出错 : {} <<<".format(e))
@@ -1214,12 +1214,28 @@ def end_ticket(tiid):
         connid = 'end_ticket{}'.format(ticket.TIid)
         conn_value = conn.get(connid)
         if conn_value:
-            current_app.logger.info('exist end ticket conn:{} / {} '.format(connid, str(conn_value), encoding='utf-8'))
+            current_app.logger.info('exist end ticket conn:{}/{}'.format(connid, str(conn_value), encoding='utf-8'))
             conn.delete(connid)
     except Exception as e:
         current_app.logger.error("该票修改为结束时出错 : {} <<<".format(e))
     finally:
         current_app.logger.info('修改抢票为结束任务完成 tiid {}'.format(tiid))
+
+
+@celery.task(name='del_promotion')
+def del_promotion():
+    try:
+        basepath = os.path.join(current_app.config['BASEDIR'], 'img', 'play')
+        del_num = 0
+        for root, dirs, files in os.walk(basepath):
+            for name in files:
+                if str(name).startswith('promotion'):
+                    del_num += 1
+                    os.remove(os.path.join(root, name))
+
+        current_app.logger.info('删除图片 {}'.format(del_num))
+    except Exception as e:
+        current_app.logger.info('删除图片失败 error = {}'.format(e))
 
 
 if __name__ == '__main__':
@@ -1237,4 +1253,5 @@ if __name__ == '__main__':
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
         # welfare_lottery_3d()
-        guess_group_draw()
+        # guess_group_draw()
+        del_promotion()

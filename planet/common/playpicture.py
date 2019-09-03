@@ -159,9 +159,12 @@ class PlayPicture():
         new_im.paste(wxacode, (555, 789))
         # new_im.show()
         new_im_path, new_im_db_path = self._get_path('play')
+        random_num = datetime.now().timestamp()
+        db_path = os.path.join(new_im_db_path, 'promotion{}{}{}.{}'.format(plid, usid, random_num, shuffix))
+        local_path = os.path.join(new_im_path, 'promotion{}{}{}.{}'.format(plid, usid, random_num, shuffix))
+        # db_path = os.path.join(new_im_db_path, 'promotion{}{}.{}'.format(plid, usid, shuffix))
+        # local_path = os.path.join(new_im_path, 'promotion{}{}.{}'.format(plid, usid, shuffix))
 
-        db_path = os.path.join(new_im_db_path, '{}{}.{}'.format(plid, usid, shuffix))
-        local_path = os.path.join(new_im_path, '{}{}.{}'.format(plid, usid, shuffix))
         new_im.save(local_path)
         return local_path, db_path
 
@@ -299,9 +302,9 @@ class PlayPicture():
         new_im.paste(wxacode, (555, 1050))
         # new_im.show()
         new_im_path, new_im_db_path = self._get_path('play')
-
-        db_path = os.path.join(new_im_db_path, '{}{}.{}'.format(tiid, usid, shuffix))
-        local_path = os.path.join(new_im_path, '{}{}.{}'.format(tiid, usid, shuffix))
+        random_num = datetime.now().timestamp()
+        db_path = os.path.join(new_im_db_path, 'promotion{}{}{}.{}'.format(tiid, usid, random_num, shuffix))
+        local_path = os.path.join(new_im_path, 'promotion{}{}{}.{}'.format(tiid, usid, random_num, shuffix))
         new_im.save(local_path)
         return local_path, db_path
 
