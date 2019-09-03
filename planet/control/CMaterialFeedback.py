@@ -30,7 +30,7 @@ class CMaterialFeedback():
         ticket = Ticket.query.filter(Ticket.TIid == tso.TIid, Ticket.isdelete == false()).first_('ttid 失效')
         # umf = UserMaterialFeedback.query.filter_by()
         user = get_current_user()
-        mfls = data.get('mfls')
+        mfls = data.get('mfls', [])
         umf_dict = self._create_umdetails(data)
 
         with db.auto_commit():
