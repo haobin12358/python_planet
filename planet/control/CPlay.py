@@ -114,22 +114,25 @@ class CPlay():
             raise TokenError
         csc = None
         if secret_usid:
-            superid = self._base_decode(secret_usid)
-            current_app.logger.info('secret_usid --> superid {}'.format(superid))
-            if from_url:
-                from planet.control.CScenicSpot import CScenicSpot
-                csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
-            else:
-                if common_user() and superid != request.user.id:
-                    with db.auto_commit():
-                        uin = UserInvitation.create({
-                            'UINid': str(uuid.uuid1()),
-                            'USInviter': superid,
-                            'USInvited': request.user.id,
-                            'UINapi': request.path
-                        })
-                        current_app.logger.info('已创建邀请记录')
-                        db.session.add(uin)
+            try:
+                superid = self._base_decode(secret_usid)
+                current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                if from_url:
+                    from planet.control.CScenicSpot import CScenicSpot
+                    csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+                else:
+                    if common_user() and superid != request.user.id:
+                        with db.auto_commit():
+                            uin = UserInvitation.create({
+                                'UINid': str(uuid.uuid1()),
+                                'USInviter': superid,
+                                'USInvited': request.user.id,
+                                'UINapi': request.path
+                            })
+                            current_app.logger.info('已创建邀请记录')
+                            db.session.add(uin)
+            except Exception as e:
+                current_app.logger.info('secet_usid 记录失败 error'.format(e))
 
         self._fill_play(play)
         self._fill_costs(play)

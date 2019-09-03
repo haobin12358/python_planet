@@ -15,7 +15,7 @@ from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, 
 from planet.extensions.register_ext import db, conn
 from planet.config.secret import API_HOST
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback
-from planet.models.user import User
+from planet.models.user import User, UserInvitation
 from planet.control.BaseControl import BASEADMIN
 from planet.control.CPlay import CPlay
 
@@ -180,6 +180,7 @@ class CTicket(CPlay):
         args = request.args.to_dict()
         tiid = args.get('tiid')
         tsoid = args.get('tsoid')
+        secret_usid = args.get('secret_usid')
         if not (tiid or tsoid):
             raise ParamsError
         ticketorder = None
@@ -190,6 +191,23 @@ class CTicket(CPlay):
                                                     TicketsOrder.USid == getattr(request, 'user').id,
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
+        if secret_usid:
+            try:
+                superid = super()._base_decode(secret_usid)
+                current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                if common_user() and superid != getattr(request, 'user').id:
+                    with db.auto_commit():
+                        uin = UserInvitation.create({
+                            'UINid': str(uuid.uuid1()),
+                            'USInviter': superid,
+                            'USInvited': getattr(request, 'user').id,
+                            'UINapi': request.path
+                        })
+                        current_app.logger.info('已创建邀请记录')
+                        db.session.add(uin)
+            except Exception as e:
+                current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
+
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
         self._fill_ticket(ticket, ticketorder=ticketorder)
         return Success(data=ticket)
@@ -496,8 +514,8 @@ class CTicket(CPlay):
 
         usid = user.USid
 
-        starttime = self._check_time(ticket.TItripStartTime)
-        endtime = self._check_time(ticket.TItripEndTime, fmt='%m/%d')
+        starttime = super()._check_time(ticket.TItripStartTime)
+        endtime = super()._check_time(ticket.TItripEndTime, fmt='%m/%d')
 
         # 获取微信二维码
         from planet.control.CUser import CUser
