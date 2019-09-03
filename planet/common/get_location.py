@@ -1,5 +1,5 @@
 import requests
-
+from planet.config.secret import BAIDUMPAK
 from planet.common.error_response import SystemError
 
 
@@ -15,9 +15,10 @@ class GetLocation():
         self.result = self.get_location()
 
     def get_location(self):
+
         res = requests.get(self.api_url, params={
             'location': '{},{}'.format(self.lat, self.lng), 'output': 'json',
-            'ak': '1bdd475a06ffdb9a4f3ee021da7ae847'})
+            'ak': BAIDUMPAK})
         content = res.json()
         print(content)
         if content.get('status') != 0:
