@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from flask import current_app, request
 from sqlalchemy import false, func
-from planet.extensions.tasks import start_ticket, celery
+from planet.extensions.tasks import start_ticket, end_ticket, celery
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.success_response import Success
@@ -66,7 +66,9 @@ class CTicket(CPlay):
             db.session.add_all(instance_list)
         # 定时开始任务
         start_task_id = start_ticket.apply_async(args=(ticket.TIid,), eta=tistarttime - timedelta(hours=8))
-        # conn.set('start_ticket{}'.format(start_task_id), start_task_id)
+        conn.set('start_ticket{}'.format(ticket.TIid), start_task_id)
+        end_task_id = end_ticket.apply_async(args=(ticket.TIid,), eta=tiendtime - timedelta(hours=8))
+        conn.set('end_ticket{}'.format(ticket.TIid), end_task_id)
         self.BaseAdmin.create_action(AdminActionS.insert.value, 'Ticket', ticket.TIid)
         return Success('创建成功', data={'tiid': ticket.TIid})
 
@@ -261,7 +263,7 @@ class CTicket(CPlay):
         for ticket in tickets:
             self._fill_ticket(ticket)
             ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus',
-                             'interrupt', 'tistatus_zh', 'ticategory']
+                             'interrupt', 'tistatus_zh', 'ticategory', 'TItripStartTime', 'TItripEndTime']
             ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
                                                              ticket.TIstartTime.day, ticket.TIabbreviation))
         return Success(data=tickets)

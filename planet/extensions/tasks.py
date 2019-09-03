@@ -19,7 +19,7 @@ from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus
     CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits, MagicBoxJoinStatus, \
     ActivityDepositStatus, PlayStatus, TicketStatus
 
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
@@ -1187,10 +1187,39 @@ def start_ticket(tiid):
                 current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
                 return
             ticket.TIstatus = TicketStatus.active.value
+        connid = 'start_ticket{}'.format(ticket.TIid)
+        conn_value = conn.get(connid)
+        if conn_value:
+            current_app.logger.info('exist start ticket conn:{} / {} '.format(connid, str(conn_value), encoding='utf-8'))
+            conn.delete(connid)
     except Exception as e:
         current_app.logger.error("该票修改为开始时出错 : {} <<<".format(e))
-    finally:        
+    finally:
         current_app.logger.info('修改抢票为开始任务结束 tiid {}'.format(tiid))
+
+
+@celery.task()
+def end_ticket(tiid):
+    current_app.logger.info('修改抢票为结束 tiid {}'.format(tiid))
+    try:
+        with db.auto_commit():
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
+            if not ticket:
+                current_app.logger.error(">>> 未找到此票 <<<")
+                return
+            if ticket.TIstatus != TicketStatus.active.value:
+                current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
+                return
+            ticket.TIstatus = TicketStatus.over.value
+        connid = 'end_ticket{}'.format(ticket.TIid)
+        conn_value = conn.get(connid)
+        if conn_value:
+            current_app.logger.info('exist end ticket conn:{} / {} '.format(connid, str(conn_value), encoding='utf-8'))
+            conn.delete(connid)
+    except Exception as e:
+        current_app.logger.error("该票修改为结束时出错 : {} <<<".format(e))
+    finally:
+        current_app.logger.info('修改抢票为结束任务完成 tiid {}'.format(tiid))
 
 
 if __name__ == '__main__':
