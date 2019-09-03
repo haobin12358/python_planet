@@ -86,6 +86,11 @@ class PlayPicture():
         # new_im = img.new('RGBA', (750, 1010), color='white')
         if len(plname) >= 34:
             plname = plname[:30] + '..'
+        # current_app.logger.info('get playprice = {} len = {}'.format(playprice, len(playprice)))
+        if len(playprice) >= 6:
+            playprice = playprice.split('.')[0]
+        current_app.logger.info('get after playprice = {} len = {}'.format(playprice, len(playprice)))
+
         local_path = os.path.join(current_app.config['BASEDIR'], path[1:])
         new_im = img.open(local_path)
         shuffix = str(path).split('.')[-1]
@@ -120,21 +125,22 @@ class PlayPicture():
 
         dw.text((55, 490), '\n'.join(plnamelist), font=plnamefont, fill='#000000')
         # 出发时间
-        timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 32)
-        dw.text((55, 632), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
+        timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 30)
+        dw.text((55, 632), '出游时间: {}-{}'.format(
+            starttime, endtime), font=timefont, fill='#000000')
         # ￥
         icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 48)
 
         # 小矩形
         h_ = (len(str(playprice)) + 2) * 26
-        x_ = 693 - h_
-        self.drawrec(dw, '#FFCE00', x_ + 2, 643, h_ + 3, 34)
+        x_ = 683 - h_
+        self.drawrec(dw, '#FFCE00', x_ + 2, 643, h_ + 13, 34)
 
         dw.text((x_, 610), '￥', font=icon_font, fill='#000000')
 
         # 价格
         pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
-        price_x = 680 - len(str(playprice) * 26)
+        price_x = 670 - len(str(playprice) * 26)
         dw.text((price_x, 600), playprice, font=pricefont, fill='#000000')
 
         # pro1
@@ -219,6 +225,11 @@ class PlayPicture():
         # new_im = img.new('RGBA', (750, 1010), color='white')
         if len(tiname) >= 34:
             tiname = tiname[:30] + '..'
+
+        if len(playprice) >= 6:
+            playprice = playprice.split('.')[0]
+        current_app.logger.info('get after playprice = {} len = {}'.format(playprice, len(playprice)))
+
         local_path = os.path.join(current_app.config['BASEDIR'], path[1:])
         new_im = img.open(local_path)
         shuffix = str(path).split('.')[-1]
@@ -243,6 +254,7 @@ class PlayPicture():
 
             inner_im.resize((640, 640), img.LANCZOS).save(temp_path)
             inner_im = img.open(temp_path)
+
         new_im.paste(inner_im, (55, 90))
 
         # 门票信息
@@ -254,21 +266,21 @@ class PlayPicture():
         dw.text((55, 760), '\n'.join(tinamelist), font=tinamefont, fill='#000000')
         # TODO 出游时间字段未定
         # 出发时间
-        # timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 32)
-        # dw.text((55, 632), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
+        timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 30)
+        dw.text((55, 902), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
         # ￥
         icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 48)
 
         # 小矩形
         h_ = (len(str(playprice)) + 2) * 26
-        x_ = 693 - h_
-        self.drawrec(dw, '#FFCE00', x_ + 2, 913, h_ + 3, 34)
+        x_ = 683 - h_
+        self.drawrec(dw, '#FFCE00', x_ + 2, 913, h_ + 13, 34)
 
         dw.text((x_, 884), '￥', font=icon_font, fill='#000000')
 
         # 价格
         pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
-        price_x = 680 - len(str(playprice) * 26)
+        price_x = 670 - len(str(playprice) * 26)
         dw.text((price_x, 874), playprice, font=pricefont, fill='#000000')
 
         # pro1
