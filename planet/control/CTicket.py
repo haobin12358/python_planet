@@ -333,8 +333,9 @@ class CTicket(CPlay):
         if award_num >= ticket.TInum:
             raise StatusError('已达最大发放票数')
         with db.auto_commit():
-            ticket_order.update({'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',  # todo 临时占位二维码
-                                 'TSOstatus': TicketsOrderStatus.has_won.value})
+            ticket_order.update(
+                {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',  # todo 临时占位二维码
+                 'TSOstatus': TicketsOrderStatus.has_won.value})
             db.session.add(ticket_order)
         # todo 校验最大发放数
         return Success('设置成功', data=tsoid)
@@ -453,15 +454,17 @@ class CTicket(CPlay):
     def get_promotion(self):
         data = parameter_required('tiid')
         user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
-        tiid = data.get('tiid')        
+        tiid = data.get('tiid')
         params = data.get('params')
         # play = Play.query.filter_by(PLid=plid, isdelete=False).first()
-        ticket = Ticket.query.filter(Ticket.TIid == tiid, Ticket.TIstatus < TicketStatus.interrupt.value,  Ticket.isdelete==false()).first_('活动已结束')
-        
+        ticket = Ticket.query.filter(
+            Ticket.TIid == tiid, Ticket.TIstatus < TicketStatus.interrupt.value,
+            Ticket.isdelete == false()).first_('活动已结束')
+
         usid = user.USid
 
-        starttime = None
-        endtime = None
+        starttime = self._check_time(ticket.TItripStartTime)
+        endtime = self._check_time(ticket.TItripEndTime, fmt='%m/%d')
 
         # 获取微信二维码
         from planet.control.CUser import CUser
@@ -486,4 +489,3 @@ class CTicket(CPlay):
             'promotion_path': promotion_path,
             'scene': scene
         })
-
