@@ -30,7 +30,8 @@ class CTicket(CPlay):
     def create_ticket(self):
         """创建票务"""
         data = request.json
-        tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory = self._validate_ticket_param(data)
+        (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
+         titripstarttime, titripendtime) = self._validate_ticket_param(data)
         if Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIname == data.get('tiname')).first():
             raise ParamsError('该门票名称已存在')
         instance_list = []
@@ -41,6 +42,8 @@ class CTicket(CPlay):
                                     'TIimg': data.get('tiimg'),
                                     'TIstartTime': tistarttime,
                                     'TIendTime': tiendtime,
+                                    'TItripStartTime': titripstarttime,
+                                    'TItripEndTime': titripendtime,
                                     'TIrules': data.get('tirules'),
                                     'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
                                     'TIdetails': data.get('tidetails'),
@@ -94,11 +97,14 @@ class CTicket(CPlay):
                 if ticket.TIstatus < TicketStatus.interrupt.value:
                     raise ParamsError('仅可修改已中止或已结束的活动')
                 # todo 编辑已结束的活动，影响已完成的显示，考虑是否重新创建
-                tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory = self._validate_ticket_param(data)
+                (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
+                 titripstarttime, titripendtime) = self._validate_ticket_param(data)
                 ticket.update({'TIname': data.get('tiname'),
                                'TIimg': data.get('tiimg'),
                                'TIstartTime': tistarttime,
                                'TIendTime': tiendtime,
+                               'TItripStartTime': titripstarttime,
+                               'TItripEndTime': titripendtime,
                                'TIrules': data.get('tirules'),
                                'TIcertificate': data.get('ticertificate'),
                                'TIdetails': data.get('tidetails'),
@@ -131,18 +137,32 @@ class CTicket(CPlay):
                             'tiendtime': '抢票结束时间', 'tirules': '规则', 'tiprice': '票价', 'tideposit': '最低押金',
                             'tinum': '门票数量', 'tidetails': '详情', 'tiabbreviation': '列表页活动类型简称',
                             'ticategory': '列表页活动类型标签'}, datafrom=data)
-        tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', data.get('tistarttime'), '抢票开始时间格式错误')
-        tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', data.get('tiendtime'), '抢票结束时间格式错误')
+        tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
+        tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
         tistarttime, tiendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), (tistarttime, tiendtime))
         now = datetime.now()
         if tistarttime < now:
             raise ParamsError('抢票开始时间应大于现在时间')
         if tiendtime < tistarttime:
             raise ParamsError('抢票结束时间应大于开始时间')
+
+        titripstarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripstarttime')),
+                                       '游玩开始时间格式错误')
+        titripendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripendtime')),
+                                     '游玩结束时间格式错误')
+        titripstarttime, titripendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'),
+                                             (titripstarttime, titripendtime))
+        if titripstarttime < now:
+            raise ParamsError('游玩开始时间应大于现在时间')
+        if titripstarttime < tiendtime:
+            raise ParamsError('游玩开始时间不能小于抢票结束时间')
+        if titripendtime < titripstarttime:
+            raise ParamsError('游玩结束时间应大于开始时间')
+
         tiprice, tideposit = map(lambda x: validate_price(x, can_zero=False),
                                  (data.get('tiprice'), data.get('tideposit')))
         if tiprice < tideposit:
-            raise ParamsError('最低押金应小于票价')
+            raise ParamsError('最低押金不能大于票价')
         tinum = data.get('tinum')
         if not isinstance(tinum, int) or int(tinum) <= 0:
             raise ParamsError('请输入合理的门票数量')
@@ -153,7 +173,7 @@ class CTicket(CPlay):
         if not isinstance(ticategory, list):
             raise ParamsError('ticategory 格式错误')
         ticategory = json.dumps(ticategory)
-        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory
+        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory, titripstarttime, titripendtime
 
     def get_ticket(self):
         """门票详情"""
@@ -194,7 +214,7 @@ class CTicket(CPlay):
 
         ticket.fill('countdown', countdown)
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
-        ticket.fill('residual', ticket.TInum)  # todo fake number ?
+        # ticket.fill('residual', ticket.TInum)  # todo fake number ?
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
         ticket.fill('ticategory', json.loads(ticket.TIcategory))
         tirewardnum, residual_deposit, umf = None, None, None
@@ -218,7 +238,8 @@ class CTicket(CPlay):
         ticket.fill('umfstatus', umfstatus)  # 反馈素材审核状态
         ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
         ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
-        ticket.fill('triptime', '{} / {}'.format(ticket.TItripStartTime, ticket.TItripEndTime))
+        ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d"),
+                                                 ticket.TItripEndTime.strftime("%Y/%m/%d")))
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
@@ -322,13 +343,9 @@ class CTicket(CPlay):
                                                  TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
                                                  ).first_('状态错误')
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
-        if not ticket or ticket.TIstatus not in (TicketStatus.active.value, TicketStatus.over.value):
-            raise ParamsError('票务状态异常')
-        award_num = db.session.query(func.count(TicketsOrder.TSOid)
-                                     ).filter(TicketsOrder.isdelete == false(),
-                                              TicketsOrder.TIid == ticket_order.TIid,
-                                              TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
-                                              ).scalar() or 0
+        if not ticket or ticket.TIstatus != TicketStatus.over.value:
+            raise ParamsError('抢票尚未结束')
+        award_num = self._query_award_num(ticket.TIid)
         current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
         if award_num >= ticket.TInum:
             raise StatusError('已达最大发放票数')
@@ -336,7 +353,15 @@ class CTicket(CPlay):
             ticket_order.update({'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',  # todo 临时占位二维码
                                  'TSOstatus': TicketsOrderStatus.has_won.value})
             db.session.add(ticket_order)
-        # todo 校验最大发放数
+            db.session.flush()
+            awarded_num = self._query_award_num(ticket.TIid)
+            current_app.logger.info('设置后中奖数：{} / {}'.format(awarded_num, ticket.TInum))
+            if awarded_num == ticket.TInum:
+                row_count = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                      TicketsOrder.TIid == ticket.TIid,
+                                                      TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+                                                      ).update({'TSOstatus': TicketsOrderStatus.not_won.value})
+                current_app.logger.info('开奖完毕，共{}条未中奖'.format(row_count))
         return Success('设置成功', data=tsoid)
 
     @phone_required
@@ -440,6 +465,14 @@ class CTicket(CPlay):
                                     'TIid': tiid,
                                     'TSOcode': tscode,
                                     'isdelete': True})
+
+    @staticmethod
+    def _query_award_num(tiid):
+        return db.session.query(func.count(TicketsOrder.TSOid)
+                                ).filter(TicketsOrder.isdelete == false(),
+                                         TicketsOrder.TIid == tiid,
+                                         TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
+                                         ).scalar() or 0
 
     def _cancle_celery(self, conid):
         exist_task_id = conn.get(conid)
