@@ -185,7 +185,7 @@ class CTicket(CPlay):
 
         tiprice, tideposit = map(lambda x: validate_price(x, can_zero=False),
                                  (data.get('tiprice'), data.get('tideposit')))
-        if tiprice <= tideposit:  # todo 解决第二次押金0元
+        if tiprice < tideposit:
             raise ParamsError('最低押金不能大于票价')
         tinum = data.get('tinum')
         if not isinstance(tinum, int) or int(tinum) <= 0:
@@ -392,9 +392,11 @@ class CTicket(CPlay):
         if award_num >= ticket.TInum:
             raise StatusError('已达最大发放票数')
         with db.auto_commit():
-            ticket_order.update(
-                {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',  # todo 临时占位二维码
-                 'TSOstatus': TicketsOrderStatus.has_won.value})
+            update_dict = {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',
+                           'TSOstatus': TicketsOrderStatus.has_won.value}
+            if ticket.TIdeposit == ticket.TIprice:  # 第二次支付押金0元的情况
+                update_dict['TSOstatus'] = TicketsOrderStatus.completed.value
+            ticket_order.update(update_dict)
             db.session.add(ticket_order)
             db.session.flush()
             awarded_num = self._query_award_num(ticket.TIid)
