@@ -864,7 +864,7 @@ def expired_scene_association():
 @celery.task(name='event_expired_revert')
 def event_expired_revert():
     """过期活动商品返还库存"""
-    current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
+    current_app.logger.info('>>> 活动商品到期返回库存检测 <<< ')
     from planet.control.COrder import COrder
     corder = COrder()
     today = date.today()
