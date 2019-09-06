@@ -133,6 +133,7 @@ pem/cert.zip
 pem2/cert.zip
 #
 templates/*
+alembic/versions/*
 wxservice/*
 wxsubscribe_dir/*
 *.db
