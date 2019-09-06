@@ -89,7 +89,7 @@ class TicketsOrder(Base):
     TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
     TSOtype = Column(Integer, comment='购票类型：{1：直购；2：信用购；3：押金购}')
-    TSOactivation = Column(Integer, default=0, comment='活跃度')
+    TSOactivation = Column(Integer, default=0, index=True, comment='活跃度')
 
 
 class Linkage(Base):

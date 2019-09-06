@@ -569,7 +569,7 @@ if __name__ == '__main__':
         # print(admin.__dict__)
         # print(admin_str)
         # make_acvitity()
-        make_items()
+        # make_items()
         # make_permissiontype()
         # make_admin()
         # cexcel = CExcel()
@@ -582,4 +582,5 @@ if __name__ == '__main__':
         # check_product_from()
         # change_tla_status()
         # add_uac_acaid()
+        make_ActivationType()
         pass
