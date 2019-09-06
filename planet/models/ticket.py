@@ -88,6 +88,8 @@ class TicketsOrder(Base):
     TSOcode = Column(Integer, comment='抢票码')
     TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
+    TSOtype = Column(Integer, comment='购票类型：{1：直购；2：信用购；3：押金购}')
+    TSOactivation = Column(Integer, default=0, comment='活跃度')
 
 
 class Linkage(Base):
@@ -110,3 +112,15 @@ class TicketLinkage(Base):
     TLid = Column(String(64), primary_key=True)
     LIid = Column(String(64))
     TIid = Column(String(64))
+
+class Activation(Base):
+    """
+    活跃度
+    """
+    __tablename__ = 'Activation'
+    ATid = Column(String(64), primary_key=True)
+    USid = Column(String(64))
+    ATtype = Column(Integer, comment='活跃度类型：'
+                                     '{1：分享新用户；2：分享老用户；3：发布内容；4：加精；'
+                                     '5：打赏；6：提交联动平台账号}')
+    ATnum = Column(Integer, default=0, comment='活跃度')
