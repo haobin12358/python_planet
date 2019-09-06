@@ -861,6 +861,13 @@ class UserMaterialFeedbackStatus(Enum):
     refund = 1, '已退'
 
 
+class RoleType(Enum):
+    agreement = 0, '转让协议'
+    discountrefund = 1, '活动退款协议'
+    ticketrole = 2, '门票规则'
+    activationrole = 3, '活跃分获取规则'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import

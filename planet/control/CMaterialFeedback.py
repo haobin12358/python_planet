@@ -32,7 +32,7 @@ class CMaterialFeedback():
         user = get_current_user()
         mfls = data.get('mfls', [])
         umf_dict = self._create_umdetails(data)
-
+        # todo 同步随笔
         with db.auto_commit():
             umf_dict.update({
                 'UMFid': str(uuid.uuid1()),
