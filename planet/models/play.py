@@ -127,7 +127,7 @@ class PlayPay(Base):
     __tablename__ = 'PlayPay'
     PPid = Column(String(64), primary_key=True)
     PPpayno = Column(String(64), index=True, comment='交易号, 自己生成')  # 即out_trade_no
-    PPpayType = Column(Integer, default=0, comment='支付原因 0 报名 10 承接活动')
+    PPpayType = Column(Integer, default=0, comment='支付原因 0 报名 10 承接活动 20 支付票务')
     PPcontent = Column(String(64), comment='关联id')
     PPpaytime = Column(DateTime, comment='付款时间')
     PPpayMount = Column(DECIMAL(precision=28, scale=2), comment='付款金额')

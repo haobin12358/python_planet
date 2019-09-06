@@ -19,7 +19,8 @@ from planet.common.token_handler import get_current_user, phone_required, common
     binded_phone
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TicketDepositType, \
+    TicketsOrderStatus
 
 from planet.common.Inforsend import SendSMS
 
@@ -33,7 +34,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation
+    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation, TicketDeposit, TicketsOrder
 
 
 class CPlay():
@@ -113,22 +114,25 @@ class CPlay():
             raise TokenError
         csc = None
         if secret_usid:
-            superid = self._base_decode(secret_usid)
-            current_app.logger.info('secret_usid --> superid {}'.format(superid))
-            if from_url:
-                from planet.control.CScenicSpot import CScenicSpot
-                csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
-            else:
-                if common_user() and superid != request.user.id:
-                    with db.auto_commit():
-                        uin = UserInvitation.create({
-                            'UINid': str(uuid.uuid1()),
-                            'USInviter': superid,
-                            'USInvited': request.user.id,
-                            'UINapi': request.path
-                        })
-                        current_app.logger.info('已创建邀请记录')
-                        db.session.add(uin)
+            try:
+                superid = self._base_decode(secret_usid)
+                current_app.logger.info('secret_usid --> superid {}'.format(superid))
+                if from_url:
+                    from planet.control.CScenicSpot import CScenicSpot
+                    csc = CScenicSpot().get_customize_share_content(secret_usid, plid)
+                else:
+                    if common_user() and superid != request.user.id:
+                        with db.auto_commit():
+                            uin = UserInvitation.create({
+                                'UINid': str(uuid.uuid1()),
+                                'USInviter': superid,
+                                'USInvited': request.user.id,
+                                'UINapi': request.path
+                            })
+                            current_app.logger.info('已创建邀请记录')
+                            db.session.add(uin)
+            except Exception as e:
+                current_app.logger.info('secet_usid 记录失败 error'.format(e))
 
         self._fill_play(play)
         self._fill_costs(play)
@@ -660,6 +664,8 @@ class CPlay():
             elif pp.PPpayType == PlayPayType.undertake.value:
                 current_app.logger.info('开始修改转让单')
                 self._undertake(pp)
+            elif pp.PPpayType == PlayPayType.ticket.value:
+                self._ticket_order(pp)
             else:
                 current_app.logger.info('获取到异常数据 {}'.format(pp.__dict__))
                 return self.wx_pay.reply("OK", True).decode()
@@ -856,20 +862,29 @@ class CPlay():
                         update_dict = self._get_update_dict(pd_instance, pd)
                         if update_dict.get('PDprice'):
                             update_dict.update(PDprice=pdprice)
-
                         pd_instance.update(update_dict)
+                        if not pd_instance.PDdeltaDay and not pd_instance.PDdeltaHour:
+                            raise ParamsError('时间差值不能为空')
                         instance_list.append(pd_instance)
                         pdid_list.append(pdid)
                         continue
                 pdid = str(uuid.uuid1())
-                if (not pd.get('pddeltaday') and pd.get('pddeltaday') != 0) and \
-                        (not pd.get('pddeltahour') and pd.get('pddeltahour') != 0):
+                try:
+                    pddeltaday = int(pd.get('pddeltaday')) or 0
+                except:
+                    pddeltaday = 0
+                try:
+                    pddeltahour = int(pd.get('pddeltahour')) or 0
+                except:
+                    pddeltahour = 0
+
+                if (not pddeltaday) and (not pddeltahour):
                     raise ParamsError('时间差值不能为空')
 
                 pd_instance = PlayDiscount.create({
                     "PDid": pdid,
-                    "PDdeltaDay": pd.get('pddeltaday'),
-                    "PDdeltaHour": pd.get('pddeltahour'),
+                    "PDdeltaDay": pddeltaday,
+                    "PDdeltaHour": pddeltahour,
                     "PDprice": pdprice,
                 })
                 instance_list.append(pd_instance)
@@ -2286,7 +2301,28 @@ class CPlay():
                 current_app.logger.error('时间转换错误')
                 raise StatusError('系统异常，请联系客服解决')
 
-    def _base_decode(self, raw, raw_name='secret_usid'):
+    def _base_decode(self, raw):
         import base64
         decoded = base64.b64decode(raw + '=' * (4 - len(raw) % 4)).decode()
         return decoded
+
+    @staticmethod
+    def _ticket_order(pp):
+        tds = TicketDeposit.query.filter(TicketDeposit.isdelete == false(), TicketDeposit.OPayno == pp.PPpayno).all()
+        for td in tds:
+            to = TicketsOrder.query.filter(TicketsOrder.TSOid == td.TSOid).first()
+            if to and td.TDtype == TicketDepositType.grab.value:
+                current_app.logger.info('grap tosid: {}'.format(to.TSOid))
+                current_app.logger.info('grap toscode: {}'.format(to.TSOcode))
+                while TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                TicketsOrder.TSOcode == to.TSOcode,
+                                                TicketsOrder.TIid == to.TIid,
+                                                TicketsOrder.TSOid != to.TSOid).first():
+                    current_app.logger.info('found conflict toscode: {}'.format(to.TSOcode))
+                    to.TSOcode += 1
+                to.isdelete = False
+                to.TSOstatus = TicketsOrderStatus.pending.value
+            elif to and td.TDtype == TicketDepositType.patch.value:
+                if to.TSOstatus == TicketsOrderStatus.has_won.value:
+                    current_app.logger.info('patch tosid: {}'.format(to.TSOid))
+                    to.TSOstatus = TicketsOrderStatus.completed.value

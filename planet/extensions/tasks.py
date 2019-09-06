@@ -8,7 +8,7 @@ from decimal import Decimal
 import requests
 from flask import current_app
 from flask_celery import Celery
-from sqlalchemy import cast, Date, extract, func, or_, and_
+from sqlalchemy import cast, Date, extract, func, or_, and_, false
 
 from planet.common.error_response import NotFound
 from planet.common.share_stock import ShareStock
@@ -17,15 +17,15 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import OrderMainStatus, OrderFrom, UserCommissionStatus, ProductStatus, ApplyStatus, ApplyFrom, \
     SupplizerSettementStatus, LogisticsSignStatus, UserCommissionType, TrialCommodityStatus, TimeLimitedStatus, \
     CartFrom, CorrectNumType, GuessGroupStatus, GuessRecordStatus, GuessRecordDigits, MagicBoxJoinStatus, \
-    ActivityDepositStatus, PlayStatus
+    ActivityDepositStatus, PlayStatus, TicketStatus
 
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, conn
 from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, OrderMain, OrderPart, OrderEvaluation, \
     Products, User, UserCommission, Approval, Supplizer, SupplizerSettlement, OrderLogistics, UserWallet, \
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket
 
 celery = Celery()
 
@@ -864,7 +864,7 @@ def expired_scene_association():
 @celery.task(name='event_expired_revert')
 def event_expired_revert():
     """过期活动商品返还库存"""
-    current_app.logger.error('>>> 活动商品到期返回库存检测 <<< ')
+    current_app.logger.info('>>> 活动商品到期返回库存检测 <<< ')
     from planet.control.COrder import COrder
     corder = COrder()
     today = date.today()
@@ -1174,6 +1174,70 @@ def end_play(plid):
     current_app.logger.info('结束修改活动为开始 plid {}'.format(plid))
 
 
+@celery.task()
+def start_ticket(tiid):
+    current_app.logger.info('修改抢票为开始 tiid {}'.format(tiid))
+    try:
+        with db.auto_commit():
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
+            if not ticket:
+                current_app.logger.error(">>> 未找到此票 <<<")
+                return
+            if ticket.TIstatus != TicketStatus.ready.value:
+                current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
+                return
+            ticket.TIstatus = TicketStatus.active.value
+        connid = 'start_ticket{}'.format(ticket.TIid)
+        conn_value = conn.get(connid)
+        if conn_value:
+            current_app.logger.info('exist start ticket conn:{}/{}'.format(connid, str(conn_value), encoding='utf-8'))
+            conn.delete(connid)
+    except Exception as e:
+        current_app.logger.error("该票修改为开始时出错 : {} <<<".format(e))
+    finally:
+        current_app.logger.info('修改抢票为开始任务结束 tiid {}'.format(tiid))
+
+
+@celery.task()
+def end_ticket(tiid):
+    current_app.logger.info('修改抢票为结束 tiid {}'.format(tiid))
+    try:
+        with db.auto_commit():
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
+            if not ticket:
+                current_app.logger.error(">>> 未找到此票 <<<")
+                return
+            if ticket.TIstatus != TicketStatus.active.value:
+                current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
+                return
+            ticket.TIstatus = TicketStatus.over.value
+        connid = 'end_ticket{}'.format(ticket.TIid)
+        conn_value = conn.get(connid)
+        if conn_value:
+            current_app.logger.info('exist end ticket conn:{}/{}'.format(connid, str(conn_value), encoding='utf-8'))
+            conn.delete(connid)
+    except Exception as e:
+        current_app.logger.error("该票修改为结束时出错 : {} <<<".format(e))
+    finally:
+        current_app.logger.info('修改抢票为结束任务完成 tiid {}'.format(tiid))
+
+
+@celery.task(name='del_promotion')
+def del_promotion():
+    try:
+        basepath = os.path.join(current_app.config['BASEDIR'], 'img', 'play')
+        del_num = 0
+        for root, dirs, files in os.walk(basepath):
+            for name in files:
+                if str(name).startswith('promotion'):
+                    del_num += 1
+                    os.remove(os.path.join(root, name))
+
+        current_app.logger.info('删除图片 {}'.format(del_num))
+    except Exception as e:
+        current_app.logger.info('删除图片失败 error = {}'.format(e))
+
+
 if __name__ == '__main__':
     from planet import create_app
 
@@ -1189,4 +1253,5 @@ if __name__ == '__main__':
         # get_url_local(['http://m.qpic.cn/psb?/V13fqaNT3IKQx9/mByjunzSxxDcxQXgrrRTAocPeZ4jnvHnPE56c8l3zpU!/b/dL8AAAAAAAAA&bo=OAQ4BAAAAAARFyA!&rf=viewer_4'] * 102)
         # return_coupon_deposite()
         # welfare_lottery_3d()
-        guess_group_draw()
+        # guess_group_draw()
+        del_promotion()

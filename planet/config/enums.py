@@ -804,6 +804,7 @@ class PlayPayType(Enum):
     """小程序支付流水类型"""
     enterlog = 10, '报名'
     undertake = 20, '承接'
+    ticket = 30, '票务'
 
 
 class TemplateID(Enum):
@@ -825,6 +826,39 @@ class CategoryType(Enum):
     green = 0, '全平台'
     black = 1, '品牌'
     orange = 2, '折扣券'
+
+
+class TicketStatus(Enum):
+    """票务状态"""
+    ready = 0, '未开始'
+    active = 1, '抢票中'
+    interrupt = 2, '中止'
+    over = 3, '已结束'
+
+
+class TicketsOrderStatus(Enum):
+    """已购票状态"""
+    not_won = -1, '未中奖'
+    pending = 0, '待开奖'
+    has_won = 1, '中奖'
+    completed = 2, '已出票'
+
+
+class TicketDepositType(Enum):
+    """票务押金类型"""
+    grab = 0, '抢票押金'
+    patch = 1, '补交押金'
+
+
+class LinkageShareType(Enum):
+    screenshot = 0, '仅截图'
+    links = 1, '截图+链接'
+
+
+class UserMaterialFeedbackStatus(Enum):
+    reject = -1, '未通过'
+    wait = 0, '待退押金'
+    refund = 1, '已退'
 
 
 if __name__ == '__main__':

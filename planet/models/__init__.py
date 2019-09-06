@@ -13,3 +13,4 @@ from .message import *
 from .join import *
 from .play import *
 from .scenicspot import *
+from .ticket import *

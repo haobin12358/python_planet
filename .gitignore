@@ -116,6 +116,10 @@ venv.bak/
 #setting
 /planet/config/setting.py
 /planet/config/secret.py
+#httpconfig
+/planet/config/http_config.py
+/planet/config/planet.cfg
+
 
 # img
 img/*
