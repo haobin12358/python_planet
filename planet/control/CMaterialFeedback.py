@@ -9,10 +9,11 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required, get_current_user, token_required, is_admin, admin_required
-from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus, ApplyFrom, TicketsOrderStatus
+from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus, ApplyFrom, TicketsOrderStatus, \
+    TravelRecordType, TravelRecordStatus
 from planet.extensions.register_ext import db
 from planet.models import UserMaterialFeedback, MaterialFeedbackLinkage, Linkage, Ticket, TicketLinkage, UserWallet, \
-    User, TicketsOrder
+    User, TicketsOrder, TravelRecord
 
 
 class CMaterialFeedback():
@@ -32,6 +33,7 @@ class CMaterialFeedback():
         user = get_current_user()
         mfls = data.get('mfls', [])
         umf_dict = self._create_umdetails(data)
+
         # todo 同步随笔
         with db.auto_commit():
             umf_dict.update({
@@ -54,7 +56,22 @@ class CMaterialFeedback():
 
                 })
                 instance_list.append(mfl_instance)
+
             db.session.add_all(instance_list)
+
+            # 创建随笔
+            travelrecord_dict = {
+                'TRid': str(uuid.uuid1()),
+                'AuthorID': user.USid,
+                'TRtype': TravelRecordType.essay.value,
+                'TRstatus': TravelRecordStatus.published.value,
+                # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
+                'PLid': None,
+                'TRcontent': umf_dict.get('UMFdetails'),
+                'TRlocation': umf_dict.get('UMFlocation')}
+
+            db.session.add(TravelRecord.create(travelrecord_dict))
+
         return Success('已经提交，请等待审核')
 
     @admin_required
@@ -98,9 +115,9 @@ class CMaterialFeedback():
             # 同一购票记录的其他凭证修改状态为已处理
             UserMaterialFeedback.query.filter(
                 UserMaterialFeedback.UMFid != umfid,
-                                              UserMaterialFeedback.isdelete == false(),
-                                              UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.reject.value,
-                                              UserMaterialFeedback.TSOid == umf.TSOid).update(
+                UserMaterialFeedback.isdelete == false(),
+                UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.reject.value,
+                UserMaterialFeedback.TSOid == umf.TSOid).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
 
         return Success
