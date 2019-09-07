@@ -432,7 +432,7 @@ def init_make_over():
 def make_ActivationType():
     with db.auto_commit():
         print('start add attype')
-        attid = 1
+        attid = 100
         act_list = []
 
         # 分享新用户
@@ -445,7 +445,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(share_new)
-        attid += 1
+        attid += 100
 
         # 分享老用户
         share_old = ActivationType.create({
@@ -457,7 +457,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(share_old)
-        attid += 1
+        attid += 100
 
         # 发布随笔
         publish = ActivationType.create({
@@ -469,7 +469,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(publish)
-        attid += 1
+        attid += 100
 
         # 加精
         selected = ActivationType.create({
@@ -481,7 +481,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(selected)
-        attid += 1
+        attid += 100
 
         # 打赏 该类型具体积分需按照实际情况添加
         print('get reward id is {}'.format(attid))
@@ -494,7 +494,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(reward)
-        attid += 1
+        attid += 100
 
         # 小红书信息绑定
         redbook = ActivationType.create({
@@ -506,7 +506,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(redbook)
-        attid += 1
+        attid += 100
 
         # 抖音信息绑定
         tiktok = ActivationType.create({
@@ -518,7 +518,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(tiktok)
-        attid += 1
+        attid += 100
 
         # QQ号信息绑定
         qq = ActivationType.create({
@@ -530,7 +530,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(qq)
-        attid += 1
+        attid += 100
 
         # 微信号信息绑定
         wechat = ActivationType.create({
@@ -542,7 +542,7 @@ def make_ActivationType():
             'ADid': 'adid1'
         })
         act_list.append(wechat)
-        attid += 1
+        attid += 10
 
         # sina微博信息绑定
         sina = ActivationType.create({
