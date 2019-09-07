@@ -136,3 +136,7 @@ class ActivationType(Base):
     ATTupperLimit = Column(Integer, default=0, comment='该获取方式获取的活跃度上限')
     ATTdayUpperLimit = Column(Integer, default=0, comment='该获取方式每日获取的活跃度上限')
     ADid = Column(String(64), comment='创建管理员id')
+    @orm.reconstructor
+    def __init__(self):
+        super(ActivationType, self).__init__()
+        self.hide('ADid')
