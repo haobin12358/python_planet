@@ -5,18 +5,19 @@ from decimal import Decimal
 import json
 
 from flask import current_app, request
+from sqlalchemy import false
 
-from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, ApplyFrom, UserMediaType, \
-    TrialCommodityStatus
-from planet.common.error_response import SystemError, ParamsError
-from planet.common.request_handler import gennerc_log
+from planet.config.enums import ApplyStatus, ApprovalAction, ApplyFrom, \
+    TrialCommodityStatus, ActivationTypeEnum, TicketsOrderStatus
+from planet.common.error_response import ParamsError
 from planet.extensions.register_ext import db
-from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
-    UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
+from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, CashNotes, \
+    UserWallet, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
-    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
+    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide, \
+    ActivationType, Activation, Ticket, TicketsOrder
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -66,7 +67,7 @@ class BASEAPPROVAL():
 
     def create_approval(self, avtype, startid, avcontentid, applyfrom=None, **kwargs):
 
-        gennerc_log('start create approval ptid = {0}'.format(avtype))
+        current_app.logger.info('start create approval ptid = {0}'.format(avtype))
         pt = PermissionType.query.filter_by_(PTid=avtype).first_('参数异常')
 
         start, content = self.__get_approvalcontent(pt, startid, avcontentid, applyfrom=applyfrom, **kwargs)
@@ -558,7 +559,7 @@ class BASEAPPROVAL():
 
     def __get_approvalcontent(self, pt, startid, avcontentid, **kwargs):
         start, content = self.__fill_approval(pt, startid, avcontentid, **kwargs)
-        gennerc_log('get start {0} content {1}'.format(start, content))
+        current_app.logger.info('get start {0} content {1}'.format(start, content))
         if not (start or content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
@@ -611,3 +612,32 @@ class BaseController:
             })
             db.session.add(ul)
         return ul.ULformattedAddress
+
+
+class BASETICKET():
+
+    def add_activation(self, attid, usid, atnum=0):
+        att = ActivationType.query.filter_by(ATTid=attid).first()
+        if not att:
+            return
+        if str(attid) != ActivationTypeEnum.reward.value:
+            atnum = att.ATTnum
+
+        atnum = int(atnum)
+
+        db.session.add(Activation.create({
+            'ATid': str(uuid.uuid1()),
+            'USid': usid,
+            'ATTid': attid,
+            'ATnum': atnum
+        }))
+        now = datetime.now()
+
+        tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+            Ticket.TIstartTime <= now,
+            Ticket.TIendTime >= now,
+            Ticket.isdelete == false(),
+            TicketsOrder.isdelete == false()).all()
+        for tso in tso_list:
+            tso.TSOactivation += atnum
