@@ -10,14 +10,14 @@ from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
-    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
+    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus, ActivationTypeEnum
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import EnterLog, Play, Approval
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
-from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
+from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL, BASETICKET
 from planet.control.CPlay import CPlay
 from planet.control.CUser import CUser
 from pyquery import PyQuery
@@ -28,6 +28,7 @@ class CScenicSpot(BASEAPPROVAL):
     def __init__(self):
         self.BaseAdmin = BASEADMIN()
         self.BaseController = BaseController()
+        self.BaseTicket = BASETICKET()
         self.cplay = CPlay()
         self.cuser = CUser()
         # self.scale_dict = {3: 1000000, 4: 500000, 5: 200000, 6: 100000, 7: 50000,
@@ -319,9 +320,11 @@ class CScenicSpot(BASEAPPROVAL):
                 check_content = travelrecord_dict.get('TRcontent')
                 if trtype == str(TravelRecordType.essay.value):
                     check_content = json.loads(check_content).get('text')
+                    self.BaseTicket.add_activation(ActivationTypeEnum.publish.value, user.USid)
                 mp_miniprogram.msg_sec_check(check_content)
             except WeixinMPError:
                 travelrecord_dict['isdelete'] = True
+
             db.session.add(TravelRecord.create(travelrecord_dict))
         try:
             current_app.logger.info('content_sec_check: {}'.format(mp_miniprogram.msg_sec_check(check_content)))
