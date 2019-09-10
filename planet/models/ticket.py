@@ -135,8 +135,27 @@ class ActivationType(Base):
     ATTnum = Column(Integer, default=0, comment='该获取方式获取的活跃度')
     ATTupperLimit = Column(Integer, default=0, comment='该获取方式获取的活跃度上限')
     ATTdayUpperLimit = Column(Integer, default=0, comment='该获取方式每日获取的活跃度上限')
+    ATTtype = Column(Integer, default=0, comment='是否信息绑定')
+    ATTicon = Column(Text, comment='信息绑定的icon')
     ADid = Column(String(64), comment='创建管理员id')
+
     @orm.reconstructor
     def __init__(self):
         super(ActivationType, self).__init__()
         self.hide('ADid')
+
+
+class UserLinkage(Base):
+    """
+    用户绑定扩展信息
+    """
+    __tablename__ = 'UserLinkage'
+    ULAid = Column(String(64), primary_key=True)
+    ATTid = Column(String(64), comment='绑定类型')
+    USid = Column(String(64), comment='用户id')
+    ULAaccount = Column(String(256), comment='关联账号')
+
+    @orm.reconstructor
+    def __init__(self):
+        super(UserLinkage, self).__init__()
+        self.hide('USid')
