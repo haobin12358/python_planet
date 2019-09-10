@@ -881,6 +881,11 @@ class ActivationTypeEnum(Enum):
     sina = '910', 'sina微博信息绑定'
 
 
+class ActivationTypeType(Enum):
+    info = 1, '信息绑定'
+    other = 0, '其他'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import
