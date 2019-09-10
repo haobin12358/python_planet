@@ -4,7 +4,6 @@ import uuid
 from datetime import datetime, timedelta
 from flask import current_app, request
 from sqlalchemy import false, func
-from decimal import Decimal
 from planet.extensions.tasks import start_ticket, end_ticket, celery
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
@@ -32,30 +31,22 @@ class CTicket(CPlay):
     def create_ticket(self):
         """创建票务"""
         data = request.json
-        (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
-         titripstarttime, titripendtime) = self._validate_ticket_param(data)
+        ticket_dict, liids = self._validate_ticket_param(data)
         if Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIname == data.get('tiname')).first():
             raise ParamsError('该门票名称已存在')
         instance_list = []
         with db.auto_commit():
-            ticket = Ticket.create({'TIid': str(uuid.uuid1()),
-                                    'ADid': getattr(request, 'user').id,
-                                    'TIname': data.get('tiname'),
-                                    'TIimg': data.get('tiimg'),
-                                    'TIstartTime': tistarttime,
-                                    'TIendTime': tiendtime,
-                                    'TItripStartTime': titripstarttime,
-                                    'TItripEndTime': titripendtime,
-                                    'TIrules': data.get('tirules'),
-                                    'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
-                                    'TIdetails': data.get('tidetails'),
-                                    'TIprice': tiprice,
-                                    'TIdeposit': tideposit,
-                                    'TIstatus': TicketStatus.ready.value,
-                                    'TInum': tinum,
-                                    'TIabbreviation': data.get('tiabbreviation'),
-                                    'TIcategory': ticategory
-                                    })
+            ticket_dict.update({'TIid': str(uuid.uuid1()),
+                                'ADid': getattr(request, 'user').id,
+                                'TIname': data.get('tiname'),
+                                'TIimg': data.get('tiimg'),
+                                'TIrules': data.get('tirules'),
+                                'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
+                                'TIdetails': data.get('tidetails'),
+                                'TIstatus': TicketStatus.ready.value,
+                                'TIabbreviation': data.get('tiabbreviation'),
+                                })
+            ticket = Ticket.create(ticket_dict)
             instance_list.append(ticket)
             for liid in liids:
                 linkage = Linkage.query.filter(Linkage.isdelete == false(), Linkage.LIid == liid).first()
@@ -67,9 +58,9 @@ class CTicket(CPlay):
                 instance_list.append(tl)
             db.session.add_all(instance_list)
         # 异步任务: 开始
-        self._create_celery_task(ticket.TIid, tistarttime)
+        self._create_celery_task(ticket.TIid, ticket_dict.get('TIstartTime'))
         # 异步任务: 结束
-        self._create_celery_task(ticket.TIid, tiendtime, start=False)
+        self._create_celery_task(ticket.TIid, ticket_dict.get('TIendTime'), start=False)
         self.BaseAdmin.create_action(AdminActionS.insert.value, 'Ticket', ticket.TIid)
         return Success('创建成功', data={'tiid': ticket.TIid})
 
@@ -110,24 +101,15 @@ class CTicket(CPlay):
             else:
                 if ticket.TIstatus < TicketStatus.interrupt.value:
                     raise ParamsError('仅可编辑已中止或已结束的活动')
-                (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
-                 titripstarttime, titripendtime) = self._validate_ticket_param(data)
-                ticket_dict = {'TIname': data.get('tiname'),
-                               'TIimg': data.get('tiimg'),
-                               'TIstartTime': tistarttime,
-                               'TIendTime': tiendtime,
-                               'TItripStartTime': titripstarttime,
-                               'TItripEndTime': titripendtime,
-                               'TIrules': data.get('tirules'),
-                               'TIcertificate': data.get('ticertificate'),
-                               'TIdetails': data.get('tidetails'),
-                               'TIprice': tiprice,
-                               'TIdeposit': tideposit,
-                               'TIstatus': TicketStatus.ready.value,
-                               'TInum': tinum,
-                               'TIabbreviation': data.get('tiabbreviation'),
-                               'TIcategory': ticategory
-                               }
+                ticket_dict, liids = self._validate_ticket_param(data)
+                ticket_dict.update({'TIname': data.get('tiname'),
+                                    'TIimg': data.get('tiimg'),
+                                    'TIrules': data.get('tirules'),
+                                    'TIcertificate': data.get('ticertificate'),
+                                    'TIdetails': data.get('tidetails'),
+                                    'TIstatus': TicketStatus.ready.value,
+                                    'TIabbreviation': data.get('tiabbreviation'),
+                                    })
                 if ticket.TIstatus == TicketStatus.interrupt.value:  # 中止的情况
                     current_app.logger.info('edit interrupt ticket')
                     ticket.update(ticket_dict)
@@ -148,8 +130,8 @@ class CTicket(CPlay):
                     instance_list.append(tl)
                 self._cancle_celery_task('start_ticket{}'.format(ticket.TIid))
                 self._cancle_celery_task('end_ticket{}'.format(ticket.TIid))
-                self._create_celery_task(ticket.TIid, tistarttime)
-                self._create_celery_task(ticket.TIid, tiendtime, start=False)
+                self._create_celery_task(ticket.TIid, ticket_dict.get('TIstartTime'))
+                self._create_celery_task(ticket.TIid, ticket_dict.get('TIendTime'), start=False)
             instance_list.append(ticket)
             db.session.add_all(instance_list)
             self.BaseAdmin.create_action(AdminActionS.update.value, 'Ticket', ticket.TIid)
@@ -159,8 +141,7 @@ class CTicket(CPlay):
     def _validate_ticket_param(data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
                             'tiendtime': '抢票结束时间', 'tirules': '规则', 'tiprice': '票价', 'tideposit': '最低押金',
-                            'tinum': '门票数量', 'tidetails': '详情', 'tiabbreviation': '列表页活动类型简称',
-                            'ticategory': '列表页活动类型标签'}, datafrom=data)
+                            'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图'}, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
         tistarttime, tiendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), (tistarttime, tiendtime))
@@ -197,7 +178,21 @@ class CTicket(CPlay):
         if not isinstance(ticategory, list):
             raise ParamsError('ticategory 格式错误')
         ticategory = json.dumps(ticategory)
-        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory, titripstarttime, titripendtime
+        if not isinstance(data.get('tibanner'), list):
+            raise ParamsError('tibanner 格式错误')
+        tibanner = json.dumps(ticategory)
+
+        ticket_dicket = {'TIstartTime': tistarttime,
+                         'TIendTime': tiendtime,
+                         'TItripStartTime': titripstarttime,
+                         'TItripEndTime': titripendtime,
+                         'TIprice': tiprice,
+                         'TIdeposit': tideposit,
+                         'TInum': tinum,
+                         'TIcategory': ticategory,
+                         'TIbanner': tibanner
+                         }
+        return ticket_dicket, liids
 
     def get_ticket(self):
         """门票详情"""
@@ -302,10 +297,16 @@ class CTicket(CPlay):
                                       ).order_by(Ticket.TIstatus.asc(), Ticket.createtime.asc()).all_with_page()
         for ticket in tickets:
             self._fill_ticket(ticket)
-            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus',
-                             'interrupt', 'tistatus_zh', 'ticategory', 'TItripStartTime', 'TItripEndTime']
-            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
-                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
+            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'TIprice',
+                             'interrupt', 'tistatus_zh', 'ticategory', 'TItripStartTime', 'TItripEndTime',
+                             'TInum']
+            # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+            #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
+            ticket.fill('apply_num', db.session.query(func.count(TicketsOrder.TSOid)
+                                                      ).filter(TicketsOrder.isdelete == false(),
+                                                               TicketsOrder.TIid == ticket.TIid,
+                                                               TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value
+                                                               ).scalar() or 0)
         return Success(data=tickets)
 
     def _list_ticketorders(self):
@@ -325,8 +326,8 @@ class CTicket(CPlay):
             self._fill_ticket(ticket, to)
             ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid', 'tsocode',
                              'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory', 'tsoqrcode']
-            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
-                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
+            # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+            #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
             res.append(ticket)
             del ticket
         return Success(data=res)

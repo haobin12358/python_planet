@@ -52,6 +52,7 @@ class Ticket(Base):
     TIrewardnum = Column(LONGTEXT, comment='中奖号码')
     TIabbreviation = Column(String(200), comment='列表页封面的简称')
     TIcategory = Column(Text, comment='列表页显示的类型')
+    TIbanner = Column(Text, url_list=True, comment='票务轮播图片')
 
     @orm.reconstructor
     def __init__(self):
