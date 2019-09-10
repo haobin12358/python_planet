@@ -18,7 +18,7 @@ from planet.config.secret import API_HOST
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
     TicketRefundRecord, ActivationType, Activation
 from planet.models.user import User, UserInvitation
-from planet.control.BaseControl import BASEADMIN
+from planet.control.BaseControl import BASEADMIN, BASETICKET
 from planet.control.CPlay import CPlay
 
 
@@ -27,6 +27,7 @@ class CTicket(CPlay):
     def __init__(self):
         super(CTicket, self).__init__()
         self.BaseAdmin = BASEADMIN()
+        self.Baseticket = BASETICKET()
 
     @admin_required
     def create_ticket(self):
@@ -229,6 +230,7 @@ class CTicket(CPlay):
                         })
                         current_app.logger.info('已创建邀请记录')
                         db.session.add(uin)
+                        self.Baseticket.add_activation(ActivationTypeEnum.share_old.value, superid)
             except Exception as e:
                 current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
 
@@ -631,29 +633,3 @@ class CTicket(CPlay):
             'promotion_path': promotion_path,
             'scene': scene
         })
-
-    def add_activation(self, attid, usid, atnum=0):
-        att = ActivationType.query.filter_by(ATTid=attid).first()
-        if not att:
-            return
-        if str(attid) != ActivationTypeEnum.reward.value:
-            atnum = att.ATTnum
-
-        atnum = int(atnum)
-
-        db.session.add(Activation.create({
-            'ATid': str(uuid.uuid1()),
-            'USid': usid,
-            'ATTid': attid,
-            'ATnum': atnum
-        }))
-        now = datetime.now()
-
-        tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
-            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
-            Ticket.TIstartTime <= now,
-            Ticket.TIendTime >= now,
-            Ticket.isdelete == false(),
-            TicketsOrder.isdelete == false()).all()
-        for tso in tso_list:
-            tso.TSOactivation += atnum
