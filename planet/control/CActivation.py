@@ -100,8 +100,8 @@ class CActivation(CTicket):
                     current_app.logger.info('已经绑定账号 {}'.format(ula_instance.ULAaccount))
                     if ula.get('ulaaccount') != ula_instance.ULAaccount:
                         current_app.logger.info('修改已经绑定账号为 {}'.format(ula.get('ulaaccount')))
-                        ula_instance.ULAaccount = ula.get('ulaaccount')
-                        db.session.add(ula_instance)
+                        # ula_instance.ULAaccount = ula.get('ulaaccount')
+                        # db.session.add(ula_instance)
                     continue
                 ula_instance = UserLinkage.create({
                     'ULAid': str(uuid.uuid1()),
