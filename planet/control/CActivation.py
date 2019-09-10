@@ -111,13 +111,12 @@ class CActivation(CTicket):
                 })
                 db.session.add(ula_instance)
                 current_app.logger.info('创建绑定账号 {}'.format(ula.get('ulaaccount')))
-                self.add_activation(ula.get('attid'), user.USid)
+                super(CActivation).Baseticket.add_activation(ula.get('attid'), user.USid)
         return Success('绑定成功')
 
     @token_required
     def get_userlinkage(self):
         user = get_current_user()
-        # ula_list = UserLinkage.query.filter_by(USid=user.USid, isdelete=False).all()
         infoatt_list = ActivationType.query.filter_by(ATTtype=ActivationTypeType.info.value, isdelete=False).all()
         usid = user.USid
         for infoatt in infoatt_list:
