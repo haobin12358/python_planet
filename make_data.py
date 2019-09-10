@@ -503,6 +503,8 @@ def make_ActivationType():
             'ATTnum': 10,
             'ATTupperLimit': 0,
             'ATTdayUpperLimit': 0,
+            'ATTtype': 1,
+            'ATTicon': '/img/base/2019/8/1/logo-red.png',
             'ADid': 'adid1'
         })
         act_list.append(redbook)
@@ -515,6 +517,8 @@ def make_ActivationType():
             'ATTnum': 10,
             'ATTupperLimit': 0,
             'ATTdayUpperLimit': 0,
+            'ATTtype': 1,
+            'ATTicon': '/img/base/2019/8/1/logo-dou.png',
             'ADid': 'adid1'
         })
         act_list.append(tiktok)
@@ -527,6 +531,8 @@ def make_ActivationType():
             'ATTnum': 10,
             'ATTupperLimit': 0,
             'ATTdayUpperLimit': 0,
+            'ATTtype': 1,
+            'ATTicon': '/img/base/2019/8/1/logo-qq.png',
             'ADid': 'adid1'
         })
         act_list.append(qq)
@@ -539,6 +545,8 @@ def make_ActivationType():
             'ATTnum': 10,
             'ATTupperLimit': 0,
             'ATTdayUpperLimit': 0,
+            'ATTtype': 1,
+            'ATTicon': '/img/base/2019/8/1/logo-peng.png',
             'ADid': 'adid1'
         })
         act_list.append(wechat)
@@ -551,6 +559,8 @@ def make_ActivationType():
             'ATTnum': 10,
             'ATTupperLimit': 0,
             'ATTdayUpperLimit': 0,
+            'ATTtype': 1,
+            'ATTicon': '/img/base/2019/8/1/logo-weibo.png',
             'ADid': 'adid1'
         })
         act_list.append(sina)

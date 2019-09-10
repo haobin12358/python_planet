@@ -9,6 +9,7 @@ class AActivation(Resource):
     def post(self, activation):
         apis = {
             'update_activationtype': self.cat.update_activationtype,
+            'bind_linkage': self.cat.bind_linkage,
         }
         return apis
 
@@ -16,6 +17,7 @@ class AActivation(Resource):
         apis = {
             'get_activationtype': self.cat.get_activationtype,
             'list_activationtype': self.cat.list_activationtype,
+            'get_userlinkage': self.cat.get_userlinkage,
             'get_duration_activation': self.cat.get_duration_activation,
         }
         return apis

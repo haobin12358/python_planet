@@ -644,7 +644,7 @@ class CTicket(CPlay):
 
         db.session.add(Activation.create({
             'ATid': str(uuid.uuid1()),
-            'USId': usid,
+            'USid': usid,
             'ATTid': attid,
             'ATnum': atnum
         }))
