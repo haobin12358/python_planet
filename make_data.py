@@ -11,7 +11,7 @@ from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityTyp
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
-    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver
+    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver, ActivationType
 
 
 # 添加一些默认的数据
@@ -309,7 +309,7 @@ def check_abnormal_sale_volume():
             db.session.add(product)
             # 修正商品月销量
             ops = db.session.query(extract('month', OrderPart.createtime), func.count('*')).outerjoin(
-                OrderMain,OrderMain.OMid == OrderPart.OMid).filter(
+                OrderMain, OrderMain.OMid == OrderPart.OMid).filter(
                 OrderMain.isdelete == False,
                 OrderPart.isdelete == False,
                 OrderMain.OMstatus != -40,
@@ -429,6 +429,138 @@ def init_make_over():
         db.session.add(mo)
 
 
+def make_ActivationType():
+    with db.auto_commit():
+        print('start add attype')
+        attid = 100
+        act_list = []
+
+        # 分享新用户
+        share_new = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "分享新用户",
+            'ATTnum': 20,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(share_new)
+        attid += 100
+
+        # 分享老用户
+        share_old = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "分享老用户",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(share_old)
+        attid += 100
+
+        # 发布随笔
+        publish = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "发布随笔",
+            'ATTnum': 20,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 100,
+            'ADid': 'adid1'
+        })
+        act_list.append(publish)
+        attid += 100
+
+        # 加精
+        selected = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "系统精选随笔",
+            'ATTnum': 20,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(selected)
+        attid += 100
+
+        # 打赏 该类型具体积分需按照实际情况添加
+        print('get reward id is {}'.format(attid))
+        reward = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "系统打赏",
+            'ATTnum': 0,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(reward)
+        attid += 100
+
+        # 小红书信息绑定
+        redbook = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "小红书信息绑定",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(redbook)
+        attid += 100
+
+        # 抖音信息绑定
+        tiktok = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "抖音信息绑定",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(tiktok)
+        attid += 100
+
+        # QQ号信息绑定
+        qq = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "QQ号信息绑定",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(qq)
+        attid += 100
+
+        # 微信号信息绑定
+        wechat = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "微信号信息绑定",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(wechat)
+        attid += 10
+
+        # sina微博信息绑定
+        sina = ActivationType.create({
+            'ATTid': str(attid),
+            'ATTname': "sina微博信息绑定",
+            'ATTnum': 10,
+            'ATTupperLimit': 0,
+            'ATTdayUpperLimit': 0,
+            'ADid': 'adid1'
+        })
+        act_list.append(sina)
+        # attid += 1
+
+        print('max attid is {}'.format(attid))
+
+        db.session.add_all(act_list)
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -437,7 +569,7 @@ if __name__ == '__main__':
         # print(admin.__dict__)
         # print(admin_str)
         # make_acvitity()
-        make_items()
+        # make_items()
         # make_permissiontype()
         # make_admin()
         # cexcel = CExcel()
@@ -450,4 +582,5 @@ if __name__ == '__main__':
         # check_product_from()
         # change_tla_status()
         # add_uac_acaid()
+        make_ActivationType()
         pass

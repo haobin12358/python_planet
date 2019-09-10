@@ -12,11 +12,11 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.common.playpicture import PlayPicture
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus
+    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum
 from planet.extensions.register_ext import db, conn
 from planet.config.secret import API_HOST
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
-    TicketRefundRecord
+    TicketRefundRecord, ActivationType, Activation
 from planet.models.user import User, UserInvitation
 from planet.control.BaseControl import BASEADMIN
 from planet.control.CPlay import CPlay
@@ -631,3 +631,29 @@ class CTicket(CPlay):
             'promotion_path': promotion_path,
             'scene': scene
         })
+
+    def add_activation(self, attid, usid, atnum=0):
+        att = ActivationType.query.filter_by(ATTid=attid).first()
+        if not att:
+            return
+        if str(attid) != ActivationTypeEnum.reward.value:
+            atnum = att.ATTnum
+
+        atnum = int(atnum)
+
+        db.session.add(Activation.create({
+            'ATid': str(uuid.uuid1()),
+            'USId': usid,
+            'ATTid': attid,
+            'ATnum': atnum
+        }))
+        now = datetime.now()
+
+        tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+            Ticket.TIstartTime <= now,
+            Ticket.TIendTime >= now,
+            Ticket.isdelete == false(),
+            TicketsOrder.isdelete == false()).all()
+        for tso in tso_list:
+            tso.TSOactivation += atnum

@@ -861,6 +861,26 @@ class UserMaterialFeedbackStatus(Enum):
     refund = 1, '已退'
 
 
+class RoleType(Enum):
+    agreement = 0, '转让协议'
+    discountrefund = 1, '活动退款协议'
+    ticketrole = 2, '门票规则'
+    activationrole = 3, '活跃分获取规则'
+
+
+class ActivationTypeEnum(Enum):
+    share_new = '100', '分享新人'
+    share_old = '200', '分享老人'
+    publish = '300', '发布随笔'
+    selected = '400', '系统精选随笔'
+    reward = '500', '系统打赏'
+    redbook = '600', '小红书信息绑定'
+    tiktok = '700', '抖音信息绑定'
+    qq = '800', 'QQ号信息绑定'
+    wechat = '900', '微信号信息绑定'
+    sina = '910', 'sina微博信息绑定'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import

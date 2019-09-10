@@ -89,7 +89,7 @@ class TicketsOrder(Base):
     TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
     TSOtype = Column(Integer, comment='购票类型：{1：直购；2：信用购；3：押金购}')
-    TSOactivation = Column(Integer, default=0, comment='活跃度')
+    TSOactivation = Column(Integer, default=0, index=True, comment='活跃度')
 
 
 class Linkage(Base):
@@ -113,6 +113,7 @@ class TicketLinkage(Base):
     LIid = Column(String(64))
     TIid = Column(String(64))
 
+
 class Activation(Base):
     """
     活跃度
@@ -120,7 +121,22 @@ class Activation(Base):
     __tablename__ = 'Activation'
     ATid = Column(String(64), primary_key=True)
     USid = Column(String(64))
-    ATtype = Column(Integer, comment='活跃度类型：'
-                                     '{1：分享新用户；2：分享老用户；3：发布内容；4：加精；'
-                                     '5：打赏；6：提交联动平台账号}')
+    ATTid = Column(String(64), comment='活跃度类型：分享新用户,分享老用户,发布内容,加精,打赏,提交联动平台账号')
     ATnum = Column(Integer, default=0, comment='活跃度')
+
+
+class ActivationType(Base):
+    """
+    活跃度类型
+    """
+    __tablename__ = 'ActivationType'
+    ATTid = Column(String(64), primary_key=True, comment='该id需要脚本生成固定id')
+    ATTname = Column(String(256), comment='获取积分方式简述')
+    ATTnum = Column(Integer, default=0, comment='该获取方式获取的活跃度')
+    ATTupperLimit = Column(Integer, default=0, comment='该获取方式获取的活跃度上限')
+    ATTdayUpperLimit = Column(Integer, default=0, comment='该获取方式每日获取的活跃度上限')
+    ADid = Column(String(64), comment='创建管理员id')
+    @orm.reconstructor
+    def __init__(self):
+        super(ActivationType, self).__init__()
+        self.hide('ADid')
