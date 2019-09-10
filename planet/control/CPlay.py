@@ -391,9 +391,9 @@ class CPlay():
         leader_location = UserLocation.query.filter(UserLocation.USid == leader.USid,
                                                     UserLocation.isdelete == false()).order_by(
             UserLocation.createtime.desc()).first()
-        self._fill_location(leader_location, isleader=True, realname=True)
-
-        location_list.append(leader_location)
+        if leader_location:
+            self._fill_location(leader_location, isleader=True, realname=True)
+            location_list.append(leader_location)
         for el in els_list:
             location = UserLocation.query.filter(UserLocation.USid == el.USid,
                                                  UserLocation.isdelete == false()).order_by(
