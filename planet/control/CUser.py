@@ -14,7 +14,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus
+    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus, ActivationTypeEnum
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
     BlogAppSecret
@@ -40,7 +40,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
     AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters
-from .BaseControl import BASEAPPROVAL, BASEADMIN
+from .BaseControl import BASEAPPROVAL, BASEADMIN, BASETICKET
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -58,6 +58,7 @@ class CUser(SUser, BASEAPPROVAL):
     def __init__(self):
         super(CUser, self).__init__()
         self.qiniu = QiniuStorage(current_app)
+        self.Baseticket = BASETICKET()
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -2008,6 +2009,8 @@ class CUser(SUser, BASEAPPROVAL):
                 upperd = None
         else:
             upperd = None
+        # todo 老人同时登录和获取门票详情 活跃度累加两次bug
+        isnewguy = ActivationTypeEnum.share_old.value
 
         if user:
             usid = user.USid
@@ -2020,6 +2023,7 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USwxacode = self.wxacode_unlimit(usid)
         else:
             current_app.logger.info('This is a new guy : {}'.format(userinfo.get('nickName')))
+            isnewguy = ActivationTypeEnum.share_new.value
             usid = str(uuid.uuid1())
             user_dict = {
                 'USid': usid,
@@ -2045,6 +2049,7 @@ class CUser(SUser, BASEAPPROVAL):
             uin = UserInvitation.create(
                 {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
+            self.Baseticket.add_activation(isnewguy, upperd.USid)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),
                                                "USid": usid,
