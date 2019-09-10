@@ -180,7 +180,7 @@ class CTicket(CPlay):
         ticategory = json.dumps(ticategory)
         if not isinstance(data.get('tibanner'), list):
             raise ParamsError('tibanner 格式错误')
-        tibanner = json.dumps(ticategory)
+        tibanner = json.dumps(data.get('tibanner'))
 
         ticket_dicket = {'TIstartTime': tistarttime,
                          'TIendTime': tiendtime,
