@@ -638,8 +638,11 @@ class BASETICKET():
             Ticket.TIstartTime <= now,
             Ticket.TIendTime >= now,
             Ticket.isdelete == false(),
+            TicketsOrder.USid == usid,
             TicketsOrder.isdelete == false()).all()
+
         for tso in tso_list:
+            current_app.logger.info('tso status {}'.format(tso.TSOstatus))
             tso.TSOactivation += atnum
             db.session.add(TicketsOrderActivation.create({
                 'TOAid': str(uuid.uuid1()),

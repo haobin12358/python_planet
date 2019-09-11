@@ -10,6 +10,8 @@ class AActivation(Resource):
         apis = {
             'update_activationtype': self.cat.update_activationtype,
             'bind_linkage': self.cat.bind_linkage,
+            'reward': self.cat.reward,
+            'select': self.cat.select,
         }
         return apis
 

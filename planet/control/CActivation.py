@@ -130,21 +130,31 @@ class CActivation(CTicket):
     @admin_required
     def reward(self):
         data = parameter_required({'trid': '', 'atnum': '打赏数目'})
+        admin = get_current_admin()
+
         with db.auto_commit():
-            self._add_activation(data, ActivationTypeEnum.reward.value)
+            self._add_activation(data, ActivationTypeEnum.reward.value, admin.ADid)
 
         return Success('打赏成功')
 
     @admin_required
     def select(self):
         data = parameter_required('trid')
+        select_at = TicketsOrderActivation.query.join(
+            Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
+            Activation.isdelete == false(),
+            Activation.ATTid == ActivationTypeEnum.selected.value,
+            TicketsOrderActivation.TOAcontent == data.get('trid'),
+            TicketsOrderActivation.isdelete == false()).first()
+        if select_at:
+            raise StatusError('已经加精')
+
         with db.auto_commit():
-            self._add_activation(data, ActivationTypeEnum.selected.value)
+            self._add_activation(data, ActivationTypeEnum.selected.value, data.get('trid'))
 
         return Success('精选成功')
 
-    def _add_activation(self, data, attid):
-        admin = get_current_admin()
+    def _add_activation(self, data, attid, contentid):
         toa_list = TicketsOrderActivation.query.join(
             Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
             Activation.isdelete == false(),
@@ -157,4 +167,4 @@ class CActivation(CTicket):
         for toa in toa_list:
             at = Activation.query.filter_by(ATid=toa.ATid, isdelete=False).first()
             # 添加 打赏奖励
-            self.Baseticket.add_activation(attid, at.USid, admin.ADid, data.get('atnum', 0))
+            self.Baseticket.add_activation(attid, at.USid, contentid, data.get('atnum', 0))
