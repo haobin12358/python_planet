@@ -141,7 +141,7 @@ class CTicket(CPlay):
     @staticmethod
     def _validate_ticket_param(data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
-                            'tiendtime': '抢票结束时间', 'tirules': '规则', 'tiprice': '票价', 'tideposit': '最低押金',
+                            'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金',
                             'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图'}, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
