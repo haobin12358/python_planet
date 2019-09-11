@@ -320,7 +320,8 @@ class CScenicSpot(BASEAPPROVAL):
                 check_content = travelrecord_dict.get('TRcontent')
                 if trtype == str(TravelRecordType.essay.value):
                     check_content = json.loads(check_content).get('text')
-                    self.BaseTicket.add_activation(ActivationTypeEnum.publish.value, user.USid)
+                    self.BaseTicket.add_activation(
+                        ActivationTypeEnum.publish.value, user.USid, travelrecord_dict.get('TRid'))
                 mp_miniprogram.msg_sec_check(check_content)
             except WeixinMPError:
                 travelrecord_dict['isdelete'] = True

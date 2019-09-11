@@ -2049,7 +2049,7 @@ class CUser(SUser, BASEAPPROVAL):
             uin = UserInvitation.create(
                 {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
-            self.Baseticket.add_activation(isnewguy, upperd.USid)
+            self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),
                                                "USid": usid,

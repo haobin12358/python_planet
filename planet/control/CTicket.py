@@ -225,7 +225,8 @@ class CTicket(CPlay):
                         })
                         current_app.logger.info('已创建邀请记录')
                         db.session.add(uin)
-                        self.Baseticket.add_activation(ActivationTypeEnum.share_old.value, superid)
+                        self.Baseticket.add_activation(
+                            ActivationTypeEnum.share_old.value, superid, getattr(request, 'user').id)
             except Exception as e:
                 current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
 
