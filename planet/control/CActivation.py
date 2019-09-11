@@ -4,15 +4,15 @@ from datetime import datetime
 from flask import request, current_app
 from sqlalchemy import false
 
-from planet.common.error_response import ParamsError, AuthorityError
+from planet.common.error_response import ParamsError, AuthorityError, StatusError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, get_current_admin, token_required, common_user, is_admin, \
     get_current_user
-from planet.config.enums import AdminActionS, ActivationTypeType
+from planet.config.enums import AdminActionS, ActivationTypeType, ActivationTypeEnum
 from planet.control.CTicket import CTicket
 from planet.extensions.register_ext import db
-from planet.models import ActivationType, Activation, UserLinkage
+from planet.models import ActivationType, Activation, UserLinkage, TicketsOrderActivation
 
 
 class CActivation(CTicket):
@@ -111,7 +111,7 @@ class CActivation(CTicket):
                 })
                 db.session.add(ula_instance)
                 current_app.logger.info('创建绑定账号 {}'.format(ula.get('ulaaccount')))
-                super(CActivation).Baseticket.add_activation(ula.get('attid'), user.USid)
+                self.Baseticket.add_activation(ula.get('attid'), user.USid, ula_instance.ULAid)
         return Success('绑定成功')
 
     @token_required
@@ -126,3 +126,35 @@ class CActivation(CTicket):
                 ulaaccount = ula.ULAaccount
             infoatt.fill('ulaaccount', ulaaccount)
         return Success(data=infoatt_list)
+
+    @admin_required
+    def reward(self):
+        data = parameter_required({'trid': '', 'atnum': '打赏数目'})
+        with db.auto_commit():
+            self._add_activation(data, ActivationTypeEnum.reward.value)
+
+        return Success('打赏成功')
+
+    @admin_required
+    def select(self):
+        data = parameter_required('trid')
+        with db.auto_commit():
+            self._add_activation(data, ActivationTypeEnum.selected.value)
+
+        return Success('精选成功')
+
+    def _add_activation(self, data, attid):
+        admin = get_current_admin()
+        toa_list = TicketsOrderActivation.query.join(
+            Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
+            Activation.isdelete == false(),
+            TicketsOrderActivation.isdelete == false(),
+            TicketsOrderActivation.TOAcontent == data.get('trid'),
+            Activation.ATTid == ActivationTypeEnum.publish.value,
+        ).all()
+        if not toa_list:
+            raise StatusError('当前随笔没有加分到任何活动中')
+        for toa in toa_list:
+            at = Activation.query.filter_by(ATid=toa.ATid, isdelete=False).first()
+            # 添加 打赏奖励
+            self.Baseticket.add_activation(attid, at.USid, admin.ADid, data.get('atnum', 0))
