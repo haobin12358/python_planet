@@ -160,3 +160,15 @@ class UserLinkage(Base):
     def __init__(self):
         super(UserLinkage, self).__init__()
         self.hide('USid')
+
+
+class TicketsOrderActivation(Base):
+    """
+    门票订单活跃度关联表
+    """
+    TOAid = Column(String(64), primary_key=True)
+    TSOid = Column(String(64), comment='门票订单')
+    ATid = Column(String(64), comment='活跃度')
+    TOAcontent = Column(String(64), comment='如果是随笔，随笔实体id 分享： 分享人id 加精/打赏： 管理员id')
+
+

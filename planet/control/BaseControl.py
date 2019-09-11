@@ -17,7 +17,7 @@ from planet.models import User, Supplizer, Admin, PermissionType, News, Approval
     FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
     TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide, \
-    ActivationType, Activation, Ticket, TicketsOrder
+    ActivationType, Activation, Ticket, TicketsOrder, TicketsOrderActivation
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -616,7 +616,7 @@ class BaseController:
 
 class BASETICKET():
 
-    def add_activation(self, attid, usid, atnum=0):
+    def add_activation(self, attid, usid, contentid, atnum=0):
         att = ActivationType.query.filter_by(ATTid=attid).first()
         if not att:
             return
@@ -624,13 +624,13 @@ class BASETICKET():
             atnum = att.ATTnum
 
         atnum = int(atnum)
-
-        db.session.add(Activation.create({
+        at = Activation.create({
             'ATid': str(uuid.uuid1()),
             'USid': usid,
             'ATTid': attid,
             'ATnum': atnum
-        }))
+        })
+        db.session.add(at)
         now = datetime.now()
 
         tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
@@ -641,3 +641,9 @@ class BASETICKET():
             TicketsOrder.isdelete == false()).all()
         for tso in tso_list:
             tso.TSOactivation += atnum
+            db.session.add(TicketsOrderActivation.create({
+                'TOAid': str(uuid.uuid1()),
+                'TSOid': tso.TSOid,
+                'ATid': at.ATid,
+                'TOAcontent': contentid
+            }))
