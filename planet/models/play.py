@@ -97,6 +97,7 @@ class Agreement(Base):
     AMid = Column(String(64), primary_key=True)
     AMcontent = Column(Text, comment='协议内容')
     AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议 1: 退款规则')
+    AMname = Column(String(256), comment='规则名')
 
 
 class PlayDiscount(Base):
