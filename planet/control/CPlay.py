@@ -16,11 +16,11 @@ from planet.common.params_validates import parameter_required, validate_price
 from planet.common.playpicture import PlayPicture
 from planet.common.success_response import Success
 from planet.common.token_handler import get_current_user, phone_required, common_user, token_required, is_admin, \
-    binded_phone
+    binded_phone, admin_required
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
     CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TicketDepositType, \
-    TicketsOrderStatus
+    TicketsOrderStatus, RoleType
 
 from planet.common.Inforsend import SendSMS
 
@@ -143,6 +143,17 @@ class CPlay():
             play.PLcontent = None
 
         return Success(data=play)
+
+    def get_role(self):
+        data = parameter_required()
+        amtype = self._check_roletype(data.get('amtype'))
+
+        role = Agreement.query.filter_by(AMtype=amtype, isdelete=False).first()
+        return Success(data=role)
+
+    def list_role(self):
+        data = parameter_required()
+        return Success(data=Agreement.query.filter_by(isdelete=False).order_by(Agreement.AMtype.asc()).all())
 
     @phone_required
     def get_play_list(self):
@@ -780,6 +791,18 @@ class CPlay():
             self._update_cost_and_insurance(data, play)
             self._auto_playstatus(play)
         return Success(data=plid)
+
+    @admin_required
+    def update_role(self):
+        data = parameter_required('amtype')
+        # amtype = int(data.get('amtype', 0) or 0)
+        with db.auto_commit():
+            amtype = self._check_roletype(data.get('amtype', 0))
+            role = Agreement.query.filter_by(AMtype=amtype, isdelete=False).first()
+            if not role:
+                raise ParamsError('规则失效')
+            role.AMcontent = data.get('amcontent')
+        return Success('更新成功')
 
     @phone_required
     def set_cost(self):
@@ -2326,3 +2349,12 @@ class CPlay():
                 if to.TSOstatus == TicketsOrderStatus.has_won.value:
                     current_app.logger.info('patch tosid: {}'.format(to.TSOid))
                     to.TSOstatus = TicketsOrderStatus.completed.value
+
+    def _check_roletype(self, amtype):
+        try:
+            amtype_ = int(amtype or 0)
+            amtype_ = RoleType(amtype_).value
+            return amtype_
+        except:
+            current_app.logger.info('非法类型 {}'.format(amtype))
+            raise ParamsError('规则不存在')

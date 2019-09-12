@@ -32,6 +32,8 @@ class APlay(Resource):
             'get_promotion': self.cplay.get_promotion,
             'get_undertake_agreement': self.cplay.get_undertake_agreement,
             'get_params': self.cplay.get_params,
+            'get_role': self.cplay.get_role,
+            'list_role': self.cplay.list_role,
             'download_team': self.cplay.download_team_user_info,
         }
         return apis
@@ -53,6 +55,7 @@ class APlay(Resource):
             'make_over': self.cplay.make_over,
             'undertake': self.cplay.undertake,
             'payment': self.cplay.payment,
+            'update_role': self.cplay.update_role,
             'help': self.cplay.help
         }
         return apis
