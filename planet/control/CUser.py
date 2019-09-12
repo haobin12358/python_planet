@@ -14,7 +14,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus, ActivationTypeEnum
+    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus, ActivationTypeEnum, ShareType
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
     BlogAppSecret
@@ -39,7 +39,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
-    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters
+    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters, SharingType
 from .BaseControl import BASEAPPROVAL, BASEADMIN, BASETICKET
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -308,7 +308,9 @@ class CUser(SUser, BASEAPPROVAL):
         filedbname = os.path.join(savedbpath, '{}.jpg'.format(img_name))
         current_app.logger.info('filename: {} ; filedbname: {}'.format(filename, filedbname))
         if not scene:
-            scene = {'params': self.shorten_parameters('secret_usid={}'.format(secret_usid), usid, 'params')}
+            scene = {'params': self.shorten_parameters('secret_usid={}&sttype={}'.format(
+                secret_usid, ShareType.usercode.value), usid, 'params')}
+
         scene_str = self.dict_to_query_str(scene)
         current_app.logger.info('get scene str: {}'.format(scene_str))
         try:
@@ -2049,6 +2051,12 @@ class CUser(SUser, BASEAPPROVAL):
             uin = UserInvitation.create(
                 {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
             db.session.add(uin)
+            # 分享类型累加
+            db.session.add(SharingType.create({
+                'STid': str(uuid.uuid1()),
+                'USid': upperd,
+                'STtype': args.get('sttype', 0)
+            }))
             self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),

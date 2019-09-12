@@ -11,9 +11,10 @@ from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.common.playpicture import PlayPicture
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum
+    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType
 from planet.extensions.register_ext import db, conn
 from planet.config.secret import API_HOST
+from planet.models import SharingType
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
     TicketRefundRecord, ActivationType, Activation
 from planet.models.user import User, UserInvitation
@@ -225,6 +226,11 @@ class CTicket(CPlay):
                         })
                         current_app.logger.info('已创建邀请记录')
                         db.session.add(uin)
+                        db.session.add(SharingType.create({
+                            'STid': str(uuid.uuid1()),
+                            'USid': superid,
+                            'STtype': args.get('sttype', 0)
+                        }))
                         self.Baseticket.add_activation(
                             ActivationTypeEnum.share_old.value, superid, getattr(request, 'user').id)
             except Exception as e:
@@ -617,6 +623,7 @@ class CTicket(CPlay):
         cuser = CUser()
         if 'secret_usid' not in params:
             params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
+        params = '{}&sttype={}'.format(params, ShareType.promotion.value)
         params_key = cuser.shorten_parameters(params, usid, 'params')
         wxacode_path = cuser.wxacode_unlimit(
             usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), )

@@ -886,6 +886,12 @@ class ActivationTypeType(Enum):
     other = 0, '其他'
 
 
+class ShareType(Enum):
+    direct = 0, '直接分享小程序'
+    promotion = 1, '推广图分享'
+    usercode = 2, '用户二维码'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import

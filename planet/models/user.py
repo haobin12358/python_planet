@@ -355,3 +355,12 @@ class SharingParameters(Base):
     USid = Column(String(64), comment='用户id')
     SPScontent = Column(Text, comment='分享的原参数')
     SPSname = Column(String(30), comment='分享的参数名 如: secret_usid, plid')
+    # SPStype = Column(Integer, default=0, comment='0 直接分享 1 通过生成图片分享 2 个人二维码')
+
+
+class SharingType(Base):
+    """分享类型"""
+    __tablename__ = 'SharingType'
+    STid = Column(String(64), primary_key=True)
+    USid = Column(String(64), comment='')
+    STtype = Column(Integer, default=0, comment='分享类型')
