@@ -9,7 +9,7 @@ from sqlalchemy import false
 
 from planet.config.enums import ApplyStatus, ApprovalAction, ApplyFrom, \
     TrialCommodityStatus, ActivationTypeEnum, TicketsOrderStatus
-from planet.common.error_response import ParamsError
+from planet.common.error_response import ParamsError, StatusError
 from planet.extensions.register_ext import db
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, CashNotes, \
     UserWallet, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
@@ -630,7 +630,7 @@ class BASETICKET():
             'ATTid': attid,
             'ATnum': atnum
         })
-        db.session.add(at)
+
         now = datetime.now()
 
         tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
@@ -640,7 +640,11 @@ class BASETICKET():
             Ticket.isdelete == false(),
             TicketsOrder.USid == usid,
             TicketsOrder.isdelete == false()).all()
+        if not tso_list:
+            current_app.logger.info('活动已结束预热，活跃分不获取')
+            return
 
+        db.session.add(at)
         for tso in tso_list:
             current_app.logger.info('tso status {}'.format(tso.TSOstatus))
             tso.TSOactivation += atnum

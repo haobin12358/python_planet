@@ -14,7 +14,7 @@ from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStat
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
-from planet.models import EnterLog, Play, Approval
+from planet.models import EnterLog, Play, Approval, TicketsOrderActivation, Activation
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
 from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL, BASETICKET
@@ -491,6 +491,13 @@ class CScenicSpot(BASEAPPROVAL):
             else:
                 showtype = 'text'
             trecord.fill('showtype', showtype)
+            select_at = TicketsOrderActivation.query.join(
+                Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
+                Activation.isdelete == false(),
+                Activation.ATTid == ActivationTypeEnum.selected.value,
+                TicketsOrderActivation.TOAcontent == trecord.TRid,
+                TicketsOrderActivation.isdelete == false()).first()
+            trecord.fill('selected', bool(select_at))
         elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
             trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent', 'TRstatus']
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')
