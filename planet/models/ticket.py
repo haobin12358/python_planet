@@ -87,10 +87,10 @@ class TicketsOrder(Base):
     TSOid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户')
     TIid = Column(String(64), comment='票id')
-    TSOcode = Column(Integer, comment='抢票码')
+    TSOcode = Column(Integer, comment='抢票码')  # 2.0版多余
     TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
-    TSOtype = Column(Integer, comment='购票类型：{1：直购；2：信用购；3：押金购}')
+    TSOtype = Column(Integer, comment='购票类型：{1：押金购；2：直购；3：信用购}')
     TSOactivation = Column(Integer, default=0, index=True, comment='活跃度')
 
 

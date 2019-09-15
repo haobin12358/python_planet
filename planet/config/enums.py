@@ -844,6 +844,13 @@ class TicketsOrderStatus(Enum):
     completed = 2, '已使用'  # 2.0 修改取消二次押金
 
 
+class TicketPayType(Enum):
+    """购票支付类型"""
+    deposit = 1, '押金购'
+    cash = 2, '直购'
+    scorepay = 3, '支付分'
+
+
 class TicketDepositType(Enum):
     """票务押金类型"""
     grab = 0, '抢票押金'

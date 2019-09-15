@@ -19,7 +19,7 @@ from planet.common.token_handler import get_current_user, phone_required, common
     binded_phone, admin_required
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
-    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, TicketDepositType, \
+    CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, \
     TicketsOrderStatus, RoleType
 
 from planet.common.Inforsend import SendSMS
@@ -34,7 +34,7 @@ from planet.extensions.tasks import start_play, end_play, celery
 from planet.extensions.weixin.pay import WeixinPayError
 from planet.models import Cost, Insurance, Play, PlayRequire, EnterLog, EnterCost, User, Gather, SignInSet, SignInLog, \
     HelpRecord, UserCollectionLog, Notice, UserLocation, UserWallet, CancelApply, PlayDiscount, Agreement, MakeOver, \
-    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation, TicketDeposit, TicketsOrder
+    SuccessorSearchLog, PlayPay, SharingParameters, UserInvitation, TicketsOrder
 
 
 class CPlay():
@@ -2331,24 +2331,13 @@ class CPlay():
 
     @staticmethod
     def _ticket_order(pp):
-        tds = TicketDeposit.query.filter(TicketDeposit.isdelete == false(), TicketDeposit.OPayno == pp.PPpayno).all()
-        for td in tds:
-            to = TicketsOrder.query.filter(TicketsOrder.TSOid == td.TSOid).first()
-            if to and td.TDtype == TicketDepositType.grab.value:
-                current_app.logger.info('grap tosid: {}'.format(to.TSOid))
-                current_app.logger.info('grap toscode: {}'.format(to.TSOcode))
-                while TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                                TicketsOrder.TSOcode == to.TSOcode,
-                                                TicketsOrder.TIid == to.TIid,
-                                                TicketsOrder.TSOid != to.TSOid).first():
-                    current_app.logger.info('found conflict toscode: {}'.format(to.TSOcode))
-                    to.TSOcode += 1
-                to.isdelete = False
-                to.TSOstatus = TicketsOrderStatus.pending.value
-            elif to and td.TDtype == TicketDepositType.patch.value:
-                if to.TSOstatus == TicketsOrderStatus.has_won.value:
-                    current_app.logger.info('patch tosid: {}'.format(to.TSOid))
-                    to.TSOstatus = TicketsOrderStatus.completed.value
+        current_app.logger.info('ticket pay notify, ppid: {}'.format(pp.PPid))
+        to = TicketsOrder.query.filter(TicketsOrder.TSOid == pp.PPcontent).first()
+        if to:
+            current_app.logger.info('get paid tsoid: {}'.format(to.TSOid))
+            current_app.logger.info('tsotype is : {}'.format(to.TSOtype))
+            to.isdelete = False
+            to.TSOstatus = TicketsOrderStatus.pending.value
 
     def _check_roletype(self, amtype):
         try:
