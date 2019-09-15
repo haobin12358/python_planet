@@ -11,6 +11,7 @@ from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.models.product import Supplizer
+from planet.models.play import Agreement
 from planet.models.user import User, UserInvitation, SharingType
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
     TicketRefundRecord
@@ -19,7 +20,7 @@ from planet.control.CPlay import CPlay
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_ticket, end_ticket, celery
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType, UserStatus, SupplizerGrade
+    PayType, ActivationTypeEnum, ShareType, UserStatus, SupplizerGrade, RoleType
 
 
 class CTicket(CPlay):
@@ -246,8 +247,7 @@ class CTicket(CPlay):
         except Exception as e:
             current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
 
-    @staticmethod
-    def _fill_ticket(ticket, ticketorder=None):
+    def _fill_ticket(self, ticket, ticketorder=None):
         ticket.hide('ADid', 'SUid')
         now = datetime.now()
         if ticket.TIstatus == TicketStatus.ready.value and ticket.TIstartTime > now:  # 距抢票开始倒计时
@@ -267,17 +267,25 @@ class CTicket(CPlay):
         ticket.fill('countdown', countdown)
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
-        ticket.fill('ticategory', json.loads(ticket.TIcategory))
-        tirewardnum, residual_deposit, umf = None, None, None
+        ticket.fill('tirules', db.session.query(Agreement.AMcontent
+                                                ).filter(Agreement.isdelete == false(),
+                                                         Agreement.AMtype == RoleType.ticketrole.value
+                                                         ).scalar())
+        ticket.fill('scorerule', db.session.query(Agreement.AMcontent
+                                                  ).filter(Agreement.isdelete == false(),
+                                                           Agreement.AMtype == RoleType.activationrole.value
+                                                           ).scalar())
+        # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
+        umf = None
         if ticketorder:
             ticket.fill('tsoid', ticketorder.TSOid)
-            ticket.fill('tsocode', ticketorder.TSOcode)
+            # ticket.fill('tsocode', ticketorder.TSOcode)  # 2.0版多余
             ticket.fill('tsostatus', ticketorder.TSOstatus)
             ticket.fill('tsostatus_zh', TicketsOrderStatus(ticketorder.TSOstatus).zh_value)
-            if ticket.TIstatus == TicketStatus.over.value:
-                tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
-            if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:
-                residual_deposit = ticket.TIprice - ticket.TIdeposit
+            # if ticket.TIstatus == TicketStatus.over.value:
+            #     tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
+            # if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:  # 2.0版多余
+            #     residual_deposit = ticket.TIprice - ticket.TIdeposit
             umf = UserMaterialFeedback.query.filter(UserMaterialFeedback.isdelete == false(),
                                                     UserMaterialFeedback.USid == getattr(request, 'user').id,
                                                     UserMaterialFeedback.TIid == ticket.TIid,
@@ -285,12 +293,13 @@ class CTicket(CPlay):
                                                     ).order_by(UserMaterialFeedback.createtime.desc()).first()
             ticket.fill('tsoqrcode',
                         ticketorder['TSOqrcode'] if ticketorder.TSOstatus > TicketsOrderStatus.has_won.value else None)
-        umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
+            ticket.fill('scorerank', self._query_single_score(ticketorder))  # 活跃分排名
+        umfstatus = umf.UMFstatus if umf else None
         ticket.fill('umfstatus', umfstatus)  # 反馈素材审核状态
-        ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
-        ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
-        ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d"),
-                                                 ticket.TItripEndTime.strftime("%Y/%m/%d")))
+        # ticket.fill('tirewardnum', tirewardnum)  # 中奖号码  2.0版多余
+        # ticket.fill('residual_deposit', residual_deposit)  # 剩余押金  2.0版多余
+        ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d %H:%M:%S"),
+                                                 ticket.TItripEndTime.strftime("%Y/%m/%d %H:%M:%S")))
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
@@ -302,6 +311,37 @@ class CTicket(CPlay):
                 sup.fields = ['SUname', 'SUid']
             ticket.fill('supplizer', sup)
 
+    def _query_single_score(self, ticketorder):
+        tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
+            TicketsOrder.isdelete == false(),
+            TicketsOrder.TIid == ticketorder.TIid,
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+        ).order_by(TicketsOrder.TSOactivation.desc(),
+                   TicketsOrder.updatetime.desc(),
+                   origin=True).all() if i is not None]
+        res = [self._init_score_dict(ticketorder.TSOid)]
+        if tsoid_array and len(tsoid_array) > 1:
+            my_index = tsoid_array.index(ticketorder.TSOid)
+            if my_index == 0:
+                res.append(self._init_score_dict(tsoid_array[my_index + 1]))
+            elif my_index == len(tsoid_array) - 1:
+                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1]))
+            else:
+                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1]))
+                res.append(self._init_score_dict(tsoid_array[my_index + 1]))
+        return res
+
+    @staticmethod
+    def _init_score_dict(tsoid):
+        score_info = db.session.query(TicketsOrder.TSOactivation, User.USheader).outerjoin(
+            User, User.USid == TicketsOrder.USid).filter(User.isdelete == false(), TicketsOrder.isdelete == false(),
+                                                         TicketsOrder.TSOid == tsoid).first()
+        res = None
+        if score_info:
+            res = {'tsoactivation': score_info[0],
+                   'usheader': score_info[1] if score_info[1].startswith('http') else API_HOST + score_info[1]}
+        return res
+
     def list_ticket(self):
         """门票列表"""
         args = request.args.to_dict()
@@ -310,13 +350,16 @@ class CTicket(CPlay):
             return self._list_ticketorders()
         filter_args = []
         if not is_admin():
-            filter_args.append(Ticket.TIstatus < TicketStatus.interrupt.value)
+            filter_args.append(Ticket.TIstatus != TicketStatus.interrupt.value)
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
-                                      ).order_by(Ticket.TIstatus.asc(), Ticket.createtime.asc()).all_with_page()
+                                      ).order_by(func.field(Ticket.TIstatus, TicketStatus.active.value,
+                                                            TicketStatus.ready.value, TicketStatus.over.value),
+                                                 Ticket.TIstartTime.asc(),
+                                                 Ticket.createtime.asc()).all_with_page()
         for ticket in tickets:
             self._fill_ticket(ticket)
             ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'TIprice',
-                             'interrupt', 'tistatus_zh', 'ticategory', 'TItripStartTime', 'TItripEndTime',
+                             'interrupt', 'tistatus_zh', 'TItripStartTime', 'TItripEndTime',
                              'TInum']
             # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
             #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
@@ -342,8 +385,8 @@ class CTicket(CPlay):
                 current_app.logger.error('未找到ticket, tiid: {}'.format(to.TIid))
                 continue
             self._fill_ticket(ticket, to)
-            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid', 'tsocode',
-                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory', 'tsoqrcode']
+            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid',
+                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'tsoqrcode']
             # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
             #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
             res.append(ticket)

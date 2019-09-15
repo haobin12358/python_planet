@@ -42,16 +42,16 @@ class Ticket(Base):
     TIendTime = Column(DateTime, comment='结束时间')
     TItripStartTime = Column(DateTime, comment='票务有效期开始时间')
     TItripEndTime = Column(DateTime, comment='票务有效期结束时间')
-    TIrules = Column(Text, comment='规则')
+    TIrules = Column(Text, comment='规则')  # 2.0版多余
     TIcertificate = Column(Text, url=True, comment='景区资质凭证')
     TIdetails = Column(Text, comment='票详情')
     TIprice = Column(DECIMAL(precision=28, scale=2), comment='票价')
     TIdeposit = Column(DECIMAL(precision=28, scale=2), default=1, comment='抢票押金')
     TIstatus = Column(Integer, default=0, comment='抢票状态 0: 未开始, 1: 抢票中, 2: 中止 , 3: 已结束')
     TInum = Column(Integer, default=1, comment='数量')
-    TIrewardnum = Column(LONGTEXT, comment='中奖号码')
-    TIabbreviation = Column(String(200), comment='列表页封面的简称')
-    TIcategory = Column(Text, comment='列表页显示的类型')
+    TIrewardnum = Column(LONGTEXT, comment='中奖号码')  # 2.0版多余
+    TIabbreviation = Column(String(200), comment='列表页封面的简称')  # 2.0版多余
+    TIcategory = Column(Text, comment='列表页显示的类型')  # 2.0版多余
     TIbanner = Column(Text, url_list=True, comment='票务轮播图片')
     SUid = Column(String(64), comment='所属供应商')
 

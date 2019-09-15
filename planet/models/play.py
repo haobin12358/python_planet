@@ -96,7 +96,7 @@ class Agreement(Base):
     __tablename__ = 'Agreement'
     AMid = Column(String(64), primary_key=True)
     AMcontent = Column(Text, comment='协议内容')
-    AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议 1: 退款规则')
+    AMtype = Column(Integer, default=0, comment='协议类型 0:转让协议 1: 退款规则 2：门票规则 3：活跃分规则')
     AMname = Column(String(256), comment='规则名')
 
 

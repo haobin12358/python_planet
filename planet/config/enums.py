@@ -838,10 +838,10 @@ class TicketStatus(Enum):
 
 class TicketsOrderStatus(Enum):
     """已购票状态"""
-    not_won = -1, '未中奖'
-    pending = 0, '待开奖'
-    has_won = 1, '中奖'
-    completed = 2, '已出票'
+    not_won = -1, '未通过'
+    pending = 0, '已申请'
+    has_won = 1, '获得试用'
+    completed = 2, '已使用'  # 2.0 修改取消二次押金
 
 
 class TicketDepositType(Enum):
