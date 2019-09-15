@@ -276,10 +276,10 @@ class CTicket(CPlay):
                                                            Agreement.AMtype == RoleType.activationrole.value
                                                            ).scalar())
         # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
-        umf, traded = None, False
+        umf, traded, tsoid = None, False, None
         if ticketorder:
             traded = True
-            ticket.fill('tsoid', ticketorder.TSOid)
+            tsoid = ticketorder.TSOid
             # ticket.fill('tsocode', ticketorder.TSOcode)  # 2.0版多余
             ticket.fill('tsostatus', ticketorder.TSOstatus)
             ticket.fill('tsostatus_zh', TicketsOrderStatus(ticketorder.TSOstatus).zh_value)
@@ -306,9 +306,10 @@ class CTicket(CPlay):
                                                TicketsOrder.TIid == ticket.TIid,
                                                TicketsOrder.USid == getattr(request, 'user').id).first()
             if traded:
-                ticket.fill('tsoid', traded.TSOid)
+                tsoid = traded.TSOid
                 traded = True
         ticket.fill('traded', bool(traded))  # 是否已购买
+        ticket.fill('tsoid', tsoid)
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
