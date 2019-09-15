@@ -53,6 +53,7 @@ class Ticket(Base):
     TIabbreviation = Column(String(200), comment='列表页封面的简称')
     TIcategory = Column(Text, comment='列表页显示的类型')
     TIbanner = Column(Text, url_list=True, comment='票务轮播图片')
+    SUid = Column(String(64), comment='所属供应商')
 
     @orm.reconstructor
     def __init__(self):

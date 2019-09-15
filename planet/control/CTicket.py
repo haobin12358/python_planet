@@ -10,6 +10,7 @@ from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
+from planet.models.product import Supplizer
 from planet.models.user import User, UserInvitation, SharingType
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
     TicketRefundRecord
@@ -18,7 +19,7 @@ from planet.control.CPlay import CPlay
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_ticket, end_ticket, celery
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType
+    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType, UserStatus, SupplizerGrade
 
 
 class CTicket(CPlay):
@@ -141,7 +142,7 @@ class CTicket(CPlay):
     @staticmethod
     def _validate_ticket_param(data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
-                            'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金',
+                            'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金', 'suid': '票务供应商',
                             'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图'}, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
@@ -182,7 +183,9 @@ class CTicket(CPlay):
         if not isinstance(data.get('tibanner'), list):
             raise ParamsError('tibanner 格式错误')
         tibanner = json.dumps(data.get('tibanner'))
-
+        sup = Supplizer.query.filter(Supplizer.isdelete == false(), Supplizer.SUid == data.get('suid'),
+                                     Supplizer.SUstatus == UserStatus.usual.value,
+                                     Supplizer.SUgrade == SupplizerGrade.ticket.value).first_('票务供应商状态错误')
         ticket_dicket = {'TIstartTime': tistarttime,
                          'TIendTime': tiendtime,
                          'TItripStartTime': titripstarttime,
@@ -191,7 +194,8 @@ class CTicket(CPlay):
                          'TIdeposit': tideposit,
                          'TInum': tinum,
                          'TIcategory': ticategory,
-                         'TIbanner': tibanner
+                         'TIbanner': tibanner,
+                         'SUid': sup.SUid
                          }
         return ticket_dicket, liids
 
@@ -211,37 +215,40 @@ class CTicket(CPlay):
                                                     TicketsOrder.USid == getattr(request, 'user').id,
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
-        if secret_usid:
-            try:
-                superid = super(CTicket, self)._base_decode(secret_usid)
-                current_app.logger.info('secret_usid --> superid {}'.format(superid))
-                if common_user() and superid != getattr(request, 'user').id:
-                    with db.auto_commit():
-                        uin = UserInvitation.create({
-                            'UINid': str(uuid.uuid1()),
-                            'USInviter': superid,
-                            'USInvited': getattr(request, 'user').id,
-                            'UINapi': request.path
-                        })
-                        current_app.logger.info('已创建邀请记录')
-                        db.session.add(uin)
-                        db.session.add(SharingType.create({
-                            'STid': str(uuid.uuid1()),
-                            'USid': superid,
-                            'STtype': args.get('sttype', 0)
-                        }))
-                        self.Baseticket.add_activation(
-                            ActivationTypeEnum.share_old.value, superid, getattr(request, 'user').id)
-            except Exception as e:
-                current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
+        if secret_usid:  # 创建邀请记录
+            self._invitation_record(secret_usid, args)
 
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
         self._fill_ticket(ticket, ticketorder=ticketorder)
         return Success(data=ticket)
 
+    def _invitation_record(self, secret_usid, args):
+        try:
+            superid = super(CTicket, self)._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
+            if common_user() and superid != getattr(request, 'user').id:
+                with db.auto_commit():
+                    uin = UserInvitation.create({
+                        'UINid': str(uuid.uuid1()),
+                        'USInviter': superid,
+                        'USInvited': getattr(request, 'user').id,
+                        'UINapi': request.path
+                    })
+                    current_app.logger.info('已创建邀请记录')
+                    db.session.add(uin)
+                    db.session.add(SharingType.create({
+                        'STid': str(uuid.uuid1()),
+                        'USid': superid,
+                        'STtype': args.get('sttype', 0)
+                    }))
+                    self.Baseticket.add_activation(
+                        ActivationTypeEnum.share_old.value, superid, getattr(request, 'user').id)
+        except Exception as e:
+            current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
+
     @staticmethod
     def _fill_ticket(ticket, ticketorder=None):
-        ticket.hide('ADid')
+        ticket.hide('ADid', 'SUid')
         now = datetime.now()
         if ticket.TIstatus == TicketStatus.ready.value and ticket.TIstartTime > now:  # 距抢票开始倒计时
             countdown = ticket.TIstartTime - now
@@ -259,7 +266,6 @@ class CTicket(CPlay):
 
         ticket.fill('countdown', countdown)
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
-        # ticket.fill('residual', ticket.TInum)  # todo fake number ?
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
         ticket.fill('ticategory', json.loads(ticket.TIcategory))
         tirewardnum, residual_deposit, umf = None, None, None
@@ -291,6 +297,10 @@ class CTicket(CPlay):
                                                   TicketLinkage.isdelete == false(),
                                                   TicketLinkage.TIid == ticket.TIid).all()
             ticket.fill('linkage', linkage)
+            sup = Supplizer.query.filter(Supplizer.SUid == ticket.SUid).first()
+            if sup:
+                sup.fields = ['SUname', 'SUid']
+            ticket.fill('supplizer', sup)
 
     def list_ticket(self):
         """门票列表"""
