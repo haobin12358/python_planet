@@ -347,7 +347,7 @@ class CTicket(CPlay):
         args = request.args.to_dict()
         option = args.get('option')
         if option == 'my':  # 我的门票
-            return self._list_ticketorders()
+            return self._list_ticketorders(args.get('tsostatus'))
         filter_args = []
         if not is_admin():
             filter_args.append(Ticket.TIstatus != TicketStatus.interrupt.value)
@@ -370,12 +370,19 @@ class CTicket(CPlay):
                                                                ).scalar() or 0)
         return Success(data=tickets)
 
-    def _list_ticketorders(self):
+    def _list_ticketorders(self, tsostatus):
         import copy
         if not common_user():
             raise TokenError
+        try:
+            tsostatus = int(tsostatus)
+            TicketsOrderStatus(tsostatus)
+            status_filter = (TicketsOrder.TSOstatus == tsostatus, )
+        except (ValueError, AssertionError, TypeError):
+            status_filter = []
         tos = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                        TicketsOrder.USid == getattr(request, 'user').id
+                                        TicketsOrder.USid == getattr(request, 'user').id,
+                                        *status_filter
                                         ).order_by(TicketsOrder.createtime.desc()).all_with_page()
         res = []
         for to in tos:
@@ -397,6 +404,15 @@ class CTicket(CPlay):
         """所有联动平台"""
         linkages = Linkage.query.filter(Linkage.isdelete == false()).all()
         return Success(data=linkages)
+
+    def list_tsostatus(self):
+        """所有试用记录状态类型"""
+        res = [{'tsostatus': k,
+                'tsostatus_en': TicketsOrderStatus(k).name,
+                'tsostatus_zh': TicketsOrderStatus(k).zh_value
+                } for k in (TicketsOrderStatus.has_won.value, TicketsOrderStatus.pending.value,
+                            TicketsOrderStatus.completed.value, TicketsOrderStatus.not_won.value)]
+        return Success(data=res)
 
     @admin_required
     def list_trade(self):
