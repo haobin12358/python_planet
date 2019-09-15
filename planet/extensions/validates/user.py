@@ -15,6 +15,7 @@ class SupplizerListForm(BaseForm):
     kw = StringField('关键词', default='')
     mobile = StringField('手机号', default='')
     sustatus = StringField('筛选状态', default='all')
+    option = StringField('供应商类型')
 
     def validate_sustatus(self, raw):
         from planet.config.enums import UserStatus

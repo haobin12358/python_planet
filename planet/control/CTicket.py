@@ -1,25 +1,24 @@
 # -*- coding: utf-8 -*-
 import json
 import uuid
-from datetime import datetime, timedelta
-from flask import current_app, request
 from sqlalchemy import false, func
-from planet.extensions.tasks import start_ticket, end_ticket, celery
+from flask import current_app, request
+from datetime import datetime, timedelta
+from planet.config.secret import API_HOST
+from planet.common.playpicture import PlayPicture
+from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
-from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.common.playpicture import PlayPicture
-from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType
-from planet.extensions.register_ext import db, conn
-from planet.config.secret import API_HOST
-from planet.models import SharingType
+from planet.models.user import User, UserInvitation, SharingType
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
-    TicketRefundRecord, ActivationType, Activation
-from planet.models.user import User, UserInvitation
+    TicketRefundRecord
 from planet.control.BaseControl import BASEADMIN, BASETICKET
 from planet.control.CPlay import CPlay
+from planet.extensions.register_ext import db, conn
+from planet.extensions.tasks import start_ticket, end_ticket, celery
+from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
+    PayType, UserMaterialFeedbackStatus, ActivationTypeEnum, ShareType
 
 
 class CTicket(CPlay):

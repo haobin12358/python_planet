@@ -211,8 +211,7 @@ class Supplizer(Base):
     SUemail = Column(String(256), comment='供应商邮箱')
     SUlegalPersonIDcardFront = Column(Text, url=True, comment='法人身份证正面')
     SUlegalPersonIDcardBack = Column(Text, url=True, comment='法人身份证正面')
-
-    SUgrade = Column(Integer, default=0, comment='供应商不知用处等级')
+    SUgrade = Column(Integer, default=0, comment='区分供应商类别 0：大行星商品供应商 1：门票供应商')
 
 
 class SupplizerProduct(Base):

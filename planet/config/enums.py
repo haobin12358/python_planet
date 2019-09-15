@@ -892,6 +892,11 @@ class ShareType(Enum):
     usercode = 2, '用户二维码'
 
 
+class SupplizerGrade(Enum):
+    product = 0, '普通商品供应商'
+    ticket = 1, '门票供应商'
+
+
 if __name__ == '__main__':
     print(TemplateID('enterlog').zh_value)
     # import

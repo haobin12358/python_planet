@@ -1,12 +1,10 @@
 import random
 import re
 import uuid
-import json
 from decimal import Decimal
 from threading import Thread
 from flask import current_app
-from sqlalchemy import or_, and_
-# from pymysql.err import IntegrityError
+from sqlalchemy import or_, and_, false
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -17,7 +15,7 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
-    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminAction, AdminActionS
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminActionS, SupplizerGrade
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
@@ -37,8 +35,11 @@ class CSupplizer:
         kw = form.kw.data
         mobile = form.mobile.data
         sustatus = form.sustatus.data
-
-        supplizers = Supplizer.query.filter_by_().filter_(
+        option = form.option.data
+        if option == 'ticket':
+            return self._list_ticket_sup()
+        supplizers = Supplizer.query.filter_(
+            Supplizer.isdelete == false(),
             Supplizer.SUname.contains(kw),
             Supplizer.SUlinkPhone.contains(mobile),
             Supplizer.SUstatus == sustatus
@@ -69,6 +70,16 @@ class CSupplizer:
             supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
             supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
         return Success(data=supplizers)
+
+    @staticmethod
+    def _list_ticket_sup():
+        sups = Supplizer.query.filter(Supplizer.isdelete == false(), Supplizer.SUstatus == UserStatus.usual.value,
+                                      Supplizer.SUgrade == SupplizerGrade.ticket.value).all_with_page()
+        for sup in sups:
+            sup.fields = ['SUid', 'SUname', 'SUgrade', 'SUstatus']
+            sup.fill('sustatus_zh', UserStatus(sup.SUstatus).zh_value)
+            sup.fill('sugrade_zh', SupplizerGrade(sup.SUgrade).zh_value)
+        return Success(data=sups)
 
     def create(self):
         """添加"""
