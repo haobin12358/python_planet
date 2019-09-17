@@ -58,10 +58,10 @@ class Ticket(Base):
     @orm.reconstructor
     def __init__(self):
         super(Ticket, self).__init__()
-        self.hide('TIcategory', 'TIrewardnum')
+        self.hide('TIabbreviation', 'TIcategory', 'TIrewardnum')
 
 
-class TicketDeposit(Base):
+class TicketDeposit(Base):  # 2.0版本去除
     """票押金记录"""
     __tablename__ = 'TicketDeposit'
     TDid = Column(String(64), primary_key=True)
