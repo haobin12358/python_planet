@@ -14,7 +14,7 @@ from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStat
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
-from planet.models import EnterLog, Play, Approval, TicketsOrderActivation, Activation
+from planet.models import EnterLog, Play, Approval, TicketsOrderActivation, Activation, TicketsOrder, Ticket
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
 from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL, BASETICKET
@@ -390,6 +390,7 @@ class CScenicSpot(BASEAPPROVAL):
         """时光记录（个人中心）列表"""
         args = request.args.to_dict()
         usid, date, area, trtype = args.get('usid'), args.get('date'), args.get('area'), args.get('trtype')
+        tiid = args.get('tiid')
         option = args.get('option')
         if usid:
             ucl_list = [usid]
@@ -434,6 +435,18 @@ class CScenicSpot(BASEAPPROVAL):
                 or_(*map(lambda x: TravelRecord.TRlocation.ilike('%{}%'.format(x)), ssname)))
         if common_user() and option == 'my':
             trecords_query = trecords_query.filter(TravelRecord.AuthorID == getattr(request, 'user').id)
+        if tiid:
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到相应信息')
+            # tso_usid = [i[0] for i in db.session.query(TicketsOrder.USid
+            #                                            ).filter(TicketsOrder.isdelete == false(),
+            #                                                     TicketsOrder.TIid == tiid).all() if i is not None]
+            trecords_query = trecords_query.outerjoin(TicketsOrder, TicketsOrder.USid == TravelRecord.AuthorID
+                                                      ).filter(TicketsOrder.isdelete == false(),
+                                                               or_(and_(TravelRecord.createtime >= ticket.TIstartTime,
+                                                                        TravelRecord.createtime <= ticket.TIendTime)),
+                                                               and_(TravelRecord.createtime >= ticket.TItripStartTime,
+                                                                    TravelRecord.createtime <= ticket.TItripEndTime), )
+
         trecords = trecords_query.order_by(TravelRecord.createtime.desc()).all_with_page()
         [self._fill_travelrecord(x) for x in trecords]
         return Success(data={'top': top, 'travelrecord': trecords})
