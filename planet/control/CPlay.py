@@ -20,7 +20,7 @@ from planet.common.token_handler import get_current_user, phone_required, common
 
 from planet.config.enums import PlayStatus, EnterCostType, EnterLogStatus, PayType, Client, OrderFrom, SigninLogStatus, \
     CollectionType, CollectStatus, MiniUserGrade, ApplyStatus, MakeOverStatus, PlayPayType, \
-    TicketsOrderStatus, RoleType
+    TicketsOrderStatus, RoleType, TicketPayType
 
 from planet.common.Inforsend import SendSMS
 
@@ -2337,7 +2337,13 @@ class CPlay():
             current_app.logger.info('get paid tsoid: {}'.format(to.TSOid))
             current_app.logger.info('tsotype is : {}'.format(to.TSOtype))
             to.isdelete = False
-            to.TSOstatus = TicketsOrderStatus.pending.value
+            if to.TSOtype == TicketPayType.deposit.value:  # 押金付
+                to.TSOstatus = TicketsOrderStatus.pending.value
+            elif to.TSOtype == TicketPayType.scorepay.value:  # 信用付
+                to.TSOstatus = TicketsOrderStatus.pending.value
+            elif to.TSOtype == TicketPayType.cash.value:  # 直接买
+                to.TSOstatus = TicketsOrderStatus.has_won.value
+                to.TSOqrcode = 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png'  # todo
 
     def _check_roletype(self, amtype):
         try:
