@@ -293,19 +293,20 @@ class CUser(SUser, BASEAPPROVAL):
                 current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
         return filedbname
 
-    def wxacode_unlimit(self, usid, scene=None, img_name=None, **kwargs):
+    def wxacode_unlimit(self, usid, scene=None, img_name=None, shuffix='jpg', **kwargs):
         """
         生成带参数的小程序码
         :param usid: 用户id
         :param scene: 需要携带的参数，dict型参数
         :param img_name: 图片名，同一日再次生成同名图片会被替换
+        :param shuffix: 图片格式，默认jpg
         """
         savepath, savedbpath = self._get_path('qrcode')
         secret_usid = self._base_encode(usid)
         if not img_name:  # 默认图片名称，再次生成会替换同名图片
             img_name = secret_usid
-        filename = os.path.join(savepath, '{}.jpg'.format(img_name))
-        filedbname = os.path.join(savedbpath, '{}.jpg'.format(img_name))
+        filename = os.path.join(savepath, '{}.{}'.format(img_name, shuffix))
+        filedbname = os.path.join(savedbpath, '{}.{}'.format(img_name, shuffix))
         current_app.logger.info('filename: {} ; filedbname: {}'.format(filename, filedbname))
         if not scene:
             scene = {'params': self.shorten_parameters('secret_usid={}&sttype={}'.format(
