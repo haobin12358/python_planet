@@ -606,7 +606,9 @@ class CSupplizer:
             suid = request.user.id
         if not suid:
             raise ParamsError('未指定供应商')
-        tv_list = TicketVerifier.query.filter_by(SUid=suid, isdelete=False).all_with_page()
+        tv_list = TicketVerifier.query.filter_by(SUid=suid, isdelete=False).order_by(
+            TicketVerifier.createtime.desc()).all_with_page()
+
         phone_list = [tv.TVphone for tv in tv_list]
         return Success(data=phone_list)
 
