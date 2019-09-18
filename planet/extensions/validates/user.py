@@ -65,6 +65,7 @@ class SupplizerCreateForm(BaseForm):
     suemail = StringField('联系邮箱', )
     sulegalpersonidcardfront = StringField('法人身份证正面', )
     sulegalpersonidcardback = StringField('法人身份证反面', )
+    sugrade = IntegerField('供应商类型')
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(

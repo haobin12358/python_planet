@@ -125,6 +125,7 @@ class CSupplizer:
                     'SUemail': form.suemail.data,
                     'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
                     'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
+                    'SUgrade': form.sugrade.data or 0,
                 })
                 db.session.add(supperlizer)
                 if is_admin():
