@@ -761,6 +761,9 @@ class CTicket(CPlay):
         starttime = super(CTicket, self)._check_time(ticket.TItripStartTime)
         endtime = super(CTicket, self)._check_time(ticket.TItripEndTime, fmt='%m/%d')
 
+        starttime_g = super(CTicket, self)._check_time(ticket.TIstartTime)
+        endtime_g = super(CTicket, self)._check_time(ticket.TIendTime, fmt='%m/%d')
+
         # 获取微信二维码
         # from planet.control.CUser import CUser
         cuser = self.cuser
@@ -769,9 +772,9 @@ class CTicket(CPlay):
         params = '{}&sttype={}'.format(params, ShareType.promotion.value)
         params_key = cuser.shorten_parameters(params, usid, 'params')
         wxacode_path = cuser.wxacode_unlimit(
-            usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), )
+            usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), shuffix='png', is_hyaline=True)
         local_path, promotion_path = PlayPicture().create_ticket(
-            ticket.TIimg, ticket.TIname, starttime, endtime, str(0), usid, tiid, wxacode_path)
+            ticket.TIimg, ticket.TIname, starttime, endtime, starttime_g, endtime_g, str(0), usid, tiid, wxacode_path)
         from planet.extensions.qiniu.storage import QiniuStorage
         qiniu = QiniuStorage(current_app)
         if API_HOST == 'https://www.bigxingxing.com':

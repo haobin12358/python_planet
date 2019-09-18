@@ -2270,7 +2270,7 @@ class CUser(SUser, BASEAPPROVAL):
         elif supplizer.SUstatus == UserStatus.forbidden.value:
             raise StatusError('该账号已被冻结, 详情请联系管理员')
         jwt = usid_to_token(supplizer.SUid, 'Supplizer', username=supplizer.SUname)  # 供应商jwt
-        supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
+        supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname', 'SUgrade']
         return Success('登录成功', data={
             'token': jwt,
             'supplizer': supplizer

@@ -173,3 +173,13 @@ class TicketsOrderActivation(Base):
     TSOid = Column(String(64), comment='门票订单')
     ATid = Column(String(64), comment='活跃度')
     TOAcontent = Column(String(64), comment='如果是随笔，随笔实体id 分享： 分享人id 加精/打赏： 管理员id')
+
+
+class TicketVerifier(Base):
+    """
+    门票核销员
+    """
+    __tablename__  = 'TicketVerifier'
+    TVid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商')
+    TVphone = Column(String(13), nullable=False)

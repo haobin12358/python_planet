@@ -36,6 +36,8 @@ class PlayPicture():
         self.res_path = os.path.join(current_app.config['BASEDIR'], 'planet', 'extensions', 'staticres')
         self.pro_1 = '跟旗行一起游山玩水'
         self.pro_2 = '长按扫码加入我们'
+        self.pro_3 = '跟旗行一起试玩'
+        self.pro_4 = '长按扫码抢免费门票'
         self.temp_path = ''
 
     def _get_path(self, fold):
@@ -211,7 +213,8 @@ class PlayPicture():
         # dw = imd.Draw(im)
         dw.rectangle((x, y, x + w, y + h), fill=color)
 
-    def create_ticket(self, path, tiname, starttime, endtime, playprice, usid, tiid, wxacode):
+    def create_ticket(self, path, tiname, starttime, endtime,
+                      starttime_grab, endtime_grab, playprice, usid, tiid, wxacode):
         if not str(path).startswith('/img'):
             if not (str(path).startswith('http') or str(path).startswith('https')):
                 return
@@ -245,11 +248,11 @@ class PlayPicture():
         new_im = new_im.filter(MyGaussianBlur(radius=30))
         dw = imd.Draw(new_im)
         # 蒙版
-        black = img.new('RGBA', (750, 1270), color=(0, 0, 0, 60))
-        dw.bitmap((0, 0), black, fill=(0, 0, 0, 50))
+        black = img.new('RGBA', (750, 1270), color=(0, 0, 0, 100))
+        dw.bitmap((0, 0), black, fill=(0, 0, 0, 0))
         # 大矩形
-        # self.drawRoundRec(new_im, 'white', 35, 50, 680, 680, 60)
-        self.drawrec(dw, 'white', 35, 50, 680, 940)
+        self.draw_round_rec(dw, 'white', 35, 50, 680, 940, 60)
+        # self.drawrec(dw, 'white', 35, 50, 680, 940)
         # 内容图片
         inner_im = img.open(local_path)
         if x != 640 or y != 640:
@@ -261,45 +264,52 @@ class PlayPicture():
         new_im.paste(inner_im, (55, 90))
 
         # 门票信息
-        tinamefont = imf.truetype(os.path.join(self.res_path, 'PingFang Medium_downcc.otf'), 40)
+        tinamefont = imf.truetype(os.path.join(self.res_path, 'pingfangMedium_cu.ttf'), 40)
         tinamelist = []
         for index, end_limit in enumerate(range(0, len(tiname), 16)):
             tinamelist.append(tiname[index * 16: end_limit + 16])
 
         dw.text((55, 760), '\n'.join(tinamelist), font=tinamefont, fill='#000000')
-        # TODO 出游时间字段未定
+
         # 出发时间
-        timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 30)
-        dw.text((55, 902), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
+        timefont = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 24)
+        dw.text((55, 898), '出游时间: {}-{}'.format(starttime, endtime), font=timefont, fill='#000000')
+
+        # 抢票时间
+        dw.text((55, 931), '领票时间: {}-{}'.format(starttime_grab, endtime_grab), font=timefont, fill='#000000')
         # ￥
-        icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 48)
+        # icon_font = imf.truetype(os.path.join(self.res_path, 'PingFang Regular.otf'), 48)
 
         # 小矩形
-        h_ = (len(str(playprice)) + 2) * 26
-        x_ = 683 - h_
-        self.drawrec(dw, '#FFCE00', x_ + 2, 913, h_ + 13, 34)
+        # h_ = (len(str(playprice)) + 2) * 26
+        # x_ = 683 - h_
+        # self.drawrec(dw, '#FFCE00', x_ + 2, 913, h_ + 13, 34)
+        #
+        # dw.text((x_, 884), '￥', font=icon_font, fill='#000000')
+        #
+        # # 价格
+        # pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
+        # price_x = 670 - len(str(playprice) * 26)
+        # dw.text((price_x, 874), playprice, font=pricefont, fill='#000000')\
 
-        dw.text((x_, 884), '￥', font=icon_font, fill='#000000')
-
-        # 价格
-        pricefont = imf.truetype(os.path.join(self.res_path, 'PingFang SC Semibold.ttf'), 60)
-        price_x = 670 - len(str(playprice) * 26)
-        dw.text((price_x, 874), playprice, font=pricefont, fill='#000000')
-
+        # free
+        free = img.open(os.path.join(self.res_path, 'free.png')).convert('RGBA')
+        new_im.paste(free, (445, 894), free)
         # pro1
         profont_1 = imf.truetype(os.path.join(self.res_path, 'PangMenZhengDao.ttf'), 52)
-        dw.text((47, 1077), self.pro_1, font=profont_1, fill='#FFFFFF')
+        dw.text((47, 1077), self.pro_3, font=profont_1, fill='#FFFFFF')
         # pro2
         profont_2 = imf.truetype(os.path.join(self.res_path, 'PingFangSCRegular.ttf'), 32)
-        dw.text((47, 1139), self.pro_2, font=profont_2, fill='#FFFFFF')
+        dw.text((47, 1139), self.pro_4, font=profont_2, fill='#FFFFFF')
         # 小程序码底层矩形
-        # self.draw_round_rec(dw, 'white', 555, 789, 160, 160, 40)
+        self.draw_round_rec(dw, 'white', 555, 1066, 160, 160, 40)
         # 小程序码
         wxacode = img.open(os.path.join(current_app.config['BASEDIR'], wxacode[1:]))
-        temp_path = os.path.join(self._get_path('tmp')[0], 'temp3{}.{}'.format(str(uuid.uuid1()), shuffix))
+
+        temp_path = os.path.join(self._get_path('tmp')[0], 'temp3{}.{}'.format(str(uuid.uuid1()), 'png'))
         wxacode.resize((160, 160), img.LANCZOS).save(temp_path)
-        wxacode = img.open(temp_path)
-        new_im.paste(wxacode, (555, 1050))
+        wxacode = img.open(temp_path).convert('RGBA')
+        new_im.paste(wxacode, (555, 1066), wxacode)
         # new_im.show()
         new_im_path, new_im_db_path = self._get_path('play')
         random_num = datetime.now().timestamp()
