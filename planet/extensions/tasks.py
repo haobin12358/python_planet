@@ -1201,6 +1201,7 @@ def start_ticket(tiid):
 @celery.task()
 def end_ticket(tiid):
     current_app.logger.info('修改抢票为结束 tiid {}'.format(tiid))
+    from planet.control.CTicket import CTicket
     try:
         with db.auto_commit():
             ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
@@ -1210,6 +1211,8 @@ def end_ticket(tiid):
             if ticket.TIstatus != TicketStatus.active.value:
                 current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
                 return
+            # 开奖 + 未中奖退钱
+            CTicket().ticket_award_task(ticket)
             ticket.TIstatus = TicketStatus.over.value
         connid = 'end_ticket{}'.format(ticket.TIid)
         conn_value = conn.get(connid)
