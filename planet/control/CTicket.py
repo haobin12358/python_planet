@@ -281,7 +281,7 @@ class CTicket(CPlay):
         ticket.fill('tirules', self._query_rules(RoleType.ticketrole.value))
         ticket.fill('scorerule', self._query_rules(RoleType.activationrole.value))
         ticket.fill('apply_num', self._query_award_num(
-            ticket.TIid, filter_status=TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value))
+            ticket.TIid, filter_status=(TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value, )))
 
         # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
         show_record = True if ticket.TIstatus == TicketStatus.over.value else False
@@ -647,11 +647,11 @@ class CTicket(CPlay):
     @staticmethod
     def _query_award_num(tiid, filter_status=None):
         if not filter_status:
-            filter_status = TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
+            filter_status = (TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value, )
         return db.session.query(func.count(TicketsOrder.TSOid)
                                 ).filter(TicketsOrder.isdelete == false(),
                                          TicketsOrder.TIid == tiid,
-                                         filter_status
+                                         *filter_status
                                          ).scalar() or 0
 
     @staticmethod

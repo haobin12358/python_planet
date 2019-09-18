@@ -130,12 +130,12 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
                                                          extract('year', TicketsOrder.createtime) == year
                                                          ).all()
         [transactions.append(
-            {'amount': (i[0] if i[6] == TicketsOrderStatus.not_won.value and i[2] != TicketPayType.scorepay.value else
-                        0 if i[6] == TicketsOrderStatus.not_won.value and i[2] == TicketPayType.scorepay.value else
+            {'amount': (i[0] if i[5] == TicketsOrderStatus.not_won.value and i[2] != TicketPayType.scorepay.value else
+                        0 if i[5] == TicketsOrderStatus.not_won.value and i[2] == TicketPayType.scorepay.value else
                         -i[0] if i[2] == TicketPayType.deposit.value else
                         -i[1] if i[2] == TicketPayType.cash.value else 0),
-             'time': i[3] if i[6] != TicketsOrderStatus.not_won.value else i[7],
-             'title': ('[退试用押金] ' if i[6] == TicketsOrderStatus.not_won.value else
+             'time': i[3] if i[5] != TicketsOrderStatus.not_won.value else i[6],
+             'title': ('[退试用押金] ' if i[5] == TicketsOrderStatus.not_won.value else
                        '[押金试用] ' if i[2] == TicketPayType.deposit.value else
                        '[购买] ' if i[2] == TicketPayType.cash.value else
                        '[支付分试用] ') + i[4]}

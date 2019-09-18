@@ -2342,8 +2342,9 @@ class CPlay():
             elif to.TSOtype == TicketPayType.scorepay.value:  # 信用付
                 to.TSOstatus = TicketsOrderStatus.pending.value
             elif to.TSOtype == TicketPayType.cash.value:  # 直接买
+                from planet.control.CTicket import CTicket
                 to.TSOstatus = TicketsOrderStatus.has_won.value
-                to.TSOqrcode = 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png'  # todo
+                to.TSOqrcode = CTicket()._ticket_order_qrcode(to.TSOid, to.USid)
 
     def _check_roletype(self, amtype):
         try:
