@@ -79,6 +79,7 @@ class TicketRefundRecord(Base):
     TRRredund = Column(DECIMAL(precision=28, scale=2), comment='退款')
     TRRtotal = Column(DECIMAL(precision=28, scale=2), comment='原支付金额')
     OPayno = Column(String(64), comment='支付流水号')
+    TSOid = Column(String(64), comment='购票记录')
 
 
 class TicketsOrder(Base):
