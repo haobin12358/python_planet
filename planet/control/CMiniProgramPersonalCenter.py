@@ -9,10 +9,12 @@ from planet.common.params_validates import parameter_required, validate_arg
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required
 from planet.common.error_response import ParamsError
-from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus, MakeOverStatus, PlayPayType
+from planet.config.enums import EnterLogStatus, ApplyFrom, ApprovalAction, GuideApplyStatus, MakeOverStatus, \
+    PlayPayType, TicketsOrderStatus, TicketPayType, UserMaterialFeedbackStatus
 from planet.control.BaseControl import BASEAPPROVAL
 from planet.extensions.register_ext import db
 from planet.extensions.tasks import auto_agree_task
+from planet.models import TicketsOrder, Ticket, UserMaterialFeedback
 from planet.models.scenicspot import Guide
 from planet.models.user import User, UserWallet, CashNotes, CoveredCertifiedNameLog
 from planet.models.join import EnterLog, CancelApply
@@ -31,7 +33,12 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
             raise ParamsError('date 格式错误')
         year, month = str(date).split('-') if date else (datetime.now().year, datetime.now().month)
         if option == 'expense':
+            start_time = datetime.now()
+            current_app.logger.info('start query: {}'.format(start_time))
             transactions, total = self._get_transactions(user, year, month, args)
+            end_time = datetime.now()
+            current_app.logger.info('end query: {}'.format(end_time))
+            current_app.logger.info('query cost: {}'.format(end_time - start_time))
         elif option == 'withdraw':
             transactions, total = self._get_withdraw(user, year, month)
         else:
@@ -110,6 +117,52 @@ class CMiniProgramPersonalCenter(BASEAPPROVAL):
                               'time': i[1],
                               'title': '[退团] ' + i[2] if i[3] == user.USid else '[团员退出] ' + i[2]}
                              ) for i in ca_query if i[0] is not None]
+        # 门票付款
+        ti_query = db.session.query(Ticket.TIdeposit, Ticket.TIprice, TicketsOrder.TSOtype,
+                                    TicketsOrder.createtime, Ticket.TIname, TicketsOrder.TSOstatus,
+                                    TicketsOrder.updatetime
+                                    ).outerjoin(TicketsOrder, TicketsOrder.TIid == Ticket.TIid
+                                                ).filter(Ticket.isdelete == false(),
+                                                         TicketsOrder.isdelete == false(),
+                                                         TicketsOrder.USid == user.USid,
+                                                         # TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value,
+                                                         extract('month', TicketsOrder.createtime) == month,
+                                                         extract('year', TicketsOrder.createtime) == year
+                                                         ).all()
+        [transactions.append(
+            {'amount': (i[0] if i[6] == TicketsOrderStatus.not_won.value and i[2] != TicketPayType.scorepay.value else
+                        0 if i[6] == TicketsOrderStatus.not_won.value and i[2] == TicketPayType.scorepay.value else
+                        -i[0] if i[2] == TicketPayType.deposit.value else
+                        -i[1] if i[2] == TicketPayType.cash.value else 0),
+             'time': i[3] if i[6] != TicketsOrderStatus.not_won.value else i[7],
+             'title': ('[退试用押金] ' if i[6] == TicketsOrderStatus.not_won.value else
+                       '[押金试用] ' if i[2] == TicketPayType.deposit.value else
+                       '[购买] ' if i[2] == TicketPayType.cash.value else
+                       '[支付分试用] ') + i[4]}
+        ) for i in ti_query if i[0] is not None]
+
+        # 完成反馈后退押金
+        ticket_deposit_query = db.session.query(
+            Ticket.TIdeposit.label('amout'),
+            UserMaterialFeedback.updatetime.label('time'),
+            Ticket.TIname.label('title'),
+            TicketsOrder.TSOtype).join(
+            TicketsOrder, TicketsOrder.TIid == Ticket.TIid).join(
+            UserMaterialFeedback,
+            UserMaterialFeedback.TSOid == TicketsOrder.TSOid).filter(
+            TicketsOrder.isdelete == false(),
+            Ticket.isdelete == false(),
+            UserMaterialFeedback.isdelete == false(),
+            TicketsOrder.USid == user.USid,
+            UserMaterialFeedback.UMFstatus == UserMaterialFeedbackStatus.refund.value,
+            TicketsOrder.TSOtype == TicketPayType.deposit.value,
+            extract('month', UserMaterialFeedback.updatetime) == month,
+            extract('year', UserMaterialFeedback.updatetime) == year
+        ).all()
+
+        [transactions.append({'amount': i[0], 'time': i[1], 'title': '[返还押金] ' + i[2]}
+                             ) for i in ticket_deposit_query if i[1] is not None]
+
         transactions.sort(key=lambda x: x.get('time'), reverse=True)
         total = sum(i.get('amount', 0) for i in transactions)
         for item in transactions:
