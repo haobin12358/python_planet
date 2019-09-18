@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 import uuid
 from sqlalchemy import false, func
@@ -6,11 +7,12 @@ from flask import current_app, request
 from datetime import datetime, timedelta
 from planet.config.secret import API_HOST
 from planet.common.playpicture import PlayPicture
+from planet.common.make_qrcode import qrcodeWithtext
 from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.models import Guide
+from planet.models import Guide, PlayPay
 from planet.models.product import Supplizer
 from planet.models.play import Agreement
 from planet.models.user import User, UserInvitation, SharingType
@@ -18,6 +20,7 @@ from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, T
     TicketRefundRecord
 from planet.control.BaseControl import BASEADMIN, BASETICKET
 from planet.control.CPlay import CPlay
+from planet.control.CUser import CUser
 from planet.extensions.register_ext import db, conn
 from planet.extensions.tasks import start_ticket, end_ticket, celery
 from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, \
@@ -32,6 +35,7 @@ class CTicket(CPlay):
         super(CTicket, self).__init__()
         self.BaseAdmin = BASEADMIN()
         self.Baseticket = BASETICKET()
+        self.cuser = CUser()
 
     @admin_required
     def create_ticket(self):
@@ -95,12 +99,13 @@ class CTicket(CPlay):
                     raise StatusError('该状态下无法中止')
                 if ticket.TIstatus == TicketStatus.active.value:  # 抢票中的退押金
                     current_app.logger.info('interrupt active ticket')
-                    ticket_orders = self._query_not_won(ticket.TIid)
-                    total_row = 0
-                    for to_info in ticket_orders:
-                        row_count = self._deposit_refund(to_info)
-                        total_row += row_count
-                    current_app.logger.info('共退款{}条记录'.format(total_row))
+                    ticket_orders = TicketsOrder.query.filter(
+                        TicketsOrder.isdelete == false(),
+                        TicketsOrder.TIid == ticket.TIid,
+                        TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                        TicketsOrder.TSOtype != TicketPayType.cash.value).all()
+                    row_count = self._deposit_refund(ticket_orders, ticket)  # 活动临时中断，除购买外全退钱
+                    current_app.logger.info('共退款{}条记录'.format(row_count))
                 ticket.update({'TIstatus': TicketStatus.interrupt.value})
                 self._cancle_celery_task('start_ticket{}'.format(ticket.TIid))
                 self._cancle_celery_task('end_ticket{}'.format(ticket.TIid))
@@ -273,19 +278,11 @@ class CTicket(CPlay):
         ticket.fill('countdown', countdown)
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
-        ticket.fill('tirules', db.session.query(Agreement.AMcontent
-                                                ).filter(Agreement.isdelete == false(),
-                                                         Agreement.AMtype == RoleType.ticketrole.value
-                                                         ).scalar())
-        ticket.fill('scorerule', db.session.query(Agreement.AMcontent
-                                                  ).filter(Agreement.isdelete == false(),
-                                                           Agreement.AMtype == RoleType.activationrole.value
-                                                           ).scalar())
-        ticket.fill('apply_num', db.session.query(func.count(TicketsOrder.TSOid)
-                                                  ).filter(TicketsOrder.isdelete == false(),
-                                                           TicketsOrder.TIid == ticket.TIid,
-                                                           TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value
-                                                           ).scalar() or 0)
+        ticket.fill('tirules', self._query_rules(RoleType.ticketrole.value))
+        ticket.fill('scorerule', self._query_rules(RoleType.activationrole.value))
+        ticket.fill('apply_num', self._query_award_num(
+            ticket.TIid, filter_status=TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value))
+
         # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
         show_record = True if ticket.TIstatus == TicketStatus.over.value else False
         umf, traded, tsoid = None, False, None
@@ -307,7 +304,7 @@ class CTicket(CPlay):
             ticket.fill('tsoqrcode',
                         ticketorder['TSOqrcode'] if ticketorder.TSOstatus > TicketsOrderStatus.pending.value else None)
             scorerank, rank = self._query_single_score(ticketorder)
-            ticket.fill('scorerank', scorerank)  # 活跃分排名
+            ticket.fill('scorerank', scorerank)  # 活跃分排名array
             ticket.fill('rank', rank)  # 自己所在排名
             ticket.fill('tsocreatetime', ticketorder.createtime)
             ticket.fill('tsoactivation', ticketorder.TSOactivation)
@@ -482,41 +479,108 @@ class CTicket(CPlay):
                              'ticketorder': res}
                        )
 
+    def ticket_award_task(self, ticket):
+        if not ticket:
+            return
+        ticketorders = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TIid == ticket.TIid,
+                                                 TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                                                 TicketsOrder.TSOtype != TicketPayType.cash.value
+                                                 ).order_by(TicketsOrder.TSOactivation.desc(),
+                                                            TicketsOrder.createtime.desc()).limit(ticket.TInum).all()
+        current_app.logger.info('总票数: {}, 开奖数: {}'.format(ticket.TInum, len(ticketorders)))
+        # todo 有活跃分的数量不够???
+        tsoids = []
+        for to in ticketorders:
+            tsoids.append(to.TSOid)
+            to.TSOstatus = TicketsOrderStatus.has_won.value
+            to.TSOqrcode = self._ticket_order_qrcode(to.TSOid, to.USid)
+        not_won_ticketorders = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                         TicketsOrder.TSOid.notin_(tsoids),
+                                                         TicketsOrder.TIid == ticket.TIid,
+                                                         TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                                                         TicketsOrder.TSOtype != TicketPayType.cash.value).all()
+        self._deposit_refund(not_won_ticketorders, ticket)  # 退钱
+
+    def _deposit_refund(self, tsos, ticket):
+        row_count = 0
+        for to in tsos:
+            usid = to.USid
+            to.TSOstatus = TicketsOrderStatus.not_won.value  # 改状态
+            # 退钱
+            pp = PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == to.TSOid
+                                      ).order_by(PlayPay.createtime.desc()).first()
+            if not pp:
+                current_app.logger.info('not found playpay, tsoid: {}'.format(to.TSOid))
+                continue
+            if to.TSOtype == TicketPayType.scorepay.value:  # 信用分支付的只改状态，不返钱
+                current_app.logger.info('found score paied, tsoid: {}'.format(to.TSOid))
+                row_count += 1
+                continue
+            return_price = ticket.TIdeposit
+            mount_price = pp.PPpayMount
+            opayno = pp.PPpayno
+            current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
+            current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
+            current_app.logger.info('refund usid: {}'.format(usid))
+
+            if API_HOST != 'https://www.bigxingxing.com':
+                mount_price = 0.01
+                return_price = 0.01
+            trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
+                                             'USid': usid,
+                                             'TRRredund': return_price,
+                                             'TRRtotal': mount_price,
+                                             'OPayno': opayno,
+                                             'TSOid': to.TSOid})
+            db.session.add(trr)
+            try:
+                super(CTicket, self)._refund_to_user(
+                    out_trade_no=opayno,
+                    out_request_no=trr.TRRid,
+                    mount=return_price,
+                    old_total_fee=mount_price
+                )
+            except Exception as e:
+                raise StatusError('微信商户平台：{}'.format(e))
+            row_count += 1
+        current_app.logger.info('change status to not won, count: {}'.format(row_count))
+        return row_count
+
     @admin_required
     def set_award(self):
         """设置中奖"""
-        raise StatusError('版本更新中')
-        data = parameter_required('tsoid')
-        tsoid = data.get('tsoid')
-        ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                                 TicketsOrder.TSOid == tsoid,
-                                                 TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
-                                                 ).first_('状态错误')
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
-        if not ticket or ticket.TIstatus != TicketStatus.over.value:
-            raise ParamsError('抢票尚未结束')
-        award_num = self._query_award_num(ticket.TIid)
-        current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
-        if award_num >= ticket.TInum:
-            raise StatusError('已达最大发放票数')
-        with db.auto_commit():
-            update_dict = {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',
-                           'TSOstatus': TicketsOrderStatus.has_won.value}
-            if ticket.TIdeposit == ticket.TIprice:  # 第二次支付押金0元的情况
-                update_dict['TSOstatus'] = TicketsOrderStatus.completed.value
-            ticket_order.update(update_dict)
-            db.session.add(ticket_order)
-            db.session.flush()
-            awarded_num = self._query_award_num(ticket.TIid)
-            current_app.logger.info('设置后中奖数：{} / {}'.format(awarded_num, ticket.TInum))
-            if awarded_num == ticket.TInum:  # 未中奖退钱
-                other_to = self._query_not_won(ticket.TIid)
-                total_row_count = 0
-                for oto in other_to:
-                    row_count = self._deposit_refund(oto)
-                    total_row_count += row_count
-                current_app.logger.info('共{}条未中奖'.format(total_row_count))
-        return Success('设置成功', data=tsoid)
+        raise StatusError('版本更新中， 该功能暂停使用')
+        # data = parameter_required('tsoid')
+        # tsoid = data.get('tsoid')
+        # ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+        #                                          TicketsOrder.TSOid == tsoid,
+        #                                          TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+        #                                          ).first_('状态错误')
+        # ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
+        # if not ticket or ticket.TIstatus != TicketStatus.over.value:
+        #     raise ParamsError('抢票尚未结束')
+        # award_num = self._query_award_num(ticket.TIid)
+        # current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
+        # if award_num >= ticket.TInum:
+        #     raise StatusError('已达最大发放票数')
+        # with db.auto_commit():
+        #     update_dict = {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',
+        #                    'TSOstatus': TicketsOrderStatus.has_won.value}
+        #     if ticket.TIdeposit == ticket.TIprice:  # 第二次支付押金0元的情况
+        #         update_dict['TSOstatus'] = TicketsOrderStatus.completed.value
+        #     ticket_order.update(update_dict)
+        #     db.session.add(ticket_order)
+        #     db.session.flush()
+        #     awarded_num = self._query_award_num(ticket.TIid)
+        #     current_app.logger.info('设置后中奖数：{} / {}'.format(awarded_num, ticket.TInum))
+        #     if awarded_num == ticket.TInum:  # 未中奖退钱
+        #         other_to = self._query_not_won(ticket.TIid)
+        #         total_row_count = 0
+        #         for oto in other_to:
+        #             row_count = self._deposit_refund(oto)
+        #             total_row_count += row_count
+        #         current_app.logger.info('共{}条未中奖'.format(total_row_count))
+        # return Success('设置成功', data=tsoid)
 
     @phone_required
     def pay(self):
@@ -576,11 +640,18 @@ class CTicket(CPlay):
                                     'isdelete': True})
 
     @staticmethod
-    def _query_award_num(tiid):
+    def _query_rules(ruletype):
+        return db.session.query(Agreement.AMcontent).filter(Agreement.isdelete == false(),
+                                                            Agreement.AMtype == ruletype).scalar()
+
+    @staticmethod
+    def _query_award_num(tiid, filter_status=None):
+        if not filter_status:
+            filter_status = TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
         return db.session.query(func.count(TicketsOrder.TSOid)
                                 ).filter(TicketsOrder.isdelete == false(),
                                          TicketsOrder.TIid == tiid,
-                                         TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
+                                         filter_status
                                          ).scalar() or 0
 
     @staticmethod
@@ -612,48 +683,67 @@ class CTicket(CPlay):
             celery.AsyncResult(exist_task_id).revoke()
             conn.delete(conid)
 
-    def _deposit_refund(self, to_info):
-        usid, tiid, tsoids = to_info
-        tsoids = tsoids.split(',')
-        current_app.logger.info('deposit refund, TSOids:{}'.format(tsoids))
-        td_info = db.session.query(TicketDeposit.OPayno, func.sum(TicketDeposit.TDdeposit)
-                                   ).filter(TicketDeposit.isdelete == false(),
-                                            TicketDeposit.TSOid.in_(tsoids)).group_by(TicketDeposit.OPayno).all()
-        current_app.logger.info('td_info:{}'.format(td_info))
-        for td in td_info:
-            opayno, return_price = td
-            current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
-            mount_price = db.session.query(func.sum(TicketDeposit.TDdeposit)).filter(
-                TicketDeposit.isdelete == false(),
-                TicketDeposit.OPayno == opayno).scalar()
-            current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
-            current_app.logger.info('refund usid: {}'.format(usid))
+    # def _deposit_refund(self, to_info):
+    #     usid, tiid, tsoids = to_info
+    #     tsoids = tsoids.split(',')
+    #     current_app.logger.info('deposit refund, TSOids:{}'.format(tsoids))
+    #     td_info = db.session.query(TicketDeposit.OPayno, func.sum(TicketDeposit.TDdeposit)
+    #                                ).filter(TicketDeposit.isdelete == false(),
+    #                                         TicketDeposit.TSOid.in_(tsoids)).group_by(TicketDeposit.OPayno).all()
+    #     current_app.logger.info('td_info:{}'.format(td_info))
+    #     for td in td_info:
+    #         opayno, return_price = td
+    #         current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
+    #         mount_price = db.session.query(func.sum(TicketDeposit.TDdeposit)).filter(
+    #             TicketDeposit.isdelete == false(),
+    #             TicketDeposit.OPayno == opayno).scalar()
+    #         current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
+    #         current_app.logger.info('refund usid: {}'.format(usid))
+    #
+    #         if API_HOST != 'https://www.bigxingxing.com':
+    #             mount_price = 0.01
+    #             return_price = 0.01
+    #         trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
+    #                                          'USid': usid,
+    #                                          'TRRredund': return_price,
+    #                                          'TRRtotal': mount_price,
+    #                                          'OPayno': opayno})
+    #         db.session.add(trr)
+    #         try:
+    #             super(CTicket, self)._refund_to_user(
+    #                 out_trade_no=opayno,
+    #                 out_request_no=trr.TRRid,
+    #                 mount=return_price,
+    #                 old_total_fee=mount_price
+    #             )
+    #         except Exception as e:
+    #             raise StatusError('微信商户平台：{}'.format(e))
+    #
+    #     row_count = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+    #                                           TicketsOrder.TSOid.in_(tsoids)
+    #                                           ).update({'TSOstatus': TicketsOrderStatus.not_won.value},
+    #                                                    synchronize_session=False)
+    #     current_app.logger.info('change status to not won, count: {}'.format(row_count))
+    #     return row_count
 
-            if API_HOST != 'https://www.bigxingxing.com':
-                mount_price = 0.01
-                return_price = 0.01
-            trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
-                                             'USid': usid,
-                                             'TRRredund': return_price,
-                                             'TRRtotal': mount_price,
-                                             'OPayno': opayno})
-            db.session.add(trr)
+    def _ticket_order_qrcode(self, tsoid, usid):
+        """创建票二维码"""
+        savepath, savedbpath = self.cuser._get_path('qrcode')
+        secret_usid = self.cuser._base_encode(usid)
+        filename = os.path.join(savepath, '{0}.png'.format(secret_usid))
+        filedbname = os.path.join(savedbpath, '{0}.png'.format(secret_usid))
+        current_app.logger.info('get basedir {0}'.format(current_app.config['BASEDIR']))
+        text = 'tsoid={}&secret={}'.format(tsoid, secret_usid)
+        current_app.logger.info('get text content {0}'.format(text))
+        qrcodeWithtext(text, filename)
+
+        # 二维码上传到七牛云
+        if API_HOST == 'https://www.bigxingxing.com':
             try:
-                super(CTicket, self)._refund_to_user(
-                    out_trade_no=opayno,
-                    out_request_no=trr.TRRid,
-                    mount=return_price,
-                    old_total_fee=mount_price
-                )
+                self.cuser.qiniu.save(data=filename, filename=filedbname[1:])
             except Exception as e:
-                raise StatusError('微信商户平台：{}'.format(e))
-
-        row_count = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                              TicketsOrder.TSOid.in_(tsoids)
-                                              ).update({'TSOstatus': TicketsOrderStatus.not_won.value},
-                                                       synchronize_session=False)
-        current_app.logger.info('change status to not won, count: {}'.format(row_count))
-        return row_count
+                current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
+        return filedbname
 
     @phone_required
     def get_promotion(self):
@@ -672,8 +762,8 @@ class CTicket(CPlay):
         endtime = super(CTicket, self)._check_time(ticket.TItripEndTime, fmt='%m/%d')
 
         # 获取微信二维码
-        from planet.control.CUser import CUser
-        cuser = CUser()
+        # from planet.control.CUser import CUser
+        cuser = self.cuser
         if 'secret_usid' not in params:
             params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
         params = '{}&sttype={}'.format(params, ShareType.promotion.value)
