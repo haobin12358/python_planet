@@ -47,14 +47,18 @@ class CSupplizer:
 
         if option == 'ticket':
             return self._list_ticket_sup()
-
-        supplizers = Supplizer.query.filter_(
+        filter_args = {
             Supplizer.isdelete == false(),
-            Supplizer.SUgrade == sugrade,
-            Supplizer.SUname.contains(kw),
-            Supplizer.SUlinkPhone.contains(mobile),
-            Supplizer.SUstatus == sustatus
-        ).order_by(Supplizer.createtime.desc()).all_with_page()
+        }
+        if sugrade:
+            filter_args.add(Supplizer.SUgrade == sugrade)
+        if sustatus or sustatus == 0:
+            filter_args.add(Supplizer.SUstatus == sustatus)
+        if kw:
+            filter_args.add(Supplizer.SUname.contains(kw))
+        if mobile:
+            filter_args.add(Supplizer.SUlinkPhone.contains(mobile))
+        supplizers = Supplizer.query.filter(*filter_args).order_by(Supplizer.createtime.desc()).all_with_page()
 
         for supplizer in supplizers:
             supplizer.hide('SUpassword')
