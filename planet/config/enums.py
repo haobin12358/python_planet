@@ -842,6 +842,7 @@ class TicketsOrderStatus(Enum):
     pending = 0, '已申请'
     has_won = 1, '获得试用'
     completed = 2, '已使用'  # 2.0 修改取消二次押金
+    accomplish = 3, '已完成'
 
 
 class TicketPayType(Enum):
