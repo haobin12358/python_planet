@@ -23,5 +23,6 @@ class ATicket(Resource):
             'update': self.cticket.update_ticket,
             'pay': self.cticket.pay,
             'award': self.cticket.set_award,
+            'verify': self.cticket.ticketorder_verified,
         }
         return apis

@@ -13,7 +13,7 @@ from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.models import Guide, PlayPay
+from planet.models import Guide, PlayPay, TicketVerifier, TicketVerifiedRecord
 from planet.models.product import Supplizer
 from planet.models.play import Agreement
 from planet.models.user import User, UserInvitation, SharingType
@@ -351,6 +351,8 @@ class CTicket(CPlay):
                                  'latitude': ticket.latitude})
 
     def _query_single_score(self, ticketorder):
+        if ticketorder.TSOtype == TicketPayType.cash.value:
+            return [], 1
         tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
             TicketsOrder.isdelete == false(),
             TicketsOrder.TIid == ticketorder.TIid,
@@ -380,7 +382,8 @@ class CTicket(CPlay):
         res = None
         if score_info:
             res = {'tsoactivation': score_info[0],
-                   'usheader': score_info[1] if score_info[1].startswith('http') else API_HOST + score_info[1]}
+                   'usheader': score_info[1] if score_info[1].startswith('http') else API_HOST + score_info[1],
+                   'rank_zh': '前一名'}  # todo 增加该字段  已结束的虚假申请数
         return res
 
     def list_ticket(self):
@@ -448,7 +451,9 @@ class CTicket(CPlay):
                 'tsostatus_en': TicketsOrderStatus(k).name,
                 'tsostatus_zh': TicketsOrderStatus(k).zh_value
                 } for k in (TicketsOrderStatus.has_won.value, TicketsOrderStatus.pending.value,
-                            TicketsOrderStatus.completed.value, TicketsOrderStatus.not_won.value)]
+                            TicketsOrderStatus.completed.value, TicketsOrderStatus.accomplish.value,
+                            TicketsOrderStatus.not_won.value,
+                            )]
         return Success(data=res)
 
     @admin_required
@@ -618,7 +623,7 @@ class CTicket(CPlay):
                                         TicketsOrder.TIid == tiid,
                                         TicketsOrder.USid == user.USid).first()
         if tso:
-            raise StatusError('您已申请成功，请在“我的 - 我的门票”中查看')
+            raise StatusError('您已申请成功，请在“我的 - 我的试用”中查看')
         if ticket.TIstatus == TicketStatus.ready.value:
             raise ParamsError('活动尚未开始')
         elif ticket.TIstatus in (TicketStatus.interrupt.value, TicketStatus.over.value):
@@ -630,6 +635,8 @@ class CTicket(CPlay):
             elif tsotype == TicketPayType.cash.value:
                 mount_price = ticket.TIprice
             elif tsotype == TicketPayType.scorepay.value:
+                if not user.USrealname:
+                    raise StatusError('用户未进行信用认证')
                 mount_price = 0
                 redirect = True
             else:
@@ -745,6 +752,49 @@ class CTicket(CPlay):
     #                                                    synchronize_session=False)
     #     current_app.logger.info('change status to not won, count: {}'.format(row_count))
     #     return row_count
+
+    @phone_required
+    def ticketorder_verified(self):
+        """门票核销"""
+        data = parameter_required('param')
+        param = data.get('param')
+        try:
+            tsoid, secret_usid = str(param).split('&')
+        except ValueError:
+            raise ParamsError('试用码无效')
+        current_app.logger.info('tsoid: {}, secret_usid: {}'.format(tsoid, secret_usid))
+        tsoid = str(tsoid).split('=')[-1]
+        secret_usid = str(secret_usid).split('=')[-1]
+        current_app.logger.info('splited, tsoid: {}, secret_usid: {}'.format(tsoid, secret_usid))
+        if not tsoid or not secret_usid:
+            raise StatusError('该试用码无效')
+        ticket_usid = self.cuser._base_decode(secret_usid)
+        ticket_user = User.query.filter(User.isdelete == false(),
+                                        User.USid == ticket_usid).first_('拥有该门票的用户不存在')
+        tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                        TicketsOrder.TSOid == tsoid,
+                                        ).first()  # todo 核销其他厂商问票时 提示错误  直购的直接变成已完成状态
+        if tso.TSOstatus != TicketsOrderStatus.has_won.value:
+            current_app.logger.error('tso status: {}'.format(tso.TSOstatus))
+            raise StatusError('该票已使用')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid).first()
+        user = User.query.join(TicketVerifier, TicketVerifier.TVphone == User.UStelphone
+                               ).join(Ticket, Ticket.SUid == TicketVerifier.SUid
+                                      ).filter(User.isdelete == false(), User.USid == getattr(request, 'user').id,
+                                               TicketVerifier.SUid == ticket.SUid
+                                               ).first_('请确认您是否拥有该门票的核销权限')
+
+        with db.auto_commit():
+            tso.update({'TSOstatus': TicketsOrderStatus.completed.value})  # 状态改为已使用
+            db.session.add(tso)
+            # 核销记录
+            tvr = TicketVerifiedRecord.create({'TVRid': str(uuid.uuid1()),
+                                               'TIownerId': ticket_user.USid,
+                                               'VerifierId': user.USid,
+                                               'TSOid': tso.TSOid,
+                                               'TSOparam': param})
+            db.session.add(tvr)
+        return Success('门票验证成功', data=tvr.TVRid)
 
     def _ticket_order_qrcode(self, tsoid, usid):
         """创建票二维码"""

@@ -187,3 +187,13 @@ class TicketVerifier(Base):
     TVid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商')
     TVphone = Column(String(13), nullable=False)
+
+
+class TicketVerifiedRecord(Base):
+    """门票核销记录"""
+    __tablename__ = 'TicketVerifiedRecord'
+    TVRid = Column(String(64), primary_key=True)
+    TIownerId = Column(String(64), comment='门票持有者id')
+    VerifierId = Column(String(64), comment='验证人员id')
+    TSOid = Column(String(64), comment='门票id')
+    TSOparam = Column(Text, comment='扫描到的原参数')
