@@ -39,7 +39,7 @@ from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
-    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters, SharingType
+    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters, SharingType, TicketVerifier
 from .BaseControl import BASEAPPROVAL, BASEADMIN, BASETICKET
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
@@ -689,6 +689,10 @@ class CUser(SUser, BASEAPPROVAL):
         if not user.USwxacode:
             with db.auto_commit():
                 user.USwxacode = self.wxacode_unlimit(user.USid)
+        user.fill('ticketverifier', (False if not user.UStelphone else
+                                     True if TicketVerifier.query.filter(TicketVerifier.isdelete == false(),
+                                                                         TicketVerifier.TVphone == user.UStelphone
+                                                                         ).first() else False))
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
         user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
