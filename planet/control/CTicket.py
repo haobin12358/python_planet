@@ -2,6 +2,7 @@
 import os
 import json
 import uuid
+import requests
 from sqlalchemy import false, func
 from flask import current_app, request
 from datetime import datetime, timedelta
@@ -148,20 +149,21 @@ class CTicket(CPlay):
             self.BaseAdmin.create_action(AdminActionS.update.value, 'Ticket', ticket.TIid)
         return Success('编辑成功', data={'tiid': ticket.TIid})
 
-    @staticmethod
-    def _validate_ticket_param(data):
+    def _validate_ticket_param(self, data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
                             'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金', 'suid': '票务供应商',
-                            'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图'}, datafrom=data)
+                            'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图', 'tiaddress': '游玩场所位置'
+                            }, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
         tistarttime, tiendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), (tistarttime, tiendtime))
+
         now = datetime.now()
         if tistarttime < now:
             raise ParamsError('抢票开始时间应大于现在时间')
         if tiendtime <= tistarttime:
             raise ParamsError('抢票结束时间应大于开始时间')
-
+        latitude, longitude = super(CTicket, self).check_lat_and_long(data.get('latitude'), data.get('longitude'))
         titripstarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripstarttime')),
                                        '游玩开始时间格式错误')
         titripendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripendtime')),
@@ -204,7 +206,10 @@ class CTicket(CPlay):
                          'TInum': tinum,
                          # 'TIcategory': ticategory,
                          'TIbanner': tibanner,
-                         'SUid': sup.SUid
+                         'SUid': sup.SUid,
+                         'longitude': longitude,
+                         'latitude': latitude,
+                         'TIaddress': data.get('tiaddress')
                          }
         return ticket_dicket, liids
 
@@ -224,10 +229,13 @@ class CTicket(CPlay):
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
         else:
-            ticketorder = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                                    TicketsOrder.USid == getattr(request, 'user').id,
-                                                    TicketsOrder.TIid == tiid
-                                                    ).order_by(TicketsOrder.createtime.desc()).first()
+            try:
+                ticketorder = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                        TicketsOrder.USid == getattr(request, 'user').id,
+                                                        TicketsOrder.TIid == tiid
+                                                        ).order_by(TicketsOrder.createtime.desc()).first()
+            except Exception:
+                ticketorder = None
         if secret_usid:  # 创建邀请记录
             self._invitation_record(secret_usid, args)
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
@@ -338,6 +346,9 @@ class CTicket(CPlay):
             if sup:
                 sup.fields = ['SUname', 'SUid']
             ticket.fill('supplizer', sup)
+        ticket.fill('position', {'tiaddress': ticket.TIaddress,
+                                 'longitude': ticket.longitude,
+                                 'latitude': ticket.latitude})
 
     def _query_single_score(self, ticketorder):
         tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
@@ -384,8 +395,8 @@ class CTicket(CPlay):
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
                                       ).order_by(func.field(Ticket.TIstatus, TicketStatus.active.value,
                                                             TicketStatus.ready.value, TicketStatus.over.value),
-                                                 Ticket.TIstartTime.asc(),
-                                                 Ticket.createtime.asc()).all_with_page()
+                                                 Ticket.TIstartTime.desc(),
+                                                 Ticket.createtime.desc()).all_with_page()
         ticket_fields = self.TICKET_LIST_FIELDS[:]
         ticket_fields.extend(('TItripStartTime', 'TItripEndTime', 'traded', 'TIprice'))
         for ticket in tickets:
@@ -534,12 +545,20 @@ class CTicket(CPlay):
                                              'TSOid': to.TSOid})
             db.session.add(trr)
             try:
-                super(CTicket, self)._refund_to_user(
-                    out_trade_no=opayno,
-                    out_request_no=trr.TRRid,
-                    mount=return_price,
-                    old_total_fee=mount_price
-                )
+                flag, count = True, 1
+                while flag:
+                    try:
+                        super(CTicket, self)._refund_to_user(
+                            out_trade_no=opayno,
+                            out_request_no=trr.TRRid,
+                            mount=return_price,
+                            old_total_fee=mount_price
+                        )
+                        flag = False
+                        count += 1
+                    except requests.exceptions.ConnectionError as e:
+                        current_app.logger.error('refund deposit error: {}'.format(e))
+                    current_app.logger.info('post wx_refund api count: {}'.format(count))
             except Exception as e:
                 raise StatusError('微信商户平台：{}'.format(e))
             row_count += 1
@@ -585,6 +604,7 @@ class CTicket(CPlay):
     @phone_required
     def pay(self):
         """购买"""
+        # todo 已结束的可随时购买  提醒：反馈后返还钱需修改
         data = parameter_required()
         tiid, tsotype = data.get('tiid'), data.get('tsotype', 1)
         try:

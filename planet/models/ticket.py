@@ -54,11 +54,15 @@ class Ticket(Base):
     TIcategory = Column(Text, comment='列表页显示的类型')  # 2.0版多余
     TIbanner = Column(Text, url_list=True, comment='票务轮播图片')
     SUid = Column(String(64), comment='所属供应商')
+    TIapplyFakeNum = Column(Integer, comment='虚拟申请数[已结束状态时低于500，随机1000~2000]')
+    longitude = Column(String(255), comment='经度')
+    latitude = Column(String(255), comment='纬度')
+    TIaddress = Column(Text, comment='游玩场所位置')
 
     @orm.reconstructor
     def __init__(self):
         super(Ticket, self).__init__()
-        self.hide('TIabbreviation', 'TIcategory', 'TIrewardnum')
+        self.hide('TIabbreviation', 'TIcategory', 'TIrewardnum', 'TIapplyFakeNum')
 
 
 class TicketDeposit(Base):  # 2.0版本去除
@@ -179,7 +183,7 @@ class TicketVerifier(Base):
     """
     门票核销员
     """
-    __tablename__  = 'TicketVerifier'
+    __tablename__ = 'TicketVerifier'
     TVid = Column(String(64), primary_key=True)
     SUid = Column(String(64), comment='供应商')
     TVphone = Column(String(13), nullable=False)

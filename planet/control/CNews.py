@@ -1258,9 +1258,10 @@ class CNews(BASEAPPROVAL):
     @token_required
     def get_location(self):
         """获取定位"""
-        user = get_current_user()
+        # user = get_current_user()
+        usid = getattr(request, 'user').id
         data = parameter_required(('longitude', 'latitude'))
-        current_location = BaseController().get_user_location(data.get('latitude'), data.get('longitude'), user.USid)
+        current_location = BaseController().get_user_location(data.get('latitude'), data.get('longitude'), usid)
         return Success(data={'nelocation': current_location})
 
     def convert_test(self):

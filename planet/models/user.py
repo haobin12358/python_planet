@@ -336,8 +336,8 @@ class UserLocation(Base):
     ULcity = Column(Text, comment='城市')
     ULdistrict = Column(Text, comment='区县')
     ULresult = Column(Text, comment='查询结果')
-    ULlng = Column(Text, comment='维度')
-    ULlat = Column(Text, comment='经度')
+    ULlng = Column(Text, comment='经度')
+    ULlat = Column(Text, comment='纬度')
     USid = Column(String(64), comment='用户id')
 
 
