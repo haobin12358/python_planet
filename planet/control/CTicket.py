@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import random
 import uuid
 import requests
 from sqlalchemy import false, func
@@ -293,7 +294,7 @@ class CTicket(CPlay):
         ticket.fill('tirules', self._query_rules(RoleType.ticketrole.value))
         ticket.fill('scorerule', self._query_rules(RoleType.activationrole.value))
         ticket.fill('apply_num', self._query_award_num(
-            ticket.TIid, filter_status=(TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value, )))
+            ticket, filter_status=(TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value,)))
 
         # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
         show_record = True if ticket.TIstatus == TicketStatus.over.value else False
@@ -676,14 +677,27 @@ class CTicket(CPlay):
                                                             Agreement.AMtype == ruletype).scalar()
 
     @staticmethod
-    def _query_award_num(tiid, filter_status=None):
+    def _query_award_num(ticket, filter_status=None):
         if not filter_status:
-            filter_status = (TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value, )
-        return db.session.query(func.count(TicketsOrder.TSOid)
-                                ).filter(TicketsOrder.isdelete == false(),
-                                         TicketsOrder.TIid == tiid,
-                                         *filter_status
-                                         ).scalar() or 0
+            filter_status = (TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value,)
+        count = db.session.query(func.count(TicketsOrder.TSOid)
+                                 ).filter(TicketsOrder.isdelete == false(),
+                                          TicketsOrder.TIid == ticket.TIid,
+                                          *filter_status
+                                          ).scalar() or 0
+        if ticket.TIstatus == TicketStatus.over.value:
+            current_app.logger.info('fill ended ticket apply num, tiid: {}'.format(ticket.TIid))
+            if ticket.TIapplyFakeNum and ticket.TIapplyFakeNum >= 500:
+                count = ticket.TIapplyFakeNum
+                current_app.logger.info('found ticket fake apply_num {}'.format(count))
+            elif count < 500:
+                with db.auto_commit():
+                    current_app.logger.info('ticket true apply_num {}'.format(count))
+                    count = random.randint(800, 2000)
+                    current_app.logger.info('ticket apply_num now to {}'.format(count))
+                    ticket.update({'TIapplyFakeNum': count})
+                    db.session.add(ticket)
+        return count
 
     @staticmethod
     def _query_not_won(tiid):
