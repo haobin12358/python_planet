@@ -800,8 +800,8 @@ class CTicket(CPlay):
         """创建票二维码"""
         savepath, savedbpath = self.cuser._get_path('qrcode')
         secret_usid = self.cuser._base_encode(usid)
-        filename = os.path.join(savepath, '{0}.png'.format(secret_usid))
-        filedbname = os.path.join(savedbpath, '{0}.png'.format(secret_usid))
+        filename = os.path.join(savepath, '{}.png'.format(tsoid))
+        filedbname = os.path.join(savedbpath, '{}.png'.format(tsoid))
         current_app.logger.info('get basedir {0}'.format(current_app.config['BASEDIR']))
         text = 'tsoid={}&secret={}'.format(tsoid, secret_usid)
         current_app.logger.info('get text content {0}'.format(text))
