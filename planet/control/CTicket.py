@@ -770,14 +770,17 @@ class CTicket(CPlay):
             raise StatusError('该试用码无效')
         ticket_usid = self.cuser._base_decode(secret_usid)
         ticket_user = User.query.filter(User.isdelete == false(),
-                                        User.USid == ticket_usid).first_('拥有该门票的用户不存在')
+                                        User.USid == ticket_usid).first_('无效试用码')
         tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
                                         TicketsOrder.TSOid == tsoid,
-                                        ).first()  # todo 核销其他厂商问票时 提示错误  直购的直接变成已完成状态
+                                        ).first()
         if tso.TSOstatus != TicketsOrderStatus.has_won.value:
             current_app.logger.error('tso status: {}'.format(tso.TSOstatus))
             raise StatusError('该票已使用')
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid).first()
+        if not (ticket.TItripStartTime <= datetime.now() <= ticket.TItripEndTime):
+            raise StatusError('当前时间不在该票有效使用时间内')
+
         user = User.query.join(TicketVerifier, TicketVerifier.TVphone == User.UStelphone
                                ).join(Ticket, Ticket.SUid == TicketVerifier.SUid
                                       ).filter(User.isdelete == false(), User.USid == getattr(request, 'user').id,
@@ -785,7 +788,10 @@ class CTicket(CPlay):
                                                ).first_('请确认您是否拥有该门票的核销权限')
 
         with db.auto_commit():
-            tso.update({'TSOstatus': TicketsOrderStatus.completed.value})  # 状态改为已使用
+            if tso.TSOtype == TicketPayType.cash.value:  # 直购方式状态改为已完成
+                tso.update({'TSOstatus': TicketsOrderStatus.accomplish.value})
+            else:  # 其余方式改为已使用
+                tso.update({'TSOstatus': TicketsOrderStatus.completed.value})
             db.session.add(tso)
             # 核销记录
             tvr = TicketVerifiedRecord.create({'TVRid': str(uuid.uuid1()),
