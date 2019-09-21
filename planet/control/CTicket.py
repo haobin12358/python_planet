@@ -89,6 +89,10 @@ class CTicket(CPlay):
             if data.get('delete'):
                 if ticket.TIstatus == TicketStatus.active.value:
                     raise ParamsError('无法直接删除正在抢票中的活动')
+                if TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                             TicketsOrder.TSOstatus != TicketsOrderStatus.not_won.value,
+                                             TicketsOrder.TIid == ticket.TIid).first():
+                    raise StatusError('暂时无法直接删除已产生购买记录的门票')
                 ticket.update({'isdelete': True})
                 TicketLinkage.query.filter(TicketLinkage.isdelete == false(),
                                            TicketLinkage.TIid == ticket.TIid).delete_(synchronize_session=False)
@@ -609,7 +613,7 @@ class CTicket(CPlay):
     @phone_required
     def pay(self):
         """购买"""
-        # todo 已结束的可随时购买  提醒：反馈后返还钱需修改
+        # todo 已结束的可随时购买
         data = parameter_required()
         tiid, tsotype = data.get('tiid'), data.get('tsotype', 1)
         try:
