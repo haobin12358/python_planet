@@ -337,8 +337,9 @@ class CTicket(CPlay):
         ticket.fill('tsoid', tsoid)
         ticket.fill('show_record', show_record)
 
-        verified = True if common_user() and Guide.query.filter_by(isdelete=False, USid=getattr(request, 'user').id,
-                                                                   GUstatus=GuideApplyStatus.agree.value).first() else False
+        verified = True if common_user() and Guide.query.filter_by(
+            isdelete=False, USid=getattr(request, 'user').id,
+            GUstatus=GuideApplyStatus.agree.value).first() else False
         ticket.fill('verified', verified)
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
@@ -355,7 +356,7 @@ class CTicket(CPlay):
                                  'latitude': ticket.latitude})
 
     def _query_single_score(self, ticketorder):
-        if ticketorder.TSOtype == TicketPayType.cash.value:
+        if ticketorder.TSOtype == TicketPayType.cash.value or ticketorder.TSOstatus > TicketsOrderStatus.pending.value:
             return [], 1
         tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
             TicketsOrder.isdelete == false(),
@@ -364,22 +365,22 @@ class CTicket(CPlay):
         ).order_by(TicketsOrder.TSOactivation.desc(),
                    TicketsOrder.updatetime.desc(),
                    origin=True).all() if i is not None]
-        res = [self._init_score_dict(ticketorder.TSOid)]
+        res = [self._init_score_dict(ticketorder.TSOid, '我的位置')]
         rank = 1
         if tsoid_array and len(tsoid_array) > 1:
             my_index = tsoid_array.index(ticketorder.TSOid)
             rank = my_index + 1
             if my_index == 0:
-                res.append(self._init_score_dict(tsoid_array[my_index + 1]))
+                res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
             elif my_index == len(tsoid_array) - 1:
-                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1]))
+                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1], '前一名'))
             else:
-                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1]))
-                res.append(self._init_score_dict(tsoid_array[my_index + 1]))
+                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1], '前一名'))
+                res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
         return res, rank
 
     @staticmethod
-    def _init_score_dict(tsoid):
+    def _init_score_dict(tsoid, rank_zh):
         score_info = db.session.query(TicketsOrder.TSOactivation, User.USheader).outerjoin(
             User, User.USid == TicketsOrder.USid).filter(User.isdelete == false(), TicketsOrder.isdelete == false(),
                                                          TicketsOrder.TSOid == tsoid).first()
@@ -387,7 +388,7 @@ class CTicket(CPlay):
         if score_info:
             res = {'tsoactivation': score_info[0],
                    'usheader': score_info[1] if score_info[1].startswith('http') else API_HOST + score_info[1],
-                   'rank_zh': '前一名'}  # todo 增加该字段  已结束的虚假申请数
+                   'rank_zh': rank_zh}
         return res
 
     def list_ticket(self):
@@ -454,10 +455,9 @@ class CTicket(CPlay):
         res = [{'tsostatus': k,
                 'tsostatus_en': TicketsOrderStatus(k).name,
                 'tsostatus_zh': TicketsOrderStatus(k).zh_value
-                } for k in (TicketsOrderStatus.has_won.value, TicketsOrderStatus.pending.value,
+                } for k in (TicketsOrderStatus.pending.value, TicketsOrderStatus.has_won.value,
                             TicketsOrderStatus.completed.value, TicketsOrderStatus.accomplish.value,
-                            TicketsOrderStatus.not_won.value,
-                            )]
+                            TicketsOrderStatus.not_won.value,)]
         return Success(data=res)
 
     @admin_required
