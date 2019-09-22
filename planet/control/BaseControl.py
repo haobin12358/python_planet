@@ -598,18 +598,8 @@ class BaseController:
         gl = GetLocation(lat, lng)
         result = gl.result
         with db.auto_commit():
-            ul = UserLocation.create({
-                'ULid': str(uuid.uuid1()),
-                'ULformattedAddress': result.get('formatted_address'),
-                'ULcountry': result.get('addressComponent').get('country'),
-                'ULprovince': result.get('addressComponent').get('province'),
-                'ULcity': result.get('addressComponent').get('city'),
-                'ULdistrict': result.get('addressComponent').get('district'),
-                'ULresult': json.dumps(result),
-                'ULlng': result.get('location').get('lng'),
-                'ULlat': result.get('location').get('lat'),
-                'USid': usid,
-            })
+            result.update('USid', usid)
+            ul = UserLocation.create(result)
             db.session.add(ul)
         return ul.ULformattedAddress
 
