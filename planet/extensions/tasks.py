@@ -25,7 +25,8 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket, \
+    UserLocation
 
 celery = Celery()
 
@@ -1241,6 +1242,20 @@ def del_promotion():
         current_app.logger.info('删除图片失败 error = {}'.format(e))
 
 
+@celery.task(name='update_location')
+def update_location():
+    current_app.logger.info('start update location')
+    from planet.control.BaseControl import BaseController
+    base_controller = BaseController()
+    try:
+        with db.auto_commit():
+            ul_list = UserLocation.query.filter(UserLocation.ULformattedAddress == '请稍后再试').all()
+            for ul in ul_list:
+                base_controller.get_user_location(ul.ULlat, ul.ULlng, ul.USid, ul)
+    except Exception as e:
+        current_app.logger.error(' update location error {}'.format(e))
+
+
 if __name__ == '__main__':
     from planet import create_app
 
@@ -1257,4 +1272,5 @@ if __name__ == '__main__':
         # return_coupon_deposite()
         # welfare_lottery_3d()
         # guess_group_draw()
-        del_promotion()
+        # del_promotion()
+        update_location()

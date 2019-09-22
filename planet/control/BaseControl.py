@@ -592,7 +592,7 @@ class BaseController:
         return self.get_two_float(current_user_comm)
 
     @staticmethod
-    def get_user_location(lat, lng, usid):
+    def get_user_location(lat, lng, usid, ul=None):
         from planet.common.get_location import GetLocation
         from planet.models.user import UserLocation
         try:
@@ -600,9 +600,18 @@ class BaseController:
             result = gl.result
         except Exception as e:
             current_app.logger.error('解析地址失败 {}'.format(e))
-            return '请稍后再试'
+            result = {
+                'ULlng': lng,
+                'ULlat': lat,
+                'ULformattedAddress': '请稍后再试'
+            }
         with db.auto_commit():
             result.setdefault('USid', usid)
+            if ul:
+                ul.update(result)
+                db.session.add(ul)
+                return ul.ULformattedAddress
+            result.setdefault('ULid', str(uuid.uuid1()))
             ul = UserLocation.create(result)
             db.session.add(ul)
         return ul.ULformattedAddress
