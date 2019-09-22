@@ -598,7 +598,7 @@ class BaseController:
         gl = GetLocation(lat, lng)
         result = gl.result
         with db.auto_commit():
-            result.update('USid', usid)
+            result.setdefault('USid', usid)
             ul = UserLocation.create(result)
             db.session.add(ul)
         return ul.ULformattedAddress
