@@ -114,6 +114,7 @@ class CMaterialFeedback():
                     'CommisionFor': ApplyFrom.user.value
                 })
                 db.session.add(user_wallet_instance)
+
             # 同一购票记录的其他凭证修改状态为已处理
             UserMaterialFeedback.query.filter(
                 UserMaterialFeedback.UMFid != umfid,
@@ -122,6 +123,9 @@ class CMaterialFeedback():
                 UserMaterialFeedback.TSOid == umf.TSOid).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
 
+            # 修改订单状态
+            tso.TSOstatus = TicketsOrderStatus.accomplish.value
+            db.session.add(tso)
         return Success
 
     @admin_required
