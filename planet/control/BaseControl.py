@@ -595,8 +595,12 @@ class BaseController:
     def get_user_location(lat, lng, usid):
         from planet.common.get_location import GetLocation
         from planet.models.user import UserLocation
-        gl = GetLocation(lat, lng)
-        result = gl.result
+        try:
+            gl = GetLocation(lat, lng)
+            result = gl.result
+        except Exception as e:
+            current_app.logger.error('解析地址失败 {}'.format(e))
+            return '请稍后再试'
         with db.auto_commit():
             result.setdefault('USid', usid)
             ul = UserLocation.create(result)
