@@ -2059,7 +2059,7 @@ class CUser(SUser, BASEAPPROVAL):
             # 分享类型累加
             db.session.add(SharingType.create({
                 'STid': str(uuid.uuid1()),
-                'USid': upperd,
+                'USid': upperd.USid,
                 'STtype': args.get('sttype', 0)
             }))
             self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
