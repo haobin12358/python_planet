@@ -4,6 +4,7 @@
 from __future__ import unicode_literals
 
 import os
+import platform
 import time
 import json
 import hashlib
@@ -52,6 +53,18 @@ class WeixinMP(object):
 
     api_uri = "https://api.weixin.qq.com"
 
+    contenttype_config = {
+        r'image/jpeg': r'.jpg',
+        r'image/gif': r'.gif',
+        r'image/png': r'.png',
+    }
+    contenttype_config_res = {
+        r'jpg': r'image/jpeg',
+        r'jpeg': r'image/jpeg',
+        r'gif': r'image/gif',
+        r'png': r'image/png',
+    }
+
     def __init__(self, app_id, app_secret, ac_path=None, jt_path=None, ac_callback=None, jt_callback=None):
         """
         :param :app_id 微信app id
@@ -73,9 +86,9 @@ class WeixinMP(object):
         self.ac_callback = ac_callback
         self.jt_callback = jt_callback
 
-    def fetch(self, method, url, params=None, data=None, headers=None, buffer=False):
+    def fetch(self, method, url, params=None, data=None, headers=None, buffer=False, files=None):
         req = requests.Request(method, url, params=params,
-                               data=data, headers=headers)
+                               data=data, headers=headers, files=files)
         prepped = req.prepare()
         resp = self.session.send(prepped, timeout=20)
         if resp.status_code == 200 and buffer:
@@ -92,17 +105,18 @@ class WeixinMP(object):
         token and params.setdefault("access_token", self.access_token)
         return self.fetch("GET", url, params)
 
-    def post(self, path, data, prefix="/cgi-bin", json_encode=True, token=True, buffer=False):
+    def post(self, path, data, prefix="/cgi-bin", json_encode=True, token=True, buffer=False, headers=None, files=None):
         url = "{0}{1}{2}".format(self.api_uri, prefix, path)
         params = {}
         token and params.setdefault("access_token", self.access_token)
-        headers = {}
+        if not headers:
+            headers = {}
         if json_encode:
             data = json.dumps(data, ensure_ascii=False).encode('utf-8')
             # data = json.dumps(data)
             headers["Content-Type"] = "application/json;charset=UTF-8"
         # print url, params, headers, data
-        return self.fetch("POST", url, params=params, data=data, headers=headers, buffer=buffer)
+        return self.fetch("POST", url, params=params, data=data, headers=headers, buffer=buffer, files=files)
 
     @property
     def access_token(self):
@@ -428,12 +442,20 @@ class WeixinMP(object):
         """
         return self.post("/msg_sec_check", {'content': content}, prefix="/wxa")
 
-    def img_sec_check(self, media):
+    def img_sec_check(self, filename):
         """
         校验一张图片是否含有违法违规内容。
         :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
         """
-        return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
+        # files = {'media': ('pic.png', open('E:\\download\\pic.png', 'rb'), 'image/png')}
+        # files = {'media': {'contentType': contenttype, 'value': media}}
+        contenttype = self.contenttype_config_res.get(str(filename).split('.')[-1])
+        media = open(filename, 'rb')
+        split_char = r'/' if platform.system() != 'Windows' else '\\'
+        files = {'media': (str(filename).split(split_char), media, contenttype)}
+
+        # return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
+        return self.post('img_sec_check', {}, files=files, headers={'Content-Type': 'multipart/form-data'})
 
     def get_wxacode_unlimit(self, scene, **kwargs):
         """

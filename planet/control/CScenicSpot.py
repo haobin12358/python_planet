@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import uuid
 import re
 from datetime import datetime
@@ -359,9 +360,11 @@ class CScenicSpot(BASEAPPROVAL):
     def _create_essay(self, data):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
-        # if image:
-        #     current_app.logger.error("图片校验测试")
-        #     current_app.logger.error(mp_miniprogram.img_sec_check(image))
+        if image:
+            current_app.logger.error("图片校验测试")
+            for img in image:
+                current_app.logger.error(mp_miniprogram.img_sec_check(
+                    os.path.join(current_app.config['BASEDIR']), 'jpg'))
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:
