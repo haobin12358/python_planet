@@ -94,6 +94,8 @@ class CActivation(CTicket):
         user = get_current_user()
         with db.auto_commit():
             for ula in userlinkages:
+                if not ula.get('ulaaccount'):
+                    continue
                 ula_instance = UserLinkage.query.filter_by(USid=user.USid, ATTid=ula.get('attid'),
                                                            isdelete=False).first()
                 if ula_instance:
