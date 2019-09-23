@@ -119,7 +119,8 @@ class Request(_Request):
             'method': self.method,
             'data': self.data,
             'query': self.args.to_dict(),
-            'address': self.remote_addr
+            'address': self.remote_addr,
+            'user-agent': self.user_agent.__dict__,
         }
         # if self.files:
         #     res.setdefault('files', dict(self.files))
