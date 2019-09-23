@@ -224,6 +224,7 @@ class CTicket(CPlay):
         tiid = args.get('tiid')
         tsoid = args.get('tsoid')
         secret_usid = args.get('secret_usid')
+        ticketorder = None
         if not (tiid or tsoid):
             raise ParamsError
         if tsoid:
@@ -233,14 +234,9 @@ class CTicket(CPlay):
                                                     TicketsOrder.USid == getattr(request, 'user').id,
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
-        else:
-            try:
-                ticketorder = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                                        TicketsOrder.USid == getattr(request, 'user').id,
-                                                        TicketsOrder.TIid == tiid
-                                                        ).order_by(TicketsOrder.createtime.desc()).first()
-            except Exception:
-                ticketorder = None
+        elif common_user():
+            ticketorder = self._query_traded(tiid, getattr(request, 'user').id)
+            tiid = ticketorder.TIid if ticketorder else tiid
         if secret_usid:  # 创建邀请记录
             self._invitation_record(secret_usid, args)
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
@@ -328,9 +324,7 @@ class CTicket(CPlay):
         ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d %H:%M:%S"),
                                                  ticket.TItripEndTime.strftime("%Y/%m/%d %H:%M:%S")))
         if not traded and common_user():
-            traded = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                               TicketsOrder.TIid == ticket.TIid,
-                                               TicketsOrder.USid == getattr(request, 'user').id).first()
+            traded = self._query_traded(ticket.TIid, getattr(request, 'user').id)
             if traded:
                 tsoid = traded.TSOid
                 traded = True
@@ -556,7 +550,7 @@ class CTicket(CPlay):
             db.session.add(trr)
             try:
                 flag, count = True, 1
-                while flag:
+                while flag and count <= 5:
                     try:
                         super(CTicket, self)._refund_to_user(
                             out_trade_no=opayno,
@@ -567,8 +561,10 @@ class CTicket(CPlay):
                         flag = False
                         count += 1
                     except requests.exceptions.ConnectionError as e:
+                        flag = True
                         current_app.logger.error('refund deposit error: {}'.format(e))
-                    current_app.logger.info('post wx_refund api count: {}'.format(count))
+                    finally:
+                        current_app.logger.info('post wx_refund api count: {}'.format(count))
             except Exception as e:
                 raise StatusError('微信商户平台：{}'.format(e))
             row_count += 1
@@ -624,14 +620,11 @@ class CTicket(CPlay):
         user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
         opayno = super(CTicket, self)._opayno()
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
-        tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                        TicketsOrder.TIid == tiid,
-                                        TicketsOrder.USid == user.USid).first()
-        if tso:
-            raise StatusError('您已申请成功，请在“我的 - 我的试用”中查看')
+        trade = self._query_traded(tiid, user.USid)  # 直购不限制
         if ticket.TIstatus == TicketStatus.ready.value:
             raise ParamsError('活动尚未开始')
-        elif ticket.TIstatus in (TicketStatus.interrupt.value, TicketStatus.over.value):
+        elif ticket.TIstatus == TicketStatus.interrupt.value or (ticket.TIstatus == TicketStatus.over.value
+                                                                 and tsotype != TicketPayType.cash.value):
             raise ParamsError('活动已结束')
         redirect = False
         with db.auto_commit():
@@ -639,6 +632,7 @@ class CTicket(CPlay):
                 mount_price = ticket.TIdeposit
             elif tsotype == TicketPayType.cash.value:
                 mount_price = ticket.TIprice
+                trade = False
             elif tsotype == TicketPayType.scorepay.value:
                 if not user.USrealname:
                     raise StatusError('用户未进行信用认证')
@@ -646,6 +640,8 @@ class CTicket(CPlay):
                 redirect = True
             else:
                 raise StatusError('支付方式错误')
+            if trade:
+                raise StatusError('您已申请成功，请在“我的 - 我的试用”中查看')
             ticket_order = self._creat_ticket_order(user.USid, tiid, tsotype)
             db.session.add(ticket_order)
         body = ticket.TIname[:16] + '...'
@@ -672,6 +668,14 @@ class CTicket(CPlay):
                                     'isdelete': True})
 
     @staticmethod
+    def _query_traded(tiid, usid):
+        return TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                         TicketsOrder.TIid == tiid,
+                                         TicketsOrder.USid == usid,
+                                         TicketsOrder.TSOtype != TicketPayType.cash.value
+                                         ).first()
+
+    @staticmethod
     def _query_rules(ruletype):
         return db.session.query(Agreement.AMcontent).filter(Agreement.isdelete == false(),
                                                             Agreement.AMtype == ruletype).scalar()
@@ -686,11 +690,11 @@ class CTicket(CPlay):
                                           *filter_status
                                           ).scalar() or 0
         if ticket.TIstatus == TicketStatus.over.value:
-            current_app.logger.info('fill ended ticket apply num, tiid: {}'.format(ticket.TIid))
             if ticket.TIapplyFakeNum and ticket.TIapplyFakeNum >= 500:
                 count = ticket.TIapplyFakeNum
-                current_app.logger.info('found ticket fake apply_num {}'.format(count))
+                # current_app.logger.info('found ticket fake apply_num {}'.format(count))
             elif count < 500:
+                current_app.logger.info('fill ended ticket apply num, tiid: {}'.format(ticket.TIid))
                 with db.auto_commit():
                     current_app.logger.info('ticket true apply_num {}'.format(count))
                     count = random.randint(800, 2000)
