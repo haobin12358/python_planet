@@ -35,6 +35,7 @@ from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay, mp_miniprogram
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
+from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
@@ -609,6 +610,13 @@ class CUser(SUser, BASEAPPROVAL):
             checked_name = self._verify_chinese(usrealname)
             if not checked_name or len(checked_name[0]) < 2:
                 raise ParamsError('请正确填写真实姓名')
+        try:  # 检查昵称填写
+            check_content = data.get('usname')
+            check_res = mp_miniprogram.msg_sec_check(check_content)
+            current_app.logger.info('content_sec_check: {}'.format(check_res))
+        except WeixinMPError as e:
+            current_app.logger.info('check result: {}'.format(e))
+            raise ParamsError('您输入的昵称含有部分敏感词汇,请检查后重新填写')
         oldname = user.USrealname
         oldidentitynumber = user.USidentification
         with db.auto_commit():
