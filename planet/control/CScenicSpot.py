@@ -316,20 +316,21 @@ class CScenicSpot(BASEAPPROVAL):
                                  'PLid': plid if plid else None
                                  }
             travelrecord_dict.update(tr_dict)
+            check_flag = False
             try:
                 check_content = travelrecord_dict.get('TRcontent')
                 if trtype == str(TravelRecordType.essay.value):
                     check_content = json.loads(check_content).get('text')
                     self.BaseTicket.add_activation(
                         ActivationTypeEnum.publish.value, user.USid, travelrecord_dict.get('TRid'))
-                mp_miniprogram.msg_sec_check(check_content)
-            except WeixinMPError:
+                check_res = mp_miniprogram.msg_sec_check(check_content)
+                current_app.logger.info('content_sec_check: {}'.format(check_res))
+            except WeixinMPError as e:
+                current_app.logger.info('check result: {}'.format(e))
+                check_flag = True
                 travelrecord_dict['isdelete'] = True
-
             db.session.add(TravelRecord.create(travelrecord_dict))
-        try:
-            current_app.logger.info('content_sec_check: {}'.format(mp_miniprogram.msg_sec_check(check_content)))
-        except WeixinMPError:
+        if check_flag:
             raise ParamsError('您输入的内容含有部分敏感词汇,请检查后重新发布')
         return Success('发布成功', {'trid': travelrecord_dict['TRid']})
 
