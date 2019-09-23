@@ -36,7 +36,7 @@ class PlayPicture():
         self.res_path = os.path.join(current_app.config['BASEDIR'], 'planet', 'extensions', 'staticres')
         self.pro_1 = '跟旗行一起游山玩水'
         self.pro_2 = '长按扫码加入我们'
-        self.pro_3 = '跟旗行一起试玩'
+        self.pro_3 = '来旗行，放肆High！'
         self.pro_4 = '长按扫码抢免费门票'
         self.temp_path = ''
 
