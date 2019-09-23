@@ -31,6 +31,7 @@ from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
+from planet.control.BaseControl import BaseController
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay, mp_miniprogram
@@ -60,6 +61,7 @@ class CUser(SUser, BASEAPPROVAL):
         super(CUser, self).__init__()
         self.qiniu = QiniuStorage(current_app)
         self.Baseticket = BASETICKET()
+        self.basecontroller = BaseController()
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -598,7 +600,7 @@ class CUser(SUser, BASEAPPROVAL):
         """更新个人资料"""
         user = self.get_user_by_id(getattr(request, 'user').id)
         data = parameter_required()
-        usrealname, ustelphone = data.get('usrealname'), data.get('ustelphone')
+        usrealname, ustelphone, usheader = data.get('usrealname'), data.get('ustelphone'), data.get('usheader')
         usidentification = data.get('usidentification')
         usareaid, usbirthday = data.get('aaid') or data.get('usareaid'), data.get('usbirthday')
         usbirthday = validate_arg(r'^\d{4}-\d{2}-\d{2}$', usbirthday, '请按正确的生日格式填写')
@@ -617,6 +619,9 @@ class CUser(SUser, BASEAPPROVAL):
         except WeixinMPError as e:
             current_app.logger.info('check result: {}'.format(e))
             raise ParamsError('您输入的昵称含有部分敏感词汇,请检查后重新填写')
+        # 图片校验
+        filepath = os.path.join(current_app.config['BASEDIR'], str(str(usheader).split(API_HOST)[-1][1:]).split('_')[0])
+        self.basecontroller.img_check(filepath)
         oldname = user.USrealname
         oldidentitynumber = user.USidentification
         with db.auto_commit():
