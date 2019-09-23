@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime, date
 from decimal import Decimal
@@ -10,7 +11,7 @@ from sqlalchemy import false
 from planet.config.enums import ApplyStatus, ApprovalAction, ApplyFrom, \
     TrialCommodityStatus, ActivationTypeEnum, TicketsOrderStatus
 from planet.common.error_response import ParamsError, StatusError
-from planet.extensions.register_ext import db
+from planet.extensions.register_ext import db, mp_miniprogram
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, CashNotes, \
     UserWallet, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
@@ -616,6 +617,39 @@ class BaseController:
             db.session.add(ul)
         return ul.ULformattedAddress
 
+    def img_check(self, filepath):
+        """
+        图片校验
+        :param filepath: 完整的绝对路径
+        :return:
+        """
+        filesize = os.path.getsize(filepath)
+        current_app.logger.info('size {}'.format(filesize))
+        if filesize > 1024 * 1024:
+            # 图片太大
+            from PIL import Image
+            img = Image.open(filepath)
+            x, y = img.size
+            x_ = 750
+            y_ = y * (x / x_)
+            if y_ > 1000:
+                y_ = 1000
+            time_now = datetime.now()
+            year = str(time_now.year)
+            month = str(time_now.month)
+            day = str(time_now.day)
+            tmp_path = os.path.join(
+                current_app.config['BASEDIR'], 'img', 'temp', year, month, day)
+            if not os.path.isdir(tmp_path):
+                os.makedirs(tmp_path)
+            tmp_path = os.path.join(tmp_path, os.path.basename(filepath))
+            img.resize((x_, y_), Image.LANCZOS).save(tmp_path)
+            filepath = tmp_path
+        check_result = mp_miniprogram.img_sec_check(filepath)
+        current_app.logger.info(check_result)
+        if int(check_result.get('errcode', 1)) != 0:
+            current_app.logger.error('傻逼在发黄色图片  usid = {}'.format(getattr(request, 'user').id))
+            raise ParamsError('图片存在政治有害等违法违规不当信息')
 
 class BASETICKET():
 

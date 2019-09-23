@@ -365,14 +365,12 @@ class CScenicSpot(BASEAPPROVAL):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
         if image:
-            current_app.logger.error("图片校验测试")
+            current_app.logger.info("图片校验测试")
             for img in image:
                 img_ = str(img).split(API_HOST)[-1][1:]
-                filepath = os.path.join(current_app.config['BASEDIR'], img_)
-                check_result = mp_miniprogram.img_sec_check(filepath)
-                current_app.logger.error(check_result)
-                if int(check_result.get('errcode', 1)) != 0:
-                    raise ParamsError('图片存在政治有害等违法违规不当信息')
+                filepath = os.path.join(current_app.config['BASEDIR'], str(img_).split('_')[0])
+                self.BaseController.img_check(filepath)
+
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:

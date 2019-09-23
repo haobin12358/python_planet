@@ -10,7 +10,6 @@ import hashlib
 import string
 import random
 import requests
-from flask import current_app
 
 from .base import Map, WeixinError
 
@@ -90,7 +89,6 @@ class WeixinMP(object):
 
             prepped = req.prepare()
             resp = self.session.send(prepped, timeout=20)
-        current_app.logger.info('get res {}'.format(resp.content))
 
         if resp.status_code == 200 and buffer:
             return resp.content
@@ -98,7 +96,6 @@ class WeixinMP(object):
         if data.errcode:
             msg = "%(errcode)d %(errmsg)s" % data
             raise WeixinMPError(msg)
-        current_app.logger.info('get data = {}'.format(data))
         return data
 
     def get(self, path, params=None, token=True, prefix="/cgi-bin"):
