@@ -606,11 +606,11 @@ class BaseController:
                 'ULformattedAddress': '请稍后再试'
             }
         with db.auto_commit():
-            result.setdefault('USid', usid)
             if ul:
                 ul.update(result)
                 db.session.add(ul)
                 return ul.ULformattedAddress
+            result.setdefault('USid', usid)
             result.setdefault('ULid', str(uuid.uuid1()))
             ul = UserLocation.create(result)
             db.session.add(ul)

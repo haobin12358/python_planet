@@ -1,10 +1,10 @@
 import json
-import uuid
-
 import requests
+import hashlib
+
 from planet.config.secret import BAIDUMPAK, TencentMapKey, TencentMapSK
 from planet.common.error_response import SystemError
-import hashlib
+
 
 class GetLocation():
     """
@@ -33,7 +33,6 @@ class GetLocation():
 
     def format_userlocation_b(self, result):
         return {
-            'ULid': str(uuid.uuid1()),
             'ULformattedAddress': result.get('formatted_address'),
             'ULcountry': result.get('addressComponent').get('country'),
             'ULprovince': result.get('addressComponent').get('province'),
@@ -46,7 +45,6 @@ class GetLocation():
 
     def format_userlocation_t(self, result):
         return {
-                'ULid': str(uuid.uuid1()),
                 'ULformattedAddress': result.get('formatted_addresses').get('recommend'),
                 'ULcountry': result.get('address_component').get('nation'),
                 'ULprovince': result.get('address_component').get('province'),
