@@ -100,17 +100,20 @@ class CActivation(CTicket):
                     current_app.logger.info('已经绑定账号 {}'.format(ula_instance.ULAaccount))
                     if ula.get('ulaaccount') != ula_instance.ULAaccount:
                         current_app.logger.info('修改已经绑定账号为 {}'.format(ula.get('ulaaccount')))
-                        # ula_instance.ULAaccount = ula.get('ulaaccount')
-                        # db.session.add(ula_instance)
-                    continue
-                ula_instance = UserLinkage.create({
-                    'ULAid': str(uuid.uuid1()),
-                    'ATTid': ula.get('attid'),
-                    'USid': user.USid,
-                    'ULAaccount': ula.get('ulaaccount')
-                })
-                db.session.add(ula_instance)
-                current_app.logger.info('创建绑定账号 {}'.format(ula.get('ulaaccount')))
+
+                        if ula_instance.ULAaccount:
+                            continue
+                        ula_instance.ULAaccount = ula.get('ulaaccount')
+                        db.session.add(ula_instance)
+                else:
+                    ula_instance = UserLinkage.create({
+                        'ULAid': str(uuid.uuid1()),
+                        'ATTid': ula.get('attid'),
+                        'USid': user.USid,
+                        'ULAaccount': ula.get('ulaaccount')
+                    })
+                    db.session.add(ula_instance)
+                    current_app.logger.info('创建绑定账号 {}'.format(ula.get('ulaaccount')))
                 self.Baseticket.add_activation(ula.get('attid'), user.USid, ula_instance.ULAid)
         return Success('绑定成功')
 
