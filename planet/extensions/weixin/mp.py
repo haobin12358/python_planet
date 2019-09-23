@@ -4,13 +4,13 @@
 from __future__ import unicode_literals
 
 import os
-import platform
 import time
 import json
 import hashlib
 import string
 import random
 import requests
+from flask import current_app
 
 from .base import Map, WeixinError
 
@@ -53,11 +53,6 @@ class WeixinMP(object):
 
     api_uri = "https://api.weixin.qq.com"
 
-    contenttype_config = {
-        r'image/jpeg': r'.jpg',
-        r'image/gif': r'.gif',
-        r'image/png': r'.png',
-    }
     contenttype_config_res = {
         r'jpg': r'image/jpeg',
         r'jpeg': r'image/jpeg',
@@ -87,16 +82,23 @@ class WeixinMP(object):
         self.jt_callback = jt_callback
 
     def fetch(self, method, url, params=None, data=None, headers=None, buffer=False, files=None):
-        req = requests.Request(method, url, params=params,
-                               data=data, headers=headers, files=files)
-        prepped = req.prepare()
-        resp = self.session.send(prepped, timeout=20)
+        if files:
+            resp = requests.post(url=url, params=params, files=files)
+        else:
+            req = requests.Request(method, url, params=params,
+                                   data=data, headers=headers)
+
+            prepped = req.prepare()
+            resp = self.session.send(prepped, timeout=20)
+        current_app.logger.info('get res {}'.format(resp.content))
+
         if resp.status_code == 200 and buffer:
             return resp.content
         data = Map(resp.json())
         if data.errcode:
             msg = "%(errcode)d %(errmsg)s" % data
             raise WeixinMPError(msg)
+        current_app.logger.info('get data = {}'.format(data))
         return data
 
     def get(self, path, params=None, token=True, prefix="/cgi-bin"):
@@ -447,15 +449,10 @@ class WeixinMP(object):
         校验一张图片是否含有违法违规内容。
         :param 要检测的图片文件，格式支持PNG、JPEG、JPG、GIF，图片尺寸不超过 750px x 1334px
         """
-        # files = {'media': ('pic.png', open('E:\\download\\pic.png', 'rb'), 'image/png')}
-        # files = {'media': {'contentType': contenttype, 'value': media}}
         contenttype = self.contenttype_config_res.get(str(filename).split('.')[-1])
         media = open(filename, 'rb')
-        split_char = r'/' if platform.system() != 'Windows' else '\\'
-        files = {'media': (str(filename).split(split_char), media, contenttype)}
-
-        # return self.post("/msg_sec_check", {'media': media}, prefix="/wxa")
-        return self.post('img_sec_check', {}, files=files, headers={'Content-Type': 'multipart/form-data'})
+        files = {'contentType': contenttype, 'value': media}
+        return self.post('/img_sec_check', {}, files=files, prefix='/wxa')
 
     def get_wxacode_unlimit(self, scene, **kwargs):
         """

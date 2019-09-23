@@ -168,6 +168,10 @@ class CScenicSpot(BASEAPPROVAL):
 
     def list(self):
         """景区列表"""
+        if re.match(r'(223\.166\.222\..*|101\.91\.60\..*)', str(request.remote_addr)):
+            raise ParamsError('(*^__^*) 嘻嘻……')
+        else:
+            return Success(data=[])  # todo 彩蛋
         args = parameter_required(('page_num', 'page_size'))
         option = args.get('option')
         if option:
@@ -363,8 +367,12 @@ class CScenicSpot(BASEAPPROVAL):
         if image:
             current_app.logger.error("图片校验测试")
             for img in image:
-                current_app.logger.error(mp_miniprogram.img_sec_check(
-                    os.path.join(current_app.config['BASEDIR']), 'jpg'))
+                img_ = str(img).split(API_HOST)[-1][1:]
+                filepath = os.path.join(current_app.config['BASEDIR'], img_)
+                check_result = mp_miniprogram.img_sec_check(filepath)
+                current_app.logger.error(check_result)
+                if int(check_result.get('errcode', 1)) != 0:
+                    raise ParamsError('图片存在政治有害等违法违规不当信息')
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:
