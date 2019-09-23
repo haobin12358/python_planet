@@ -626,6 +626,11 @@ class CSupplizer:
             suid = request.user.id
         else:
             raise AuthorityError()
+        sup = Supplizer.query.filter(Supplizer.isdelete == false(),
+                                     Supplizer.SUstatus == UserStatus.usual.value,
+                                     Supplizer.SUid == suid).first_('无此供应商')
+        if sup.SUgrade != SupplizerGrade.ticket.value:
+            raise StatusError('仅虚拟商品供应商可设置核销员')
         phone_list = form.phone_list.data
         tvid_list = []
         instence_list = []
@@ -649,4 +654,4 @@ class CSupplizer:
                 TicketVerifier.SUid == suid,
                 TicketVerifier.TVid.notin_(tvid_list)
             ).delete_(synchronize_session=False)
-        return Success('修改成功',data=suid)
+        return Success('修改成功', data=suid)
