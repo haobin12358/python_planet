@@ -359,7 +359,7 @@ class CTicket(CPlay):
             TicketsOrder.TIid == ticketorder.TIid,
             TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
         ).order_by(TicketsOrder.TSOactivation.desc(),
-                   TicketsOrder.updatetime.desc(),
+                   TicketsOrder.createtime.asc(),
                    origin=True).all() if i is not None]
         res = [self._init_score_dict(ticketorder.TSOid, '我的位置')]
         rank = 1
