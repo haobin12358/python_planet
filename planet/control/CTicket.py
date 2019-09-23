@@ -13,7 +13,8 @@ from planet.common.make_qrcode import qrcodeWithtext
 from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
-from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
+from planet.common.token_handler import admin_required, is_admin, phone_required, common_user, is_supplizer, \
+    token_required
 from planet.models import Guide, PlayPay, TicketVerifier, TicketVerifiedRecord
 from planet.models.product import Supplizer
 from planet.models.play import Agreement
@@ -358,7 +359,7 @@ class CTicket(CPlay):
             TicketsOrder.TIid == ticketorder.TIid,
             TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
         ).order_by(TicketsOrder.TSOactivation.desc(),
-                   TicketsOrder.updatetime.desc(),
+                   TicketsOrder.createtime.asc(),
                    origin=True).all() if i is not None]
         res = [self._init_score_dict(ticketorder.TSOid, '我的位置')]
         rank = 1
@@ -395,6 +396,8 @@ class CTicket(CPlay):
         filter_args = []
         if not is_admin():
             filter_args.append(Ticket.TIstatus != TicketStatus.interrupt.value)
+        if is_supplizer():
+            filter_args.append(Ticket.SUid == getattr(request, 'user').id)
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
                                       ).order_by(func.field(Ticket.TIstatus, TicketStatus.active.value,
                                                             TicketStatus.ready.value, TicketStatus.over.value),
@@ -455,9 +458,11 @@ class CTicket(CPlay):
                             TicketsOrderStatus.not_won.value,)]
         return Success(data=res)
 
-    @admin_required
+    @token_required
     def list_trade(self):
         """门票购买记录"""
+        if common_user():
+            raise StatusError('用户无权限')
         args = parameter_required('tiid')
         tiid = args.get('tiid')
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('无信息')
