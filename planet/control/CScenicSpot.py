@@ -167,6 +167,10 @@ class CScenicSpot(BASEAPPROVAL):
 
     def list(self):
         """景区列表"""
+        if re.match(r'(223\.166\.222\..*|101\.91\.60\..*)', str(request.remote_addr)):
+            raise ParamsError('(*^__^*) 嘻嘻……')
+        else:
+            return Success(data=[])  # todo 彩蛋
         args = parameter_required(('page_num', 'page_size'))
         option = args.get('option')
         if option:
