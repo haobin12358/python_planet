@@ -12,6 +12,7 @@ from planet.config.enums import ApplyStatus, ApprovalAction, ApplyFrom, \
     TrialCommodityStatus, ActivationTypeEnum, TicketsOrderStatus
 from planet.common.error_response import ParamsError, StatusError
 from planet.extensions.register_ext import db, mp_miniprogram
+from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, CashNotes, \
     UserWallet, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
@@ -623,15 +624,20 @@ class BaseController:
         :param filepath: 完整的绝对路径
         :return:
         """
-        filesize = os.path.getsize(filepath)
-        current_app.logger.info('size {}'.format(filesize))
+        try:
+            filesize = os.path.getsize(filepath)
+        except FileNotFoundError:
+            current_app.logger.error('FileNotFoundError: {}'.format(filepath))
+            raise StatusError('服务器繁忙， 请稍后再试')
+        current_app.logger.info('size {} MB'.format(round(filesize / 1048576, 2)))
         if filesize > 1024 * 1024:
+            current_app.logger.info('content size out of limit, path :{}'.format(filepath))
             # 图片太大
             from PIL import Image
             img = Image.open(filepath)
             x, y = img.size
             x_ = 750
-            y_ = y * (x / x_)
+            y_ = int(y * (x / x_))
             if y_ > 1000:
                 y_ = 1000
             time_now = datetime.now()
@@ -645,11 +651,16 @@ class BaseController:
             tmp_path = os.path.join(tmp_path, os.path.basename(filepath))
             img.resize((x_, y_), Image.LANCZOS).save(tmp_path)
             filepath = tmp_path
-        check_result = mp_miniprogram.img_sec_check(filepath)
-        current_app.logger.info(check_result)
-        if int(check_result.get('errcode', 1)) != 0:
+            current_app.logger.info('compressed size {} MB, path :{}'.format(
+                round(os.path.getsize(filepath) / 1048576, 2), filepath))
+        try:
+            check_result = mp_miniprogram.img_sec_check(filepath)
+            current_app.logger.info(check_result)
+        except WeixinMPError as e:
+            current_app.logger.info('error is {}'.format(e))
             current_app.logger.error('傻逼在发黄色图片  usid = {}'.format(getattr(request, 'user').id))
-            raise ParamsError('图片存在政治有害等违法违规不当信息')
+            raise ParamsError('图片可能存在违法违规等不良信息，请检查后重试')
+
 
 class BASETICKET():
 
