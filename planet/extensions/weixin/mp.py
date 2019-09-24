@@ -82,7 +82,7 @@ class WeixinMP(object):
 
     def fetch(self, method, url, params=None, data=None, headers=None, buffer=False, files=None):
         if files:
-            resp = requests.post(url=url, params=params, files=files)
+            resp = requests.post(url=url, params=params, data=data, files=files)
         else:
             req = requests.Request(method, url, params=params,
                                    data=data, headers=headers)
@@ -448,8 +448,8 @@ class WeixinMP(object):
         """
         contenttype = self.contenttype_config_res.get(str(filename).split('.')[-1])
         media = open(filename, 'rb')
-        files = {'contentType': contenttype, 'value': media}
-        return self.post('/img_sec_check', {}, files=files, prefix='/wxa')
+        files = [(contenttype, media), ]
+        return self.post('/img_sec_check', data={'media': 'media'}, json_encode=False, files=files, prefix='/wxa')
 
     def get_wxacode_unlimit(self, scene, **kwargs):
         """
