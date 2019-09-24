@@ -618,9 +618,10 @@ class BaseController:
             db.session.add(ul)
         return ul.ULformattedAddress
 
-    def img_check(self, filepath):
+    def img_check(self, filepath, msg='图片'):
         """
         图片校验
+        :param msg: msg
         :param filepath: 完整的绝对路径
         :return:
         """
@@ -659,7 +660,7 @@ class BaseController:
         except WeixinMPError as e:
             current_app.logger.info('error is {}'.format(e))
             current_app.logger.error('傻逼在发黄色图片  usid = {}'.format(getattr(request, 'user').id))
-            raise ParamsError('图片可能存在违法违规等不良信息，请检查后重试')
+            raise ParamsError('{}可能存在违法违规等不良信息，请检查后重试'.format(msg))
 
 
 class BASETICKET():

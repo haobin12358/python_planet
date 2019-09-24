@@ -377,6 +377,12 @@ class CScenicSpot(BASEAPPROVAL):
             raise ParamsError('不能同时选择图片和视频')
         if image and len(image) > 9:
             raise ParamsError('最多可上传9张图片')
+        if video:
+            thumbnail = video.get('thumbnail')
+            current_app.logger.info("视频内容安全校验")
+            thumbnail_ = str(thumbnail).split('.bigxingxing.com')[-1][1:]
+            thumbnail_path = os.path.join(current_app.config['BASEDIR'], str(thumbnail_))
+            self.BaseController.img_check(thumbnail_path, msg='视频')
         video = {'url': self._check_upload_url(video.get('url')),
                  'thumbnail': video.get('thumbnail'),
                  'duration': video.get('duration')
