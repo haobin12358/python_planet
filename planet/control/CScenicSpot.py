@@ -367,7 +367,7 @@ class CScenicSpot(BASEAPPROVAL):
         if image:
             current_app.logger.info("图片校验测试")
             for img in image:
-                img_ = str(img).split(API_HOST)[-1][1:]
+                img_ = str(img).split('.bigxingxing.com')[-1][1:]
                 filepath = os.path.join(current_app.config['BASEDIR'], str(img_).split('_')[0])
                 self.BaseController.img_check(filepath)
 

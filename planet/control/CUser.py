@@ -622,11 +622,8 @@ class CUser(SUser, BASEAPPROVAL):
         # 图片校验
         filepath = os.path.join(current_app.config['BASEDIR'],
                                 str(str(usheader).split('.bigxingxing.com')[-1][1:]).split('_')[0])
-        try:
-            self.basecontroller.img_check(filepath)
-        except FileNotFoundError:
-            current_app.logger.error('FileNotFoundError: {}'.format(filepath))
-            raise StatusError('服务器繁忙， 请稍后再试')
+        self.basecontroller.img_check(filepath)
+
         oldname = user.USrealname
         oldidentitynumber = user.USidentification
         with db.auto_commit():
