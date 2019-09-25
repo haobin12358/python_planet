@@ -145,6 +145,7 @@ class CActivation(CTicket):
     @admin_required
     def select(self):
         data = parameter_required('trid')
+        admin = get_current_admin()
         select_at = TicketsOrderActivation.query.join(
             Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
             Activation.isdelete == false(),
@@ -155,7 +156,7 @@ class CActivation(CTicket):
             raise StatusError('已经加精')
 
         with db.auto_commit():
-            self._add_activation(data, ActivationTypeEnum.selected.value, data.get('trid'))
+            self._add_activation(data, ActivationTypeEnum.selected.value, admin.ADid)
 
         return Success('精选成功')
 
