@@ -168,10 +168,7 @@ class CScenicSpot(BASEAPPROVAL):
 
     def list(self):
         """景区列表"""
-        if re.match(r'(223\.166\.222\..*|101\.91\.60\..*)', str(request.remote_addr)):
-            raise ParamsError('(*^__^*) 嘻嘻……')
-        else:
-            return Success(data=[])  # todo 防爬暂屏蔽
+        return Success(data=[])  # todo 防爬暂屏蔽
         args = parameter_required(('page_num', 'page_size'))
         option = args.get('option')
         if option:
@@ -232,12 +229,9 @@ class CScenicSpot(BASEAPPROVAL):
 
     def get(self):
         """景区详情"""
+        return Success(data='')  # todo 防爬暂屏蔽
         args = parameter_required(('sspid',))
         sspid = args.get('sspid')
-        if re.match(r'(223\.166\.222\..*|101\.91\.60\..*)', str(request.remote_addr)):
-            raise ParamsError('(*^__^*) 嘻嘻……')
-        else:
-            return Success(data='')  # todo 防爬暂屏蔽
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
         scenicspot.hide('ParentID', 'ADid')
         parent = None

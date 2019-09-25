@@ -876,6 +876,10 @@ class CTicket(CPlay):
         # 获取微信二维码
         # from planet.control.CUser import CUser
         cuser = self.cuser
+        if not params or 'page=' not in params:
+            params = 'page=/pages/index/freeDetail'
+        if 'tiid' not in params:
+            params = '{}&tiid={}'.format(params, tiid)
         if 'secret_usid' not in params:
             params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
         params = '{}&sttype={}'.format(params, ShareType.promotion.value)
