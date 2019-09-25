@@ -135,7 +135,8 @@ class CTicket(CPlay):
                                                TicketLinkage.TIid == ticket.TIid).delete_()  # 删除原来的关联
                 else:  # 已结束的情况，重新发起
                     current_app.logger.info('edit ended ticket')
-                    ticket_dict.update({'TIid': str(uuid.uuid1())})
+                    ticket_dict.update({'TIid': str(uuid.uuid1()),
+                                        'ADid': getattr(request, 'user').id})
                     ticket = Ticket.create(ticket_dict)
 
                 for liid in liids:
