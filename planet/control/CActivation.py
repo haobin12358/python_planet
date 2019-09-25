@@ -145,7 +145,6 @@ class CActivation(CTicket):
     @admin_required
     def select(self):
         data = parameter_required('trid')
-        admin = get_current_admin()
         select_at = TicketsOrderActivation.query.join(
             Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
             Activation.isdelete == false(),
@@ -156,7 +155,7 @@ class CActivation(CTicket):
             raise StatusError('已经加精')
 
         with db.auto_commit():
-            self._add_activation(data, ActivationTypeEnum.selected.value, admin.ADid)
+            self._add_activation(data, ActivationTypeEnum.selected.value, data.get('trid'))
 
         return Success('精选成功')
 
@@ -170,7 +169,10 @@ class CActivation(CTicket):
         ).all()
         if not toa_list:
             raise StatusError('当前随笔没有加分到任何活动中')
+        loop = 0
         for toa in toa_list:
             at = Activation.query.filter_by(ATid=toa.ATid, isdelete=False).first()
+
             # 添加 打赏奖励
-            self.Baseticket.add_activation(attid, at.USid, contentid, data.get('atnum', 0))
+            self.Baseticket.add_activation(attid, at.USid, contentid, data.get('atnum', 0), loop)
+            loop += 1

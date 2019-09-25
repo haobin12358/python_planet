@@ -665,7 +665,7 @@ class BaseController:
 
 class BASETICKET():
 
-    def add_activation(self, attid, usid, contentid, atnum=0):
+    def add_activation(self, attid, usid, contentid, atnum=0, no_loop=False):
         att = ActivationType.query.filter_by(ATTid=attid).first()
         if not att:
             return
@@ -694,9 +694,11 @@ class BASETICKET():
             return
 
         db.session.add(at)
+
         for tso in tso_list:
             current_app.logger.info('tso status {}'.format(tso.TSOstatus))
-            tso.TSOactivation += atnum
+            if not no_loop:
+                tso.TSOactivation += atnum
             db.session.add(TicketsOrderActivation.create({
                 'TOAid': str(uuid.uuid1()),
                 'TSOid': tso.TSOid,
