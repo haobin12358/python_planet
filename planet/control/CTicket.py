@@ -135,7 +135,8 @@ class CTicket(CPlay):
                                                TicketLinkage.TIid == ticket.TIid).delete_()  # 删除原来的关联
                 else:  # 已结束的情况，重新发起
                     current_app.logger.info('edit ended ticket')
-                    ticket_dict.update({'TIid': str(uuid.uuid1())})
+                    ticket_dict.update({'TIid': str(uuid.uuid1()),
+                                        'ADid': getattr(request, 'user').id})
                     ticket = Ticket.create(ticket_dict)
 
                 for liid in liids:
@@ -313,7 +314,7 @@ class CTicket(CPlay):
                                                     ).order_by(UserMaterialFeedback.createtime.desc()).first()
             ticket.fill('tsoqrcode',
                         ticketorder['TSOqrcode'] if ticketorder.TSOstatus > TicketsOrderStatus.pending.value else None)
-            scorerank, rank = self._query_single_score(ticketorder)
+            scorerank, rank = self._query_single_score(ticketorder, ticket)
             ticket.fill('scorerank', scorerank)  # 活跃分排名array
             ticket.fill('rank', rank)  # 自己所在排名
             ticket.fill('tsocreatetime', ticketorder.createtime)
@@ -351,7 +352,8 @@ class CTicket(CPlay):
                                  'longitude': ticket.longitude,
                                  'latitude': ticket.latitude})
 
-    def _query_single_score(self, ticketorder):
+    def _query_single_score(self, ticketorder, ticket):
+        tinum = ticket.TInum
         if ticketorder.TSOtype == TicketPayType.cash.value or ticketorder.TSOstatus > TicketsOrderStatus.pending.value:
             return [], 1
         tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
@@ -369,9 +371,11 @@ class CTicket(CPlay):
             if my_index == 0:
                 res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
             elif my_index == len(tsoid_array) - 1:
-                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1], '前一名'))
+                temp_index = tinum - 1 if rank > tinum else my_index - 1
+                res.insert(0, self._init_score_dict(tsoid_array[temp_index], '前一名'))
             else:
-                res.insert(0, self._init_score_dict(tsoid_array[my_index - 1], '前一名'))
+                temp_index = tinum - 1 if rank > tinum else my_index - 1
+                res.insert(0, self._init_score_dict(tsoid_array[temp_index], '前一名'))
                 res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
         return res, rank
 
@@ -401,7 +405,7 @@ class CTicket(CPlay):
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
                                       ).order_by(func.field(Ticket.TIstatus, TicketStatus.active.value,
                                                             TicketStatus.ready.value, TicketStatus.over.value),
-                                                 Ticket.TIstartTime.desc(),
+                                                 Ticket.TIstartTime.asc(),
                                                  Ticket.createtime.desc()).all_with_page()
         ticket_fields = self.TICKET_LIST_FIELDS[:]
         ticket_fields.extend(('TItripStartTime', 'TItripEndTime', 'traded', 'TIprice'))
@@ -564,9 +568,9 @@ class CTicket(CPlay):
                             old_total_fee=mount_price
                         )
                         flag = False
-                        count += 1
                     except requests.exceptions.ConnectionError as e:
                         flag = True
+                        count += 1
                         current_app.logger.error('refund deposit error: {}'.format(e))
                     finally:
                         current_app.logger.info('post wx_refund api count: {}'.format(count))
@@ -579,7 +583,7 @@ class CTicket(CPlay):
     @admin_required
     def set_award(self):
         """设置中奖"""
-        raise StatusError('版本更新中， 该功能暂停使用')
+        raise StatusError('该功能暂停使用')
         # data = parameter_required('tsoid')
         # tsoid = data.get('tsoid')
         # ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
@@ -615,7 +619,6 @@ class CTicket(CPlay):
     @phone_required
     def pay(self):
         """购买"""
-        # todo 已结束的可随时购买
         data = parameter_required()
         tiid, tsotype = data.get('tiid'), data.get('tsotype', 1)
         try:
@@ -641,6 +644,9 @@ class CTicket(CPlay):
             elif tsotype == TicketPayType.scorepay.value:
                 if not user.USrealname:
                     raise StatusError('用户未进行信用认证')
+                temp_flag = True
+                if temp_flag:
+                    raise StatusError('您当前的支付信用分不足，请换种姿势申请~')
                 mount_price = 0
                 redirect = True
             else:
