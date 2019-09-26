@@ -4,7 +4,7 @@ import json
 import random
 import uuid
 import requests
-from sqlalchemy import false, func
+from sqlalchemy import false, func, cast, Date
 from flask import current_app, request
 from datetime import datetime, timedelta
 from planet.config.secret import API_HOST
@@ -251,6 +251,15 @@ class CTicket(CPlay):
             current_app.logger.info('secret_usid --> superid {}'.format(superid))
             if common_user() and superid != getattr(request, 'user').id:
                 with db.auto_commit():
+                    today = datetime.now().date()
+                    uin_exist = UserInvitation.query.filter(
+                        cast(UserInvitation.createtime, Date) == today,
+                        UserInvitation.USInviter == superid,
+                        UserInvitation.USInvited == getattr(request, 'user').id,
+                    ).first()
+                    if uin_exist:
+                        current_app.logger.info('{}今天已经邀请过这个人了{}'.format(superid, getattr(request, 'user').id))
+                        return
                     uin = UserInvitation.create({
                         'UINid': str(uuid.uuid1()),
                         'USInviter': superid,
