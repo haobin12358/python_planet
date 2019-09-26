@@ -2031,7 +2031,7 @@ class CUser(SUser, BASEAPPROVAL):
                 upperd = None
         else:
             upperd = None
-        # todo 老人同时登录和获取门票详情 活跃度累加两次bug
+
         isnewguy = ActivationTypeEnum.share_old.value
 
         if user:
@@ -2068,16 +2068,25 @@ class CUser(SUser, BASEAPPROVAL):
             user = User.create(user_dict)
             db.session.add(user)
         if upperd:
-            uin = UserInvitation.create(
-                {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
-            db.session.add(uin)
-            # 分享类型累加
-            db.session.add(SharingType.create({
-                'STid': str(uuid.uuid1()),
-                'USid': upperd.USid,
-                'STtype': args.get('sttype', 0)
-            }))
-            self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
+            today = datetime.datetime.now().date()
+            uin_exist = UserInvitation.query.filter(
+                cast(UserInvitation.createtime, Date) == today,
+                UserInvitation.USInviter == upperd.USid,
+                UserInvitation.USInvited == usid,
+            ).first()
+            if uin_exist:
+                current_app.logger.info('{}今天已经邀请过这个人了{}'.format(upperd.USid, usid))
+            else:
+                uin = UserInvitation.create(
+                    {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
+                db.session.add(uin)
+                # 分享类型累加
+                db.session.add(SharingType.create({
+                    'STid': str(uuid.uuid1()),
+                    'USid': upperd.USid,
+                    'STtype': args.get('sttype', 0)
+                }))
+                self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),
                                                "USid": usid,
