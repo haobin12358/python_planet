@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime
 
 from flask import request, current_app
@@ -94,7 +95,7 @@ class CActivation(CTicket):
         user = get_current_user()
         with db.auto_commit():
             for ula in userlinkages:
-                if not ula.get('ulaaccount'):
+                if not ula.get('ulaaccount') or not re.sub(r'\s', '', str(ula.get('ulaaccount'))):
                     continue
                 ula_instance = UserLinkage.query.filter_by(USid=user.USid, ATTid=ula.get('attid'),
                                                            isdelete=False).first()
@@ -116,7 +117,7 @@ class CActivation(CTicket):
                     })
                     db.session.add(ula_instance)
                     current_app.logger.info('创建绑定账号 {}'.format(ula.get('ulaaccount')))
-                self.Baseticket.add_activation(ula.get('attid'), user.USid, ula_instance.ULAid)
+                    self.Baseticket.add_activation(ula.get('attid'), user.USid, ula_instance.ULAid)
         return Success('绑定成功')
 
     @token_required
