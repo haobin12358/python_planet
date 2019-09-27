@@ -2007,11 +2007,11 @@ class CUser(SUser, BASEAPPROVAL):
 
         current_app.logger.info('get unionid is {}'.format(unionid))
         current_app.logger.info('get openid is {}'.format(openid))
-        user = User.query.filter_by_(USopenid1=openid).first()
+        user = User.query.filter(User.isdelete == false(), User.USopenid1 == openid).first()
         if user:
             current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
         elif unionid:
-            user = User.query.filter_by_(USunionid=unionid).first()
+            user = User.query.filter(User.isdelete == false(), User.USunionid == unionid).first()
             if user:
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
@@ -2626,15 +2626,14 @@ class CUser(SUser, BASEAPPROVAL):
                 UserLoginApi.USid == usid
             ).order_by(
                 UserLoginApi.createtime.desc()
+            ).first() or UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == usid
+            ).order_by(
+                UserLoginTime.createtime.desc()
             ).first()
-            if not userlogintime:
-                userlogintime = UserLoginTime.query.filter(
-                    UserLoginTime.isdelete == False,
-                    UserLoginTime.USid == usid
-                ).order_by(
-                    UserLoginTime.createtime.desc()
-                ).first()
-            user.fill('userlogintime', userlogintime.createtime)
+            user.fill('userlogintime',
+                      getattr(userlogintime, 'createtime', user.updatetime) or user.updatetime)
             if is_admin():
                 userquery = UserHomeCount.query.filter(UserHomeCount.UHid == usid,
                                                        UserHomeCount.isdelete == False).count()
