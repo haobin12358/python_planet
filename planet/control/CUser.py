@@ -2007,11 +2007,13 @@ class CUser(SUser, BASEAPPROVAL):
 
         current_app.logger.info('get unionid is {}'.format(unionid))
         current_app.logger.info('get openid is {}'.format(openid))
-        user = User.query.filter(User.isdelete == false(), User.USopenid1 == openid).first()
+        user = User.query.filter(User.isdelete == false(), User.USopenid1 == openid
+                                 ).order_by(User.createtime.desc()).first()
         if user:
             current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
         elif unionid:
-            user = User.query.filter(User.isdelete == false(), User.USunionid == unionid).first()
+            user = User.query.filter(User.isdelete == false(), User.USunionid == unionid
+                                     ).order_by(User.createtime.desc()).first()
             if user:
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
@@ -3115,4 +3117,58 @@ class CUser(SUser, BASEAPPROVAL):
             return return_sort[0]
         return tuple(return_sort)
 
-
+    def add_mock_user(self):
+        """添加虚拟用户"""
+        from planet.common.token_handler import is_tourist
+        if is_tourist():
+            raise TokenError('随便填个token，防止非法调用')
+        from planet.control.CFile import CFile
+        cfile = CFile()
+        cfile.check_file_size()
+        files = request.files.to_dict()
+        if not files:
+            raise ParamsError('传参数')
+        logs = current_app.logger.info
+        logs(">>> Mock Users Num: {}  <<<".format(len(files)))
+        if len(files) > 30:
+            raise ParamsError('最多可同时上传30张图片')
+        folder = 'avatar'
+        user_list = []
+        last_user_id = db.session.query(User.USid).filter(User.isdelete == false(),
+                                                          User.USid.ilike('id000%')
+                                                          ).order_by(User.USid.desc(),
+                                                                     User.createtime.desc(),
+                                                                     origin=True).first()
+        logs("query_last_user_id: {}".format(last_user_id))
+        if last_user_id:
+            last_user_id = last_user_id[0]
+        else:
+            last_user_id = 'id00000000'
+        logs("last_user_id: {}".format(last_user_id))
+        new_id = int(str(last_user_id).split('id')[-1]) + 1
+        with db.auto_commit():
+            for file_key in files.keys():
+                img_path, video_thum, video_dur, upload_type = cfile._upload_file(files[file_key], folder)
+                if upload_type != 'image':
+                    logs('上传的不是图像， {}'.format(file_key))
+                    continue
+                usid = 'id' + '0' * (10 - len(str(new_id)) - 2) + str(new_id)
+                logs("new_usid: {}".format(usid))
+                if User.query.filter(User.isdelete == false(), User.USid == usid).first():
+                    raise ParamsError('usid: {} 已存在'.format(usid))
+                elif User.query.filter(User.isdelete == false(), User.USheader == img_path).first():
+                    raise ParamsError('头像已使用过')
+                elif User.query.filter(User.isdelete == false(), User.USname == file_key).first():
+                    raise ParamsError('昵称已存在')
+                else:
+                    pass
+                user = User.create({'USid': usid,
+                                    'USname': file_key,
+                                    'USheader': img_path,
+                                    'USfrom': 2,
+                                    })
+                user_list.append(user)
+                logs("Mock User: {}".format(file_key))
+                new_id += 1
+            db.session.add_all(user_list)
+        return Success('成功')
