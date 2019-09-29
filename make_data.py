@@ -6,12 +6,15 @@ from decimal import Decimal
 
 from flask import current_app
 import uuid
+
+from sqlalchemy import false
+
 from planet import create_app
 from planet.config.enums import ItemAuthrity, ItemPostion, ItemType, ActivityType, TimeLimitedStatus
 from planet.control.CExcel import CExcel
 from planet.extensions.register_ext import db
 from planet.models import Items, ProductBrand, Activity, PermissionType, Approval, ProductSku, Admin, Products, \
-    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver, ActivationType
+    TimeLimitedActivity, UserActivationCode, ActivationCodeApply, MakeOver, ActivationType, User
 
 
 # 添加一些默认的数据
@@ -571,6 +574,52 @@ def make_ActivationType():
         db.session.add_all(act_list)
 
 
+def add_user():
+    import xlrd
+    import os
+    from PIL import Image
+    from planet.extensions.qiniu.storage import QiniuStorage
+
+    file_path = os.path.join(current_app.config['BASEDIR'], 'img', 'avatar', '2019', '9', '29')
+    username = xlrd.open_workbook(os.path.join(file_path, 'username.xls'))
+    sheet = username.sheet_by_index(0)
+    one_col = sheet.col_values(0)
+    with db.auto_commit():
+        last_user_id = db.session.query(User.USid).filter(
+            User.isdelete == false(), User.USid.ilike('id000%')).order_by(
+            User.USid.desc(), User.createtime.desc(), origin=True).first()
+        current_app.logger.info("query_last_user_id: {}".format(last_user_id))
+
+        if last_user_id:
+            last_user_id = last_user_id[0]
+        else:
+            last_user_id = 'id00000000'
+        new_id = int(str(last_user_id).split('id')[-1]) + 1
+        user_list = []
+
+        qiniu = QiniuStorage(current_app)
+        for index, name in enumerate(one_col):
+            avatar_name = '/img/avatar/2019/9/29/aratar_{}.jpg'.format(index + 1)
+            avatar_path = os.path.join(current_app.config['BASEDIR'], avatar_name[1:])
+            img = Image.open(avatar_path)
+            x, y = img.size
+            if x != 132 or y != 132:
+                img.resize((132, 132), Image.LANCZOS).save(avatar_path)
+
+            print(name, avatar_name)
+            # 上传七牛云
+            qiniu.save(data=avatar_path, filename=avatar_name[1:])
+            usid = 'id%08d' % new_id
+            user = User.create({'USid': usid,
+                                'USname': name,
+                                'USheader': avatar_name,
+                                'USfrom': 2,
+                                })
+            user_list.append(user)
+            new_id += 1
+        db.session.add_all(user_list)
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
@@ -592,5 +641,6 @@ if __name__ == '__main__':
         # check_product_from()
         # change_tla_status()
         # add_uac_acaid()
-        make_ActivationType()
+        # make_ActivationType()
+        add_user()
         pass
