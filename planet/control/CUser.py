@@ -3158,9 +3158,9 @@ class CUser(SUser, BASEAPPROVAL):
                 if User.query.filter(User.isdelete == false(), User.USid == usid).first():
                     raise ParamsError('usid: {} 已存在'.format(usid))
                 elif User.query.filter(User.isdelete == false(), User.USheader == img_path).first():
-                    raise ParamsError('头像已使用过')
+                    raise ParamsError('头像已使用过, {}'.format(img_path))
                 elif User.query.filter(User.isdelete == false(), User.USname == file_key).first():
-                    raise ParamsError('昵称已存在')
+                    raise ParamsError('昵称已存在: {}'.format(file_key))
                 else:
                     pass
                 user = User.create({'USid': usid,
