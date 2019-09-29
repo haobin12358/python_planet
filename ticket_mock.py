@@ -14,7 +14,7 @@ def add_ticket_order(tiid, usids):
     instance_list = []
     with db.auto_commit():
         for usid in usids:
-            score = 5 * randint(10, 80)
+            score = 5 * randint(0, 50)
             print('score: {}'.format(score))
             to = TicketsOrder.create({'TSOid': str(datetime.now().timestamp()) + str(randint(10, 10000)),
                                       'USid': usid,

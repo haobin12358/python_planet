@@ -656,10 +656,10 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_home(self):
         """获取个人主页信息"""
-        user = self.get_user_by_id(request.user.id)
+        user = User.query.filter(User.USid == getattr(request, 'user').id, User.isdelete == false()).first()
         gennerc_log('get user is {0}'.format(user))
         if not user:
-            raise ParamsError('token error')
+            raise TokenError('请重新登录')
         # uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
         # 过滤下可以使用的数量
         time_now = datetime.datetime.now()
@@ -2069,6 +2069,7 @@ class CUser(SUser, BASEAPPROVAL):
             #         user_dict.setdefault('USsupper3', upperd.USsupper2)
             user = User.create(user_dict)
             db.session.add(user)
+            db.session.flush()
         if upperd:
             today = datetime.datetime.now().date()
             uin_exist = UserInvitation.query.filter(
