@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 from sqlalchemy import create_engine, Integer, String, Text, Float, Boolean, orm, DateTime, DECIMAL, BIGINT
 from sqlalchemy.dialects.mysql import LONGTEXT
 
@@ -15,7 +14,7 @@ class Products(Base):
     PRtitle = Column(String(255), nullable=False, comment='标题')
     PRprice = Column(DECIMAL(precision=28, scale=2), nullable=False, comment='价格')
     PRlinePrice = Column(DECIMAL(precision=28, scale=2), comment='划线价格')
-    PRfreight = Column(Float(precision=10, scale=2), default=0, comment='运费')
+    PRfreight = Column(Float(precision=10), default=0, comment='运费')
     PRstocks = Column(BIGINT, comment='库存')
     PRsalesValue = Column(Integer, default=0, comment='销量')
     PRstatus = Column(Integer, default=10, comment='状态  0 正常, 10 审核中 60下架')
@@ -29,7 +28,7 @@ class Products(Base):
     PRdescription = Column(Text, comment='商品描述')
     CreaterId = Column(String(64), nullable=False, comment='创建者')
     PRfeatured = Column(Boolean, default=False, comment='是否为场景下的精选商品')
-    PRaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
+    PRaverageScore = Column(Float(precision=10), default=10.00, comment='商品评价平均分')
     PRcode = Column(String(64), comment='商品的外部编号')
     PRpromotion = Column(Text, comment='商品推广基图')
     PRsort = Column(Integer, default=1, comment='权重')
@@ -290,7 +289,7 @@ class IntegralProduct(Base):
     IPstatus = Column(Integer, default=0, comment='申请状态, -10: 拒绝 0: 待审核, 10: 通过')
     IPprice = Column(BIGINT, comment='商品星币价格')
     IPsaleVolume = Column(BIGINT, default=0, comment='销量')
-    IPaverageScore = Column(Float(precision=10, scale=2), default=10.00, comment='商品评价平均分')
+    IPaverageScore = Column(Float(precision=10), default=10.00, comment='商品评价平均分')
 
 
 class IntegralProductSku(Base):

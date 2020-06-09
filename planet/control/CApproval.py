@@ -661,17 +661,19 @@ class CApproval(BASEAPPROVAL):
 
         pt_list = PermissionType.query.filter_by_().all()
         for pt in pt_list:
-            pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+            #pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+            pe_level_list = db.session.query(Permission.PELevel).filter(Permission.PTid ==pt.PTid,
+                                                                        Permission.isdelete == False).group_by(Permission.PELevel).all()
             pe_list = []
             # ad_list = []
             for pe in pe_level_list:
-                pe_item_list = Permission.query.filter_by_(PELevel=pe.PELevel).all()
+                pe_item_list = Permission.query.filter_by_(PELevel=pe[0]).all()
                 for pe_item in pe_item_list:
                     pi = PermissionItems.query.filter_by_(PIid=pe_item.PIid).first()
 
                     if pi:
                         pe_item.fill('piname', pi.PIname)
-                pe_list.append({'pelevel': pe.PELevel, 'permission': pe_item_list})
+                pe_list.append({'pelevel': pe[0], 'permission': pe_item_list})
 
             pt.fill('pemission', pe_list)
 
@@ -682,10 +684,12 @@ class CApproval(BASEAPPROVAL):
     def get_permissiontype(self):
         data = parameter_required(('ptid',))
         pt = PermissionType.query.filter_by_(PTid=data.get('ptid')).first_('参数异常')
-        pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
+        # pe_level_list = Permission.query.filter_by_(PTid=pt.PTid).group_by(Permission.PELevel).all()
         pe_list = []
-        pe_level_list = [pelevel.PELevel for pelevel in pe_level_list]
-
+        # pe_level_list = [pelevel.PELevel for pelevel in pe_level_list]
+        pe_level_list = [i[0] for i in db.session.query(Permission.PELevel).filter(Permission.isdelete == False,
+                                                                                   Permission.PTid == pt.PTid
+                                                                                   ).group_by(Permission.PELevel).all()]
         for pe_level in pe_level_list:
             pe_item_list = Permission.query.filter_by_(PELevel=pe_level, PTid=data.get('ptid')).all()
             for pe_item in pe_item_list:

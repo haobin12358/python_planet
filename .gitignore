@@ -83,6 +83,8 @@ celerybeat-schedule
 *.sage.py
 
 # Environments
+.DS_Store
+planet/.DS_Store
 .env
 .venv
 env/
@@ -128,6 +130,8 @@ img/*
 *.xml
 test/
 # pay pem
+pem/
+pem2/
 *.pem
 pem/cert.zip
 pem2/cert.zip
