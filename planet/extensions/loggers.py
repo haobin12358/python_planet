@@ -49,8 +49,9 @@ class LoggerHandler():
         log_file_handler.setFormatter(formatter)
         log_file_handler.setLevel(logging.INFO)
         app.logger.addHandler(log_file_handler)
-        app.logger.info('>>>>>>>>>>>>>>>>>>{}<<<<<<<<<<<<<<<<<<<'.format('start success'))
-
+        app.logger.info('>>>>>>>>>>>>>>>>>>{} {}<<<<<<<<<<<<<<<<<<<'.format('start success', self.file))
+        # import traceback
+        # app.logger.info(traceback.extract_stack())
         # stream_handler = logging.StreamHandler(sys.stdout)
         # stream_handler.setFormatter(formatter)
         # app.logger.addHandler(stream_handler)

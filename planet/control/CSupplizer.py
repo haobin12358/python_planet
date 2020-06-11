@@ -1,12 +1,10 @@
 import random
 import re
 import uuid
-import json
 from decimal import Decimal
 from threading import Thread
 from flask import current_app
-from sqlalchemy import or_, and_
-# from pymysql.err import IntegrityError
+from sqlalchemy import or_, and_, false
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -17,13 +15,14 @@ from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, is_supplizer, token_required, is_tourist
 from planet.config.enums import ProductBrandStatus, UserStatus, ProductStatus, ApplyFrom, NotesStatus, OrderMainStatus, \
-    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminAction, AdminActionS
+    ApplyStatus, OrderRefundORAstate, OrderRefundOrstatus, WexinBankCode, AdminActionS, SupplizerGrade
 from planet.control.BaseControl import BASEADMIN
 from planet.extensions.register_ext import db, conn
 from planet.extensions.validates.user import SupplizerListForm, SupplizerCreateForm, SupplizerGetForm, \
-    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm, request
+    SupplizerUpdateForm, SupplizerSendCodeForm, SupplizerResetPasswordForm, SupplizerChangePasswordForm, request, \
+    GetVerifier, SetVerifier
 from planet.models import Supplizer, ProductBrand, Products, UserWallet, SupplizerAccount, ManagerSystemNotes, \
-    OrderMain, OrderRefundApply, OrderRefund, OrderPart, SupplizerDepositLog, Admin
+    OrderMain, OrderRefundApply, OrderRefund, OrderPart, SupplizerDepositLog, Admin, TicketVerifier
 
 
 class CSupplizer:
@@ -37,12 +36,30 @@ class CSupplizer:
         kw = form.kw.data
         mobile = form.mobile.data
         sustatus = form.sustatus.data
+        option = form.option.data
+        sugrade = form.sugrade.data
+        # if sugrade is not None or sugrade:
+        #     sugrade = int(sugrade)
+        if str(sugrade).isdigit():
+            sugrade = int(sugrade)
+        else:
+            sugrade = None
 
-        supplizers = Supplizer.query.filter_by_().filter_(
-            Supplizer.SUname.contains(kw),
-            Supplizer.SUlinkPhone.contains(mobile),
-            Supplizer.SUstatus == sustatus
-        ).order_by(Supplizer.createtime.desc()).all_with_page()
+        if option == 'ticket':
+            return self._list_ticket_sup()
+        filter_args = {
+            Supplizer.isdelete == false(),
+        }
+        if sugrade:
+            filter_args.add(Supplizer.SUgrade == sugrade)
+        if sustatus or sustatus == 0:
+            filter_args.add(Supplizer.SUstatus == sustatus)
+        if kw:
+            filter_args.add(Supplizer.SUname.contains(kw))
+        if mobile:
+            filter_args.add(Supplizer.SUlinkPhone.contains(mobile))
+        supplizers = Supplizer.query.filter(*filter_args).order_by(Supplizer.createtime.desc()).all_with_page()
+
         for supplizer in supplizers:
             supplizer.hide('SUpassword')
             if is_admin():
@@ -69,6 +86,16 @@ class CSupplizer:
             supplizer.fill('sustatus_zh', UserStatus(supplizer.SUstatus).zh_value)
             supplizer.fill('sustatus_en', UserStatus(supplizer.SUstatus).name)
         return Success(data=supplizers)
+
+    @staticmethod
+    def _list_ticket_sup():
+        sups = Supplizer.query.filter(Supplizer.isdelete == false(), Supplizer.SUstatus == UserStatus.usual.value,
+                                      Supplizer.SUgrade == SupplizerGrade.ticket.value).all_with_page()
+        for sup in sups:
+            sup.fields = ['SUid', 'SUname', 'SUgrade', 'SUstatus']
+            sup.fill('sustatus_zh', UserStatus(sup.SUstatus).zh_value)
+            sup.fill('sugrade_zh', SupplizerGrade(sup.SUgrade).zh_value)
+        return Success(data=sups)
 
     def create(self):
         """添加"""
@@ -114,6 +141,7 @@ class CSupplizer:
                     'SUemail': form.suemail.data,
                     'SUlegalPersonIDcardFront': form.sulegalpersonidcardfront.data,
                     'SUlegalPersonIDcardBack': form.sulegalpersonidcardback.data,
+                    'SUgrade': form.sugrade.data or 0,
                 })
                 db.session.add(supperlizer)
                 if is_admin():
@@ -573,3 +601,57 @@ class CSupplizer:
             db.session.add(mn)
             BASEADMIN().create_action(AdminActionS.insert.value, 'ManagerSystemNotes', str(uuid.uuid1()))
         return Success('创建通告成功', data=mn.MNid)
+
+    @token_required
+    def get_verifier(self):
+        form = GetVerifier().valid_data()
+        suid = form.suid.data
+        if is_supplizer():
+            suid = request.user.id
+        if not suid:
+            raise ParamsError('未指定供应商')
+        tv_list = TicketVerifier.query.filter_by(SUid=suid, isdelete=False).order_by(
+            TicketVerifier.TVphone.desc()).all_with_page()
+
+        phone_list = [tv.TVphone for tv in tv_list]
+        return Success(data=phone_list)
+
+    @token_required
+    def set_verifier(self):
+        form = SetVerifier().valid_data()
+        if is_admin():
+            suid = form.suid.data
+            assert suid, '供应商未指定'
+        elif is_supplizer():
+            suid = request.user.id
+        else:
+            raise AuthorityError()
+        sup = Supplizer.query.filter(Supplizer.isdelete == false(),
+                                     Supplizer.SUstatus == UserStatus.usual.value,
+                                     Supplizer.SUid == suid).first_('供应商状态异常')
+        if sup.SUgrade != SupplizerGrade.ticket.value:
+            raise StatusError('仅虚拟商品供应商可设置核销员')
+        phone_list = form.phone_list.data
+        tvid_list = []
+        instence_list = []
+        phone_list = {}.fromkeys(phone_list).keys()
+        with db.auto_commit():
+            for phone in phone_list:
+                tv = TicketVerifier.query.filter_by(SUid=suid, TVphone=phone).first()
+                if not tv:
+                    tv = TicketVerifier.create({
+                        'TVid': str(uuid.uuid1()),
+                        'SUid': suid,
+                        'TVphone': phone
+                    })
+                    instence_list.append(tv)
+                tvid_list.append(tv.TVid)
+
+            db.session.add_all(instence_list)
+            # 删除无效的
+            TicketVerifier.query.filter(
+                TicketVerifier.isdelete == false(),
+                TicketVerifier.SUid == suid,
+                TicketVerifier.TVid.notin_(tvid_list)
+            ).delete_(synchronize_session=False)
+        return Success('修改成功', data=suid)

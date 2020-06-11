@@ -129,3 +129,20 @@ class WeixinLogin(object):
         args.setdefault("js_code", js_code)
         args.setdefault("grant_type", "authorization_code")
         return self._get(url, args)
+
+    def atoken(self):
+        url = 'https://api.weixin.qq.com/cgi-bin/token'
+        args = dict()
+        args.setdefault("grant_type", "client_credential")
+        args.setdefault("appid", self.app_id)
+        args.setdefault("secret", self.app_secret)
+        return self._get(url, args)
+
+    def uinfo(self, access_token, openid):
+        url = "https://api.weixin.qq.com/cgi-bin/user/info"
+        args = dict()
+        args.setdefault("access_token", access_token)
+        args.setdefault("openid", openid)
+        args.setdefault("lang", "zh_CN")
+
+        return self._get(url, args)

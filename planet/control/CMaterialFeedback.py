@@ -9,10 +9,11 @@ from planet.common.error_response import ParamsError
 from planet.common.params_validates import parameter_required
 from planet.common.success_response import Success
 from planet.common.token_handler import phone_required, get_current_user, token_required, is_admin, admin_required
-from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus, ApplyFrom, TicketsOrderStatus
+from planet.config.enums import LinkageShareType, UserMaterialFeedbackStatus, ApplyFrom, TicketsOrderStatus, \
+    TravelRecordType, TravelRecordStatus, TicketPayType
 from planet.extensions.register_ext import db
 from planet.models import UserMaterialFeedback, MaterialFeedbackLinkage, Linkage, Ticket, TicketLinkage, UserWallet, \
-    User, TicketsOrder
+    User, TicketsOrder, TravelRecord
 
 
 class CMaterialFeedback():
@@ -33,6 +34,7 @@ class CMaterialFeedback():
         mfls = data.get('mfls', [])
         umf_dict = self._create_umdetails(data)
 
+        # todo 同步随笔
         with db.auto_commit():
             umf_dict.update({
                 'UMFid': str(uuid.uuid1()),
@@ -54,7 +56,22 @@ class CMaterialFeedback():
 
                 })
                 instance_list.append(mfl_instance)
+
             db.session.add_all(instance_list)
+
+            # 创建随笔
+            travelrecord_dict = {
+                'TRid': str(uuid.uuid1()),
+                'AuthorID': user.USid,
+                'TRtype': TravelRecordType.essay.value,
+                'TRstatus': TravelRecordStatus.published.value,
+                # 'TRstatus': TravelRecordStatus.auditing.value  # todo 待审核状态
+                'PLid': None,
+                'TRcontent': umf_dict.get('UMFdetails'),
+                'TRlocation': umf_dict.get('UMFlocation')}
+
+            db.session.add(TravelRecord.create(travelrecord_dict))
+
         return Success('已经提交，请等待审核')
 
     @admin_required
@@ -66,10 +83,12 @@ class CMaterialFeedback():
             umf = UserMaterialFeedback.query.filter_by(
                 UMFid=umfid, UMFstatus=UserMaterialFeedbackStatus.wait.value, isdelete=False).first_('素材反馈已处理')
             ticket = Ticket.query.filter_by(TIid=umf.TIid, isdelete=False).first_('票务已删除')
+            tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TSOid == umf.TSOid).first()
             # 修改状态
             umf.UMFstatus = UserMaterialFeedbackStatus.refund.value
 
-            price = Decimal(str(ticket.TIprice)).quantize(Decimal('0.00'))
+            price = Decimal(str(ticket.TIdeposit)).quantize(
+                Decimal('0.00')) if tso.TSOtype == TicketPayType.deposit.value else Decimal('0')
             # 退钱
             user_wallet = UserWallet.query.filter_by(USid=umf.USid).first()
             if user_wallet:
@@ -95,14 +114,18 @@ class CMaterialFeedback():
                     'CommisionFor': ApplyFrom.user.value
                 })
                 db.session.add(user_wallet_instance)
+
             # 同一购票记录的其他凭证修改状态为已处理
             UserMaterialFeedback.query.filter(
                 UserMaterialFeedback.UMFid != umfid,
-                                              UserMaterialFeedback.isdelete == false(),
-                                              UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.reject.value,
-                                              UserMaterialFeedback.TSOid == umf.TSOid).update(
+                UserMaterialFeedback.isdelete == false(),
+                UserMaterialFeedback.UMFstatus != UserMaterialFeedbackStatus.reject.value,
+                UserMaterialFeedback.TSOid == umf.TSOid).update(
                 {'UMFstatus': UserMaterialFeedbackStatus.refund.value})
 
+            # 修改订单状态
+            tso.TSOstatus = TicketsOrderStatus.accomplish.value
+            db.session.add(tso)
         return Success
 
     @admin_required

@@ -107,7 +107,7 @@ class CQuestanswer():
             'QOcreateId': admin.ADid
         })
         db.session.add(qo_instance)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'QuestOutline', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'QuestOutline',qo_instance.QOid)
         qo_instance.fields = self.QuestOutlineFields[:]
         return Success('创建问题分类成功', data=qo_instance)
 
@@ -150,9 +150,9 @@ class CQuestanswer():
             'QAcreateId': admin.ADid
         })
 
-        db.session.add(quest_instance, BASEADMIN().create_action(AdminActionS.insert.value, 'Quest', str(uuid.uuid1())))
+        db.session.add(quest_instance, BASEADMIN().create_action(AdminActionS.insert.value, 'Quest', quest_instance.QOid))
         db.session.add(answer_instance)
-        BASEADMIN().create_action(AdminActionS.insert.value, 'Answer', str(uuid.uuid1()))
+        BASEADMIN().create_action(AdminActionS.insert.value, 'Answer', answer_instance.QAid)
         return Success('创建问题成功')
 
     @get_session
@@ -281,7 +281,7 @@ class CQuestanswer():
                 'QANtargetId': qoid
             })
             db.session.add(qan)
-            BASEADMIN().create_action(AdminActionS.delete.value, 'QuestAnswerNote', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.delete.value, 'QuestAnswerNote',qan.QANid)
         return Success('删除完成')
 
     @get_session
@@ -310,7 +310,7 @@ class CQuestanswer():
                 'QANtype': QuestAnswerNoteType.qu.value,
             })
             db.session.add(qan)
-            BASEADMIN().create_action(AdminActionS.delete.value, 'QuestAnswerNote', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.delete.value, 'QuestAnswerNote', qan.QANid)
 
         return Success('删除完成')
     #

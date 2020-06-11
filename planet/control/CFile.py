@@ -18,7 +18,7 @@ from planet.extensions.qiniu.storage import QiniuStorage
 class CFile(object):
     def __init__(self):
         self.qiniu = QiniuStorage(current_app)
-        self.upload_to_qiniu = ('https://www.bigxingxing.com', 'https://pre2.bigxingxing.com')
+        self.upload_to_qiniu = ('https://planet.sanbinit.cn')
 
     # @token_required
     def upload_img(self):

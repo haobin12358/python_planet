@@ -12,9 +12,11 @@ class SupplizerLoginForm(BaseForm):
 
 
 class SupplizerListForm(BaseForm):
-    kw = StringField('关键词', default='')
-    mobile = StringField('手机号', default='')
+    kw = StringField('关键词', default=None)
+    mobile = StringField('手机号', default=None)
     sustatus = StringField('筛选状态', default='all')
+    option = StringField('供应商类型')
+    sugrade = StringField('供应商类型')
 
     def validate_sustatus(self, raw):
         from planet.config.enums import UserStatus
@@ -33,8 +35,8 @@ class SupplizerGetForm(BaseForm):
         else:
             if not raw.data:
                 raise ParamsError('供应商suid不可为空')
-        supplizer= Supplizer.query.filter(Supplizer.SUid == raw.data,
-                                          Supplizer.isdelete == False).first_('供应商不存在')
+        supplizer = Supplizer.query.filter(Supplizer.SUid == raw.data,
+                                           Supplizer.isdelete == False).first_('供应商不存在')
         self.supplizer = supplizer
 
 
@@ -57,13 +59,14 @@ class SupplizerCreateForm(BaseForm):
     sucontract = FieldList(StringField(validators=[DataRequired('合同列表不可以为空')]))
     pbids = FieldList(StringField('品牌'))
     subusinesslicense = StringField('营业执照')
-    suregisteredfund = StringField('注册资金',)
+    suregisteredfund = StringField('注册资金', )
     sumaincategory = StringField('主营类目', )
-    suregisteredtime = DateField('注册时间',)
-    sulegalperson = StringField('法人',)
+    suregisteredtime = DateField('注册时间', )
+    sulegalperson = StringField('法人', )
     suemail = StringField('联系邮箱', )
     sulegalpersonidcardfront = StringField('法人身份证正面', )
     sulegalpersonidcardback = StringField('法人身份证反面', )
+    sugrade = IntegerField('供应商类型')
 
     def validate_suloginphone(self, raw):
         is_exists = Supplizer.query.filter_by_().filter_(
@@ -90,7 +93,7 @@ class SupplizerUpdateForm(BaseForm):
     sulinkman = StringField('联系人', validators=[DataRequired('联系人不可为空')])
     sudeposit = DecimalField('押金')
     suaddress = StringField('地址', validators=[DataRequired('地址不可以为空')])
-    sustatus = StringField('供应商状态',)
+    sustatus = StringField('供应商状态', )
     subanksn = StringField('卡号')
     subankname = StringField('银行名字')
     suheader = StringField('头像')
@@ -99,10 +102,10 @@ class SupplizerUpdateForm(BaseForm):
     suemail = StringField('邮箱')
     pbids = FieldList(StringField('品牌'))
     subusinesslicense = StringField('营业执照')
-    suregisteredfund = StringField('注册资金',)
+    suregisteredfund = StringField('注册资金', )
     sumaincategory = StringField('主营类目', )
-    suregisteredtime = StringField('注册时间',)
-    sulegalperson = StringField('法人',)
+    suregisteredtime = StringField('注册时间', )
+    sulegalperson = StringField('法人', )
     sulegalpersonidcardfront = StringField('法人身份证正面', )
     sulegalpersonidcardback = StringField('法人身份证反面', )
 
@@ -193,3 +196,12 @@ class ListUserCommision(BaseForm):
     usid = StringField('用户id')
     upid = StringField('上级id')
     commision_level = IntegerField('代理商等级')
+
+
+class GetVerifier(BaseForm):
+    suid = StringField('供应商id')
+
+
+class SetVerifier(BaseForm):
+    suid = StringField('供应商id')
+    phone_list = FieldList(StringField())

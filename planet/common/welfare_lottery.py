@@ -117,13 +117,13 @@ class WelfareLottery(object):
         res = self.fetch(self.kaicai_url, self.base_headers, json=True)
         if not res:
             current_app.logger.error('今日开彩网连接异常：{}'.format(self.today))
-            time.sleep(5)
-            return self.back_up_response()
+            # time.sleep(5)
+            # return self.back_up_response()
         data = res.get('data')
         current_app.logger.info('开彩网获得数据: {}'.format(data))
         if not (isinstance(data, list) and len(data) > 0):
             time.sleep(5)
-            return self.back_up_response()
+            # return self.back_up_response()
         expect = data[0].get('expect')
         opencode = data[0].get('opencode')
         opentime = data[0].get('opentime')
@@ -132,8 +132,8 @@ class WelfareLottery(object):
             resp.extend(opencode.split(','))
             current_app.logger.info('kaicai return data：{}'.format(resp))
             return resp
-        time.sleep(5)
-        return self.back_up_response()
+        # time.sleep(5)
+        # return self.back_up_response()
 
 
 if __name__ == '__main__':

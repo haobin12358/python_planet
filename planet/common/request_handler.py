@@ -4,15 +4,13 @@ import re
 import traceback
 import uuid
 from collections import namedtuple
-
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
 from flask import current_app, request
-from sqlalchemy.exc import IntegrityError
-
 from planet.extensions.register_ext import db
 from planet.models import UserLoginApi
-from .error_response import ApiError, BaseError, SystemError, DumpliError
+from .error_response import ApiError, BaseError, SystemError
 from .success_response import Success
+
 
 # User = namedtuple('User', ('id', 'model', 'level'))
 
@@ -31,7 +29,6 @@ def token_to_user_(token):
             user = User(id, model, level, username)
             # setattr(request, 'user', user)
             current_app.logger.info('current_user info : {}'.format(data))
-
 
         except BadSignature as e:
             pass
@@ -99,6 +96,11 @@ def request_first_handler(app):
                     }
                     ula_instance = UserLoginApi.create(ula_dict1)
                     db.session.add(ula_instance)
+
+    @app.before_request
+    def deny_ip_segment():
+        if re.match(r'(223\.166\.222\..*|101\.91\.60\..*)', str(request.remote_addr)):
+            raise SystemError('(*^__^*) 如需此api资源可加微信17706441101')
 
 
 def error_handler(app):

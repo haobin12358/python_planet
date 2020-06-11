@@ -536,16 +536,13 @@ class CRefund(object):
                             # 退还其余两人押金
                             grs = GuessRecord.query.filter(GuessRecord.isdelete == False,
                                                            GuessRecord.USid != order_main.USid,
-                                                           GuessRecord.GGid == guess_group.GGid,
-                                                           GuessRecord.GRstatus == GuessRecordStatus.valid.value
-                                                           ).all()
+                                                           GuessRecord.GGid == guess_group.GGid).all()
                             for gr in grs:
                                 # gr.GRstatus = GuessRecordStatus.invalid.value
                                 current_app.logger.info('退还参与者 {} 的押金'.format(gr.USid))
                                 order_part = OrderPart.query.filter_by_(OMid=gr.OMid).first()  # 参与者的副单
-                                tem_order_main = OrderMain.query.filter_by_(OMid=gr.OMid).first()  # 参与者主单
-                                self.corder._cancle(tem_order_main)  # 参与者主单改为取消
-                                # 参与者退还押金
+                                tem_order_main = OrderMain.query.filter_by_(OMid=gr.OMid).first()
+                                self.corder._cancle(tem_order_main)
                                 price = order_part.OPsubTrueTotal
                                 user_commision_dict = {
                                     'UCid': str(uuid.uuid1()),

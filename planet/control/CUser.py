@@ -14,7 +14,7 @@ from planet.config.cfgsetting import ConfigSettings
 from planet.config.enums import UserIntegralType, AdminLevel, AdminStatus, UserIntegralAction, AdminAction, \
     UserLoginTimetype, UserStatus, WXLoginFrom, OrderMainStatus, BankName, UserCommissionStatus, ApplyStatus, ApplyFrom, \
     ApprovalAction, SupplizerSettementStatus, UserAddressFrom, CollectionType, UserGrade, WexinBankCode, \
-    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus
+    UserCommissionType, AdminActionS, MiniUserGrade, GuideApplyStatus, ActivationTypeEnum, ShareType
 from planet.config.secret import SERVICE_APPID, SERVICE_APPSECRET, \
     SUBSCRIBE_APPID, SUBSCRIBE_APPSECRET, appid, appsecret, BASEDIR, MiniProgramAppId, MiniProgramAppSecret, BlogAppId, \
     BlogAppSecret
@@ -31,16 +31,18 @@ from planet.common.Inforsend import SendSMS
 from planet.common.request_handler import gennerc_log
 from planet.common.id_check import DOIDCheck
 from planet.common.make_qrcode import qrcodeWithlogo
+from planet.control.BaseControl import BaseController
 from planet.extensions.tasks import auto_agree_task
 from planet.extensions.weixin.login import WeixinLogin, WeixinLoginError
 from planet.extensions.register_ext import mp_server, mp_subscribe, db, wx_pay, mp_miniprogram
 from planet.extensions.validates.user import SupplizerLoginForm, UpdateUserCommisionForm, ListUserCommision
+from planet.extensions.weixin.mp import WeixinMPError
 from planet.models import User, UserLoginTime, UserCommission, UserInvitation, \
     UserAddress, IDCheck, IdentifyingCode, UserMedia, UserIntegral, Admin, AdminNotes, CouponUser, UserWallet, \
     CashNotes, UserSalesVolume, Coupon, SignInAward, SupplizerAccount, SupplizerSettlement, SettlenmentApply, Commision, \
     Approval, UserTransmit, UserCollectionLog, News, CashFlow, UserLoginApi, UserHomeCount, Guide, AddressArea, \
-    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters
-from .BaseControl import BASEAPPROVAL, BASEADMIN
+    AddressProvince, AddressCity, CoveredCertifiedNameLog, SharingParameters, SharingType, TicketVerifier
+from .BaseControl import BASEAPPROVAL, BASEADMIN, BASETICKET
 from planet.service.SUser import SUser
 from planet.models.product import Products, Items, ProductItems, Supplizer
 from planet.models.trade import OrderPart, OrderMain
@@ -58,6 +60,8 @@ class CUser(SUser, BASEAPPROVAL):
     def __init__(self):
         super(CUser, self).__init__()
         self.qiniu = QiniuStorage(current_app)
+        self.Baseticket = BASETICKET()
+        self.basecontroller = BaseController()
 
     @staticmethod
     def __conver_idcode(idcode):
@@ -292,22 +296,25 @@ class CUser(SUser, BASEAPPROVAL):
                 current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
         return filedbname
 
-    def wxacode_unlimit(self, usid, scene=None, img_name=None, **kwargs):
+    def wxacode_unlimit(self, usid, scene=None, img_name=None, shuffix='jpg', **kwargs):
         """
         生成带参数的小程序码
         :param usid: 用户id
         :param scene: 需要携带的参数，dict型参数
         :param img_name: 图片名，同一日再次生成同名图片会被替换
+        :param shuffix: 图片格式，默认jpg
         """
         savepath, savedbpath = self._get_path('qrcode')
         secret_usid = self._base_encode(usid)
         if not img_name:  # 默认图片名称，再次生成会替换同名图片
             img_name = secret_usid
-        filename = os.path.join(savepath, '{}.jpg'.format(img_name))
-        filedbname = os.path.join(savedbpath, '{}.jpg'.format(img_name))
+        filename = os.path.join(savepath, '{}.{}'.format(img_name, shuffix))
+        filedbname = os.path.join(savedbpath, '{}.{}'.format(img_name, shuffix))
         current_app.logger.info('filename: {} ; filedbname: {}'.format(filename, filedbname))
         if not scene:
-            scene = {'params': self.shorten_parameters('secret_usid={}'.format(secret_usid), usid, 'params')}
+            scene = {'params': self.shorten_parameters('secret_usid={}&sttype={}'.format(
+                secret_usid, ShareType.usercode.value), usid, 'params')}
+
         scene_str = self.dict_to_query_str(scene)
         current_app.logger.info('get scene str: {}'.format(scene_str))
         try:
@@ -593,7 +600,7 @@ class CUser(SUser, BASEAPPROVAL):
         """更新个人资料"""
         user = self.get_user_by_id(getattr(request, 'user').id)
         data = parameter_required()
-        usrealname, ustelphone = data.get('usrealname'), data.get('ustelphone')
+        usrealname, ustelphone, usheader = data.get('usrealname'), data.get('ustelphone'), data.get('usheader')
         usidentification = data.get('usidentification')
         usareaid, usbirthday = data.get('aaid') or data.get('usareaid'), data.get('usbirthday')
         usbirthday = validate_arg(r'^\d{4}-\d{2}-\d{2}$', usbirthday, '请按正确的生日格式填写')
@@ -605,6 +612,18 @@ class CUser(SUser, BASEAPPROVAL):
             checked_name = self._verify_chinese(usrealname)
             if not checked_name or len(checked_name[0]) < 2:
                 raise ParamsError('请正确填写真实姓名')
+        try:  # 检查昵称填写
+            check_content = data.get('usname')
+            check_res = mp_miniprogram.msg_sec_check(check_content)
+            current_app.logger.info('content_sec_check: {}'.format(check_res))
+        except WeixinMPError as e:
+            current_app.logger.info('check result: {}'.format(e))
+            raise ParamsError('您输入的昵称含有部分敏感词汇,请检查后重新填写')
+        # 图片校验
+        filepath = os.path.join(current_app.config['BASEDIR'],
+                                str(str(usheader).split('.bigxingxing.com')[-1][1:]).split('_')[0])
+        self.basecontroller.img_check(filepath)
+
         oldname = user.USrealname
         oldidentitynumber = user.USidentification
         with db.auto_commit():
@@ -637,10 +656,10 @@ class CUser(SUser, BASEAPPROVAL):
     @token_required
     def get_home(self):
         """获取个人主页信息"""
-        user = self.get_user_by_id(request.user.id)
+        user = User.query.filter(User.USid == getattr(request, 'user').id, User.isdelete == false()).first()
         gennerc_log('get user is {0}'.format(user))
         if not user:
-            raise ParamsError('token error')
+            raise TokenError('请重新登录')
         # uscoupon = CouponUser.query.filter_(CouponUser.USid == request.user.id).count()
         # 过滤下可以使用的数量
         time_now = datetime.datetime.now()
@@ -685,6 +704,10 @@ class CUser(SUser, BASEAPPROVAL):
         if not user.USwxacode:
             with db.auto_commit():
                 user.USwxacode = self.wxacode_unlimit(user.USid)
+        user.fill('ticketverifier', (False if not user.UStelphone else
+                                     True if TicketVerifier.query.filter(TicketVerifier.isdelete == false(),
+                                                                         TicketVerifier.TVphone == user.UStelphone
+                                                                         ).first() else False))
         # 增加订单数
         # order_count = OrderMain.query.filter_by(USid=user.USid, isdelete=False).count()
         user.fill('ordercount', OrderMain.query.filter_by(USid=user.USid, isdelete=False).count())
@@ -1984,11 +2007,13 @@ class CUser(SUser, BASEAPPROVAL):
 
         current_app.logger.info('get unionid is {}'.format(unionid))
         current_app.logger.info('get openid is {}'.format(openid))
-        user = User.query.filter_by_(USopenid1=openid).first()
+        user = User.query.filter(User.isdelete == false(), User.USopenid1 == openid
+                                 ).order_by(User.createtime.desc()).first()
         if user:
             current_app.logger.info('get exist user by openid1: {}'.format(user.__dict__))
         elif unionid:
-            user = User.query.filter_by_(USunionid=unionid).first()
+            user = User.query.filter(User.isdelete == false(), User.USunionid == unionid
+                                     ).order_by(User.createtime.desc()).first()
             if user:
                 current_app.logger.info('get exist user by unionid: {}'.format(user.__dict__))
 
@@ -2009,6 +2034,8 @@ class CUser(SUser, BASEAPPROVAL):
         else:
             upperd = None
 
+        isnewguy = ActivationTypeEnum.share_old.value
+
         if user:
             usid = user.USid
             user.USheader = head
@@ -2020,6 +2047,7 @@ class CUser(SUser, BASEAPPROVAL):
                 user.USwxacode = self.wxacode_unlimit(usid)
         else:
             current_app.logger.info('This is a new guy : {}'.format(userinfo.get('nickName')))
+            isnewguy = ActivationTypeEnum.share_new.value
             usid = str(uuid.uuid1())
             user_dict = {
                 'USid': usid,
@@ -2041,10 +2069,27 @@ class CUser(SUser, BASEAPPROVAL):
             #         user_dict.setdefault('USsupper3', upperd.USsupper2)
             user = User.create(user_dict)
             db.session.add(user)
+            db.session.flush()
         if upperd:
-            uin = UserInvitation.create(
-                {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
-            db.session.add(uin)
+            today = datetime.datetime.now().date()
+            uin_exist = UserInvitation.query.filter(
+                cast(UserInvitation.createtime, Date) == today,
+                UserInvitation.USInviter == upperd.USid,
+                UserInvitation.USInvited == usid,
+            ).first()
+            if uin_exist:
+                current_app.logger.info('{}今天已经邀请过这个人了{}'.format(upperd.USid, usid))
+            else:
+                uin = UserInvitation.create(
+                    {'UINid': str(uuid.uuid1()), 'USInviter': upperd.USid, 'USInvited': usid, 'UINapi': request.path})
+                db.session.add(uin)
+                # 分享类型累加
+                db.session.add(SharingType.create({
+                    'STid': str(uuid.uuid1()),
+                    'USid': upperd.USid,
+                    'STtype': args.get('sttype', 0)
+                }))
+                self.Baseticket.add_activation(isnewguy, upperd.USid, usid)
 
         userloggintime = UserLoginTime.create({"ULTid": str(uuid.uuid1()),
                                                "USid": usid,
@@ -2256,7 +2301,7 @@ class CUser(SUser, BASEAPPROVAL):
         elif supplizer.SUstatus == UserStatus.forbidden.value:
             raise StatusError('该账号已被冻结, 详情请联系管理员')
         jwt = usid_to_token(supplizer.SUid, 'Supplizer', username=supplizer.SUname)  # 供应商jwt
-        supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname']
+        supplizer.fields = ['SUlinkPhone', 'SUheader', 'SUname', 'SUgrade']
         return Success('登录成功', data={
             'token': jwt,
             'supplizer': supplizer
@@ -2584,15 +2629,14 @@ class CUser(SUser, BASEAPPROVAL):
                 UserLoginApi.USid == usid
             ).order_by(
                 UserLoginApi.createtime.desc()
+            ).first() or UserLoginTime.query.filter(
+                UserLoginTime.isdelete == False,
+                UserLoginTime.USid == usid
+            ).order_by(
+                UserLoginTime.createtime.desc()
             ).first()
-            if not userlogintime:
-                userlogintime = UserLoginTime.query.filter(
-                    UserLoginTime.isdelete == False,
-                    UserLoginTime.USid == usid
-                ).order_by(
-                    UserLoginTime.createtime.desc()
-                ).first()
-            user.fill('userlogintime', userlogintime.createtime)
+            user.fill('userlogintime',
+                      getattr(userlogintime, 'createtime', user.updatetime) or user.updatetime)
             if is_admin():
                 userquery = UserHomeCount.query.filter(UserHomeCount.UHid == usid,
                                                        UserHomeCount.isdelete == False).count()
@@ -3074,4 +3118,58 @@ class CUser(SUser, BASEAPPROVAL):
             return return_sort[0]
         return tuple(return_sort)
 
-
+    def add_mock_user(self):
+        """添加虚拟用户"""
+        from planet.common.token_handler import is_tourist
+        if is_tourist():
+            raise TokenError('随便填个token，防止非法调用')
+        from planet.control.CFile import CFile
+        cfile = CFile()
+        cfile.check_file_size()
+        files = request.files.to_dict()
+        if not files:
+            raise ParamsError('传参数')
+        logs = current_app.logger.info
+        logs(">>> Mock Users Num: {}  <<<".format(len(files)))
+        if len(files) > 30:
+            raise ParamsError('最多可同时上传30张图片')
+        folder = 'avatar'
+        user_list = []
+        last_user_id = db.session.query(User.USid).filter(User.isdelete == false(),
+                                                          User.USid.ilike('id000%')
+                                                          ).order_by(User.USid.desc(),
+                                                                     User.createtime.desc(),
+                                                                     origin=True).first()
+        logs("query_last_user_id: {}".format(last_user_id))
+        if last_user_id:
+            last_user_id = last_user_id[0]
+        else:
+            last_user_id = 'id00000000'
+        logs("last_user_id: {}".format(last_user_id))
+        new_id = int(str(last_user_id).split('id')[-1]) + 1
+        with db.auto_commit():
+            for file_key in files.keys():
+                img_path, video_thum, video_dur, upload_type = cfile._upload_file(files[file_key], folder)
+                if upload_type != 'image':
+                    logs('上传的不是图像， {}'.format(file_key))
+                    continue
+                usid = 'id' + '0' * (10 - len(str(new_id)) - 2) + str(new_id)
+                logs("new_usid: {}".format(usid))
+                if User.query.filter(User.isdelete == false(), User.USid == usid).first():
+                    raise ParamsError('usid: {} 已存在'.format(usid))
+                elif User.query.filter(User.isdelete == false(), User.USheader == img_path).first():
+                    raise ParamsError('头像已使用过, {}'.format(img_path))
+                elif User.query.filter(User.isdelete == false(), User.USname == file_key).first():
+                    raise ParamsError('昵称已存在: {}'.format(file_key))
+                else:
+                    pass
+                user = User.create({'USid': usid,
+                                    'USname': file_key,
+                                    'USheader': img_path,
+                                    'USfrom': 2,
+                                    })
+                user_list.append(user)
+                logs("Mock User: {}".format(file_key))
+                new_id += 1
+            db.session.add_all(user_list)
+        return Success('成功')

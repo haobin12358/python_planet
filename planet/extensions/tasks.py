@@ -25,7 +25,8 @@ from planet.models import CorrectNum, GuessNum, GuessAwardFlow, ProductItems, Or
     FreshManFirstProduct, FreshManFirstApply, FreshManFirstSku, ProductSku, GuessNumAwardApply, GuessNumAwardProduct, \
     GuessNumAwardSku, MagicBoxApply, OutStock, TrialCommodity, SceneItem, ProductScene, ProductUrl, Coupon, CouponUser, \
     SupplizerDepositLog, TimeLimitedActivity, TimeLimitedProduct, TimeLimitedSku, Carts, IndexBanner, GuessGroup, \
-    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket
+    GuessRecord, GroupGoodsSku, GroupGoodsProduct, MagicBoxJoin, MagicBoxApplySku, ActivityDeposit, Play, Ticket, \
+    UserLocation
 
 celery = Celery()
 
@@ -1201,6 +1202,7 @@ def start_ticket(tiid):
 @celery.task()
 def end_ticket(tiid):
     current_app.logger.info('修改抢票为结束 tiid {}'.format(tiid))
+    from planet.control.CTicket import CTicket
     try:
         with db.auto_commit():
             ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first()
@@ -1210,6 +1212,8 @@ def end_ticket(tiid):
             if ticket.TIstatus != TicketStatus.active.value:
                 current_app.logger.error(">>> 该票状态异常, tistatus: {} <<<".format(ticket.TIstatus))
                 return
+            # 开奖 + 未中奖退钱
+            CTicket().ticket_award_task(ticket)
             ticket.TIstatus = TicketStatus.over.value
         connid = 'end_ticket{}'.format(ticket.TIid)
         conn_value = conn.get(connid)
@@ -1238,6 +1242,20 @@ def del_promotion():
         current_app.logger.info('删除图片失败 error = {}'.format(e))
 
 
+@celery.task(name='update_location')
+def update_location():
+    current_app.logger.info('start update location')
+    from planet.control.BaseControl import BaseController
+    base_controller = BaseController()
+    try:
+        with db.auto_commit():
+            ul_list = UserLocation.query.filter(UserLocation.ULformattedAddress == '请稍后再试').all()
+            for ul in ul_list:
+                base_controller.get_user_location(ul.ULlat, ul.ULlng, ul.USid, ul)
+    except Exception as e:
+        current_app.logger.error(' update location error {}'.format(e))
+
+
 if __name__ == '__main__':
     from planet import create_app
 
@@ -1254,4 +1272,5 @@ if __name__ == '__main__':
         # return_coupon_deposite()
         # welfare_lottery_3d()
         # guess_group_draw()
-        del_promotion()
+        # del_promotion()
+        update_location()

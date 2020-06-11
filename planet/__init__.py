@@ -54,6 +54,7 @@ from planet.api.v2.ATest import ATest
 from planet.api.v2.ATicket import ATicket
 from planet.common.request_handler import error_handler, request_first_handler
 from planet.config.secret import DefaltSettig
+from planet.api.v2.AActivation import AActivation
 from planet.extensions.register_ext import register_ext
 from planet.extensions.loggers import LoggerHandler
 from planet.route.RouteSocket import Mynamespace, JSONEncoder as socketjsonencoder
@@ -118,7 +119,8 @@ class Request(_Request):
             'method': self.method,
             'data': self.data,
             'query': self.args.to_dict(),
-            'address': self.remote_addr
+            'address': self.remote_addr,
+            'user-agent': self.user_agent.__dict__,
         }
         # if self.files:
         #     res.setdefault('files', dict(self.files))
@@ -197,6 +199,7 @@ def register(app):
     v2.add_url_rule('/play/<string:play>', view_func=APlay.as_view('play'))  # 活动
     v2.add_url_rule('/ticket/<string:ticket>', view_func=ATicket.as_view('ticket'))  # 票务
     v2.add_url_rule('/feedback/<string:feedback>', view_func=AMaterialFeedback.as_view('feedback'))  # 素材反馈
+    v2.add_url_rule('/activation/<string:activation>', view_func=AActivation.as_view('activation'))  # 活跃度
     v2.add_url_rule('/personalcenter/<string:personalcenter>',
                     view_func=AMiniProgramPersonalCenter.as_view('personalcenter'))  # 小程序个人中心
 

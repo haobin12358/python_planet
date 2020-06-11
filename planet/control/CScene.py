@@ -70,7 +70,7 @@ class CScene(object):
                 'ITid': 'planet_featured'
             })
             s.add(default_scene_item)
-            BASEADMIN().create_action(AdminActionS.insert.value, 'ProductScene', str(uuid.uuid1()))
+            BASEADMIN().create_action(AdminActionS.insert.value, 'ProductScene', default_scene_item.SIid)
         if form.pstimelimited.data:
             from planet.extensions.tasks import cancel_scene_association
             current_app.logger.info('限时场景结束时间 : {} '.format(psendtime))

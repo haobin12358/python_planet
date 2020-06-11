@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from planet.common.base_service import close_session, SBase
 from planet.models import News, NewsComment, NewsFavorite, NewsImage, NewsVideo, NewsTag, User, Items, NewsTrample, \
-    NewsCommentFavorite, UserCollectionLog
+    NewsCommentFavorite
 
 
 class SNews(SBase):
@@ -10,25 +10,13 @@ class SNews(SBase):
     def get_news_list(self, args):
         """获取资讯列表"""
         return self.session.query(News).filter(News.isdelete == False).outerjoin(
-            NewsTag, NewsTag.NEid == News.NEid).filter_(NewsTag.isdelete == False, *args).order_by(
+            NewsTag, NewsTag.NEid == News.NEid).filter_(*args).order_by(
             News.createtime.desc()).all_with_page()
-
-    @close_session
-    def get_collect_news_list(self, args):
-        """获取资讯列表"""
-        return self.session.query(News).filter(News.isdelete == False).outerjoin(
-            NewsTag, NewsTag.NEid == News.NEid).filter_(NewsTag.isdelete == False, *args).order_by(
-            UserCollectionLog.createtime.desc()).all_with_page()
 
     @close_session
     def get_news_list_by_filter(self, args):
         """获取推荐到圈子首页的资讯"""
         return self.session.query(News).filter_by_(**args).all()
-
-    @close_session
-    def get_collect_news_list_by_filter(self, args):
-        """获取收藏推荐到圈子首页的资讯"""
-        return self.session.query(News).filter_by_(**args).order_by(UserCollectionLog.createtime.desc()).all()
 
     @close_session
     def get_news_content(self, nfilter):

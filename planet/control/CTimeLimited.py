@@ -1,7 +1,6 @@
 import json
 import math
 import uuid
-import random
 from datetime import datetime, timedelta
 from flask import request, current_app
 from planet.common.params_validates import parameter_required
@@ -668,12 +667,10 @@ class CTimeLimited(COrder, CUser, BaseController):
         product.fill('tlastatus_zh', ApplyStatus(tlp.TLAstatus).zh_value)
         product.fill('tlastatus_en', ApplyStatus(tlp.TLAstatus).name)
         product.fill('tlastatus', tlp.TLAstatus)
-        month_sale = db.session.query(ProductMonthSaleValue.PMSVfakenum
+        month_sale = db.session.query(ProductMonthSaleValue
                                       ).filter_by_(PRid=tlp.PRid
-                                                   ).order_by(ProductMonthSaleValue.createtime.desc(),
-                                                              origin=True).first()
-        current_app.logger.info('get_mouth_sale_value: {}'.format(month_sale))
-        month_sale = month_sale[0] if month_sale else random.randint(15, 100)
+                                                   ).order_by(ProductMonthSaleValue.createtime.desc()).scalar()
+
         product.fill('prsalesvalue', month_sale)
 
         return product

@@ -1,61 +1,65 @@
 # -*- coding: utf-8 -*-
+import os
 import json
+import random
 import uuid
-from datetime import datetime, timedelta
+import requests
+from sqlalchemy import false, func, cast, Date
 from flask import current_app, request
-from sqlalchemy import false, func
-from decimal import Decimal
-from planet.extensions.tasks import start_ticket, end_ticket, celery
+from datetime import datetime, timedelta
+from planet.config.secret import API_HOST
+from planet.common.playpicture import PlayPicture
+from planet.common.make_qrcode import qrcodeWithtext
+from planet.common.success_response import Success
 from planet.common.error_response import ParamsError, TokenError, StatusError
 from planet.common.params_validates import parameter_required, validate_price, validate_arg
-from planet.common.success_response import Success
-from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
-from planet.common.playpicture import PlayPicture
-from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, TicketDepositType, \
-    PayType, UserMaterialFeedbackStatus
-from planet.extensions.register_ext import db, conn
-from planet.config.secret import API_HOST
+from planet.common.token_handler import admin_required, is_admin, phone_required, common_user, is_supplizer, \
+    token_required
+from planet.models import Guide, PlayPay, TicketVerifier, TicketVerifiedRecord
+from planet.models.product import Supplizer
+from planet.models.play import Agreement
+from planet.models.user import User, UserInvitation, SharingType
 from planet.models.ticket import Ticket, Linkage, TicketLinkage, TicketsOrder, TicketDeposit, UserMaterialFeedback, \
     TicketRefundRecord
-from planet.models.user import User, UserInvitation
-from planet.control.BaseControl import BASEADMIN
+from planet.control.BaseControl import BASEADMIN, BASETICKET
 from planet.control.CPlay import CPlay
+from planet.control.CUser import CUser
+from planet.extensions.register_ext import db, conn
+from planet.extensions.tasks import start_ticket, end_ticket, celery
+from planet.config.enums import AdminActionS, TicketStatus, TicketsOrderStatus, PlayPayType, \
+    PayType, ActivationTypeEnum, ShareType, UserStatus, SupplizerGrade, RoleType, TicketPayType, GuideApplyStatus
 
 
 class CTicket(CPlay):
+    TICKET_LIST_FIELDS = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'interrupt',
+                          'tistatus_zh', 'TInum', 'apply_num', 'tsoid']
 
     def __init__(self):
         super(CTicket, self).__init__()
         self.BaseAdmin = BASEADMIN()
+        self.Baseticket = BASETICKET()
+        self.cuser = CUser()
 
     @admin_required
     def create_ticket(self):
         """创建票务"""
         data = request.json
-        (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
-         titripstarttime, titripendtime) = self._validate_ticket_param(data)
+        ticket_dict, liids = self._validate_ticket_param(data)
         if Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIname == data.get('tiname')).first():
             raise ParamsError('该门票名称已存在')
         instance_list = []
         with db.auto_commit():
-            ticket = Ticket.create({'TIid': str(uuid.uuid1()),
-                                    'ADid': getattr(request, 'user').id,
-                                    'TIname': data.get('tiname'),
-                                    'TIimg': data.get('tiimg'),
-                                    'TIstartTime': tistarttime,
-                                    'TIendTime': tiendtime,
-                                    'TItripStartTime': titripstarttime,
-                                    'TItripEndTime': titripendtime,
-                                    'TIrules': data.get('tirules'),
-                                    'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
-                                    'TIdetails': data.get('tidetails'),
-                                    'TIprice': tiprice,
-                                    'TIdeposit': tideposit,
-                                    'TIstatus': TicketStatus.ready.value,
-                                    'TInum': tinum,
-                                    'TIabbreviation': data.get('tiabbreviation'),
-                                    'TIcategory': ticategory
-                                    })
+            ticket_dict.update({'TIid': str(uuid.uuid1()),
+                                'ADid': getattr(request, 'user').id,
+                                'TIname': data.get('tiname'),
+                                'TIimg': data.get('tiimg'),
+                                # 'TIrules': data.get('tirules'),
+                                'TIcertificate': data.get('ticertificate') if data.get('ticertificate') else None,
+                                'TIdetails': data.get('tidetails'),
+                                'TIstatus': TicketStatus.ready.value,
+                                # 'TIabbreviation': data.get('tiabbreviation'),
+                                })
+            ticket = Ticket.create(ticket_dict)
             instance_list.append(ticket)
             for liid in liids:
                 linkage = Linkage.query.filter(Linkage.isdelete == false(), Linkage.LIid == liid).first()
@@ -67,9 +71,9 @@ class CTicket(CPlay):
                 instance_list.append(tl)
             db.session.add_all(instance_list)
         # 异步任务: 开始
-        self._create_celery_task(ticket.TIid, tistarttime)
+        self._create_celery_task(ticket.TIid, ticket_dict.get('TIstartTime'))
         # 异步任务: 结束
-        self._create_celery_task(ticket.TIid, tiendtime, start=False)
+        self._create_celery_task(ticket.TIid, ticket_dict.get('TIendTime'), start=False)
         self.BaseAdmin.create_action(AdminActionS.insert.value, 'Ticket', ticket.TIid)
         return Success('创建成功', data={'tiid': ticket.TIid})
 
@@ -87,6 +91,10 @@ class CTicket(CPlay):
             if data.get('delete'):
                 if ticket.TIstatus == TicketStatus.active.value:
                     raise ParamsError('无法直接删除正在抢票中的活动')
+                if TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                             TicketsOrder.TSOstatus != TicketsOrderStatus.not_won.value,
+                                             TicketsOrder.TIid == ticket.TIid).first():
+                    raise StatusError('暂时无法直接删除已产生购买记录的门票')
                 ticket.update({'isdelete': True})
                 TicketLinkage.query.filter(TicketLinkage.isdelete == false(),
                                            TicketLinkage.TIid == ticket.TIid).delete_(synchronize_session=False)
@@ -98,36 +106,28 @@ class CTicket(CPlay):
                     raise StatusError('该状态下无法中止')
                 if ticket.TIstatus == TicketStatus.active.value:  # 抢票中的退押金
                     current_app.logger.info('interrupt active ticket')
-                    ticket_orders = self._query_not_won(ticket.TIid)
-                    total_row = 0
-                    for to_info in ticket_orders:
-                        row_count = self._deposit_refund(to_info)
-                        total_row += row_count
-                    current_app.logger.info('共退款{}条记录'.format(total_row))
+                    ticket_orders = TicketsOrder.query.filter(
+                        TicketsOrder.isdelete == false(),
+                        TicketsOrder.TIid == ticket.TIid,
+                        TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                        TicketsOrder.TSOtype != TicketPayType.cash.value).all()
+                    row_count = self._deposit_refund(ticket_orders, ticket)  # 活动临时中断，除购买外全退钱
+                    current_app.logger.info('共退款{}条记录'.format(row_count))
                 ticket.update({'TIstatus': TicketStatus.interrupt.value})
                 self._cancle_celery_task('start_ticket{}'.format(ticket.TIid))
                 self._cancle_celery_task('end_ticket{}'.format(ticket.TIid))
             else:
                 if ticket.TIstatus < TicketStatus.interrupt.value:
                     raise ParamsError('仅可编辑已中止或已结束的活动')
-                (tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory,
-                 titripstarttime, titripendtime) = self._validate_ticket_param(data)
-                ticket_dict = {'TIname': data.get('tiname'),
-                               'TIimg': data.get('tiimg'),
-                               'TIstartTime': tistarttime,
-                               'TIendTime': tiendtime,
-                               'TItripStartTime': titripstarttime,
-                               'TItripEndTime': titripendtime,
-                               'TIrules': data.get('tirules'),
-                               'TIcertificate': data.get('ticertificate'),
-                               'TIdetails': data.get('tidetails'),
-                               'TIprice': tiprice,
-                               'TIdeposit': tideposit,
-                               'TIstatus': TicketStatus.ready.value,
-                               'TInum': tinum,
-                               'TIabbreviation': data.get('tiabbreviation'),
-                               'TIcategory': ticategory
-                               }
+                ticket_dict, liids = self._validate_ticket_param(data)
+                ticket_dict.update({'TIname': data.get('tiname'),
+                                    'TIimg': data.get('tiimg'),
+                                    # 'TIrules': data.get('tirules'),
+                                    'TIcertificate': data.get('ticertificate'),
+                                    'TIdetails': data.get('tidetails'),
+                                    'TIstatus': TicketStatus.ready.value,
+                                    # 'TIabbreviation': data.get('tiabbreviation'),
+                                    })
                 if ticket.TIstatus == TicketStatus.interrupt.value:  # 中止的情况
                     current_app.logger.info('edit interrupt ticket')
                     ticket.update(ticket_dict)
@@ -135,7 +135,8 @@ class CTicket(CPlay):
                                                TicketLinkage.TIid == ticket.TIid).delete_()  # 删除原来的关联
                 else:  # 已结束的情况，重新发起
                     current_app.logger.info('edit ended ticket')
-                    ticket_dict.update({'TIid': str(uuid.uuid1())})
+                    ticket_dict.update({'TIid': str(uuid.uuid1()),
+                                        'ADid': getattr(request, 'user').id})
                     ticket = Ticket.create(ticket_dict)
 
                 for liid in liids:
@@ -148,28 +149,28 @@ class CTicket(CPlay):
                     instance_list.append(tl)
                 self._cancle_celery_task('start_ticket{}'.format(ticket.TIid))
                 self._cancle_celery_task('end_ticket{}'.format(ticket.TIid))
-                self._create_celery_task(ticket.TIid, tistarttime)
-                self._create_celery_task(ticket.TIid, tiendtime, start=False)
+                self._create_celery_task(ticket.TIid, ticket_dict.get('TIstartTime'))
+                self._create_celery_task(ticket.TIid, ticket_dict.get('TIendTime'), start=False)
             instance_list.append(ticket)
             db.session.add_all(instance_list)
             self.BaseAdmin.create_action(AdminActionS.update.value, 'Ticket', ticket.TIid)
         return Success('编辑成功', data={'tiid': ticket.TIid})
 
-    @staticmethod
-    def _validate_ticket_param(data):
+    def _validate_ticket_param(self, data):
         parameter_required({'tiname': '票务名称', 'tiimg': '封面图', 'tistarttime': '抢票开始时间',
-                            'tiendtime': '抢票结束时间', 'tirules': '规则', 'tiprice': '票价', 'tideposit': '最低押金',
-                            'tinum': '门票数量', 'tidetails': '详情', 'tiabbreviation': '列表页活动类型简称',
-                            'ticategory': '列表页活动类型标签'}, datafrom=data)
+                            'tiendtime': '抢票结束时间', 'tiprice': '票价', 'tideposit': '最低押金', 'suid': '票务供应商',
+                            'tinum': '门票数量', 'tidetails': '详情', 'tibanner': '详情轮播图', 'tiaddress': '游玩场所位置'
+                            }, datafrom=data)
         tistarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tistarttime')), '抢票开始时间格式错误')
         tiendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('tiendtime')), '抢票结束时间格式错误')
         tistarttime, tiendtime = map(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'), (tistarttime, tiendtime))
+
         now = datetime.now()
         if tistarttime < now:
             raise ParamsError('抢票开始时间应大于现在时间')
         if tiendtime <= tistarttime:
             raise ParamsError('抢票结束时间应大于开始时间')
-
+        latitude, longitude = super(CTicket, self).check_lat_and_long(data.get('latitude'), data.get('longitude'))
         titripstarttime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripstarttime')),
                                        '游玩开始时间格式错误')
         titripendtime = validate_arg(r'^\d{4}(-\d{2}){2} \d{2}(:\d{2}){2}$', str(data.get('titripendtime')),
@@ -193,11 +194,31 @@ class CTicket(CPlay):
         liids = data.get('liids', [])
         if not isinstance(liids, list):
             raise ParamsError('liids 格式错误')
-        ticategory = data.get('ticategory', [])
-        if not isinstance(ticategory, list):
-            raise ParamsError('ticategory 格式错误')
-        ticategory = json.dumps(ticategory)
-        return tistarttime, tiendtime, tiprice, tideposit, tinum, liids, ticategory, titripstarttime, titripendtime
+        # ticategory = data.get('ticategory', [])
+        # if not isinstance(ticategory, list):
+        #     raise ParamsError('ticategory 格式错误')
+        # ticategory = json.dumps(ticategory)
+        if not isinstance(data.get('tibanner'), list):
+            raise ParamsError('tibanner 格式错误')
+        tibanner = json.dumps(data.get('tibanner'))
+        sup = Supplizer.query.filter(Supplizer.isdelete == false(), Supplizer.SUid == data.get('suid'),
+                                     Supplizer.SUstatus == UserStatus.usual.value,
+                                     Supplizer.SUgrade == SupplizerGrade.ticket.value).first_('票务供应商状态错误')
+        ticket_dicket = {'TIstartTime': tistarttime,
+                         'TIendTime': tiendtime,
+                         'TItripStartTime': titripstarttime,
+                         'TItripEndTime': titripendtime,
+                         'TIprice': tiprice,
+                         'TIdeposit': tideposit,
+                         'TInum': tinum,
+                         # 'TIcategory': ticategory,
+                         'TIbanner': tibanner,
+                         'SUid': sup.SUid,
+                         'longitude': longitude,
+                         'latitude': latitude,
+                         'TIaddress': data.get('tiaddress')
+                         }
+        return ticket_dicket, liids
 
     def get_ticket(self):
         """门票详情"""
@@ -205,9 +226,9 @@ class CTicket(CPlay):
         tiid = args.get('tiid')
         tsoid = args.get('tsoid')
         secret_usid = args.get('secret_usid')
+        ticketorder = None
         if not (tiid or tsoid):
             raise ParamsError
-        ticketorder = None
         if tsoid:
             if not common_user():
                 raise TokenError
@@ -215,30 +236,50 @@ class CTicket(CPlay):
                                                     TicketsOrder.USid == getattr(request, 'user').id,
                                                     TicketsOrder.TSOid == tsoid).first()
             tiid = ticketorder.TIid if ticketorder else tiid
-        if secret_usid:
-            try:
-                superid = super(CTicket, self)._base_decode(secret_usid)
-                current_app.logger.info('secret_usid --> superid {}'.format(superid))
-                if common_user() and superid != getattr(request, 'user').id:
-                    with db.auto_commit():
-                        uin = UserInvitation.create({
-                            'UINid': str(uuid.uuid1()),
-                            'USInviter': superid,
-                            'USInvited': getattr(request, 'user').id,
-                            'UINapi': request.path
-                        })
-                        current_app.logger.info('已创建邀请记录')
-                        db.session.add(uin)
-            except Exception as e:
-                current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
-
+        elif common_user():
+            ticketorder = self._query_traded(tiid, getattr(request, 'user').id)
+            tiid = ticketorder.TIid if ticketorder else tiid
+        if secret_usid:  # 创建邀请记录
+            self._invitation_record(secret_usid, args)
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
         self._fill_ticket(ticket, ticketorder=ticketorder)
         return Success(data=ticket)
 
-    @staticmethod
-    def _fill_ticket(ticket, ticketorder=None):
-        ticket.hide('ADid')
+    def _invitation_record(self, secret_usid, args):
+        try:
+            superid = super(CTicket, self)._base_decode(secret_usid)
+            current_app.logger.info('secret_usid --> superid {}'.format(superid))
+            if common_user() and superid != getattr(request, 'user').id:
+                with db.auto_commit():
+                    today = datetime.now().date()
+                    uin_exist = UserInvitation.query.filter(
+                        cast(UserInvitation.createtime, Date) == today,
+                        UserInvitation.USInviter == superid,
+                        UserInvitation.USInvited == getattr(request, 'user').id,
+                    ).first()
+                    if uin_exist:
+                        current_app.logger.info('{}今天已经邀请过这个人了{}'.format(superid, getattr(request, 'user').id))
+                        return
+                    uin = UserInvitation.create({
+                        'UINid': str(uuid.uuid1()),
+                        'USInviter': superid,
+                        'USInvited': getattr(request, 'user').id,
+                        'UINapi': request.path
+                    })
+                    current_app.logger.info('已创建邀请记录')
+                    db.session.add(uin)
+                    db.session.add(SharingType.create({
+                        'STid': str(uuid.uuid1()),
+                        'USid': superid,
+                        'STtype': args.get('sttype', 0)
+                    }))
+                    self.Baseticket.add_activation(
+                        ActivationTypeEnum.share_old.value, superid, getattr(request, 'user').id)
+        except Exception as e:
+            current_app.logger.info('secret_usid 记录失败 error = {}'.format(e))
+
+    def _fill_ticket(self, ticket, ticketorder=None):
+        ticket.hide('ADid', 'SUid')
         now = datetime.now()
         if ticket.TIstatus == TicketStatus.ready.value and ticket.TIstartTime > now:  # 距抢票开始倒计时
             countdown = ticket.TIstartTime - now
@@ -256,66 +297,151 @@ class CTicket(CPlay):
 
         ticket.fill('countdown', countdown)
         ticket.fill('tistatus_zh', TicketStatus(ticket.TIstatus).zh_value)
-        # ticket.fill('residual', ticket.TInum)  # todo fake number ?
         ticket.fill('interrupt', False if ticket.TIstatus < TicketStatus.interrupt.value else True)  # 是否中止
-        ticket.fill('ticategory', json.loads(ticket.TIcategory))
-        tirewardnum, residual_deposit, umf = None, None, None
+        ticket.fill('tirules', self._query_rules(RoleType.ticketrole.value))
+        ticket.fill('scorerule', self._query_rules(RoleType.activationrole.value))
+        ticket.fill('apply_num', self._query_award_num(
+            ticket, filter_status=(TicketsOrder.TSOstatus > TicketsOrderStatus.not_won.value,)))
+
+        # ticket.fill('ticategory', json.loads(ticket.TIcategory))  # 2.0版多余
+        show_record = True if ticket.TIstatus == TicketStatus.over.value else False
+        umf, traded, tsoid = None, False, None
         if ticketorder:
-            ticket.fill('tsoid', ticketorder.TSOid)
-            ticket.fill('tsocode', ticketorder.TSOcode)
+            show_record = traded = True
+            tsoid = ticketorder.TSOid
+            # ticket.fill('tsocode', ticketorder.TSOcode)  # 2.0版多余
             ticket.fill('tsostatus', ticketorder.TSOstatus)
             ticket.fill('tsostatus_zh', TicketsOrderStatus(ticketorder.TSOstatus).zh_value)
-            if ticket.TIstatus == TicketStatus.over.value:
-                tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
-            if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:
-                residual_deposit = ticket.TIprice - ticket.TIdeposit
+            # if ticket.TIstatus == TicketStatus.over.value:
+            #     tirewardnum = json.loads(ticket.TIrewardnum) if ticket.TIrewardnum else None
+            # if ticketorder.TSOstatus == TicketsOrderStatus.has_won.value:  # 2.0版多余
+            #     residual_deposit = ticket.TIprice - ticket.TIdeposit
             umf = UserMaterialFeedback.query.filter(UserMaterialFeedback.isdelete == false(),
                                                     UserMaterialFeedback.USid == getattr(request, 'user').id,
                                                     UserMaterialFeedback.TIid == ticket.TIid,
                                                     UserMaterialFeedback.TSOid == ticketorder.TSOid,
                                                     ).order_by(UserMaterialFeedback.createtime.desc()).first()
             ticket.fill('tsoqrcode',
-                        ticketorder['TSOqrcode'] if ticketorder.TSOstatus > TicketsOrderStatus.has_won.value else None)
-        umfstatus = -1 if not umf or umf.UMFstatus == UserMaterialFeedbackStatus.reject.value else umf.UMFstatus
+                        ticketorder['TSOqrcode'] if ticketorder.TSOstatus > TicketsOrderStatus.pending.value else None)
+            scorerank, rank = self._query_single_score(ticketorder, ticket)
+            ticket.fill('scorerank', scorerank)  # 活跃分排名array
+            ticket.fill('rank', rank)  # 自己所在排名
+            ticket.fill('tsocreatetime', ticketorder.createtime)
+            ticket.fill('tsoactivation', ticketorder.TSOactivation)
+        umfstatus = umf.UMFstatus if umf else None
         ticket.fill('umfstatus', umfstatus)  # 反馈素材审核状态
-        ticket.fill('tirewardnum', tirewardnum)  # 中奖号码
-        ticket.fill('residual_deposit', residual_deposit)  # 剩余押金
-        ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d"),
-                                                 ticket.TItripEndTime.strftime("%Y/%m/%d")))
+        # ticket.fill('tirewardnum', tirewardnum)  # 中奖号码  2.0版多余
+        # ticket.fill('residual_deposit', residual_deposit)  # 剩余押金  2.0版多余
+        ticket.fill('triptime', '{} - {}'.format(ticket.TItripStartTime.strftime("%Y/%m/%d %H:%M:%S"),
+                                                 ticket.TItripEndTime.strftime("%Y/%m/%d %H:%M:%S")))
+        if not traded and common_user():
+            traded = self._query_traded(ticket.TIid, getattr(request, 'user').id)
+            if traded:
+                tsoid = traded.TSOid
+                traded = True
+        ticket.fill('traded', bool(traded))  # 是否已购买
+        ticket.fill('tsoid', tsoid)
+        ticket.fill('show_record', show_record)
+
+        verified = True if common_user() and Guide.query.filter_by(
+            isdelete=False, USid=getattr(request, 'user').id,
+            GUstatus=GuideApplyStatus.agree.value).first() else False
+        ticket.fill('verified', verified)
         if is_admin():
             linkage = Linkage.query.join(TicketLinkage, TicketLinkage.LIid == Linkage.LIid
                                          ).filter(Linkage.isdelete == false(),
                                                   TicketLinkage.isdelete == false(),
                                                   TicketLinkage.TIid == ticket.TIid).all()
             ticket.fill('linkage', linkage)
+            sup = Supplizer.query.filter(Supplizer.SUid == ticket.SUid).first()
+            if sup:
+                sup.fields = ['SUname', 'SUid']
+            ticket.fill('supplizer', sup)
+        ticket.fill('position', {'tiaddress': ticket.TIaddress,
+                                 'longitude': ticket.longitude,
+                                 'latitude': ticket.latitude})
+
+    def _query_single_score(self, ticketorder, ticket):
+        tinum = ticket.TInum
+        if ticketorder.TSOtype == TicketPayType.cash.value or ticketorder.TSOstatus > TicketsOrderStatus.pending.value:
+            return [], 1
+        tsoid_array = [i[0] for i in db.session.query(TicketsOrder.TSOid).filter(
+            TicketsOrder.isdelete == false(),
+            TicketsOrder.TIid == ticketorder.TIid,
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+        ).order_by(TicketsOrder.TSOactivation.desc(),
+                   TicketsOrder.createtime.asc(),
+                   origin=True).all() if i is not None]
+        res = [self._init_score_dict(ticketorder.TSOid, '我的位置')]
+        rank = 1
+        if tsoid_array and len(tsoid_array) > 1:
+            my_index = tsoid_array.index(ticketorder.TSOid)
+            rank = my_index + 1
+            if my_index == 0:
+                res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
+            elif my_index == len(tsoid_array) - 1:
+                temp_index = tinum - 1 if rank > tinum else my_index - 1
+                res.insert(0, self._init_score_dict(tsoid_array[temp_index], '前一名'))
+            else:
+                temp_index = tinum - 1 if rank > tinum else my_index - 1
+                res.insert(0, self._init_score_dict(tsoid_array[temp_index], '前一名'))
+                res.append(self._init_score_dict(tsoid_array[my_index + 1], '后一名'))
+        return res, rank
+
+    @staticmethod
+    def _init_score_dict(tsoid, rank_zh):
+        score_info = db.session.query(TicketsOrder.TSOactivation, User.USheader).outerjoin(
+            User, User.USid == TicketsOrder.USid).filter(User.isdelete == false(), TicketsOrder.isdelete == false(),
+                                                         TicketsOrder.TSOid == tsoid).first()
+        res = None
+        if score_info:
+            res = {'tsoactivation': score_info[0],
+                   'usheader': score_info[1] if score_info[1].startswith('http') else API_HOST + score_info[1],
+                   'rank_zh': rank_zh}
+        return res
 
     def list_ticket(self):
         """门票列表"""
         args = request.args.to_dict()
         option = args.get('option')
         if option == 'my':  # 我的门票
-            return self._list_ticketorders()
+            return self._list_ticketorders(args.get('tsostatus'))
         filter_args = []
         if not is_admin():
-            filter_args.append(Ticket.TIstatus < TicketStatus.interrupt.value)
+            filter_args.append(Ticket.TIstatus != TicketStatus.interrupt.value)
+        if is_supplizer():
+            filter_args.append(Ticket.SUid == getattr(request, 'user').id)
         tickets = Ticket.query.filter(Ticket.isdelete == false(), *filter_args
-                                      ).order_by(Ticket.TIstatus.asc(), Ticket.createtime.asc()).all_with_page()
+                                      ).order_by(func.field(Ticket.TIstatus, TicketStatus.active.value,
+                                                            TicketStatus.ready.value, TicketStatus.over.value),
+                                                 Ticket.TIstartTime.asc(),
+                                                 Ticket.createtime.desc()).all_with_page()
+        ticket_fields = self.TICKET_LIST_FIELDS[:]
+        ticket_fields.extend(('TItripStartTime', 'TItripEndTime', 'traded', 'TIprice'))
         for ticket in tickets:
             self._fill_ticket(ticket)
-            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus',
-                             'interrupt', 'tistatus_zh', 'ticategory', 'TItripStartTime', 'TItripEndTime']
-            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
-                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
+            ticket.fields = ticket_fields
+            # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+            #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
         return Success(data=tickets)
 
-    def _list_ticketorders(self):
+    def _list_ticketorders(self, tsostatus):
         import copy
         if not common_user():
             raise TokenError
+        try:
+            tsostatus = int(tsostatus)
+            TicketsOrderStatus(tsostatus)
+            status_filter = (TicketsOrder.TSOstatus == tsostatus, )
+        except (ValueError, AssertionError, TypeError):
+            status_filter = []
         tos = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                        TicketsOrder.USid == getattr(request, 'user').id
+                                        TicketsOrder.USid == getattr(request, 'user').id,
+                                        *status_filter
                                         ).order_by(TicketsOrder.createtime.desc()).all_with_page()
         res = []
+        ticket_fields = self.TICKET_LIST_FIELDS[:]
+        ticket_fields.extend(('tsostatus', 'tsostatus_zh', 'tsoqrcode'))
         for to in tos:
             ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == to.TIid).first()
             ticket = copy.deepcopy(ticket)
@@ -323,10 +449,9 @@ class CTicket(CPlay):
                 current_app.logger.error('未找到ticket, tiid: {}'.format(to.TIid))
                 continue
             self._fill_ticket(ticket, to)
-            ticket.fields = ['TIid', 'TIname', 'TIimg', 'TIstartTime', 'TIendTime', 'TIstatus', 'tsoid', 'tsocode',
-                             'tsostatus', 'tsostatus_zh', 'interrupt', 'tistatus_zh', 'ticategory', 'tsoqrcode']
-            ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
-                                                             ticket.TIstartTime.day, ticket.TIabbreviation))
+            ticket.fields = ticket_fields
+            # ticket.fill('short_str', '{}.{}抢票开启 | {}'.format(ticket.TIstartTime.month,
+            #                                                  ticket.TIstartTime.day, ticket.TIabbreviation))
             res.append(ticket)
             del ticket
         return Success(data=res)
@@ -336,9 +461,21 @@ class CTicket(CPlay):
         linkages = Linkage.query.filter(Linkage.isdelete == false()).all()
         return Success(data=linkages)
 
-    @admin_required
+    def list_tsostatus(self):
+        """所有试用记录状态类型"""
+        res = [{'tsostatus': k,
+                'tsostatus_en': TicketsOrderStatus(k).name,
+                'tsostatus_zh': TicketsOrderStatus(k).zh_value
+                } for k in (TicketsOrderStatus.pending.value, TicketsOrderStatus.has_won.value,
+                            TicketsOrderStatus.completed.value, TicketsOrderStatus.accomplish.value,
+                            TicketsOrderStatus.not_won.value,)]
+        return Success(data=res)
+
+    @token_required
     def list_trade(self):
         """门票购买记录"""
+        if common_user():
+            raise StatusError('用户无权限')
         args = parameter_required('tiid')
         tiid = args.get('tiid')
         ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('无信息')
@@ -375,150 +512,216 @@ class CTicket(CPlay):
                              'ticketorder': res}
                        )
 
+    def ticket_award_task(self, ticket):
+        if not ticket:
+            return
+        ticketorders = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TIid == ticket.TIid,
+                                                 TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                                                 TicketsOrder.TSOtype != TicketPayType.cash.value
+                                                 ).order_by(TicketsOrder.TSOactivation.desc(),
+                                                            TicketsOrder.createtime.desc()).limit(ticket.TInum).all()
+        current_app.logger.info('总票数: {}, 开奖数: {}'.format(ticket.TInum, len(ticketorders)))
+        # todo 有活跃分的数量不够???
+        tsoids = []
+        for to in ticketorders:
+            tsoids.append(to.TSOid)
+            to.TSOstatus = TicketsOrderStatus.has_won.value
+            to.TSOqrcode = self._ticket_order_qrcode(to.TSOid, to.USid)
+        not_won_ticketorders = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                                         TicketsOrder.TSOid.notin_(tsoids),
+                                                         TicketsOrder.TIid == ticket.TIid,
+                                                         TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+                                                         TicketsOrder.TSOtype != TicketPayType.cash.value).all()
+        self._deposit_refund(not_won_ticketorders, ticket)  # 退钱
+
+    def _deposit_refund(self, tsos, ticket):
+        row_count = 0
+        for to in tsos:
+            usid = to.USid
+            to.TSOstatus = TicketsOrderStatus.not_won.value  # 改状态
+            # 退钱
+            pp = PlayPay.query.filter(PlayPay.isdelete == false(), PlayPay.PPcontent == to.TSOid
+                                      ).order_by(PlayPay.createtime.desc()).first()
+            if not pp:
+                current_app.logger.info('not found playpay, tsoid: {}'.format(to.TSOid))
+                continue
+            if to.TSOtype == TicketPayType.scorepay.value:  # 信用分支付的只改状态，不返钱
+                current_app.logger.info('found score paied, tsoid: {}'.format(to.TSOid))
+                row_count += 1
+                continue
+            return_price = ticket.TIdeposit
+            mount_price = pp.PPpayMount
+            opayno = pp.PPpayno
+            current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
+            current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
+            current_app.logger.info('refund usid: {}'.format(usid))
+
+            if API_HOST != 'https://www.bigxingxing.com':
+                mount_price = 0.01
+                return_price = 0.01
+            trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
+                                             'USid': usid,
+                                             'TRRredund': return_price,
+                                             'TRRtotal': mount_price,
+                                             'OPayno': opayno,
+                                             'TSOid': to.TSOid})
+            db.session.add(trr)
+            try:
+                flag, count = True, 1
+                while flag and count <= 5:
+                    try:
+                        super(CTicket, self)._refund_to_user(
+                            out_trade_no=opayno,
+                            out_request_no=trr.TRRid,
+                            mount=return_price,
+                            old_total_fee=mount_price
+                        )
+                        flag = False
+                    except requests.exceptions.ConnectionError as e:
+                        flag = True
+                        count += 1
+                        current_app.logger.error('refund deposit error: {}'.format(e))
+                    finally:
+                        current_app.logger.info('post wx_refund api count: {}'.format(count))
+            except Exception as e:
+                raise StatusError('微信商户平台：{}'.format(e))
+            row_count += 1
+        current_app.logger.info('change status to not won, count: {}'.format(row_count))
+        return row_count
+
     @admin_required
     def set_award(self):
         """设置中奖"""
-        data = parameter_required('tsoid')
-        tsoid = data.get('tsoid')
-        ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                                 TicketsOrder.TSOid == tsoid,
-                                                 TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
-                                                 ).first_('状态错误')
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
-        if not ticket or ticket.TIstatus != TicketStatus.over.value:
-            raise ParamsError('抢票尚未结束')
-        award_num = self._query_award_num(ticket.TIid)
-        current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
-        if award_num >= ticket.TInum:
-            raise StatusError('已达最大发放票数')
-        with db.auto_commit():
-            update_dict = {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',
-                           'TSOstatus': TicketsOrderStatus.has_won.value}
-            if ticket.TIdeposit == ticket.TIprice:  # 第二次支付押金0元的情况
-                update_dict['TSOstatus'] = TicketsOrderStatus.completed.value
-            ticket_order.update(update_dict)
-            db.session.add(ticket_order)
-            db.session.flush()
-            awarded_num = self._query_award_num(ticket.TIid)
-            current_app.logger.info('设置后中奖数：{} / {}'.format(awarded_num, ticket.TInum))
-            if awarded_num == ticket.TInum:  # 未中奖退钱
-                other_to = self._query_not_won(ticket.TIid)
-                total_row_count = 0
-                for oto in other_to:
-                    row_count = self._deposit_refund(oto)
-                    total_row_count += row_count
-                current_app.logger.info('共{}条未中奖'.format(total_row_count))
-        return Success('设置成功', data=tsoid)
+        raise StatusError('该功能暂停使用')
+        # data = parameter_required('tsoid')
+        # tsoid = data.get('tsoid')
+        # ticket_order = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+        #                                          TicketsOrder.TSOid == tsoid,
+        #                                          TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
+        #                                          ).first_('状态错误')
+        # ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == ticket_order.TIid).first()
+        # if not ticket or ticket.TIstatus != TicketStatus.over.value:
+        #     raise ParamsError('抢票尚未结束')
+        # award_num = self._query_award_num(ticket.TIid)
+        # current_app.logger.info('已中奖数：{} / {}'.format(award_num, ticket.TInum))
+        # if award_num >= ticket.TInum:
+        #     raise StatusError('已达最大发放票数')
+        # with db.auto_commit():
+        #     update_dict = {'TSOqrcode': 'https://play.bigxingxing.com/img/qrcode/2019/9/3/QRCODE.png',
+        #                    'TSOstatus': TicketsOrderStatus.has_won.value}
+        #     if ticket.TIdeposit == ticket.TIprice:  # 第二次支付押金0元的情况
+        #         update_dict['TSOstatus'] = TicketsOrderStatus.completed.value
+        #     ticket_order.update(update_dict)
+        #     db.session.add(ticket_order)
+        #     db.session.flush()
+        #     awarded_num = self._query_award_num(ticket.TIid)
+        #     current_app.logger.info('设置后中奖数：{} / {}'.format(awarded_num, ticket.TInum))
+        #     if awarded_num == ticket.TInum:  # 未中奖退钱
+        #         other_to = self._query_not_won(ticket.TIid)
+        #         total_row_count = 0
+        #         for oto in other_to:
+        #             row_count = self._deposit_refund(oto)
+        #             total_row_count += row_count
+        #         current_app.logger.info('共{}条未中奖'.format(total_row_count))
+        # return Success('设置成功', data=tsoid)
 
     @phone_required
     def pay(self):
         """购买"""
         data = parameter_required()
-        tiid, tsoid, numbers = data.get('tiid'), data.get('tsoid'), data.get('num')
+        tiid, tsotype = data.get('tiid'), data.get('tsotype', 1)
+        try:
+            TicketPayType(int(tsotype))
+        except (ValueError, AttributeError, TypeError):
+            raise ParamsError('支付方式错误')
         user = User.query.filter(User.isdelete == false(), User.USid == getattr(request, 'user').id).first_('请重新登录')
         opayno = super(CTicket, self)._opayno()
-        instance_list, tscode_list = [], []
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到该门票信息')
+        trade = self._query_traded(tiid, user.USid)  # 直购不限制
+        if ticket.TIstatus == TicketStatus.ready.value:
+            raise ParamsError('活动尚未开始')
+        elif ticket.TIstatus == TicketStatus.interrupt.value or (ticket.TIstatus == TicketStatus.over.value
+                                                                 and tsotype != TicketPayType.cash.value):
+            raise ParamsError('活动已结束')
+        redirect = False
         with db.auto_commit():
-            if tiid and numbers:  # 抢票
-                ticket, mount_price, instance_list, tscode_list = self._grap_ticket_order(tiid, numbers, user, opayno,
-                                                                                          instance_list, tscode_list)
-            elif tsoid:  # 中奖后补押金
-                ticket, mount_price, instance_list, tscode_list = self._patch_ticket_order(tsoid, user, opayno,
-                                                                                           instance_list, tscode_list)
+            if tsotype == TicketPayType.deposit.value:
+                mount_price = ticket.TIdeposit
+            elif tsotype == TicketPayType.cash.value:
+                mount_price = ticket.TIprice
+                trade = False
+            elif tsotype == TicketPayType.scorepay.value:
+                if not user.USrealname:
+                    raise StatusError('用户未进行信用认证')
+                temp_flag = True
+                if temp_flag:
+                    raise StatusError('您当前的支付信用分不足，请换种姿势申请~')
+                mount_price = 0
+                redirect = True
             else:
-                raise ParamsError
-
-            db.session.add_all(instance_list)
+                raise StatusError('支付方式错误')
+            if trade:
+                raise StatusError('您已申请成功，请在“我的 - 我的试用”中查看')
+            ticket_order = self._creat_ticket_order(user.USid, tiid, tsotype)
+            db.session.add(ticket_order)
         body = ticket.TIname[:16] + '...'
         openid = user.USopenid1
         pay_args = super(CTicket, self)._add_pay_detail(opayno=opayno, body=body, PPpayMount=mount_price, openid=openid,
-                                                        PPcontent=ticket.TIid,
-                                                        PPpayType=PlayPayType.ticket.value)
+                                                        PPcontent=ticket_order.TSOid,
+                                                        PPpayType=PlayPayType.ticket.value,
+                                                        redirect=redirect)
         response = {
             'pay_type': PayType.wechat_pay.name,
             'opaytype': PayType.wechat_pay.value,
-            'tscode': tscode_list,
-            'args': pay_args
+            'args': pay_args,
+            'redirect': redirect
         }
         current_app.logger.info('response = {}'.format(response))
         return Success(data=response)
 
-    def _grap_ticket_order(self, tiid, numbers, user, opayno, instance_list, tscode_list):
-        if not (isinstance(numbers, int) and 0 < numbers < 11):
-            raise ParamsError('数量错误, 单次可购票数 (1-10)')
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid
-                                     ).first_('未找到该门票信息')
-        if ticket.TIstatus != TicketStatus.active.value:
-            raise ParamsError('活动尚未开始')
-        last_trade = TicketsOrder.query.filter(TicketsOrder.TIid == tiid,
-                                               TicketsOrder.USid == user.USid,
-                                               TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
-                                               ).order_by(TicketsOrder.createtime.desc()).first()
-        if last_trade:
-            current_app.logger.info('last trade time: {}'.format(last_trade.createtime))
-            delta_time = datetime.now() - last_trade.createtime
-            current_app.logger.info('delta time: {}'.format(delta_time))
-            if delta_time.seconds < 6:
-                raise ParamsError('正在努力排队中, 请稍后尝试重新提交')
-        mount_price = ticket.TIdeposit * numbers
-        last_tscode = db.session.query(TicketsOrder.TSOcode).filter(
-            TicketsOrder.isdelete == false(),
-            TicketsOrder.TIid == tiid,
-            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value
-        ).order_by(TicketsOrder.TSOcode.desc(),
-                   TicketsOrder.createtime.desc(),
-                   origin=True).first() or 0
-        if last_tscode:
-            last_tscode = last_tscode[0]
-        current_app.logger.info('last tscode: {}'.format(last_tscode))
-        for i in range(numbers):
-            last_tscode += 1
-            tscode = last_tscode
-            tscode_list.append(tscode)
-            current_app.logger.info('tscode: {}'.format(tscode))
-            ticket_order = self._creat_ticket_order(user.USid, tiid, tscode)
-            ticket_deposit = self._creat_ticket_deposit(ticket_order.TSOid, TicketDepositType.grab.value,
-                                                        ticket.TIdeposit, opayno)
-            instance_list.append(ticket_deposit)
-            instance_list.append(ticket_order)
-        return ticket, mount_price, instance_list, tscode_list
-
-    def _patch_ticket_order(self, tsoid, user, opayno, instance_list, tscode_list):
-        tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(), TicketsOrder.TSOid == tsoid,
-                                        TicketsOrder.USid == user.USid).first_('未找到该信息')
-        if tso.TSOstatus != TicketsOrderStatus.has_won.value:
-            raise StatusError('支付条件未满足')
-        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid
-                                     ).first_('未找到该门票信息')
-        mount_price = ticket.TIprice - ticket.TIdeposit
-        ticket_deposit = self._creat_ticket_deposit(tsoid, TicketDepositType.patch.value, mount_price, opayno)
-        instance_list.append(ticket_deposit)
-        tscode_list.append(tso.TSOcode)
-        return ticket, mount_price, instance_list, tscode_list
-
     @staticmethod
-    def _creat_ticket_deposit(tsoid, tdtype, mount, opayno):
-        return TicketDeposit.create({'TDid': str(uuid.uuid1()),
-                                     'TSOid': tsoid,
-                                     'TDdeposit': mount,
-                                     'TDtype': tdtype,
-                                     'OPayno': opayno})
-
-    @staticmethod
-    def _creat_ticket_order(usid, tiid, tscode):
+    def _creat_ticket_order(usid, tiid, tsotype):
         return TicketsOrder.create({'TSOid': str(uuid.uuid1()),
                                     'USid': usid,
                                     'TIid': tiid,
-                                    'TSOcode': tscode,
+                                    'TSOtype': tsotype,
                                     'isdelete': True})
 
     @staticmethod
-    def _query_award_num(tiid):
-        return db.session.query(func.count(TicketsOrder.TSOid)
-                                ).filter(TicketsOrder.isdelete == false(),
+    def _query_traded(tiid, usid):
+        return TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
                                          TicketsOrder.TIid == tiid,
-                                         TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value
-                                         ).scalar() or 0
+                                         TicketsOrder.USid == usid,
+                                         TicketsOrder.TSOtype != TicketPayType.cash.value
+                                         ).first()
+
+    @staticmethod
+    def _query_rules(ruletype):
+        return db.session.query(Agreement.AMcontent).filter(Agreement.isdelete == false(),
+                                                            Agreement.AMtype == ruletype).scalar()
+
+    @staticmethod
+    def _query_award_num(ticket, filter_status=None):
+        if not filter_status:
+            filter_status = (TicketsOrder.TSOstatus == TicketsOrderStatus.has_won.value,)
+        count = db.session.query(func.count(TicketsOrder.TSOid)
+                                 ).filter(TicketsOrder.isdelete == false(),
+                                          TicketsOrder.TIid == ticket.TIid,
+                                          *filter_status
+                                          ).scalar() or 0
+        if ticket.TIstatus == TicketStatus.over.value:
+            if ticket.TIapplyFakeNum and ticket.TIapplyFakeNum >= 500:
+                count = ticket.TIapplyFakeNum
+                # current_app.logger.info('found ticket fake apply_num {}'.format(count))
+            elif count < 500:
+                current_app.logger.info('fill ended ticket apply num, tiid: {}'.format(ticket.TIid))
+                with db.auto_commit():
+                    current_app.logger.info('ticket true apply_num {}'.format(count))
+                    count = random.randint(800, 2000)
+                    current_app.logger.info('ticket apply_num now to {}'.format(count))
+                    ticket.update({'TIapplyFakeNum': count})
+                    db.session.add(ticket)
+        return count
 
     @staticmethod
     def _query_not_won(tiid):
@@ -549,48 +752,116 @@ class CTicket(CPlay):
             celery.AsyncResult(exist_task_id).revoke()
             conn.delete(conid)
 
-    def _deposit_refund(self, to_info):
-        usid, tiid, tsoids = to_info
-        tsoids = tsoids.split(',')
-        current_app.logger.info('deposit refund, TSOids:{}'.format(tsoids))
-        td_info = db.session.query(TicketDeposit.OPayno, func.sum(TicketDeposit.TDdeposit)
-                                   ).filter(TicketDeposit.isdelete == false(),
-                                            TicketDeposit.TSOid.in_(tsoids)).group_by(TicketDeposit.OPayno).all()
-        current_app.logger.info('td_info:{}'.format(td_info))
-        for td in td_info:
-            opayno, return_price = td
-            current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
-            mount_price = db.session.query(func.sum(TicketDeposit.TDdeposit)).filter(
-                TicketDeposit.isdelete == false(),
-                TicketDeposit.OPayno == opayno).scalar()
-            current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
-            current_app.logger.info('refund usid: {}'.format(usid))
+    # def _deposit_refund(self, to_info):
+    #     usid, tiid, tsoids = to_info
+    #     tsoids = tsoids.split(',')
+    #     current_app.logger.info('deposit refund, TSOids:{}'.format(tsoids))
+    #     td_info = db.session.query(TicketDeposit.OPayno, func.sum(TicketDeposit.TDdeposit)
+    #                                ).filter(TicketDeposit.isdelete == false(),
+    #                                         TicketDeposit.TSOid.in_(tsoids)).group_by(TicketDeposit.OPayno).all()
+    #     current_app.logger.info('td_info:{}'.format(td_info))
+    #     for td in td_info:
+    #         opayno, return_price = td
+    #         current_app.logger.info('found refund opayno: {}, mount:{}'.format(opayno, return_price))
+    #         mount_price = db.session.query(func.sum(TicketDeposit.TDdeposit)).filter(
+    #             TicketDeposit.isdelete == false(),
+    #             TicketDeposit.OPayno == opayno).scalar()
+    #         current_app.logger.info('refund mount: {}; total deposit:{}'.format(return_price, mount_price))
+    #         current_app.logger.info('refund usid: {}'.format(usid))
+    #
+    #         if API_HOST != 'https://www.bigxingxing.com':
+    #             mount_price = 0.01
+    #             return_price = 0.01
+    #         trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
+    #                                          'USid': usid,
+    #                                          'TRRredund': return_price,
+    #                                          'TRRtotal': mount_price,
+    #                                          'OPayno': opayno})
+    #         db.session.add(trr)
+    #         try:
+    #             super(CTicket, self)._refund_to_user(
+    #                 out_trade_no=opayno,
+    #                 out_request_no=trr.TRRid,
+    #                 mount=return_price,
+    #                 old_total_fee=mount_price
+    #             )
+    #         except Exception as e:
+    #             raise StatusError('微信商户平台：{}'.format(e))
+    #
+    #     row_count = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+    #                                           TicketsOrder.TSOid.in_(tsoids)
+    #                                           ).update({'TSOstatus': TicketsOrderStatus.not_won.value},
+    #                                                    synchronize_session=False)
+    #     current_app.logger.info('change status to not won, count: {}'.format(row_count))
+    #     return row_count
 
-            if API_HOST != 'https://www.bigxingxing.com':
-                mount_price = 0.01
-                return_price = 0.01
-            trr = TicketRefundRecord.create({'TRRid': str(uuid.uuid1()),
-                                             'USid': usid,
-                                             'TRRredund': return_price,
-                                             'TRRtotal': mount_price,
-                                             'OPayno': opayno})
-            db.session.add(trr)
+    @phone_required
+    def ticketorder_verified(self):
+        """门票核销"""
+        data = parameter_required('param')
+        param = data.get('param')
+        try:
+            tsoid, secret_usid = str(param).split('&')
+        except ValueError:
+            raise ParamsError('试用码无效')
+        current_app.logger.info('tsoid: {}, secret_usid: {}'.format(tsoid, secret_usid))
+        tsoid = str(tsoid).split('=')[-1]
+        secret_usid = str(secret_usid).split('=')[-1]
+        current_app.logger.info('splited, tsoid: {}, secret_usid: {}'.format(tsoid, secret_usid))
+        if not tsoid or not secret_usid:
+            raise StatusError('该试用码无效')
+        ticket_usid = self.cuser._base_decode(secret_usid)
+        ticket_user = User.query.filter(User.isdelete == false(),
+                                        User.USid == ticket_usid).first_('无效试用码')
+        tso = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
+                                        TicketsOrder.TSOid == tsoid,
+                                        ).first()
+        if tso.TSOstatus != TicketsOrderStatus.has_won.value:
+            current_app.logger.error('tso status: {}'.format(tso.TSOstatus))
+            raise StatusError('该票已使用')
+        ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tso.TIid).first()
+        if not (ticket.TItripStartTime <= datetime.now() <= ticket.TItripEndTime):
+            raise StatusError('当前时间不在该票有效使用时间内')
+
+        user = User.query.join(TicketVerifier, TicketVerifier.TVphone == User.UStelphone
+                               ).join(Ticket, Ticket.SUid == TicketVerifier.SUid
+                                      ).filter(User.isdelete == false(), User.USid == getattr(request, 'user').id,
+                                               TicketVerifier.SUid == ticket.SUid
+                                               ).first_('请确认您是否拥有该门票的核销权限')
+
+        with db.auto_commit():
+            if tso.TSOtype == TicketPayType.cash.value:  # 直购方式状态改为已完成
+                tso.update({'TSOstatus': TicketsOrderStatus.accomplish.value})
+            else:  # 其余方式改为已使用
+                tso.update({'TSOstatus': TicketsOrderStatus.completed.value})
+            db.session.add(tso)
+            # 核销记录
+            tvr = TicketVerifiedRecord.create({'TVRid': str(uuid.uuid1()),
+                                               'TIownerId': ticket_user.USid,
+                                               'VerifierId': user.USid,
+                                               'TSOid': tso.TSOid,
+                                               'TSOparam': param})
+            db.session.add(tvr)
+        return Success('门票验证成功', data=tvr.TVRid)
+
+    def _ticket_order_qrcode(self, tsoid, usid):
+        """创建票二维码"""
+        savepath, savedbpath = self.cuser._get_path('qrcode')
+        secret_usid = self.cuser._base_encode(usid)
+        filename = os.path.join(savepath, '{}.png'.format(tsoid))
+        filedbname = os.path.join(savedbpath, '{}.png'.format(tsoid))
+        current_app.logger.info('get basedir {0}'.format(current_app.config['BASEDIR']))
+        text = 'tsoid={}&secret={}'.format(tsoid, secret_usid)
+        current_app.logger.info('get text content {0}'.format(text))
+        qrcodeWithtext(text, filename)
+
+        # 二维码上传到七牛云
+        if API_HOST == 'https://www.bigxingxing.com':
             try:
-                super(CTicket, self)._refund_to_user(
-                    out_trade_no=opayno,
-                    out_request_no=trr.TRRid,
-                    mount=return_price,
-                    old_total_fee=mount_price
-                )
+                self.cuser.qiniu.save(data=filename, filename=filedbname[1:])
             except Exception as e:
-                raise StatusError('微信商户平台：{}'.format(e))
-
-        row_count = TicketsOrder.query.filter(TicketsOrder.isdelete == false(),
-                                              TicketsOrder.TSOid.in_(tsoids)
-                                              ).update({'TSOstatus': TicketsOrderStatus.not_won.value},
-                                                       synchronize_session=False)
-        current_app.logger.info('change status to not won, count: {}'.format(row_count))
-        return row_count
+                current_app.logger.error('二维码转存七牛云失败 ： {}'.format(e))
+        return filedbname
 
     @phone_required
     def get_promotion(self):
@@ -608,16 +879,24 @@ class CTicket(CPlay):
         starttime = super(CTicket, self)._check_time(ticket.TItripStartTime)
         endtime = super(CTicket, self)._check_time(ticket.TItripEndTime, fmt='%m/%d')
 
+        starttime_g = super(CTicket, self)._check_time(ticket.TIstartTime)
+        endtime_g = super(CTicket, self)._check_time(ticket.TIendTime, fmt='%m/%d')
+
         # 获取微信二维码
-        from planet.control.CUser import CUser
-        cuser = CUser()
+        # from planet.control.CUser import CUser
+        cuser = self.cuser
+        if not params or 'page=' not in params:
+            params = 'page=/pages/index/freeDetail'
+        if 'tiid' not in params:
+            params = '{}&tiid={}'.format(params, tiid)
         if 'secret_usid' not in params:
             params = '{}&secret_usid={}'.format(params, cuser._base_encode(usid))
+        params = '{}&sttype={}'.format(params, ShareType.promotion.value)
         params_key = cuser.shorten_parameters(params, usid, 'params')
         wxacode_path = cuser.wxacode_unlimit(
-            usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), )
+            usid, {'params': params_key}, img_name='{}{}'.format(usid, tiid), shuffix='png', is_hyaline=True)
         local_path, promotion_path = PlayPicture().create_ticket(
-            ticket.TIimg, ticket.TIname, starttime, endtime, str(0), usid, tiid, wxacode_path)
+            ticket.TIimg, ticket.TIname, starttime, endtime, starttime_g, endtime_g, str(0), usid, tiid, wxacode_path)
         from planet.extensions.qiniu.storage import QiniuStorage
         qiniu = QiniuStorage(current_app)
         if API_HOST == 'https://www.bigxingxing.com':

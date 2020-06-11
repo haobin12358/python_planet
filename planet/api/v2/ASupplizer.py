@@ -13,6 +13,7 @@ class ASupplizer(Resource):
             'code': self.csupplizer.send_reset_password_code,
             'get_supplizeraccount': self.csupplizer.get_supplizeraccount,
             'get_system_notes': self.csupplizer.get_system_notes,
+            'get_verifier': self.csupplizer.get_verifier,
         }
         return apis
 
@@ -26,5 +27,6 @@ class ASupplizer(Resource):
             'offshelves': self.csupplizer.offshelves,
             'set_supplizeraccount': self.csupplizer.set_supplizeraccount,
             'add_update_notes': self.csupplizer.add_update_notes,
+            'set_verifier': self.csupplizer.set_verifier,
         }
         return apis

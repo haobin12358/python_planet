@@ -79,7 +79,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                 instance_list.append(ipsku_instance)
             db.session.add_all(instance_list)
             if is_admin():
-                BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', str(uuid.uuid1()))
+                BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', ip_instance.IPid)
         super(CIntegralStore, self).create_approval('tointegral', uid, ip_instance.IPid, applyfrom=ipfrom)
         return Success('申请成功', data=dict(IPid=ip_instance.IPid))
 
@@ -102,6 +102,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
                                           IntegralProduct.IPid == ipid,
                                           IntegralProduct.IPstatus.in_([ApplyStatus.cancle.value,
                                                                         ApplyStatus.reject.value,
+                                                                        ApplyStatus.agree.value,
                                                                         ApplyStatus.shelves.value])
                                           ).first_("当前状态不可进行编辑")
         if ip.SUid != uid:
@@ -112,43 +113,109 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         if is_supplizer():
             filter_args.append(Products.CreaterId == uid)
         product = Products.query.filter(*filter_args).first_("当前商品状态不允许编辑")
-        instance_list = list()
-        with db.auto_commit():
-            ip_dict = {
-                'IPstatus': ApplyStatus.wait_check.value,
-                'IPprice': ipprice
-            }
-            ip.update(ip_dict)
-            instance_list.append(ip)
+        parent_apply = ip
+        while parent_apply.ParentIpid:
+            current_app.logger.info("It's worked.")
+            current_apply = IntegralProduct.query.filter(IntegralProduct.IPid == parent_apply.ParentIpid,
+                                                         IntegralProduct.IPstatus.in_([ApplyStatus.agree.value,
+                                                                                              ApplyStatus.lose_effect.value]),
+                                                         IntegralProduct.isdelete == False).first()
+            if current_apply:
+                current_app.logger.info('current_apply{}'.format(current_apply.IPid))
+                if current_apply.IPstatus == ApplyStatus.lose_effect.value:
+                    children_apply = IntegralProduct.query.filter(
+                        IntegralProduct.ParentIpid == current_apply.IPid,
+                        IntegralProduct.IPstatus == ApplyStatus.agree.value,
+                        IntegralProduct.isdelete == False).first()
+                    if children_apply:
+                        current_app.logger.info('child{}'.format(children_apply.IPid))
+                        children_apply.update({"IPstatus": ApplyStatus.lose_agree.value})
+                        db.session.add(children_apply)
+                        break
+                else:
+                    current_apply.update({"IPstatus": ApplyStatus.lose_agree.value})
+                    db.session.add(current_apply)
+                    break
+                parent_apply = IntegralProduct.query.filter(
+                    IntegralProduct.IPid == parent_apply.ParentIpid).first()
+        if ip.IPstatus != ApplyStatus.agree.value and ip.IPstatus != ApplyStatus.lose_agree.value:
+            instance_list = list()
+            with db.auto_commit():
+                ip_dict = {
+                    'IPstatus': ApplyStatus.wait_check.value,
+                    'IPprice': ipprice
+                }
+                ip.update(ip_dict)
+                instance_list.append(ip)
 
-            # 原sku全部删除
-            old_ips = IntegralProductSku.query.filter_by_(IPid=ip.IPid).all()
-            for old_ipsku in old_ips:
-                old_ipsku.isdelete = True
-                # super(CIntegralStore, self)._update_stock(int(old_ipsku.IPSstock), skuid=old_ipsku.SKUid)
-            # 接收新sku并重新扣除库存
-            for sku in skus:
-                parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
-                skuid, skuprice, ipsstock = sku.get('skuid'), sku.get('skuprice'), sku.get('ipsstock')
-                skuprice = self._check_price(skuprice)
-                ipsstock = self._check_price(ipsstock)
-                sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=ip.PRid,
-                                                          SKUid=skuid).first_('商品sku信息不存在')
+                # 原sku全部删除
+                old_ips = IntegralProductSku.query.filter_by_(IPid=ip.IPid).all()
+                for old_ipsku in old_ips:
+                    old_ipsku.isdelete = True
+                    # super(CIntegralStore, self)._update_stock(int(old_ipsku.IPSstock), skuid=old_ipsku.SKUid)
+                # 接收新sku并重新扣除库存
+                for sku in skus:
+                    parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
+                    skuid, skuprice, ipsstock = sku.get('skuid'), sku.get('skuprice'), sku.get('ipsstock')
+                    skuprice = self._check_price(skuprice)
+                    ipsstock = self._check_price(ipsstock)
+                    sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=ip.PRid,
+                                                              SKUid=skuid).first_('商品sku信息不存在')
 
-                # 从商品sku中减库存
-                super(CIntegralStore, self)._update_stock(-int(ipsstock), product, sku_instance)
-                ipsku_instance = IntegralProductSku.create({
-                    'IPSid': str(uuid.uuid1()),
-                    'IPid': ip.IPid,
-                    'IPSstock': ipsstock,
-                    'SKUid': skuid,
-                    'SKUprice': skuprice
+                    # 从商品sku中减库存
+                    super(CIntegralStore, self)._update_stock(-int(ipsstock), product, sku_instance)
+                    ipsku_instance = IntegralProductSku.create({
+                        'IPSid': str(uuid.uuid1()),
+                        'IPid': ip.IPid,
+                        'IPSstock': ipsstock,
+                        'SKUid': skuid,
+                        'SKUprice': skuprice
+                    })
+                    instance_list.append(ipsku_instance)
+                db.session.add_all(instance_list)
+                if is_admin():
+                    BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', ip.IPid)
+            super(CIntegralStore, self).create_approval('tointegral', uid, ip.IPid, applyfrom=ipfrom)
+        else:
+            ip.update({"IPstatus": ApplyStatus.lose_agree.value})
+            db.session.add(ip)
+            instance_list = list()
+            with db.auto_commit():
+                product = Products.query.filter(*filter_args).first_('只能选择自己的商品')
+                prid = data.get('prid')
+                ip_instance = IntegralProduct.create({
+                    'IPid': str(uuid.uuid1()),
+                    'SUid': uid,
+                    'IPfrom': ipfrom,
+                    'PRid': prid,
+                    'IPstatus': ApplyStatus.wait_check.value,
+                    'IPprice': ipprice,
+                    'ParentIpid':ip.IPid
                 })
-                instance_list.append(ipsku_instance)
-            db.session.add_all(instance_list)
-            if is_admin():
-                BASEADMIN().create_action(AdminActionS.update.value, 'IntegralProduct', str(uuid.uuid1()))
-        super(CIntegralStore, self).create_approval('tointegral', uid, ip.IPid, applyfrom=ipfrom)
+                instance_list.append(ip_instance)
+                current_app.logger.info("正在增加新ip {}".format(ip_instance.IPid))
+                for sku in skus:
+                    parameter_required(('skuid', 'skuprice', 'ipsstock'), datafrom=sku)
+                    skuid, skuprice, ipsstock = sku.get('skuid'), sku.get('skuprice'), sku.get('ipsstock')
+                    skuprice = self._check_price(skuprice)
+                    ipsstock = self._check_price(ipsstock)
+                    sku_instance = ProductSku.query.filter_by(isdelete=False, PRid=product.PRid,
+                                                              SKUid=skuid).first_('商品sku信息不存在')
+                    # 从商品sku中减库存
+                    super(CIntegralStore, self)._update_stock(-int(ipsstock), product, sku_instance)
+                    ipsku_instance = IntegralProductSku.create({
+                        'IPSid': str(uuid.uuid1()),
+                        'IPid': ip_instance.IPid,
+                        'IPSstock': ipsstock,
+                        'SKUid': skuid,
+                        'SKUprice': skuprice
+                    })
+                    instance_list.append(ipsku_instance)
+                db.session.add_all(instance_list)
+                if is_admin():
+                    BASEADMIN().create_action(AdminActionS.insert.value, 'IntegralProduct', ip_instance.IPid)
+            super(CIntegralStore, self).create_approval('tointegral', uid, ip_instance.IPid, applyfrom=ipfrom)
+
         return Success('更新成功', data=dict(IPid=ip.IPid))
 
     def get(self):
@@ -167,6 +234,10 @@ class CIntegralStore(COrder, BASEAPPROVAL):
         args = parameter_required()
         prtitle = args.get('prtitle')
         ipstatus = args.get('status')
+        filter_args = [IntegralProduct.isdelete == False,
+                       Products.isdelete == False,
+                       Products.PRstatus == ProductStatus.usual.value
+                      ]
         try:
             ipstatus = getattr(ApplyStatus, ipstatus).value
         except Exception as e:
@@ -174,17 +245,13 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             ipstatus = None
         integral_balance = 0
         if common_user():
-            ipstatus = ApplyStatus.agree.value
             user = User.query.filter_by_(USid=request.user.id).first()
             integral_balance = getattr(user, 'USintegral', 0)
+            filter_args.append(IntegralProduct.IPstatus.in_([ApplyStatus.agree.value,ApplyStatus.lose_agree.value]))
         elif is_tourist():
-            ipstatus = ApplyStatus.agree.value
-
-        filter_args = [IntegralProduct.isdelete == False,
-                       IntegralProduct.IPstatus == ipstatus,
-                       Products.isdelete == False,
-                       Products.PRstatus == ProductStatus.usual.value
-                       ]
+            filter_args.append(IntegralProduct.IPstatus.in_([ApplyStatus.agree.value,ApplyStatus.lose_agree.value]))
+        else:
+            filter_args.append(IntegralProduct.IPstatus == ipstatus)
         if is_supplizer():
             filter_args.append(Products.CreaterId == request.user.id),
         if prtitle:
@@ -237,7 +304,7 @@ class CIntegralStore(COrder, BASEAPPROVAL):
             if not sku:
                 current_app.logger.info('该sku已删除 skuid = {0}'.format(ips.SKUid))
                 continue
-            sku.hide('SKUstock', 'SkudevideRate', 'PRid')
+            sku.hide('SKUstock', 'SkudevideRate', 'PRid', 'SKUid')
             sku.fill('skuprice', ips.SKUprice)
             sku.fill('ipsstock', ips.IPSstock)
             sku.fill('ipsid', ips.IPSid)

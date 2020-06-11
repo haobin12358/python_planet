@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import datetime, date
 from decimal import Decimal
@@ -5,18 +6,20 @@ from decimal import Decimal
 import json
 
 from flask import current_app, request
+from sqlalchemy import false
 
-from planet.config.enums import ApprovalType, ApplyStatus, ApprovalAction, ApplyFrom, UserMediaType, \
-    TrialCommodityStatus
-from planet.common.error_response import SystemError, ParamsError
-from planet.common.request_handler import gennerc_log
-from planet.extensions.register_ext import db
-from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, Permission, CashNotes, \
-    UserWallet, UserMedia, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
+from planet.config.enums import ApplyStatus, ApprovalAction, ApplyFrom, \
+    TrialCommodityStatus, ActivationTypeEnum, TicketsOrderStatus
+from planet.common.error_response import ParamsError, StatusError
+from planet.extensions.register_ext import db, mp_miniprogram
+from planet.extensions.weixin.mp import WeixinMPError
+from planet.models import User, Supplizer, Admin, PermissionType, News, Approval, ApprovalNotes, CashNotes, \
+    UserWallet, Products, ActivationCodeApply, TrialCommoditySkuValue, TrialCommodityImage, \
     TrialCommoditySku, ProductBrand, TrialCommodity, FreshManFirstProduct, ProductSku, FreshManFirstSku, \
-    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, ProductSkuValue, Base, SettlenmentApply, \
+    FreshManFirstApply, MagicBoxApply, GuessNumAwardApply, ProductCategory, SettlenmentApply, \
     SupplizerSettlement, ProductImage, GuessNumAwardProduct, GuessNumAwardSku, TimeLimitedProduct, TimeLimitedActivity, \
-    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide
+    TimeLimitedSku, IntegralProduct, IntegralProductSku, NewsAward, AdminActions, GroupGoodsProduct, Toilet, Guide, \
+    ActivationType, Activation, Ticket, TicketsOrder, TicketsOrderActivation
 
 from planet.service.SApproval import SApproval
 from json import JSONEncoder as _JSONEncoder
@@ -66,7 +69,7 @@ class BASEAPPROVAL():
 
     def create_approval(self, avtype, startid, avcontentid, applyfrom=None, **kwargs):
 
-        gennerc_log('start create approval ptid = {0}'.format(avtype))
+        current_app.logger.info('start create approval ptid = {0}'.format(avtype))
         pt = PermissionType.query.filter_by_(PTid=avtype).first_('参数异常')
 
         start, content = self.__get_approvalcontent(pt, startid, avcontentid, applyfrom=applyfrom, **kwargs)
@@ -558,7 +561,7 @@ class BASEAPPROVAL():
 
     def __get_approvalcontent(self, pt, startid, avcontentid, **kwargs):
         start, content = self.__fill_approval(pt, startid, avcontentid, **kwargs)
-        gennerc_log('get start {0} content {1}'.format(start, content))
+        current_app.logger.info('get start {0} content {1}'.format(start, content))
         if not (start or content):
             raise ParamsError('审批流创建失败，发起人或需审批内容已被删除')
         return start, content
@@ -591,23 +594,114 @@ class BaseController:
         return self.get_two_float(current_user_comm)
 
     @staticmethod
-    def get_user_location(lat, lng, usid):
+    def get_user_location(lat, lng, usid, ul=None):
         from planet.common.get_location import GetLocation
         from planet.models.user import UserLocation
-        gl = GetLocation(lat, lng)
-        result = gl.result
+        try:
+            gl = GetLocation(lat, lng)
+            result = gl.result
+        except Exception as e:
+            current_app.logger.error('解析地址失败 {}'.format(e))
+            result = {
+                'ULlng': lng,
+                'ULlat': lat,
+                'ULformattedAddress': '请稍后再试'
+            }
         with db.auto_commit():
-            ul = UserLocation.create({
-                'ULid': str(uuid.uuid1()),
-                'ULformattedAddress': result.get('formatted_address'),
-                'ULcountry': result.get('addressComponent').get('country'),
-                'ULprovince': result.get('addressComponent').get('province'),
-                'ULcity': result.get('addressComponent').get('city'),
-                'ULdistrict': result.get('addressComponent').get('district'),
-                'ULresult': json.dumps(result),
-                'ULlng': result.get('location').get('lng'),
-                'ULlat': result.get('location').get('lat'),
-                'USid': usid,
-            })
+            if ul:
+                ul.update(result)
+                db.session.add(ul)
+                return ul.ULformattedAddress
+            result.setdefault('USid', usid)
+            result.setdefault('ULid', str(uuid.uuid1()))
+            ul = UserLocation.create(result)
             db.session.add(ul)
         return ul.ULformattedAddress
+
+    def img_check(self, filepath, msg='图片'):
+        """
+        图片校验
+        :param msg: msg
+        :param filepath: 完整的绝对路径
+        :return:
+        """
+        try:
+            filesize = os.path.getsize(filepath)
+        except FileNotFoundError:
+            current_app.logger.error('FileNotFoundError: {}'.format(filepath))
+            raise StatusError('服务器繁忙， 请稍后再试')
+        current_app.logger.info('size {} MB'.format(round(filesize / 1048576, 2)))
+        if filesize > 1024 * 1024:
+            current_app.logger.info('content size out of limit, path :{}'.format(filepath))
+            # 图片太大
+            from PIL import Image
+            img = Image.open(filepath)
+            x, y = img.size
+            x_ = 750
+            y_ = int(y * (x / x_))
+            if y_ > 1000:
+                y_ = 1000
+            time_now = datetime.now()
+            year = str(time_now.year)
+            month = str(time_now.month)
+            day = str(time_now.day)
+            tmp_path = os.path.join(
+                current_app.config['BASEDIR'], 'img', 'temp', year, month, day)
+            if not os.path.isdir(tmp_path):
+                os.makedirs(tmp_path)
+            tmp_path = os.path.join(tmp_path, os.path.basename(filepath))
+            img.resize((x_, y_), Image.LANCZOS).save(tmp_path)
+            filepath = tmp_path
+            current_app.logger.info('compressed size {} MB, path :{}'.format(
+                round(os.path.getsize(filepath) / 1048576, 2), filepath))
+        try:
+            check_result = mp_miniprogram.img_sec_check(filepath)
+            current_app.logger.info(check_result)
+        except WeixinMPError as e:
+            current_app.logger.info('error is {}'.format(e))
+            current_app.logger.error('傻逼在发黄色图片  usid = {}'.format(getattr(request, 'user').id))
+            raise ParamsError('{}可能存在违法违规等不良信息，请检查后重试'.format(msg))
+
+
+class BASETICKET():
+
+    def add_activation(self, attid, usid, contentid, atnum=0, no_loop=False):
+        att = ActivationType.query.filter_by(ATTid=attid).first()
+        if not att:
+            return
+        if str(attid) != ActivationTypeEnum.reward.value:
+            atnum = att.ATTnum
+
+        atnum = int(atnum)
+        at = Activation.create({
+            'ATid': str(uuid.uuid1()),
+            'USid': usid,
+            'ATTid': attid,
+            'ATnum': atnum
+        })
+
+        now = datetime.now()
+
+        tso_list = TicketsOrder.query.join(Ticket, Ticket.TIid == TicketsOrder.TIid).filter(
+            TicketsOrder.TSOstatus == TicketsOrderStatus.pending.value,
+            Ticket.TIstartTime <= now,
+            Ticket.TIendTime >= now,
+            Ticket.isdelete == false(),
+            TicketsOrder.USid == usid,
+            TicketsOrder.isdelete == false()).all()
+        if not tso_list:
+            current_app.logger.info('活动已结束预热，活跃分不获取')
+            return
+
+        db.session.add(at)
+
+        for tso in tso_list:
+            current_app.logger.info('tso status {}'.format(tso.TSOstatus))
+            if not no_loop:
+                tso.TSOactivation += atnum
+            db.session.add(TicketsOrderActivation.create({
+                'TOAid': str(uuid.uuid1()),
+                'TSOid': tso.TSOid,
+                'ATid': at.ATid,
+                'TOAcontent': contentid
+            }))
