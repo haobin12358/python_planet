@@ -13,6 +13,7 @@ class ATicket(Resource):
             'get_promotion': self.cticket.get_promotion,
             'list_linkage': self.cticket.list_linkage,
             'list_trade': self.cticket.list_trade,
+            'tsostatus': self.cticket.list_tsostatus,
         }
         return apis
 
@@ -22,5 +23,6 @@ class ATicket(Resource):
             'update': self.cticket.update_ticket,
             'pay': self.cticket.pay,
             'award': self.cticket.set_award,
+            'verify': self.cticket.ticketorder_verified,
         }
         return apis

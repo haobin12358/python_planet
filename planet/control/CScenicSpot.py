@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import uuid
 import re
 from datetime import datetime
@@ -10,14 +11,14 @@ from planet.common.params_validates import parameter_required, validate_price
 from planet.common.success_response import Success
 from planet.common.token_handler import admin_required, is_admin, phone_required, common_user
 from planet.config.enums import AdminActionS, TravelRecordType, TravelRecordStatus, MiniUserGrade, CollectionType, \
-    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus
+    EnterLogStatus, ApplyFrom, ApprovalAction, ApplyStatus, ActivationTypeEnum
 from planet.config.http_config import API_HOST
 from planet.extensions.register_ext import db, mp_miniprogram
 from planet.extensions.weixin.mp import WeixinMPError
-from planet.models import EnterLog, Play, Approval
+from planet.models import EnterLog, Play, Approval, TicketsOrderActivation, Activation, TicketsOrder, Ticket
 from planet.models.user import AddressArea, AddressCity, AddressProvince, Admin, User, UserCollectionLog
 from planet.models.scenicspot import ScenicSpot, TravelRecord, Toilet, CustomizeShareContent
-from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL
+from planet.control.BaseControl import BASEADMIN, BaseController, BASEAPPROVAL, BASETICKET
 from planet.control.CPlay import CPlay
 from planet.control.CUser import CUser
 from pyquery import PyQuery
@@ -28,6 +29,7 @@ class CScenicSpot(BASEAPPROVAL):
     def __init__(self):
         self.BaseAdmin = BASEADMIN()
         self.BaseController = BaseController()
+        self.BaseTicket = BASETICKET()
         self.cplay = CPlay()
         self.cuser = CUser()
         # self.scale_dict = {3: 1000000, 4: 500000, 5: 200000, 6: 100000, 7: 50000,
@@ -166,6 +168,7 @@ class CScenicSpot(BASEAPPROVAL):
 
     def list(self):
         """景区列表"""
+        return Success(data=[])  # todo 防爬暂屏蔽
         args = parameter_required(('page_num', 'page_size'))
         option = args.get('option')
         if option:
@@ -226,6 +229,7 @@ class CScenicSpot(BASEAPPROVAL):
 
     def get(self):
         """景区详情"""
+        return Success(data='')  # todo 防爬暂屏蔽
         args = parameter_required(('sspid',))
         sspid = args.get('sspid')
         scenicspot = ScenicSpot.query.filter_by_(SSPid=sspid).first_('未找到该景区信息')
@@ -315,17 +319,21 @@ class CScenicSpot(BASEAPPROVAL):
                                  'PLid': plid if plid else None
                                  }
             travelrecord_dict.update(tr_dict)
+            check_flag = False
             try:
                 check_content = travelrecord_dict.get('TRcontent')
                 if trtype == str(TravelRecordType.essay.value):
                     check_content = json.loads(check_content).get('text')
-                mp_miniprogram.msg_sec_check(check_content)
-            except WeixinMPError:
+                    self.BaseTicket.add_activation(
+                        ActivationTypeEnum.publish.value, user.USid, travelrecord_dict.get('TRid'))
+                check_res = mp_miniprogram.msg_sec_check(check_content)
+                current_app.logger.info('content_sec_check: {}'.format(check_res))
+            except WeixinMPError as e:
+                current_app.logger.info('check result: {}'.format(e))
+                check_flag = True
                 travelrecord_dict['isdelete'] = True
             db.session.add(TravelRecord.create(travelrecord_dict))
-        try:
-            current_app.logger.info('content_sec_check: {}'.format(mp_miniprogram.msg_sec_check(check_content)))
-        except WeixinMPError:
+        if check_flag:
             raise ParamsError('您输入的内容含有部分敏感词汇,请检查后重新发布')
         return Success('发布成功', {'trid': travelrecord_dict['TRid']})
 
@@ -354,15 +362,25 @@ class CScenicSpot(BASEAPPROVAL):
     def _create_essay(self, data):
         """随笔"""
         text, image, video = data.get('text'), data.get('image'), data.get('video')
-        # if image:
-        #     current_app.logger.error("图片校验测试")
-        #     current_app.logger.error(mp_miniprogram.img_sec_check(image))
+        if image:
+            current_app.logger.info("图片校验测试")
+            for img in image:
+                img_ = str(img).split('.bigxingxing.com')[-1][1:]
+                filepath = os.path.join(current_app.config['BASEDIR'], str(img_).split('_')[0])
+                self.BaseController.img_check(filepath)
+
         if image and not isinstance(image, list):
             raise ParamsError('image 格式错误')
         if image and video:
             raise ParamsError('不能同时选择图片和视频')
         if image and len(image) > 9:
             raise ParamsError('最多可上传9张图片')
+        if video:
+            thumbnail = video.get('thumbnail')
+            current_app.logger.info("视频内容安全校验")
+            thumbnail_ = str(thumbnail).split('.bigxingxing.com')[-1][1:]
+            thumbnail_path = os.path.join(current_app.config['BASEDIR'], str(thumbnail_))
+            self.BaseController.img_check(thumbnail_path, msg='视频')
         video = {'url': self._check_upload_url(video.get('url')),
                  'thumbnail': video.get('thumbnail'),
                  'duration': video.get('duration')
@@ -386,6 +404,7 @@ class CScenicSpot(BASEAPPROVAL):
         """时光记录（个人中心）列表"""
         args = request.args.to_dict()
         usid, date, area, trtype = args.get('usid'), args.get('date'), args.get('area'), args.get('trtype')
+        tiid = args.get('tiid')
         option = args.get('option')
         if usid:
             ucl_list = [usid]
@@ -430,6 +449,18 @@ class CScenicSpot(BASEAPPROVAL):
                 or_(*map(lambda x: TravelRecord.TRlocation.ilike('%{}%'.format(x)), ssname)))
         if common_user() and option == 'my':
             trecords_query = trecords_query.filter(TravelRecord.AuthorID == getattr(request, 'user').id)
+        if tiid:
+            ticket = Ticket.query.filter(Ticket.isdelete == false(), Ticket.TIid == tiid).first_('未找到相应信息')
+            # tso_usid = [i[0] for i in db.session.query(TicketsOrder.USid
+            #                                            ).filter(TicketsOrder.isdelete == false(),
+            #                                                     TicketsOrder.TIid == tiid).all() if i is not None]
+            trecords_query = trecords_query.outerjoin(TicketsOrder, TicketsOrder.USid == TravelRecord.AuthorID
+                                                      ).filter(TicketsOrder.isdelete == false(),
+                                                               or_(and_(TravelRecord.createtime >= ticket.TIstartTime,
+                                                                        TravelRecord.createtime <= ticket.TIendTime)),
+                                                               and_(TravelRecord.createtime >= ticket.TItripStartTime,
+                                                                    TravelRecord.createtime <= ticket.TItripEndTime), )
+
         trecords = trecords_query.order_by(TravelRecord.createtime.desc()).all_with_page()
         [self._fill_travelrecord(x) for x in trecords]
         return Success(data={'top': top, 'travelrecord': trecords})
@@ -487,6 +518,13 @@ class CScenicSpot(BASEAPPROVAL):
             else:
                 showtype = 'text'
             trecord.fill('showtype', showtype)
+            select_at = TicketsOrderActivation.query.join(
+                Activation, Activation.ATid == TicketsOrderActivation.ATid).filter(
+                Activation.isdelete == false(),
+                Activation.ATTid == ActivationTypeEnum.selected.value,
+                TicketsOrderActivation.TOAcontent == trecord.TRid,
+                TicketsOrderActivation.isdelete == false()).first()
+            trecord.fill('selected', bool(select_at))
         elif trecord.TRtype == TravelRecordType.travels.value:  # 游记
             trecord.fields = ['TRid', 'TRlocation', 'TRtitle', 'TRtype', 'TRcontent', 'TRstatus']
             img_path = PyQuery(trecord.TRcontent)('img').attr('src')

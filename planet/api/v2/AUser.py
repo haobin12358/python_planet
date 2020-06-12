@@ -39,6 +39,7 @@ class AUser(Resource):
             'mp_login': self.user.mini_program_login,  # 小程序登录
             'blog_login': self.user.blog_login,  # 网页blog登录
             'update_usinfo': self.user.update_usinfo,  # 小程序编辑个人信息
+            'add_mock_user': self.user.add_mock_user,  # 添加虚拟用户
 
             # 'update': self.user.update,
             # 'destroy': self.user.destroy,

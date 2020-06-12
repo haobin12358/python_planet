@@ -42,24 +42,30 @@ class Ticket(Base):
     TIendTime = Column(DateTime, comment='结束时间')
     TItripStartTime = Column(DateTime, comment='票务有效期开始时间')
     TItripEndTime = Column(DateTime, comment='票务有效期结束时间')
-    TIrules = Column(Text, comment='规则')
+    TIrules = Column(Text, comment='规则')  # 2.0版多余
     TIcertificate = Column(Text, url=True, comment='景区资质凭证')
     TIdetails = Column(Text, comment='票详情')
     TIprice = Column(DECIMAL(precision=28, scale=2), comment='票价')
     TIdeposit = Column(DECIMAL(precision=28, scale=2), default=1, comment='抢票押金')
     TIstatus = Column(Integer, default=0, comment='抢票状态 0: 未开始, 1: 抢票中, 2: 中止 , 3: 已结束')
     TInum = Column(Integer, default=1, comment='数量')
-    TIrewardnum = Column(LONGTEXT, comment='中奖号码')
-    TIabbreviation = Column(String(200), comment='列表页封面的简称')
-    TIcategory = Column(Text, comment='列表页显示的类型')
+    TIrewardnum = Column(LONGTEXT, comment='中奖号码')  # 2.0版多余
+    TIabbreviation = Column(String(200), comment='列表页封面的简称')  # 2.0版多余
+    TIcategory = Column(Text, comment='列表页显示的类型')  # 2.0版多余
+    TIbanner = Column(Text, url_list=True, comment='票务轮播图片')
+    SUid = Column(String(64), comment='所属供应商')
+    TIapplyFakeNum = Column(Integer, comment='虚拟申请数[已结束状态时低于500，随机1000~2000]')
+    longitude = Column(String(255), comment='经度')
+    latitude = Column(String(255), comment='纬度')
+    TIaddress = Column(Text, comment='游玩场所位置')
 
     @orm.reconstructor
     def __init__(self):
         super(Ticket, self).__init__()
-        self.hide('TIcategory', 'TIrewardnum')
+        self.hide('TIabbreviation', 'TIcategory', 'TIrewardnum', 'TIapplyFakeNum')
 
 
-class TicketDeposit(Base):
+class TicketDeposit(Base):  # 2.0版本去除
     """票押金记录"""
     __tablename__ = 'TicketDeposit'
     TDid = Column(String(64), primary_key=True)
@@ -77,6 +83,7 @@ class TicketRefundRecord(Base):
     TRRredund = Column(DECIMAL(precision=28, scale=2), comment='退款')
     TRRtotal = Column(DECIMAL(precision=28, scale=2), comment='原支付金额')
     OPayno = Column(String(64), comment='支付流水号')
+    TSOid = Column(String(64), comment='购票记录')
 
 
 class TicketsOrder(Base):
@@ -85,11 +92,11 @@ class TicketsOrder(Base):
     TSOid = Column(String(64), primary_key=True)
     USid = Column(String(64), comment='用户')
     TIid = Column(String(64), comment='票id')
-    TSOcode = Column(Integer, comment='抢票码')
+    TSOcode = Column(Integer, comment='抢票码')  # 2.0版多余
     TSOqrcode = Column(Text, url=True, comment='票二维码')
     TSOstatus = Column(Integer, default=0, comment='状态：-1：未中奖 0: 待开奖 1：(已中奖)待补押金 2：已出票')
-    TSOtype = Column(Integer, comment='购票类型：{1：直购；2：信用购；3：押金购}')
-    TSOactivation = Column(Integer, default=0, comment='活跃度')
+    TSOtype = Column(Integer, comment='购票类型：{1：押金购；2：直购；3：信用购}')
+    TSOactivation = Column(Integer, default=0, index=True, comment='活跃度')
 
 
 class Linkage(Base):
@@ -113,6 +120,7 @@ class TicketLinkage(Base):
     LIid = Column(String(64))
     TIid = Column(String(64))
 
+
 class Activation(Base):
     """
     活跃度
@@ -120,7 +128,72 @@ class Activation(Base):
     __tablename__ = 'Activation'
     ATid = Column(String(64), primary_key=True)
     USid = Column(String(64))
-    ATtype = Column(Integer, comment='活跃度类型：'
-                                     '{1：分享新用户；2：分享老用户；3：发布内容；4：加精；'
-                                     '5：打赏；6：提交联动平台账号}')
+    ATTid = Column(String(64), comment='活跃度类型：分享新用户,分享老用户,发布内容,加精,打赏,提交联动平台账号')
     ATnum = Column(Integer, default=0, comment='活跃度')
+
+
+class ActivationType(Base):
+    """
+    活跃度类型
+    """
+    __tablename__ = 'ActivationType'
+    ATTid = Column(String(64), primary_key=True, comment='该id需要脚本生成固定id')
+    ATTname = Column(String(256), comment='获取积分方式简述')
+    ATTnum = Column(Integer, default=0, comment='该获取方式获取的活跃度')
+    ATTupperLimit = Column(Integer, default=0, comment='该获取方式获取的活跃度上限')
+    ATTdayUpperLimit = Column(Integer, default=0, comment='该获取方式每日获取的活跃度上限')
+    ATTtype = Column(Integer, default=0, comment='是否信息绑定')
+    ATTicon = Column(Text, comment='信息绑定的icon')
+    ADid = Column(String(64), comment='创建管理员id')
+
+    @orm.reconstructor
+    def __init__(self):
+        super(ActivationType, self).__init__()
+        self.hide('ADid')
+
+
+class UserLinkage(Base):
+    """
+    用户绑定扩展信息
+    """
+    __tablename__ = 'UserLinkage'
+    ULAid = Column(String(64), primary_key=True)
+    ATTid = Column(String(64), comment='绑定类型')
+    USid = Column(String(64), comment='用户id')
+    ULAaccount = Column(String(256), comment='关联账号')
+
+    @orm.reconstructor
+    def __init__(self):
+        super(UserLinkage, self).__init__()
+        self.hide('USid')
+
+
+class TicketsOrderActivation(Base):
+    """
+    门票订单活跃度关联表
+    """
+    __tablename__ = 'TicketsOrderActivation'
+    TOAid = Column(String(64), primary_key=True)
+    TSOid = Column(String(64), comment='门票订单')
+    ATid = Column(String(64), comment='活跃度')
+    TOAcontent = Column(String(64), comment='如果是随笔，随笔实体id 分享： 分享人id 加精/打赏： 管理员id')
+
+
+class TicketVerifier(Base):
+    """
+    门票核销员
+    """
+    __tablename__ = 'TicketVerifier'
+    TVid = Column(String(64), primary_key=True)
+    SUid = Column(String(64), comment='供应商')
+    TVphone = Column(String(13), nullable=False)
+
+
+class TicketVerifiedRecord(Base):
+    """门票核销记录"""
+    __tablename__ = 'TicketVerifiedRecord'
+    TVRid = Column(String(64), primary_key=True)
+    TIownerId = Column(String(64), comment='门票持有者id')
+    VerifierId = Column(String(64), comment='验证人员id')
+    TSOid = Column(String(64), comment='门票id')
+    TSOparam = Column(Text, comment='扫描到的原参数')
